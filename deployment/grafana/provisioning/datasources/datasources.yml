@@ -1,0 +1,25 @@
+# Grafana datasource configuration
+apiVersion: 1
+
+datasources:
+  # Prometheus datasource
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://go-nomads-prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: "15s"
+      queryTimeout: "60s"
+      httpMethod: POST
+
+  # Zipkin datasource for tracing
+  - name: Zipkin
+    type: zipkin
+    access: proxy
+    url: http://go-nomads-zipkin:9411
+    editable: true
+    jsonData:
+      nodeGraph:
+        enabled: true
