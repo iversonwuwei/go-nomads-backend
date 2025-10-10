@@ -1,11 +1,23 @@
+using Consul;
 using Dapr.Client;
+using Gateway.Services;
+using Yarp.ReverseProxy.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add Consul client
+builder.Services.AddSingleton<IConsulClient>(sp =>
+{
+    var consulAddress = builder.Configuration["Consul:Address"] ?? "http://go-nomads-consul:8500";
+    return new ConsulClient(config => config.Address = new Uri(consulAddress));
+});
+
 // Add services to the container.
 builder.Services.AddDaprClient();
-builder.Services.AddReverseProxy()
-    .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
+
+// Add YARP with Consul-based service discovery
+builder.Services.AddSingleton<IProxyConfigProvider, ConsulProxyConfigProvider>();
+builder.Services.AddReverseProxy();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
