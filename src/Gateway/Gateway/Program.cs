@@ -3,6 +3,7 @@ using Dapr.Client;
 using Gateway.Services;
 using Yarp.ReverseProxy.Configuration;
 using Scalar.AspNetCore;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,10 +41,16 @@ app.MapScalarApiReference(options =>
 
 app.UseRouting();
 
+// Enable Prometheus metrics
+app.UseHttpMetrics();
+
 // Map the reverse proxy routes
 app.MapReverseProxy();
 
 // Add health check endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+
+// Map Prometheus metrics endpoint
+app.MapMetrics();
 
 app.Run();

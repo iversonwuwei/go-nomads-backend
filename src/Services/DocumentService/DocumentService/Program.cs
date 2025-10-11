@@ -1,5 +1,6 @@
 using Dapr.Client;
 using Scalar.AspNetCore;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,6 +44,9 @@ var app = builder.Build();
 // Configure the HTTP request pipeline
 app.UseCors();
 app.UseRouting();
+
+// Enable Prometheus metrics
+app.UseHttpMetrics();
 
 // Map OpenAPI endpoint
 app.MapOpenApi();
@@ -414,6 +418,9 @@ app.MapGet("/health", () => Results.Ok(new
 .WithSummary("Consul 健康检查端点")
 .WithDescription("用于 Consul 服务发现的健康检查")
 .WithOpenApi();
+
+// Map Prometheus metrics endpoint
+app.MapMetrics();
 
 app.MapControllers();
 

@@ -128,7 +128,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "up{app_id=\"gateway\"}",
+          "expr": "up{app_id=\"gateway\",job=\"app-services\"}",
           "refId": "A",
           "legendFormat": "Gateway"
         }
@@ -195,7 +195,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "up{app_id=\"product-service\"}",
+          "expr": "up{app_id=\"product-service\",job=\"app-services\"}",
           "refId": "A",
           "legendFormat": "Product Service"
         }
@@ -262,7 +262,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "up{app_id=\"user-service\"}",
+          "expr": "up{app_id=\"user-service\",job=\"app-services\"}",
           "refId": "A",
           "legendFormat": "User Service"
         }

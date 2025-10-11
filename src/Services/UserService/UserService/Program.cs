@@ -1,6 +1,7 @@
 using UserService.Services;
 using Dapr.Client;
 using Scalar.AspNetCore;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +29,9 @@ app.MapScalarApiReference(options =>
 
 app.UseRouting();
 
+// Enable Prometheus metrics
+app.UseHttpMetrics();
+
 // Map gRPC service
 app.MapGrpcService<UserGrpcService>();
 
@@ -36,5 +40,8 @@ app.MapControllers();
 
 // Add health check endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "UserService", timestamp = DateTime.UtcNow }));
+
+// Map Prometheus metrics endpoint
+app.MapMetrics();
 
 app.Run();

@@ -30,7 +30,7 @@ scrape_configs:
     metrics_path: '/metrics'
     consul_sd_configs:
       - server: 'go-nomads-consul:8500'
-        services: ['product-service', 'user-service', 'gateway']
+        services: ['product-service', 'user-service', 'gateway', 'document-service']
         tags: ['dapr']
     relabel_configs:
       # 使用 Dapr metrics 端口 9090
@@ -50,7 +50,7 @@ scrape_configs:
     metrics_path: '/metrics'
     consul_sd_configs:
       - server: 'go-nomads-consul:8500'
-        services: ['product-service', 'user-service', 'gateway']
+        services: ['product-service', 'user-service', 'gateway', 'document-service']
         tags: ['dapr']
     relabel_configs:
       # 使用应用端口 8080
@@ -58,9 +58,9 @@ scrape_configs:
         regex: '([^:]+):.*'
         replacement: '${1}:8080'
         target_label: __address__
-      # 设置服务名称标签
+      # 设置服务名称标签 (使用 app_id 匹配 Grafana 仪表板)
       - source_labels: [__meta_consul_service]
-        target_label: app
+        target_label: app_id
       # 添加服务类型标签
       - replacement: 'application'
         target_label: service_type
