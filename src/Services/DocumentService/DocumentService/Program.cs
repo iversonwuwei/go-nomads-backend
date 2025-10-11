@@ -401,6 +401,20 @@ systemGroup.MapGet("/specs", async (IHttpClientFactory httpClientFactory) =>
 .WithDescription("聚合所有微服务的 OpenAPI 文档 (用于高级集成)")
 .WithOpenApi();
 
+// Add health check endpoint for Consul
+app.MapGet("/health", () => Results.Ok(new 
+{ 
+    status = "healthy", 
+    service = "document-service", 
+    timestamp = DateTime.UtcNow,
+    version = "1.0.0"
+}))
+.WithTags("System")
+.WithName("HealthCheckRoot")
+.WithSummary("Consul 健康检查端点")
+.WithDescription("用于 Consul 服务发现的健康检查")
+.WithOpenApi();
+
 app.MapControllers();
 
 app.Run();
