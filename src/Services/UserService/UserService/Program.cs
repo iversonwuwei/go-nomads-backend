@@ -1,5 +1,6 @@
 using UserService.Services;
 using Dapr.Client;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,10 +15,16 @@ builder.Services.AddOpenApi();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+app.MapOpenApi();
+
+// Configure Scalar UI
+app.MapScalarApiReference(options =>
 {
-    app.MapOpenApi();
-}
+    options
+        .WithTitle("User Service API")
+        .WithTheme(ScalarTheme.BluePlanet)
+        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+});
 
 app.UseRouting();
 

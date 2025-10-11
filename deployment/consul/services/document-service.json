@@ -1,0 +1,17 @@
+{
+  "ID": "document-service",
+  "Name": "document-service",
+  "Tags": ["dapr", "api", "documentation"],
+  "Address": "go-nomads-document-service",
+  "Port": 8080,
+  "Meta": {
+    "version": "1.0.0",
+    "environment": "development",
+    "description": "API Documentation Hub"
+  },
+  "Check": {
+    "HTTP": "http://go-nomads-document-service:8080/health",
+    "Interval": "10s",
+    "Timeout": "5s"
+  }
+}

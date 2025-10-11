@@ -2,6 +2,7 @@ using Consul;
 using Dapr.Client;
 using Gateway.Services;
 using Yarp.ReverseProxy.Configuration;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,10 +27,16 @@ builder.Services.AddControllers().AddDapr();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+app.MapOpenApi();
+
+// Configure Scalar UI
+app.MapScalarApiReference(options =>
 {
-    app.MapOpenApi();
-}
+    options
+        .WithTitle("Go-Nomads Gateway API")
+        .WithTheme(ScalarTheme.Saturn)
+        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+});
 
 app.UseRouting();
 
