@@ -1,93 +1,249 @@
-# .NET Core
+# ============================================================
+# .NET Core / ASP.NET Core
+# ============================================================
 bin/
 obj/
 *.user
 *.cache
 *.tmp
+project.lock.json
+artifacts/
+**/Properties/launchSettings.json
 
-# Visual Studio
+# ============================================================
+# Visual Studio / Rider
+# ============================================================
 .vs/
 *.suo
 *.user
 *.userosscache
 *.sln.docstates
+.idea/
+*.DotSettings.user
 
-# Build results
+# ============================================================
+# Build Results
+# ============================================================
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
 x64/
 x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
 build/
 bld/
 [Bb]in/
 [Oo]bj/
+[Ll]og/
+[Ll]ogs/
 
-# MSTest test Results
+# ============================================================
+# Test Results
+# ============================================================
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
-
-# NUnit
+*.trx
 *.VisualState.xml
 TestResult.xml
-
-# .NET Core
-project.lock.json
-artifacts/
-**/Properties/launchSettings.json
-
-# Package files
-*.nupkg
-*.snupkg
-# The packages folder can be ignored because of Package Restore
-**/packages/*
-# except build/, which is used as an MSBuild target.
-!**/packages/build/
-
-# Dapr
-.dapr/
-
-# Docker
-Dockerfile.generated
-docker-compose.override.yml
-
-# IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-logs
-*.log
-npm-debug.log*
-
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Secrets
-secrets.json
-appsettings.Production.json
-
-# Temporary files
-*.tmp
-*.temp
-*~
-
-# Generated code
-*_pb.js
-*_grpc_pb.js
-
-# Testing
 coverage/
 *.cover
 *.py,cover
 .coverage
 .coverage.*
+*.lcov
+
+# ============================================================
+# NuGet Packages
+# ============================================================
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+*.nuget.props
+*.nuget.targets
+
+# ============================================================
+# Dapr
+# ============================================================
+.dapr/
+components-local/
+*.dapr.yaml
+
+# ============================================================
+# Docker / Podman
+# ============================================================
+Dockerfile.generated
+docker-compose.override.yml
+.dockerignore.generated
+
+# ============================================================
+# Build Output & Publish Directory
+# ============================================================
+publish/
+dist/
+out/
+
+# ============================================================
+# IDE Settings
+# ============================================================
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ============================================================
+# Operating System Files
+# ============================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ============================================================
+# Logs
+# ============================================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# ============================================================
+# Environment Variables & Secrets
+# ============================================================
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+secrets.json
+appsettings.Production.json
+*.pfx
+*.p12
+*.key
+*.pem
+
+# ============================================================
+# Generated Code (Protobuf, gRPC)
+# ============================================================
+*_pb.cs
+*_grpc.cs
+*_pb.js
+*_grpc_pb.js
+**/*_pb2.py
+**/*_pb2_grpc.py
+
+# ============================================================
+# Temporary Files
+# ============================================================
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+~$*
+
+# ============================================================
+# Consul & Service Discovery
+# ============================================================
+deployment/consul/data/
+*.lock
+
+# ============================================================
+# Monitoring & Observability
+# ============================================================
+deployment/prometheus/data/
+deployment/grafana/data/
+*.prometheus.yml.bak
+
+# ============================================================
+# Node.js (for frontend tools if any)
+# ============================================================
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# ============================================================
+# Python (for tools/scripts)
+# ============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# ============================================================
+# macOS Specific
+# ============================================================
+.AppleDouble
+.LSOverride
+Icon
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# ============================================================
+# Windows Specific
+# ============================================================
+[Tt]humbs.db
+[Tt]humbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ============================================================
+# Linux Specific
+# ============================================================
+.directory
+.Trash-*
+.nfs*
+
+# ============================================================
+# JetBrains Rider
+# ============================================================
+.idea/
+*.sln.iml
+*.DotSettings.user
+
+# ============================================================
+# Backup Files
+# ============================================================
+*.backup
+*.old
+*.orig
+
+# ============================================================
+# Redis Data
+# ============================================================
+dump.rdb
+appendonly.aof
+
+# ============================================================
+# Keep Important Files (Exceptions)
+# ============================================================
+!.gitkeep
+!.gitignore
+!.editorconfig
