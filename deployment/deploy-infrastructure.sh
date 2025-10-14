@@ -112,33 +112,36 @@ deploy_redis() {
 import_redis_config() {
     echo -e "${YELLOW}  Importing configuration to Redis...${NC}"
     
-    declare -A configs=(
-        ["go-nomads:config:app-version"]="1.0.0"
-        ["go-nomads:config:environment"]="development"
-        ["go-nomads:config:gateway:endpoint"]="http://go-nomads-gateway:8080"
-        ["go-nomads:config:product-service:endpoint"]="http://go-nomads-product-service:8080"
-        ["go-nomads:config:user-service:endpoint"]="http://go-nomads-user-service:8080"
-        ["go-nomads:config:redis:endpoint"]="go-nomads-redis:6379"
-        ["go-nomads:config:consul:endpoint"]="http://go-nomads-consul:8500"
-        ["go-nomads:config:zipkin:endpoint"]="http://go-nomads-zipkin:9411"
-        ["go-nomads:config:prometheus:endpoint"]="http://go-nomads-prometheus:9090"
-        ["go-nomads:config:grafana:endpoint"]="http://go-nomads-grafana:3000"
-        ["go-nomads:config:logging:level"]="info"
-        ["go-nomads:config:logging:format"]="json"
-        ["go-nomads:config:tracing:enabled"]="true"
-        ["go-nomads:config:tracing:sample-rate"]="1.0"
-        ["go-nomads:config:metrics:enabled"]="true"
-        ["go-nomads:config:features:user-registration"]="true"
-        ["go-nomads:config:features:product-reviews"]="true"
-        ["go-nomads:config:features:recommendations"]="false"
-        ["go-nomads:config:business:max-cart-items"]="50"
-        ["go-nomads:config:business:session-timeout"]="3600"
-        ["go-nomads:config:business:price-precision"]="2"
+    # Define configuration items as key-value pairs
+    local configs=(
+        "go-nomads:config:app-version" "1.0.0"
+        "go-nomads:config:environment" "development"
+        "go-nomads:config:gateway:endpoint" "http://go-nomads-gateway:8080"
+        "go-nomads:config:product-service:endpoint" "http://go-nomads-product-service:8080"
+        "go-nomads:config:user-service:endpoint" "http://go-nomads-user-service:8080"
+        "go-nomads:config:redis:endpoint" "go-nomads-redis:6379"
+        "go-nomads:config:consul:endpoint" "http://go-nomads-consul:8500"
+        "go-nomads:config:zipkin:endpoint" "http://go-nomads-zipkin:9411"
+        "go-nomads:config:prometheus:endpoint" "http://go-nomads-prometheus:9090"
+        "go-nomads:config:grafana:endpoint" "http://go-nomads-grafana:3000"
+        "go-nomads:config:logging:level" "info"
+        "go-nomads:config:logging:format" "json"
+        "go-nomads:config:tracing:enabled" "true"
+        "go-nomads:config:tracing:sample-rate" "1.0"
+        "go-nomads:config:metrics:enabled" "true"
+        "go-nomads:config:features:user-registration" "true"
+        "go-nomads:config:features:product-reviews" "true"
+        "go-nomads:config:features:recommendations" "false"
+        "go-nomads:config:business:max-cart-items" "50"
+        "go-nomads:config:business:session-timeout" "3600"
+        "go-nomads:config:business:price-precision" "2"
     )
     
     local count=0
-    for key in "${!configs[@]}"; do
-        $CONTAINER_RUNTIME exec go-nomads-redis redis-cli SET "$key" "${configs[$key]}" > /dev/null
+    for ((i=0; i<${#configs[@]}; i+=2)); do
+        local key="${configs[i]}"
+        local value="${configs[i+1]}"
+        $CONTAINER_RUNTIME exec go-nomads-redis redis-cli SET "$key" "$value" > /dev/null
         ((count++))
     done
     
@@ -188,7 +191,7 @@ EOF
         -p 8502:8502 \
         -p 8600:8600/udp \
         -e CONSUL_BIND_INTERFACE=eth0 \
-        consul:latest agent -server -ui -bootstrap-expect=1 -client=0.0.0.0 > /dev/null
+        hashicorp/consul:latest agent -server -ui -bootstrap-expect=1 -client=0.0.0.0 > /dev/null
     
     if container_running "go-nomads-consul"; then
         echo -e "${GREEN}  Consul deployed successfully!${NC}"

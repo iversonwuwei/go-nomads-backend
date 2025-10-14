@@ -1,25 +1,21 @@
 {
-  "datacenter": "go-nomads-dc1",
+  "datacenter": "dc1",
   "data_dir": "/consul/data",
   "log_level": "INFO",
-  "node_name": "consul-server",
   "server": true,
-  "bootstrap_expect": 1,
   "ui_config": {
     "enabled": true
   },
-  "client_addr": "0.0.0.0",
-  "bind_addr": "0.0.0.0",
-  "advertise_addr": "{{GetInterfaceIP \"eth0\"}}",
   "ports": {
     "http": 8500,
     "dns": 8600,
     "grpc": 8502
   },
-  "enable_script_checks": false,
-  "disable_update_check": true,
-  "telemetry": {
-    "prometheus_retention_time": "60s",
-    "disable_hostname": false
-  }
+  "addresses": {
+    "http": "0.0.0.0",
+    "dns": "0.0.0.0",
+    "grpc": "0.0.0.0"
+  },
+  "client_addr": "0.0.0.0",
+  "bootstrap_expect": 1
 }
