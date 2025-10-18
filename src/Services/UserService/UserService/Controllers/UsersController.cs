@@ -8,36 +8,32 @@ namespace UserService.Controllers;
 [Route("api/[controller]")]
 public class UsersController : ControllerBase
 {
-    private static readonly List<User> Users = new();
     private readonly ILogger<UsersController> _logger;
     private readonly DaprClient _daprClient;
+    private readonly Services.IUserService _userService;
 
-    public UsersController(ILogger<UsersController> logger, DaprClient daprClient)
+    public UsersController(
+        ILogger<UsersController> logger,
+        DaprClient daprClient,
+        Services.IUserService userService)
     {
         _logger = logger;
         _daprClient = daprClient;
-        
-        // Initialize with sample data
-        if (!Users.Any())
-        {
-            Users.AddRange(new[]
-            {
-                new User { Id = "1", Name = "John Doe", Email = "john@example.com", Phone = "123-456-7890" },
-                new User { Id = "2", Name = "Jane Smith", Email = "jane@example.com", Phone = "098-765-4321" }
-            });
-        }
+        _userService = userService;
     }
 
     [HttpGet]
-    public ActionResult<ApiResponse<PaginatedResponse<User>>> GetUsers([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<User>>>> GetUsers(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Getting users - Page: {Page}, PageSize: {PageSize}", page, pageSize);
         
         page = Math.Max(1, page);
         pageSize = Math.Max(1, Math.Min(100, pageSize));
-        
-        var skip = (page - 1) * pageSize;
-        var pagedUsers = Users.Skip(skip).Take(pageSize).ToList();
+
+        var (users, totalCount) = await _userService.GetUsersAsync(page, pageSize, cancellationToken);
 
         var response = new ApiResponse<PaginatedResponse<User>>
         {
@@ -45,8 +41,8 @@ public class UsersController : ControllerBase
             Message = "Users retrieved successfully",
             Data = new PaginatedResponse<User>
             {
-                Items = pagedUsers,
-                TotalCount = Users.Count,
+                Items = users.ToList(),
+                TotalCount = totalCount,
                 Page = page,
                 PageSize = pageSize
             }
@@ -56,12 +52,14 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public ActionResult<ApiResponse<User>> GetUser(string id)
+    public async Task<ActionResult<ApiResponse<User>>> GetUser(
+        string id,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Getting user with ID: {UserId}", id);
-        
-        var user = Users.FirstOrDefault(u => u.Id == id);
-        
+
+        var user = await _userService.GetUserByIdAsync(id, cancellationToken);
+
         if (user == null)
         {
             return NotFound(new ApiResponse<User>
@@ -80,7 +78,9 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost]
-    public ActionResult<ApiResponse<User>> CreateUser([FromBody] CreateUserDto dto)
+    public async Task<ActionResult<ApiResponse<User>>> CreateUser(
+        [FromBody] CreateUserDto dto,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Creating user: {UserName}", dto.Name);
         
@@ -95,26 +95,32 @@ public class UsersController : ControllerBase
             });
         }
 
-        var user = new User
+        try
         {
-            Id = Guid.NewGuid().ToString(),
-            Name = dto.Name,
-            Email = dto.Email,
-            Phone = dto.Phone
-        };
+            var user = await _userService.CreateUserAsync(dto.Name, dto.Email, dto.Phone, cancellationToken);
 
-        Users.Add(user);
-
-        return CreatedAtAction(nameof(GetUser), new { id = user.Id }, new ApiResponse<User>
+            return CreatedAtAction(nameof(GetUser), new { id = user.Id }, new ApiResponse<User>
+            {
+                Success = true,
+                Message = "User created successfully",
+                Data = user
+            });
+        }
+        catch (InvalidOperationException ex)
         {
-            Success = true,
-            Message = "User created successfully",
-            Data = user
-        });
+            return BadRequest(new ApiResponse<User>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
     }
 
     [HttpPut("{id}")]
-    public ActionResult<ApiResponse<User>> UpdateUser(string id, [FromBody] UpdateUserDto dto)
+    public async Task<ActionResult<ApiResponse<User>>> UpdateUser(
+        string id,
+        [FromBody] UpdateUserDto dto,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Updating user with ID: {UserId}", id);
         
@@ -129,38 +135,45 @@ public class UsersController : ControllerBase
             });
         }
 
-        var user = Users.FirstOrDefault(u => u.Id == id);
-        
-        if (user == null)
+        try
+        {
+            var user = await _userService.UpdateUserAsync(id, dto.Name, dto.Email, dto.Phone, cancellationToken);
+
+            return Ok(new ApiResponse<User>
+            {
+                Success = true,
+                Message = "User updated successfully",
+                Data = user
+            });
+        }
+        catch (KeyNotFoundException ex)
         {
             return NotFound(new ApiResponse<User>
             {
                 Success = false,
-                Message = "User not found"
+                Message = ex.Message
             });
         }
-
-        user.Name = dto.Name;
-        user.Email = dto.Email;
-        user.Phone = dto.Phone;
-        user.UpdatedAt = DateTime.UtcNow;
-
-        return Ok(new ApiResponse<User>
+        catch (InvalidOperationException ex)
         {
-            Success = true,
-            Message = "User updated successfully",
-            Data = user
-        });
+            return BadRequest(new ApiResponse<User>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
     }
 
     [HttpDelete("{id}")]
-    public ActionResult<ApiResponse<object>> DeleteUser(string id)
+    public async Task<ActionResult<ApiResponse<object>>> DeleteUser(
+        string id,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Deleting user with ID: {UserId}", id);
-        
-        var user = Users.FirstOrDefault(u => u.Id == id);
-        
-        if (user == null)
+
+        var result = await _userService.DeleteUserAsync(id, cancellationToken);
+
+        if (!result)
         {
             return NotFound(new ApiResponse<object>
             {
@@ -168,8 +181,6 @@ public class UsersController : ControllerBase
                 Message = "User not found"
             });
         }
-
-        Users.Remove(user);
 
         return Ok(new ApiResponse<object>
         {

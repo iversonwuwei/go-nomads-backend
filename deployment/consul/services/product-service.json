@@ -1,0 +1,22 @@
+{
+  "service": {
+    "name": "product-service",
+    "id": "product-service-1",
+    "tags": ["api", "product", "dotnet"],
+    "address": "product-service",
+    "port": 8080,
+    "meta": {
+      "version": "1.0.0",
+      "protocol": "http"
+    },
+    "checks": [
+      {
+        "id": "product-service-health",
+        "name": "Product Service Health Check",
+        "http": "http://product-service:8080/health",
+        "interval": "10s",
+        "timeout": "5s"
+      }
+    ]
+  }
+}

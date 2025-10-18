@@ -1,9 +1,28 @@
 using UserService.Services;
+using UserService.Data;
+using UserService.Repositories;
+using UserService.Configuration;
 using Dapr.Client;
 using Scalar.AspNetCore;
 using Prometheus;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Supabase settings
+builder.Services.Configure<SupabaseSettings>(
+    builder.Configuration.GetSection("Supabase"));
+
+// Add Database Context
+var connectionString = builder.Configuration.GetConnectionString("SupabaseDb");
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseNpgsql(connectionString));
+
+// Add Repositories
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+
+// Add Services
+builder.Services.AddScoped<IUserService, UserServiceImpl>();
 
 // Add services to the container.
 builder.Services.AddGrpc();
@@ -32,8 +51,8 @@ app.UseRouting();
 // Enable Prometheus metrics
 app.UseHttpMetrics();
 
-// Map gRPC service
-app.MapGrpcService<UserGrpcService>();
+// Map gRPC service (TODO: Implement UserGrpcService)
+// app.MapGrpcService<UserGrpcService>();
 
 // Map controllers
 app.MapControllers();
@@ -45,3 +64,4 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "User
 app.MapMetrics();
 
 app.Run();
+
