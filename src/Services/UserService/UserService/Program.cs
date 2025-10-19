@@ -6,6 +6,7 @@ using Dapr.Client;
 using Scalar.AspNetCore;
 using Prometheus;
 using Microsoft.EntityFrameworkCore;
+using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -62,6 +63,9 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "User
 
 // Map Prometheus metrics endpoint
 app.MapMetrics();
+
+// 自动注册到 Consul
+await app.RegisterWithConsulAsync();
 
 app.Run();
 

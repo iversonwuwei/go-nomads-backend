@@ -274,35 +274,40 @@ scrape_configs:
         labels:
           service: 'prometheus'
 
-  - job_name: 'dapr-services'
-    metrics_path: '/metrics'
+  # 完全依赖 Consul 自动服务发现 - 无需手动配置服务列表
+  - job_name: 'consul-services'
+    metrics_path: /metrics
     consul_sd_configs:
       - server: 'go-nomads-consul:8500'
-        services: ['product-service', 'user-service', 'gateway']
-        tags: ['dapr']
+        # 不指定 services，自动发现所有已注册的服务
     relabel_configs:
-      - source_labels: [__address__]
-        regex: '([^:]+):.*'
-        replacement: '${1}:9090'
-        target_label: __address__
+      # 只抓取有 metrics_path 元数据的服务
+      - source_labels: [__meta_consul_service_metadata_metrics_path]
+        action: keep
+        regex: /.+
+      
+      # 使用自定义 metrics 路径（如果有）
+      - source_labels: [__meta_consul_service_metadata_metrics_path]
+        target_label: __metrics_path__
+        regex: (.+)
+        replacement: $1
+      
+      # 服务名称标签
       - source_labels: [__meta_consul_service]
-        target_label: app_id
-      - replacement: 'dapr'
-        target_label: service_type
-
-  - job_name: 'app-services'
-    metrics_path: '/metrics'
-    consul_sd_configs:
-      - server: 'go-nomads-consul:8500'
-        services: ['product-service', 'user-service', 'gateway']
-        tags: ['dapr']
-    relabel_configs:
+        target_label: service
+      
+      # 版本标签
+      - source_labels: [__meta_consul_service_metadata_version]
+        target_label: version
+      
+      # 协议标签
+      - source_labels: [__meta_consul_service_metadata_protocol]
+        target_label: protocol
+      
+      # 实例标签
       - source_labels: [__address__]
-        regex: '([^:]+):.*'
-        replacement: '${1}:8080'
-        target_label: __address__
-      - source_labels: [__meta_consul_service]
-        target_label: app
+        target_label: instance
+EOF
       - replacement: 'application'
         target_label: service_type
 

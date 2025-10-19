@@ -4,6 +4,7 @@ using Gateway.Services;
 using Yarp.ReverseProxy.Configuration;
 using Scalar.AspNetCore;
 using Prometheus;
+using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,5 +53,8 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
 
 // Map Prometheus metrics endpoint
 app.MapMetrics();
+
+// 自动注册到 Consul
+await app.RegisterWithConsulAsync();
 
 app.Run();

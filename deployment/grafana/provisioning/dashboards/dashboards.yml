@@ -1,4 +1,3 @@
-# Dashboard provisioning configuration
 apiVersion: 1
 
 providers:
@@ -7,8 +6,7 @@ providers:
     folder: 'Go-Nomads'
     type: file
     disableDeletion: false
-    updateIntervalSeconds: 30
+    updateIntervalSeconds: 10
     allowUiUpdates: true
     options:
       path: /etc/grafana/provisioning/dashboards/definitions
-      foldersFromFilesStructure: true

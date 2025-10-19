@@ -1,8 +1,15 @@
 using Dapr.Client;
 using Scalar.AspNetCore;
 using Prometheus;
+using Microsoft.Extensions.Options;
+using DocumentService.Configuration;
+using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Bind service configuration
+builder.Services.Configure<ServiceConfiguration>(
+    builder.Configuration.GetSection("Services"));
 
 // Add services to the container
 builder.Services.AddDaprClient();
@@ -37,9 +44,20 @@ builder.Services.AddCors(options =>
 });
 
 // Add HttpClient for fetching remote OpenAPI specs
-builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("ServiceClient", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    // 允许自签名证书（开发环境）
+    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+});
 
 var app = builder.Build();
+
+// Get service configuration
+var serviceConfig = app.Services.GetRequiredService<IOptions<ServiceConfiguration>>().Value;
 
 // Configure the HTTP request pipeline
 app.UseCors();
@@ -198,107 +216,201 @@ var usersGroup = app.MapGroup("/api/users")
     .WithOpenApi();
 
 // GET /api/users - 获取用户列表
-usersGroup.MapGet("/", async (IHttpClientFactory httpClientFactory, [Microsoft.AspNetCore.Mvc.FromQuery] int page = 1, [Microsoft.AspNetCore.Mvc.FromQuery] int pageSize = 10) =>
+usersGroup.MapGet("/", async (
+    IHttpClientFactory httpClientFactory,
+    ILogger<Program> logger,
+    [Microsoft.AspNetCore.Mvc.FromQuery] int page = 1,
+    [Microsoft.AspNetCore.Mvc.FromQuery] int pageSize = 10) =>
 {
     try
     {
-        var client = httpClientFactory.CreateClient();
-        var response = await client.GetStringAsync($"http://go-nomads-user-service:8080/api/users?page={page}&pageSize={pageSize}");
+        var client = httpClientFactory.CreateClient("ServiceClient");
+        var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:8080";
+        var url = $"{userServiceUrl}/api/users?page={page}&pageSize={pageSize}";
+
+        logger.LogInformation("Calling UserService at: {Url}", url);
+
+        var response = await client.GetStringAsync(url);
         return Results.Content(response, "application/json");
+    }
+    catch (HttpRequestException ex)
+    {
+        app.Logger.LogError(ex, "HTTP request failed when calling UserService");
+        return Results.Problem($"Failed to connect to UserService: {ex.Message}. Please check if UserService is running.");
     }
     catch (Exception ex)
     {
+        app.Logger.LogError(ex, "Unexpected error when calling UserService");
         return Results.Problem($"Failed to get users: {ex.Message}");
     }
 })
 .WithName("GetUsers")
 .WithSummary("获取用户列表")
-.WithDescription("分页获取所有用户信息")
+.WithDescription("分页获取所有用户信息 - 返回 ApiResponse<PaginatedResponse<User>> 格式")
 .WithOpenApi();
 
 // GET /api/users/{id} - 获取单个用户
-usersGroup.MapGet("/{id}", async (IHttpClientFactory httpClientFactory, string id) =>
+usersGroup.MapGet("/{id}", async (
+    IHttpClientFactory httpClientFactory,
+    ILogger<Program> logger,
+    string id) =>
 {
     try
     {
-        var client = httpClientFactory.CreateClient();
-        var response = await client.GetStringAsync($"http://go-nomads-user-service:8080/api/users/{id}");
+        var client = httpClientFactory.CreateClient("ServiceClient");
+        var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:8080";
+        var url = $"{userServiceUrl}/api/users/{id}";
+
+        logger.LogInformation("Calling UserService at: {Url}", url);
+
+        var response = await client.GetStringAsync(url);
         return Results.Content(response, "application/json");
+    }
+    catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+    {
+        return Results.NotFound(new { success = false, message = "User not found" });
+    }
+    catch (HttpRequestException ex)
+    {
+        app.Logger.LogError(ex, "HTTP request failed when calling UserService");
+        return Results.Problem($"Failed to connect to UserService: {ex.Message}. Please check if UserService is running.");
     }
     catch (Exception ex)
     {
+        app.Logger.LogError(ex, "Unexpected error when getting user");
         return Results.Problem($"Failed to get user: {ex.Message}");
     }
 })
 .WithName("GetUserById")
 .WithSummary("获取用户详情")
-.WithDescription("根据 ID 获取单个用户的详细信息")
+.WithDescription("根据 ID 获取单个用户的详细信息 - 返回 ApiResponse<User> 格式")
 .WithOpenApi();
 
 // POST /api/users - 创建用户
-usersGroup.MapPost("/", async (IHttpClientFactory httpClientFactory, HttpRequest request) =>
+usersGroup.MapPost("/", async (
+    IHttpClientFactory httpClientFactory,
+    ILogger<Program> logger,
+    HttpRequest request) =>
 {
     try
     {
-        var client = httpClientFactory.CreateClient();
+        var client = httpClientFactory.CreateClient("ServiceClient");
+        var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:8080";
+        var url = $"{userServiceUrl}/api/users";
+
         using var reader = new StreamReader(request.Body);
         var body = await reader.ReadToEndAsync();
         var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
-        var response = await client.PostAsync("http://go-nomads-user-service:8080/api/users", content);
+
+        logger.LogInformation("Creating user at: {Url}", url);
+
+        var response = await client.PostAsync(url, content);
         var result = await response.Content.ReadAsStringAsync();
         return Results.Content(result, "application/json", statusCode: (int)response.StatusCode);
     }
+    catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.BadRequest)
+    {
+        return Results.BadRequest(new { success = false, message = "Invalid user data" });
+    }
+    catch (HttpRequestException ex)
+    {
+        app.Logger.LogError(ex, "HTTP request failed when creating user");
+        return Results.Problem($"Failed to connect to UserService: {ex.Message}. Please check if UserService is running.");
+    }
     catch (Exception ex)
     {
+        app.Logger.LogError(ex, "Unexpected error when creating user");
         return Results.Problem($"Failed to create user: {ex.Message}");
     }
 })
 .WithName("CreateUser")
 .WithSummary("创建新用户")
-.WithDescription("创建一个新的用户记录")
+.WithDescription("创建一个新的用户记录 - 需要提供 name, email, phone(可选) - 返回 ApiResponse<User> 格式")
 .WithOpenApi();
 
 // PUT /api/users/{id} - 更新用户
-usersGroup.MapPut("/{id}", async (IHttpClientFactory httpClientFactory, string id, HttpRequest request) =>
+usersGroup.MapPut("/{id}", async (
+    IHttpClientFactory httpClientFactory,
+    ILogger<Program> logger,
+    string id,
+    HttpRequest request) =>
 {
     try
     {
-        var client = httpClientFactory.CreateClient();
+        var client = httpClientFactory.CreateClient("ServiceClient");
+        var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:8080";
+        var url = $"{userServiceUrl}/api/users/{id}";
+
         using var reader = new StreamReader(request.Body);
         var body = await reader.ReadToEndAsync();
         var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
-        var response = await client.PutAsync($"http://go-nomads-user-service:8080/api/users/{id}", content);
+
+        logger.LogInformation("Updating user at: {Url}", url);
+
+        var response = await client.PutAsync(url, content);
         var result = await response.Content.ReadAsStringAsync();
         return Results.Content(result, "application/json", statusCode: (int)response.StatusCode);
     }
+    catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+    {
+        return Results.NotFound(new { success = false, message = "User not found" });
+    }
+    catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.BadRequest)
+    {
+        return Results.BadRequest(new { success = false, message = "Invalid user data" });
+    }
+    catch (HttpRequestException ex)
+    {
+        app.Logger.LogError(ex, "HTTP request failed when updating user");
+        return Results.Problem($"Failed to connect to UserService: {ex.Message}. Please check if UserService is running.");
+    }
     catch (Exception ex)
     {
+        app.Logger.LogError(ex, "Unexpected error when updating user");
         return Results.Problem($"Failed to update user: {ex.Message}");
     }
 })
 .WithName("UpdateUser")
 .WithSummary("更新用户")
-.WithDescription("根据 ID 更新用户信息")
+.WithDescription("根据 ID 更新用户信息 - 需要提供 name, email, phone(可选) - 返回 ApiResponse<User> 格式")
 .WithOpenApi();
 
 // DELETE /api/users/{id} - 删除用户
-usersGroup.MapDelete("/{id}", async (IHttpClientFactory httpClientFactory, string id) =>
+usersGroup.MapDelete("/{id}", async (
+    IHttpClientFactory httpClientFactory,
+    ILogger<Program> logger,
+    string id) =>
 {
     try
     {
-        var client = httpClientFactory.CreateClient();
-        var response = await client.DeleteAsync($"http://go-nomads-user-service:8080/api/users/{id}");
+        var client = httpClientFactory.CreateClient("ServiceClient");
+        var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:8080";
+        var url = $"{userServiceUrl}/api/users/{id}";
+
+        logger.LogInformation("Deleting user at: {Url}", url);
+
+        var response = await client.DeleteAsync(url);
         var result = await response.Content.ReadAsStringAsync();
         return Results.Content(result, "application/json", statusCode: (int)response.StatusCode);
     }
+    catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+    {
+        return Results.NotFound(new { success = false, message = "User not found" });
+    }
+    catch (HttpRequestException ex)
+    {
+        app.Logger.LogError(ex, "HTTP request failed when deleting user");
+        return Results.Problem($"Failed to connect to UserService: {ex.Message}. Please check if UserService is running.");
+    }
     catch (Exception ex)
     {
+        app.Logger.LogError(ex, "Unexpected error when deleting user");
         return Results.Problem($"Failed to delete user: {ex.Message}");
     }
 })
 .WithName("DeleteUser")
 .WithSummary("删除用户")
-.WithDescription("根据 ID 删除用户")
+.WithDescription("根据 ID 删除用户 - 返回 ApiResponse<object> 格式")
 .WithOpenApi();
 
 // ==================== System Group ====================
@@ -351,8 +463,15 @@ systemGroup.MapGet("/services", () =>
             url = "http://localhost:5002", 
             docsUrl = "http://localhost:5002/scalar/v1",
             status = "running",
-            description = (string?)null,
-            apis = new[] { "GET /api/users", "POST /api/users", "GET /api/users/{id}", "PUT /api/users/{id}", "DELETE /api/users/{id}" }
+            description = "用户管理服务 - 使用 Supabase PostgreSQL 数据库",
+            apis = new[]
+            {
+                "GET /api/users - 获取用户列表（分页）",
+                "POST /api/users - 创建用户（name, email, phone）",
+                "GET /api/users/{id} - 获取用户详情",
+                "PUT /api/users/{id} - 更新用户信息",
+                "DELETE /api/users/{id} - 删除用户"
+            }
         },
         new 
         { 
@@ -423,5 +542,8 @@ app.MapGet("/health", () => Results.Ok(new
 app.MapMetrics();
 
 app.MapControllers();
+
+// 自动注册到 Consul
+await app.RegisterWithConsulAsync();
 
 app.Run();
