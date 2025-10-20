@@ -61,12 +61,12 @@ if (-not $SkipBuild) {
 Write-Host "\nDeploying services..." -ForegroundColor Cyan
 
 # 停止并删除旧容器（如果存在）
-Write-Host "\nCleaning up old containers..." -ForegroundColor Yellow
+Write-Host "\nCleaning up old containers and images..." -ForegroundColor Yellow
 $oldContainers = @("go-nomads-product", "go-nomads-user", "go-nomads-document", "go-nomads-gateway")
 foreach ($oldName in $oldContainers) {
     $exists = docker ps -a --filter "name=^${oldName}$" --format '{{.Names}}'
     if ($exists) {
-        Write-Host "  Stopping and removing: $oldName" -ForegroundColor Yellow
+        Write-Host "  Stopping and removing container: $oldName" -ForegroundColor Yellow
         docker stop $oldName 2>$null | Out-Null
         docker rm $oldName 2>$null | Out-Null
         
@@ -78,6 +78,14 @@ foreach ($oldName in $oldContainers) {
             docker rm $daprName 2>$null | Out-Null
         }
     }
+    
+    # 删除对应的镜像（如果存在）
+    $imageName = $oldName
+    $imageExists = docker images --filter "reference=${imageName}:latest" --format '{{.Repository}}'
+    if ($imageExists) {
+        Write-Host "  Removing image: ${imageName}:latest" -ForegroundColor Yellow
+        docker rmi -f "${imageName}:latest" 2>$null | Out-Null
+    }
 }
 
 foreach ($svc in $services) {
@@ -87,8 +95,14 @@ foreach ($svc in $services) {
     
     # Remove existing containers if they exist
     $existing = & $RUNTIME ps -a --format '{{.Names}}' 2>$null
-    if ($existing -match $dapr) { & $RUNTIME rm -f $dapr 2>&1 | Out-Null }
-    if ($existing -match $container) { & $RUNTIME rm -f $container 2>&1 | Out-Null }
+    if ($existing -match $dapr) { 
+        & $RUNTIME stop $dapr 2>&1 | Out-Null
+        & $RUNTIME rm -f $dapr 2>&1 | Out-Null 
+    }
+    if ($existing -match $container) { 
+        & $RUNTIME stop $container 2>&1 | Out-Null
+        & $RUNTIME rm -f $container 2>&1 | Out-Null 
+    }
     
     $publish = Join-Path $ROOT_DIR "$($svc.Path)/bin/Release/net9.0/publish"
     if (-not (Test-Path $publish)) {

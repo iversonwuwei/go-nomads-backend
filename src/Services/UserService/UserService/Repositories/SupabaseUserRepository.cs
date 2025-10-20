@@ -83,6 +83,12 @@ public class SupabaseUserRepository : SupabaseRepositoryBase<User>
 
         try
         {
+            // 生成新的 UUID (如果未设置或为空)
+            if (string.IsNullOrWhiteSpace(user.Id))
+            {
+                user.Id = Guid.NewGuid().ToString();
+            }
+            
             user.CreatedAt = DateTime.UtcNow;
             user.UpdatedAt = DateTime.UtcNow;
 

@@ -7,8 +7,14 @@ namespace GoNomads.Shared.Models;
 [Table("users")]
 public class User : BaseModel
 {
-    [PrimaryKey("id", false)]
-    public string Id { get; set; } = Guid.NewGuid().ToString();
+    private string _id = Guid.NewGuid().ToString();
+    
+    [PrimaryKey("id", true)]  // true = 客户端生成主键,false = 数据库生成
+    public string Id 
+    { 
+        get => _id; 
+        set => _id = string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString() : value; 
+    }
     
     [Required]
     [StringLength(100)]

@@ -103,7 +103,7 @@ container_running() {
     $CONTAINER_RUNTIME ps --filter "name=$1" --filter "status=running" --format "{{.Names}}" | grep -q "^$1$"
 }
 
-# 删除容器（如果存在）
+# 删除容器和镜像（如果存在）
 remove_container_if_exists() {
     local container_name=$1
     if $CONTAINER_RUNTIME ps -a --filter "name=$container_name" --format "{{.Names}}" | grep -q "^$container_name$"; then
@@ -111,16 +111,23 @@ remove_container_if_exists() {
         $CONTAINER_RUNTIME stop "$container_name" &> /dev/null || true
         $CONTAINER_RUNTIME rm "$container_name" &> /dev/null || true
     fi
+    
+    # 删除对应的镜像（如果存在）
+    local image_name="$container_name"
+    if $CONTAINER_RUNTIME images --filter "reference=${image_name}:latest" --format "{{.Repository}}" | grep -q "^${image_name}$"; then
+        echo -e "${YELLOW}  删除已存在的镜像: ${image_name}:latest${NC}"
+        $CONTAINER_RUNTIME rmi -f "${image_name}:latest" &> /dev/null || true
+    fi
 }
 
-# 本地构建并部署服务（带 Dapr sidecar）
+# 本地构建并部署服务（带 Dapr sidecar）- Container Sidecar 模式
 deploy_service_local() {
     local service_name=$1
     local service_path=$2
     local app_port=$3
     local dll_name=$4
     local dapr_http_port=$5
-    local dapr_grpc_port=$6
+    local app_id=$6
     
     show_header "部署 $service_name"
     
@@ -128,40 +135,27 @@ deploy_service_local() {
     echo -e "${YELLOW}  本地构建项目...${NC}"
     cd "$ROOT_DIR/$service_path"
     
-    dotnet publish -c Release -o "$ROOT_DIR/publish/$service_name" > /dev/null 2>&1
+    dotnet publish -c Release --no-self-contained > /dev/null 2>&1
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}  本地构建成功!${NC}"
     else
         echo -e "${RED}  [错误] 本地构建失败${NC}"
-        dotnet publish -c Release -o "$ROOT_DIR/publish/$service_name"
+        dotnet publish -c Release --no-self-contained
         return 1
     fi
     
-    # 创建简化的 Dockerfile
-    cat > "$ROOT_DIR/publish/$service_name/Dockerfile" << EOF
-FROM mcr.microsoft.com/dotnet/aspnet:9.0
-WORKDIR /app
-COPY . .
-EXPOSE 8080
-ENTRYPOINT ["dotnet", "$dll_name"]
-EOF
-    
-    # 构建运行时镜像
-    echo -e "${YELLOW}  构建运行时镜像...${NC}"
-    $CONTAINER_RUNTIME build \
-        -t "go-nomads-$service_name:latest" \
-        "$ROOT_DIR/publish/$service_name" > /dev/null 2>&1
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}  镜像构建成功!${NC}"
-    else
-        echo -e "${RED}  [错误] 镜像构建失败${NC}"
-        return 1
-    fi
-    
-    # 删除旧容器
+    # 删除旧容器（应用容器和 Dapr sidecar）
     remove_container_if_exists "go-nomads-$service_name"
+    remove_container_if_exists "go-nomads-$service_name-dapr"
+    
+    # 发布目录
+    local publish_dir="$ROOT_DIR/$service_path/bin/Release/net9.0/publish"
+    
+    if [ ! -d "$publish_dir" ]; then
+        echo -e "${RED}  [错误] 发布目录不存在: $publish_dir${NC}"
+        return 1
+    fi
     
     # 额外的环境变量
     local extra_env=()
@@ -176,22 +170,29 @@ EOF
         )
     fi
 
-    # 启动容器
+    # 启动应用容器（暴露应用端口和 Dapr HTTP 端口）
+    # Dapr sidecar 将共享此容器的网络命名空间
+    # 配置 Dapr gRPC: 通过环境变量 DAPR_GRPC_PORT 启用 gRPC 通信
     echo -e "${YELLOW}  启动应用容器...${NC}"
     
     $CONTAINER_RUNTIME run -d \
         --name "go-nomads-$service_name" \
         --network "$NETWORK_NAME" \
         -p "$app_port:8080" \
+        -p "$dapr_http_port:$dapr_http_port" \
         -e ASPNETCORE_ENVIRONMENT=Development \
-        -e ASPNETCORE_URLS=http://+:8080 \
-        -e DAPR_HTTP_ENDPOINT="http://go-nomads-$service_name-dapr:3500" \
-        -e DAPR_GRPC_ENDPOINT="http://go-nomads-$service_name-dapr:50001" \
+        -e ASPNETCORE_URLS="http://+:8080" \
+        -e DAPR_GRPC_PORT="50001" \
+        -e DAPR_HTTP_PORT="$dapr_http_port" \
+        -e Consul__Address="http://go-nomads-consul:8500" \
         -e HTTP_PROXY= \
         -e HTTPS_PROXY= \
         -e NO_PROXY= \
         "${extra_env[@]}" \
-        "go-nomads-$service_name:latest" > /dev/null
+        -v "${publish_dir}:/app:ro" \
+        -w /app \
+        mcr.microsoft.com/dotnet/aspnet:9.0 \
+        dotnet "$dll_name" > /dev/null
     
     if container_running "go-nomads-$service_name"; then
         echo -e "${GREEN}  应用容器启动成功!${NC}"
@@ -201,40 +202,30 @@ EOF
         return 1
     fi
 
-    # 启动 Dapr sidecar
-    echo -e "${YELLOW}  启动 Dapr sidecar...${NC}"
-    
-    remove_container_if_exists "go-nomads-$service_name-dapr"
+    sleep 2
+
+    # 启动 Dapr sidecar（共享应用容器的网络命名空间）
+    # 使用 --network container:<app-container> 实现真正的 sidecar 模式
+    # 应用和 Dapr 通过 localhost 通信，端口已在应用容器暴露
+    echo -e "${YELLOW}  启动 Dapr sidecar (container sidecar 模式)...${NC}"
     
     $CONTAINER_RUNTIME run -d \
         --name "go-nomads-$service_name-dapr" \
-        --network "$NETWORK_NAME" \
-        -p "$dapr_http_port:3500" \
-        -p "$dapr_grpc_port:50001" \
-        -v "$SCRIPT_DIR/dapr/components:/components:ro" \
-        -v "$SCRIPT_DIR/dapr/config:/config:ro" \
+        --network "container:go-nomads-$service_name" \
         daprio/daprd:latest \
         ./daprd \
-        --app-id "$service_name" \
-        --app-protocol http \
+        --app-id "$app_id" \
         --app-port 8080 \
-        --app-channel-address "go-nomads-$service_name" \
-        --dapr-http-port 3500 \
+        --dapr-http-port "$dapr_http_port" \
         --dapr-grpc-port 50001 \
-        --resources-path /components \
-        --config /config/config.yaml \
-        --placement-host-address go-nomads-dapr-placement:50006 \
-        --log-level info \
-        --metrics-port 9091 \
-        --enable-metrics=true > /dev/null
+        --log-level info > /dev/null
     
     if container_running "go-nomads-$service_name-dapr"; then
         echo -e "${GREEN}  Dapr sidecar 启动成功!${NC}"
         echo -e "${GREEN}  $service_name 部署成功!${NC}"
         echo -e "${GREEN}  应用端口: http://localhost:$app_port${NC}"
-        echo -e "${GREEN}  Dapr HTTP: http://localhost:$dapr_http_port${NC}"
-        echo -e "${GREEN}  Dapr gRPC: localhost:$dapr_grpc_port${NC}"
-        echo -e "${BLUE}  提示: 服务将在 15-30 秒内自动注册到 Consul${NC}"
+        echo -e "${GREEN}  Dapr HTTP: localhost:$dapr_http_port (通过应用容器暴露)${NC}"
+        echo -e "${GREEN}  Dapr gRPC: localhost:50001 (container sidecar 模式)${NC}"
         sleep 2
         return 0
     else
@@ -261,7 +252,7 @@ check_prerequisites() {
     # 检查 Redis
     if ! container_running "go-nomads-redis"; then
         echo -e "${RED}  [错误] Redis 未运行${NC}"
-        echo -e "${YELLOW}  请先运行基础设施部署脚本: ./deploy-infrastructure.sh${NC}"
+        echo -e "${YELLOW}  请先运行基础设施部署脚本: ./deploy-infrastructure-local.sh${NC}"
         exit 1
     fi
     echo -e "${GREEN}  Redis 运行正常${NC}"
@@ -269,33 +260,10 @@ check_prerequisites() {
     # 检查 Consul
     if ! container_running "go-nomads-consul"; then
         echo -e "${RED}  [错误] Consul 未运行${NC}"
-        echo -e "${YELLOW}  请先运行基础设施部署脚本: ./deploy-infrastructure.sh${NC}"
+        echo -e "${YELLOW}  请先运行基础设施部署脚本: ./deploy-infrastructure-local.sh${NC}"
         exit 1
     fi
     echo -e "${GREEN}  Consul 运行正常${NC}"
-
-    # 检查/启动 Dapr Placement
-    if ! container_running "go-nomads-dapr-placement"; then
-        echo -e "${YELLOW}  启动 Dapr Placement 服务...${NC}"
-        remove_container_if_exists "go-nomads-dapr-placement"
-        $CONTAINER_RUNTIME run -d \
-            --name go-nomads-dapr-placement \
-            --network "$NETWORK_NAME" \
-            -p 50006:50006 \
-            daprio/dapr:latest \
-            ./placement \
-            --port 50006 > /dev/null
-        
-        if container_running "go-nomads-dapr-placement"; then
-            echo -e "${GREEN}  Dapr Placement 启动成功${NC}"
-            sleep 3
-        else
-            echo -e "${RED}  [错误] Dapr Placement 启动失败${NC}"
-            exit 1
-        fi
-    else
-        echo -e "${GREEN}  Dapr Placement 运行正常${NC}"
-    fi
     
     echo -e "${GREEN}  前置条件检查完成${NC}"
 }
@@ -311,20 +279,14 @@ main() {
     check_prerequisites
     echo ""
     
-    # 清理旧的发布文件
-    echo -e "${YELLOW}清理旧的发布文件...${NC}"
-    rm -rf "$ROOT_DIR/publish"
-    mkdir -p "$ROOT_DIR/publish"
-    echo ""
-    
-    # 部署 UserService
+    # 部署 Gateway
     deploy_service_local \
-        "user-service" \
-        "src/Services/UserService/UserService" \
-        "5001" \
-        "UserService.dll" \
-        "3501" \
-        "50011"
+        "gateway" \
+        "src/Gateway/Gateway" \
+        "5000" \
+        "Gateway.dll" \
+        "3500" \
+        "gateway"
     echo ""
     
     # 部署 ProductService
@@ -333,8 +295,18 @@ main() {
         "src/Services/ProductService/ProductService" \
         "5002" \
         "ProductService.dll" \
+        "3501" \
+        "product-service"
+    echo ""
+    
+    # 部署 UserService
+    deploy_service_local \
+        "user-service" \
+        "src/Services/UserService/UserService" \
+        "5001" \
+        "UserService.dll" \
         "3502" \
-        "50012"
+        "user-service"
     echo ""
     
     # 部署 DocumentService
@@ -344,17 +316,7 @@ main() {
         "5003" \
         "DocumentService.dll" \
         "3503" \
-        "50013"
-    echo ""
-    
-    # 部署 Gateway
-    deploy_service_local \
-        "gateway" \
-        "src/Gateway/Gateway" \
-        "5000" \
-        "Gateway.dll" \
-        "3500" \
-        "50010"
+        "document-service"
     echo ""
     
     # 显示部署摘要
@@ -367,13 +329,14 @@ main() {
     echo -e "  ${GREEN}User Service:     http://localhost:5001${NC}"
     echo -e "  ${GREEN}Product Service:  http://localhost:5002${NC}"
     echo -e "  ${GREEN}Document Service: http://localhost:5003${NC}"
-    echo -e "  ${GREEN}Document API:     http://localhost:5003/scalar/v1${NC}"
+    echo ""
+    echo -e "${BLUE}Dapr 配置:${NC}"
+    echo -e "  ${GREEN}模式:             Container Sidecar (共享网络命名空间)${NC}"
+    echo -e "  ${GREEN}gRPC 端口:        50001 (通过 DAPR_GRPC_PORT 环境变量)${NC}"
+    echo -e "  ${GREEN}HTTP 端口:        3500-3503 (各服务独立端口)${NC}"
     echo ""
     echo -e "${BLUE}基础设施:${NC}"
     echo -e "  ${GREEN}Consul UI:        http://localhost:8500${NC}"
-    echo -e "  ${GREEN}Zipkin:           http://localhost:9411${NC}"
-    echo -e "  ${GREEN}Prometheus:       http://localhost:9090${NC}"
-    echo -e "  ${GREEN}Grafana:          http://localhost:3000${NC}"
     echo ""
     echo -e "${BLUE}常用命令:${NC}"
     echo -e "  查看运行中的容器:  ${YELLOW}$CONTAINER_RUNTIME ps${NC}"
