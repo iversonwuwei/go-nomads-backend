@@ -22,7 +22,7 @@ public class User : BaseModel
     
     [Phone]
     [Column("phone")]
-    public string? Phone { get; set; }
+    public string Phone { get; set; } = string.Empty;
     
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -7,7 +7,7 @@ namespace UserService.Repositories;
 /// <summary>
 /// 用户 Repository - 使用 Supabase API
 /// </summary>
-public class SupabaseUserRepository : SupabaseRepositoryBase<User>, IUserRepository
+public class SupabaseUserRepository : SupabaseRepositoryBase<User>
 {
     public SupabaseUserRepository(Client supabaseClient, ILogger<SupabaseUserRepository> logger)
         : base(supabaseClient, logger)
@@ -108,7 +108,7 @@ public class SupabaseUserRepository : SupabaseRepositoryBase<User>, IUserReposit
                 .Where(u => u.Id == user.Id)
                 .Set(u => u.Name, user.Name)
                 .Set(u => u.Email, user.Email)
-                .Set(u => u.Phone, user.Phone)
+                .Set(u => u.Phone!, user.Phone)
                 .Set(u => u.UpdatedAt, user.UpdatedAt)
                 .Update();
 

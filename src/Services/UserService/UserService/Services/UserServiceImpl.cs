@@ -30,7 +30,7 @@ public class UserServiceImpl : IUserService
     public async Task<User> CreateUserAsync(
         string name, 
         string email, 
-        string? phone, 
+        string phone, 
         CancellationToken cancellationToken = default)
     {
         // Check if email already exists
@@ -54,7 +54,7 @@ public class UserServiceImpl : IUserService
         string id, 
         string name, 
         string email, 
-        string? phone, 
+        string phone, 
         CancellationToken cancellationToken = default)
     {
         var user = await _userRepository.GetUserByIdAsync(id, cancellationToken);
