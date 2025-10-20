@@ -183,12 +183,10 @@ EOF
         --name "go-nomads-$service_name" \
         --network "$NETWORK_NAME" \
         -p "$app_port:8080" \
-        -p "$dapr_http_port:3500" \
-        -p "$dapr_grpc_port:50001" \
         -e ASPNETCORE_ENVIRONMENT=Development \
         -e ASPNETCORE_URLS=http://+:8080 \
-        -e DAPR_HTTP_PORT=3500 \
-        -e DAPR_GRPC_PORT=50001 \
+        -e DAPR_HTTP_ENDPOINT="http://go-nomads-$service_name-dapr:3500" \
+        -e DAPR_GRPC_ENDPOINT="http://go-nomads-$service_name-dapr:50001" \
         -e HTTP_PROXY= \
         -e HTTPS_PROXY= \
         -e NO_PROXY= \
@@ -210,7 +208,9 @@ EOF
     
     $CONTAINER_RUNTIME run -d \
         --name "go-nomads-$service_name-dapr" \
-        --network "container:go-nomads-$service_name" \
+        --network "$NETWORK_NAME" \
+        -p "$dapr_http_port:3500" \
+        -p "$dapr_grpc_port:50001" \
         -v "$SCRIPT_DIR/dapr/components:/components:ro" \
         -v "$SCRIPT_DIR/dapr/config:/config:ro" \
         daprio/daprd:latest \
@@ -218,9 +218,10 @@ EOF
         --app-id "$service_name" \
         --app-protocol http \
         --app-port 8080 \
+        --app-channel-address "go-nomads-$service_name" \
         --dapr-http-port 3500 \
         --dapr-grpc-port 50001 \
-        --components-path /components \
+        --resources-path /components \
         --config /config/config.yaml \
         --placement-host-address go-nomads-dapr-placement:50006 \
         --log-level info \
