@@ -1,33 +1,30 @@
 using UserService.Services;
-using UserService.Data;
 using UserService.Repositories;
-using UserService.Configuration;
 using Dapr.Client;
 using Scalar.AspNetCore;
 using Prometheus;
-using Microsoft.EntityFrameworkCore;
 using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Supabase settings
-builder.Services.Configure<SupabaseSettings>(
-    builder.Configuration.GetSection("Supabase"));
+// 添加 Supabase 客户端（使用 Shared 扩展方法）
+builder.Services.AddSupabase(builder.Configuration);
 
-// Add Database Context
-var connectionString = builder.Configuration.GetConnectionString("SupabaseDb");
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
-
-// Add Repositories
-builder.Services.AddScoped<IUserRepository, UserRepository>();
+// Add Repositories - 直接注册 SupabaseUserRepository（不使用接口）
+builder.Services.AddScoped<SupabaseUserRepository>();
 
 // Add Services
 builder.Services.AddScoped<IUserService, UserServiceImpl>();
 
-// Add services to the container.
-builder.Services.AddGrpc();
+// 配置 DaprClient 连接到 Dapr sidecar
+// Dapr sidecar 与应用共享网络命名空间，通过 localhost 访问
+// 使用 gRPC 端点（性能更好：2-3x 吞吐量，30-50% 更小的负载）
+// 
+// Dapr 环境变量:
+// - DAPR_GRPC_ENDPOINT: gRPC 端点 URL (默认: http://127.0.0.1:50001)
+// - DAPR_HTTP_ENDPOINT: HTTP 端点 URL (默认: http://127.0.0.1:3500)
 builder.Services.AddDaprClient();
+
 builder.Services.AddControllers().AddDapr();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -51,9 +48,6 @@ app.UseRouting();
 
 // Enable Prometheus metrics
 app.UseHttpMetrics();
-
-// Map gRPC service (TODO: Implement UserGrpcService)
-// app.MapGrpcService<UserGrpcService>();
 
 // Map controllers
 app.MapControllers();

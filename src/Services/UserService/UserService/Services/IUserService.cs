@@ -9,4 +9,5 @@ public interface IUserService
     Task<User> CreateUserAsync(string name, string email, string? phone, CancellationToken cancellationToken = default);
     Task<User> UpdateUserAsync(string id, string name, string email, string? phone, CancellationToken cancellationToken = default);
     Task<bool> DeleteUserAsync(string id, CancellationToken cancellationToken = default);
+    Task<bool> UserExistsAsync(string id, CancellationToken cancellationToken = default);
 }

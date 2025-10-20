@@ -9,27 +9,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Google.Protobuf" Version="3.32.1" />
-    <PackageReference Include="Grpc.Net.Client" Version="2.71.0" />
-<!-- Grpc.Tools 仅在需要重新生成 proto 时使用，容器构建时不需要 -->
-<!-- 如需重新生成，取消下面注释并运行 dotnet build -->
-<!--
-    <PackageReference Include="Grpc.Tools" Version="2.72.0">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
--->
+    <PackageReference Include="postgrest-csharp" Version="3.5.1" />
+    <PackageReference Include="supabase-csharp" Version="0.16.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
   </ItemGroup>
-
-<!-- Proto 文件保留作为参考，但不自动编译 -->
-<!-- 使用预生成的 .cs 文件（位于 Generated/Protos 目录） -->
-<!--
-  <ItemGroup>
-    <Protobuf Include="Protos\user.proto" GrpcServices="Both" />
-    <Protobuf Include="Protos\product.proto" GrpcServices="Both" />
-  </ItemGroup>
--->
-
-<!-- 预生成的 gRPC 代码会自动包含，无需显式声明 -->
 
 </Project>

@@ -5,10 +5,10 @@ namespace UserService.Services;
 
 public class UserServiceImpl : IUserService
 {
-    private readonly IUserRepository _userRepository;
+    private readonly SupabaseUserRepository _userRepository;
     private readonly ILogger<UserServiceImpl> _logger;
 
-    public UserServiceImpl(IUserRepository userRepository, ILogger<UserServiceImpl> logger)
+    public UserServiceImpl(SupabaseUserRepository userRepository, ILogger<UserServiceImpl> logger)
     {
         _userRepository = userRepository;
         _logger = logger;
@@ -83,5 +83,10 @@ public class UserServiceImpl : IUserService
     public async Task<bool> DeleteUserAsync(string id, CancellationToken cancellationToken = default)
     {
         return await _userRepository.DeleteUserAsync(id, cancellationToken);
+    }
+
+    public async Task<bool> UserExistsAsync(string id, CancellationToken cancellationToken = default)
+    {
+        return await _userRepository.UserExistsAsync(id, cancellationToken);
     }
 }

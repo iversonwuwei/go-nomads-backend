@@ -1,4 +1,3 @@
-using ProductService.Services;
 using Dapr.Client;
 using Scalar.AspNetCore;
 using Prometheus;
@@ -6,8 +5,7 @@ using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddGrpc();
+// 配置 DaprClient (通过环境变量 DAPR_GRPC_PORT 使用 gRPC)
 builder.Services.AddDaprClient();
 builder.Services.AddControllers().AddDapr();
 
@@ -32,9 +30,6 @@ app.UseRouting();
 
 // Enable Prometheus metrics
 app.UseHttpMetrics();
-
-// Map gRPC service
-app.MapGrpcService<ProductGrpcService>();
 
 // Map controllers
 app.MapControllers();

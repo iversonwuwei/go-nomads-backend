@@ -39,10 +39,10 @@ foreach ($svc in $required) {
 }
 
 $services = @(
-    @{Name="gateway"; Port=8080; DaprPort=3500; AppId="gateway"; Path="src/Gateway/Gateway"},
-    @{Name="product"; Port=5001; DaprPort=3501; AppId="product-service"; Path="src/Services/ProductService/ProductService"},
-    @{Name="user"; Port=5002; DaprPort=3502; AppId="user-service"; Path="src/Services/UserService/UserService"},
-    @{Name="document"; Port=5003; DaprPort=3503; AppId="document-service"; Path="src/Services/DocumentService/DocumentService"}
+    @{Name="gateway"; Port=8080; DaprPort=3500; AppId="gateway"; Path="src/Gateway/Gateway"; Dll="Gateway.dll"; Container="go-nomads-gateway"},
+    @{Name="product"; Port=5001; DaprPort=3501; AppId="product-service"; Path="src/Services/ProductService/ProductService"; Dll="ProductService.dll"; Container="go-nomads-product-service"},
+    @{Name="user"; Port=5002; DaprPort=3502; AppId="user-service"; Path="src/Services/UserService/UserService"; Dll="UserService.dll"; Container="go-nomads-user-service"},
+    @{Name="document"; Port=5003; DaprPort=3503; AppId="document-service"; Path="src/Services/DocumentService/DocumentService"; Dll="DocumentService.dll"; Container="go-nomads-document-service"}
 )
 
 if (-not $SkipBuild) {
@@ -58,11 +58,32 @@ if (-not $SkipBuild) {
     }
 }
 
-Write-Host "`nDeploying services..." -ForegroundColor Cyan
+Write-Host "\nDeploying services..." -ForegroundColor Cyan
+
+# 停止并删除旧容器（如果存在）
+Write-Host "\nCleaning up old containers..." -ForegroundColor Yellow
+$oldContainers = @("go-nomads-product", "go-nomads-user", "go-nomads-document", "go-nomads-gateway")
+foreach ($oldName in $oldContainers) {
+    $exists = docker ps -a --filter "name=^${oldName}$" --format '{{.Names}}'
+    if ($exists) {
+        Write-Host "  Stopping and removing: $oldName" -ForegroundColor Yellow
+        docker stop $oldName 2>$null | Out-Null
+        docker rm $oldName 2>$null | Out-Null
+        
+        # 同时删除对应的 Dapr sidecar
+        $daprName = "$oldName-dapr"
+        $daprExists = docker ps -a --filter "name=^${daprName}$" --format '{{.Names}}'
+        if ($daprExists) {
+            docker stop $daprName 2>$null | Out-Null
+            docker rm $daprName 2>$null | Out-Null
+        }
+    }
+}
+
 foreach ($svc in $services) {
-    $container = "go-nomads-$($svc.Name)"
+    $container = $svc.Container
     $dapr = "$container-dapr"
-    Write-Host "`nDeploying $($svc.Name)..."
+    Write-Host "\nDeploying $($svc.Name)..."
     
     # Remove existing containers if they exist
     $existing = & $RUNTIME ps -a --format '{{.Names}}' 2>$null
@@ -74,14 +95,20 @@ foreach ($svc in $services) {
         Write-Error "Publish folder not found: $publish"; exit 1
     }
     
-    & $RUNTIME run -d --name $container --network $NETWORK_NAME -p "$($svc.Port):8080" -e ASPNETCORE_URLS="http://+:8080" -e ASPNETCORE_ENVIRONMENT=Development -e CONSUL_HTTP_ADDR="http://localhost:8500" -v "${publish}:/app:ro" -w /app mcr.microsoft.com/dotnet/aspnet:9.0 dotnet "$container.dll" | Out-Null
+    # 启动应用容器（暴露应用端口和 Dapr HTTP 端口）
+    # Dapr sidecar 将共享此容器的网络命名空间
+    # 配置 Dapr gRPC: 通过环境变量 DAPR_GRPC_PORT 启用 gRPC 通信
+    & $RUNTIME run -d --name $container --network $NETWORK_NAME -p "$($svc.Port):8080" -p "$($svc.DaprPort):$($svc.DaprPort)" -e ASPNETCORE_URLS="http://+:8080" -e ASPNETCORE_ENVIRONMENT=Development -e DAPR_GRPC_PORT="50001" -e DAPR_HTTP_PORT="$($svc.DaprPort)" -e Consul__Address="http://go-nomads-consul:8500" -v "${publish}:/app:ro" -w /app mcr.microsoft.com/dotnet/aspnet:9.0 dotnet "$($svc.Dll)" | Out-Null
     
     if ($LASTEXITCODE -ne 0) { Write-Error "Failed to start $container"; exit 1 }
     Write-Host "[OK] $($svc.Name) container started" -ForegroundColor Green
     
     Start-Sleep -Seconds 2
     
-    & $RUNTIME run -d --name $dapr --network $NETWORK_NAME -p "$($svc.DaprPort):$($svc.DaprPort)" daprio/daprd:latest ./daprd --app-id $svc.AppId --app-port 8080 --dapr-http-port $svc.DaprPort --dapr-grpc-port 50001 --log-level info | Out-Null
+    # 启动 Dapr sidecar（共享应用容器的网络命名空间）
+    # 使用 --network container:<app-container> 实现真正的 sidecar 模式
+    # 应用和 Dapr 通过 localhost 通信，端口已在应用容器暴露
+    & $RUNTIME run -d --name $dapr --network "container:$container" daprio/daprd:latest ./daprd --app-id $svc.AppId --app-port 8080 --dapr-http-port $svc.DaprPort --dapr-grpc-port 50001 --log-level info | Out-Null
     
     Write-Host "[OK] $($svc.Name) deployed at http://localhost:$($svc.Port)" -ForegroundColor Green
 }
