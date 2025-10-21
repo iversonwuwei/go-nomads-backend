@@ -42,10 +42,17 @@ builder.Services.AddAuthentication(options =>
 {
     options.RequireHttpsMetadata = false;
     options.SaveToken = true;
+    
+    // Supabase 使用 HS256 算法签名,需要用 JWT Secret 验证
+    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+    {
+        KeyId = "TD8wsInnx6ikLidH" // 设置 KeyId 以匹配 token header 中的 kid
+    };
+    
     options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuerSigningKey = builder.Configuration.GetValue<bool>("Jwt:ValidateIssuerSigningKey", true),
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = key,
         ValidateIssuer = builder.Configuration.GetValue<bool>("Jwt:ValidateIssuer", true),
         ValidIssuer = jwtIssuer,
         ValidateAudience = builder.Configuration.GetValue<bool>("Jwt:ValidateAudience", true),
@@ -59,14 +66,16 @@ builder.Services.AddAuthentication(options =>
         OnAuthenticationFailed = context =>
         {
             var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-            logger.LogWarning("JWT Authentication failed: {Error}", context.Exception.Message);
+            logger.LogWarning("❌ JWT Authentication failed: {Error}", context.Exception.Message);
             return Task.CompletedTask;
         },
         OnTokenValidated = context =>
         {
             var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
             var userId = context.Principal?.FindFirst("sub")?.Value;
-            logger.LogDebug("JWT Token validated for user: {UserId}", userId);
+            var email = context.Principal?.FindFirst("email")?.Value;
+            var role = context.Principal?.FindFirst("role")?.Value;
+            logger.LogInformation("✅ JWT Token validated - UserId: {UserId}, Email: {Email}, Role: {Role}", userId, email, role);
             return Task.CompletedTask;
         }
     };

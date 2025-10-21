@@ -39,7 +39,7 @@ foreach ($svc in $required) {
 }
 
 $services = @(
-    @{Name="gateway"; Port=8080; DaprPort=3500; AppId="gateway"; Path="src/Gateway/Gateway"; Dll="Gateway.dll"; Container="go-nomads-gateway"},
+    @{Name="gateway"; Port=5000; DaprPort=3500; AppId="gateway"; Path="src/Gateway/Gateway"; Dll="Gateway.dll"; Container="go-nomads-gateway"},
     @{Name="product"; Port=5001; DaprPort=3501; AppId="product-service"; Path="src/Services/ProductService/ProductService"; Dll="ProductService.dll"; Container="go-nomads-product-service"},
     @{Name="user"; Port=5002; DaprPort=3502; AppId="user-service"; Path="src/Services/UserService/UserService"; Dll="UserService.dll"; Container="go-nomads-user-service"},
     @{Name="document"; Port=5003; DaprPort=3503; AppId="document-service"; Path="src/Services/DocumentService/DocumentService"; Dll="DocumentService.dll"; Container="go-nomads-document-service"}
@@ -109,10 +109,14 @@ foreach ($svc in $services) {
         Write-Error "Publish folder not found: $publish"; exit 1
     }
     
+    # Gateway 使用生产配置（不设置 Development 环境）以使用容器化 Consul 地址
+    # 其他服务继续使用 Development 环境
+    $aspnetEnv = if ($svc.Name -eq "gateway") { "Production" } else { "Development" }
+    
     # 启动应用容器（暴露应用端口和 Dapr HTTP 端口）
     # Dapr sidecar 将共享此容器的网络命名空间
     # 配置 Dapr gRPC: 通过环境变量 DAPR_GRPC_PORT 启用 gRPC 通信
-    & $RUNTIME run -d --name $container --network $NETWORK_NAME -p "$($svc.Port):8080" -p "$($svc.DaprPort):$($svc.DaprPort)" -e ASPNETCORE_URLS="http://+:8080" -e ASPNETCORE_ENVIRONMENT=Development -e DAPR_GRPC_PORT="50001" -e DAPR_HTTP_PORT="$($svc.DaprPort)" -e Consul__Address="http://go-nomads-consul:8500" -v "${publish}:/app:ro" -w /app mcr.microsoft.com/dotnet/aspnet:9.0 dotnet "$($svc.Dll)" | Out-Null
+    & $RUNTIME run -d --name $container --network $NETWORK_NAME -p "$($svc.Port):8080" -p "$($svc.DaprPort):$($svc.DaprPort)" -e ASPNETCORE_URLS="http://+:8080" -e ASPNETCORE_ENVIRONMENT=$aspnetEnv -e DAPR_GRPC_PORT="50001" -e DAPR_HTTP_PORT="$($svc.DaprPort)" -e Consul__Address="http://go-nomads-consul:8500" -v "${publish}:/app:ro" -w /app mcr.microsoft.com/dotnet/aspnet:9.0 dotnet "$($svc.Dll)" | Out-Null
     
     if ($LASTEXITCODE -ne 0) { Write-Error "Failed to start $container"; exit 1 }
     Write-Host "[OK] $($svc.Name) container started" -ForegroundColor Green

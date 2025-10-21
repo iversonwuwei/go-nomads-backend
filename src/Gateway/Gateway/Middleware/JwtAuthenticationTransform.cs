@@ -36,13 +36,13 @@ public class JwtAuthenticationTransform : ITransformProvider
             // 检查用户是否已认证
             if (httpContext.User.Identity?.IsAuthenticated == true)
             {
-                // 提取用户信息
-                var userId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
-                          ?? httpContext.User.FindFirst("sub")?.Value;
-                var email = httpContext.User.FindFirst(ClaimTypes.Email)?.Value 
-                         ?? httpContext.User.FindFirst("email")?.Value;
-                var role = httpContext.User.FindFirst(ClaimTypes.Role)?.Value 
-                        ?? httpContext.User.FindFirst("role")?.Value;
+                // 提取用户信息 (优先使用 Supabase 的标准 Claim 名称)
+                var userId = httpContext.User.FindFirst("sub")?.Value 
+                          ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var email = httpContext.User.FindFirst("email")?.Value 
+                         ?? httpContext.User.FindFirst(ClaimTypes.Email)?.Value;
+                var role = httpContext.User.FindFirst("role")?.Value 
+                        ?? httpContext.User.FindFirst(ClaimTypes.Role)?.Value;
 
                 // 添加自定义请求头，传递给下游服务
                 if (!string.IsNullOrEmpty(userId))

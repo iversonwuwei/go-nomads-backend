@@ -4,6 +4,7 @@ using Dapr.Client;
 using Scalar.AspNetCore;
 using Prometheus;
 using Shared.Extensions;
+using GoNomads.Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,6 +50,9 @@ app.UseRouting();
 
 // Enable Prometheus metrics
 app.UseHttpMetrics();
+
+// 使用用户上下文中间件 - 从 Gateway 传递的请求头中提取用户信息
+app.UseUserContext();
 
 // Map controllers
 app.MapControllers();

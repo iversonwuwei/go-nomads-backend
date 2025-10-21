@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using GoNomads.Shared.Models;
+using GoNomads.Shared.Middleware;
 using Dapr.Client;
 using UserService.DTOs;
 
@@ -32,7 +33,24 @@ public class UsersController : ControllerBase
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Getting users - Page: {Page}, PageSize: {PageSize}", page, pageSize);
+        // 获取用户上下文信息（从 Gateway 传递过来的）
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        
+        if (userContext?.IsAuthenticated == true)
+        {
+            _logger.LogInformation(
+                "📋 GetUsers 请求 - 认证用户信息: UserId={UserId}, Email={Email}, Role={Role}, Page={Page}, PageSize={PageSize}",
+                userContext.UserId,
+                userContext.Email,
+                userContext.Role,
+                page,
+                pageSize
+            );
+        }
+        else
+        {
+            _logger.LogInformation("📋 GetUsers 请求 - 未认证用户, Page: {Page}, PageSize: {PageSize}", page, pageSize);
+        }
         
         page = Math.Max(1, page);
         pageSize = Math.Max(1, Math.Min(100, pageSize));
