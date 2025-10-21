@@ -228,6 +228,68 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    /// 用户注册
+    /// </summary>
+    [HttpPost("register")]
+    public async Task<ActionResult<ApiResponse<AuthResponseDto>>> Register(
+        [FromBody] RegisterDto dto)
+    {
+        _logger.LogInformation("用户尝试注册: {Email}", dto.Email);
+
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        try
+        {
+            // 检查邮箱是否已存在
+            var existingUser = await _userService.GetUserByEmailAsync(dto.Email);
+            if (existingUser != null)
+            {
+                return BadRequest(new ApiResponse<AuthResponseDto>
+                {
+                    Success = false,
+                    Message = "该邮箱已被注册"
+                });
+            }
+
+            // 创建用户（包含密码哈希）
+            var user = await _userService.CreateUserWithPasswordAsync(
+                dto.Name,
+                dto.Email,
+                dto.Password,
+                dto.Phone ?? string.Empty
+            );
+
+            // 自动登录并返回 token
+            var authResponse = await _authService.LoginAsync(dto.Email, dto.Password);
+
+            return Ok(new ApiResponse<AuthResponseDto>
+            {
+                Success = true,
+                Message = "注册成功",
+                Data = authResponse
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "用户 {Email} 注册时发生错误", dto.Email);
+            return StatusCode(500, new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = "注册失败,请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
     /// 用户登出
     /// </summary>
     /// <returns></returns>

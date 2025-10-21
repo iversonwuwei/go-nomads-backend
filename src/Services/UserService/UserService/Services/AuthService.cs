@@ -1,57 +1,56 @@
-using Supabase;
-using UserService.DTOs;
+﻿using UserService.DTOs;
 using UserService.Repositories;
+using GoNomads.Shared.Security;
 
 namespace UserService.Services;
 
-/// <summary>
-/// 认证服务实现
-/// </summary>
 public class AuthService : IAuthService
 {
-    private readonly Client _supabase;
     private readonly SupabaseUserRepository _userRepository;
+    private readonly JwtTokenService _jwtTokenService;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
-        Client supabase,
         SupabaseUserRepository userRepository,
+        JwtTokenService jwtTokenService,
         ILogger<AuthService> logger)
     {
-        _supabase = supabase;
         _userRepository = userRepository;
+        _jwtTokenService = jwtTokenService;
         _logger = logger;
     }
 
-    /// <summary>
-    /// 用户登录
-    /// </summary>
     public async Task<AuthResponseDto> LoginAsync(string email, string password)
     {
         try
         {
             _logger.LogInformation("尝试登录用户: {Email}", email);
-
-            // 使用 Supabase Auth 进行登录
-            var session = await _supabase.Auth.SignIn(email, password);
-
-            if (session?.User == null)
+            var user = await _userRepository.GetUserByEmailAsync(email);
+            
+            if (user == null)
             {
-                throw new UnauthorizedAccessException("登录失败,请检查邮箱和密码");
+                _logger.LogWarning("用户 {Email} 不存在", email);
+                throw new UnauthorizedAccessException("用户名或密码错误");
+            }
+
+            if (!PasswordHasher.VerifyPassword(password, user.PasswordHash))
+            {
+                _logger.LogWarning("用户 {Email} 密码错误", email);
+                throw new UnauthorizedAccessException("用户名或密码错误");
             }
 
             _logger.LogInformation("用户 {Email} 登录成功", email);
 
-            // 从数据库获取用户详细信息
-            var user = await _userRepository.GetUserByEmailAsync(email);
+            var accessToken = _jwtTokenService.GenerateAccessToken(user.Id, user.Email, user.Role);
+            var refreshToken = _jwtTokenService.GenerateRefreshToken(user.Id);
 
             return new AuthResponseDto
             {
-                AccessToken = session.AccessToken ?? string.Empty,
-                RefreshToken = session.RefreshToken ?? string.Empty,
+                AccessToken = accessToken,
+                RefreshToken = refreshToken,
                 TokenType = "Bearer",
-                ExpiresIn = (int)session.ExpiresIn,
-                User = user != null ? new UserDto
+                ExpiresIn = 3600,
+                User = new UserDto
                 {
                     Id = user.Id,
                     Name = user.Name,
@@ -59,45 +58,51 @@ public class AuthService : IAuthService
                     Phone = user.Phone,
                     CreatedAt = user.CreatedAt,
                     UpdatedAt = user.UpdatedAt
-                } : null
+                }
             };
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "用户 {Email} 登录失败", email);
-            throw;
+            _logger.LogError(ex, "用户 {Email} 登录时发生错误", email);
+            throw new Exception("登录失败,请稍后重试");
         }
     }
 
-    /// <summary>
-    /// 刷新访问令牌
-    /// </summary>
     public async Task<AuthResponseDto> RefreshTokenAsync(string refreshToken)
     {
         try
         {
             _logger.LogInformation("尝试刷新访问令牌");
-
-            // 使用 Supabase Auth 刷新令牌
-            var session = await _supabase.Auth.RefreshSession();
-
-            if (session?.User == null)
+            var userId = _jwtTokenService.GetUserIdFromToken(refreshToken);
+            
+            if (string.IsNullOrEmpty(userId))
             {
-                throw new UnauthorizedAccessException("刷新令牌失败");
+                throw new UnauthorizedAccessException("无效的刷新令牌");
             }
 
-            _logger.LogInformation("令牌刷新成功");
+            var user = await _userRepository.GetUserByIdAsync(userId);
+            
+            if (user == null)
+            {
+                throw new UnauthorizedAccessException("用户不存在");
+            }
 
-            // 从数据库获取用户详细信息
-            var user = await _userRepository.GetUserByEmailAsync(session.User.Email ?? string.Empty);
+            _logger.LogInformation("令牌刷新成功,用户: {UserId}", userId);
+
+            var newAccessToken = _jwtTokenService.GenerateAccessToken(user.Id, user.Email, user.Role);
+            var newRefreshToken = _jwtTokenService.GenerateRefreshToken(user.Id);
 
             return new AuthResponseDto
             {
-                AccessToken = session.AccessToken ?? string.Empty,
-                RefreshToken = session.RefreshToken ?? string.Empty,
+                AccessToken = newAccessToken,
+                RefreshToken = newRefreshToken,
                 TokenType = "Bearer",
-                ExpiresIn = (int)session.ExpiresIn,
-                User = user != null ? new UserDto
+                ExpiresIn = 3600,
+                User = new UserDto
                 {
                     Id = user.Id,
                     Name = user.Name,
@@ -105,31 +110,23 @@ public class AuthService : IAuthService
                     Phone = user.Phone,
                     CreatedAt = user.CreatedAt,
                     UpdatedAt = user.UpdatedAt
-                } : null
+                }
             };
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "刷新令牌失败");
-            throw;
+            throw new Exception("刷新令牌失败,请重新登录");
         }
     }
 
-    /// <summary>
-    /// 用户登出
-    /// </summary>
     public async Task SignOutAsync()
     {
-        try
-        {
-            _logger.LogInformation("用户登出");
-            await _supabase.Auth.SignOut();
-            _logger.LogInformation("用户登出成功");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "用户登出失败");
-            throw;
-        }
+        _logger.LogInformation("用户登出");
+        await Task.CompletedTask;
     }
 }

@@ -1,4 +1,5 @@
 using GoNomads.Shared.Models;
+using GoNomads.Shared.Security;
 using UserService.Repositories;
 
 namespace UserService.Services;
@@ -27,6 +28,11 @@ public class UserServiceImpl : IUserService
         return await _userRepository.GetUserByIdAsync(id, cancellationToken);
     }
 
+    public async Task<User?> GetUserByEmailAsync(string email, CancellationToken cancellationToken = default)
+    {
+        return await _userRepository.GetUserByEmailAsync(email, cancellationToken);
+    }
+
     public async Task<User> CreateUserAsync(
         string name, 
         string email, 
@@ -45,6 +51,32 @@ public class UserServiceImpl : IUserService
             Name = name,
             Email = email,
             Phone = phone
+        };
+
+        return await _userRepository.CreateUserAsync(user, cancellationToken);
+    }
+
+    public async Task<User> CreateUserWithPasswordAsync(
+        string name,
+        string email,
+        string password,
+        string phone,
+        CancellationToken cancellationToken = default)
+    {
+        // Check if email already exists
+        var existingUser = await _userRepository.GetUserByEmailAsync(email, cancellationToken);
+        if (existingUser != null)
+        {
+            throw new InvalidOperationException($"User with email '{email}' already exists");
+        }
+
+        var user = new User
+        {
+            Name = name,
+            Email = email,
+            Phone = phone,
+            PasswordHash = PasswordHasher.HashPassword(password),
+            Role = "user"
         };
 
         return await _userRepository.CreateUserAsync(user, cancellationToken);

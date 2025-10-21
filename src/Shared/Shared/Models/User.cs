@@ -30,6 +30,18 @@ public class User : BaseModel
     [Column("phone")]
     public string Phone { get; set; } = string.Empty;
     
+    /// <summary>
+    /// 密码哈希 (使用 BCrypt 或其他哈希算法存储)
+    /// </summary>
+    [Column("password_hash")]
+    public string PasswordHash { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// 用户角色 (如: user, admin)
+    /// </summary>
+    [Column("role")]
+    public string Role { get; set; } = "user";
+    
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     

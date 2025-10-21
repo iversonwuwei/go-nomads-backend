@@ -5,11 +5,15 @@ using Scalar.AspNetCore;
 using Prometheus;
 using Shared.Extensions;
 using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // 添加 Supabase 客户端（使用 Shared 扩展方法）
 builder.Services.AddSupabase(builder.Configuration);
+
+// 添加 JWT Token 服务
+builder.Services.AddSingleton<JwtTokenService>();
 
 // Add Repositories - 直接注册 SupabaseUserRepository（不使用接口）
 builder.Services.AddScoped<SupabaseUserRepository>();
