@@ -132,9 +132,10 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             foreach (var service in services.Response)
             {
                 var serviceName = service.Key;
-                
-                // Skip consul itself
-                if (serviceName == "consul")
+
+                // Skip consul and gateway itself (avoid self-routing loops)
+                if (serviceName == "consul" ||
+                    serviceName.Equals("gateway", StringComparison.OrdinalIgnoreCase))
                     continue;
 
                 // Get service details with health check
@@ -145,15 +146,14 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                     _logger.LogWarning("Service {ServiceName} has no healthy instances, skipping...", serviceName);
                     continue;
                 }
-                
+
                 // Get all healthy instances
-                var healthyInstances = healthServices.Response
-                    .Where(s => s.Service.Tags?.Contains("dapr") == true)
-                    .ToList();
-                
+                // 不再要求 'dapr' 标签，所有健康的服务实例都可以路由
+                var healthyInstances = healthServices.Response.ToList();
+
                 if (!healthyInstances.Any())
                 {
-                    _logger.LogWarning("Service {ServiceName} has no healthy instances with 'dapr' tag, skipping...", serviceName);
+                    _logger.LogWarning("Service {ServiceName} has no healthy instances, skipping...", serviceName);
                     continue;
                 }
 
@@ -200,7 +200,7 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                     destinations[destinationId] = new YarpDestinationConfig
                     {
                         Address = $"http://{instance.Service.Address}:{instance.Service.Port}",
-                        Health = $"http://{instance.Service.Address}:{instance.Service.Port}/health",
+                        // Don't set Health URL here - YARP will use Address + HealthCheck.Path
                         Metadata = new Dictionary<string, string>
                         {
                             ["consul.service.id"] = instance.Service.ID,

@@ -1,10 +1,15 @@
 using Consul;
 using Dapr.Client;
 using Gateway.Services;
+using Gateway.Middleware;
 using Yarp.ReverseProxy.Configuration;
 using Scalar.AspNetCore;
 using Prometheus;
 using Shared.Extensions;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,9 +23,66 @@ builder.Services.AddSingleton<IConsulClient>(sp =>
 // Add services to the container.
 builder.Services.AddDaprClient();
 
+// Configure JWT Authentication
+var jwtSecret = builder.Configuration["Jwt:Secret"];
+var jwtIssuer = builder.Configuration["Jwt:Issuer"];
+var jwtAudience = builder.Configuration["Jwt:Audience"];
+
+if (string.IsNullOrEmpty(jwtSecret))
+{
+    throw new InvalidOperationException("JWT Secret is not configured. Please set Jwt:Secret in appsettings.json");
+}
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.RequireHttpsMetadata = false;
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = builder.Configuration.GetValue<bool>("Jwt:ValidateIssuerSigningKey", true),
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+        ValidateIssuer = builder.Configuration.GetValue<bool>("Jwt:ValidateIssuer", true),
+        ValidIssuer = jwtIssuer,
+        ValidateAudience = builder.Configuration.GetValue<bool>("Jwt:ValidateAudience", true),
+        ValidAudience = jwtAudience,
+        ValidateLifetime = builder.Configuration.GetValue<bool>("Jwt:ValidateLifetime", true),
+        ClockSkew = TimeSpan.FromMinutes(5)
+    };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning("JWT Authentication failed: {Error}", context.Exception.Message);
+            return Task.CompletedTask;
+        },
+        OnTokenValidated = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            var userId = context.Principal?.FindFirst("sub")?.Value;
+            logger.LogDebug("JWT Token validated for user: {UserId}", userId);
+            return Task.CompletedTask;
+        }
+    };
+});
+
+builder.Services.AddAuthorization();
+
+// Configure Rate Limiting
+builder.Services.AddRateLimiter(RateLimitConfig.ConfigureRateLimiter);
+
 // Add YARP with Consul-based service discovery
 builder.Services.AddSingleton<IProxyConfigProvider, ConsulProxyConfigProvider>();
-builder.Services.AddReverseProxy();
+builder.Services.AddSingleton<JwtAuthenticationTransform>();
+builder.Services.AddReverseProxy()
+    .LoadFromMemory(Array.Empty<Yarp.ReverseProxy.Configuration.RouteConfig>(), Array.Empty<Yarp.ReverseProxy.Configuration.ClusterConfig>())
+    .AddTransforms<JwtAuthenticationTransform>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -45,11 +107,29 @@ app.UseRouting();
 // Enable Prometheus metrics
 app.UseHttpMetrics();
 
-// Map the reverse proxy routes
-app.MapReverseProxy();
+// Add Rate Limiting
+app.UseRateLimiter();
+
+// Add Dynamic Rate Limit Middleware
+app.UseDynamicRateLimit();
+
+// Add Authentication & Authorization
+app.UseAuthentication();
+app.UseAuthorization();
+
+// 注释掉自定义 JWT 中间件 - 让后端服务自己处理认证
+// Gateway 作为反向代理，应该透明地转发请求和 Authorization 头
+// 每个后端服务有自己的 JWT 验证逻辑
+// app.UseJwtAuthentication();
+
+// Map controllers BEFORE reverse proxy (so /api/test/* routes are handled first)
+app.MapControllers();
 
 // Add health check endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+
+// Map the reverse proxy routes (this should be LAST as it's a catch-all)
+app.MapReverseProxy();
 
 // Map Prometheus metrics endpoint
 app.MapMetrics();

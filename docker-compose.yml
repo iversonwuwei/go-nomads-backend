@@ -15,8 +15,8 @@ services:
 
   gateway:
     build:
-      context: ./src/Gateway/Gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: src/Gateway/Gateway/Dockerfile
     ports:
       - "5000:80"
     depends_on:

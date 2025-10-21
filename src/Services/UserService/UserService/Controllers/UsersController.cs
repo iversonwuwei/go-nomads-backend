@@ -12,15 +12,18 @@ public class UsersController : ControllerBase
     private readonly ILogger<UsersController> _logger;
     private readonly DaprClient _daprClient;
     private readonly Services.IUserService _userService;
+    private readonly Services.IAuthService _authService;
 
     public UsersController(
         ILogger<UsersController> logger,
         DaprClient daprClient,
-        Services.IUserService userService)
+        Services.IUserService userService,
+        Services.IAuthService authService)
     {
         _logger = logger;
         _daprClient = daprClient;
         _userService = userService;
+        _authService = authService;
     }
 
     [HttpGet]
@@ -98,6 +101,142 @@ public class UsersController : ControllerBase
             Message = "User retrieved successfully",
             Data = userDto
         });
+    }
+
+    /// <summary>
+    /// 用户登录
+    /// </summary>
+    /// <param name="loginDto">登录信息</param>
+    /// <returns>认证令牌和用户信息</returns>
+    [HttpPost("login")]
+    public async Task<ActionResult<ApiResponse<AuthResponseDto>>> Login(
+        [FromBody] LoginDto loginDto)
+    {
+        _logger.LogInformation("用户尝试登录: {Email}", loginDto.Email);
+
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        try
+        {
+            var authResponse = await _authService.LoginAsync(loginDto.Email, loginDto.Password);
+
+            return Ok(new ApiResponse<AuthResponseDto>
+            {
+                Success = true,
+                Message = "登录成功",
+                Data = authResponse
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "用户 {Email} 登录失败: 未授权", loginDto.Email);
+            return Unauthorized(new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "用户 {Email} 登录时发生错误", loginDto.Email);
+            return StatusCode(500, new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = "登录失败,请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
+    /// 刷新访问令牌
+    /// </summary>
+    /// <param name="dto">刷新令牌请求</param>
+    /// <returns>新的认证令牌</returns>
+    [HttpPost("refresh")]
+    public async Task<ActionResult<ApiResponse<AuthResponseDto>>> RefreshToken(
+        [FromBody] RefreshTokenDto dto)
+    {
+        _logger.LogInformation("尝试刷新访问令牌");
+
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        try
+        {
+            var authResponse = await _authService.RefreshTokenAsync(dto.RefreshToken);
+
+            return Ok(new ApiResponse<AuthResponseDto>
+            {
+                Success = true,
+                Message = "令牌刷新成功",
+                Data = authResponse
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "刷新令牌失败: 未授权");
+            return Unauthorized(new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "刷新令牌时发生错误");
+            return StatusCode(500, new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = "刷新令牌失败,请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
+    /// 用户登出
+    /// </summary>
+    /// <returns></returns>
+    [HttpPost("logout")]
+    public async Task<ActionResult<ApiResponse<object>>> Logout()
+    {
+        _logger.LogInformation("用户登出");
+
+        try
+        {
+            await _authService.SignOutAsync();
+
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "登出成功"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "登出时发生错误");
+            return StatusCode(500, new ApiResponse<object>
+            {
+                Success = false,
+                Message = "登出失败,请稍后重试"
+            });
+        }
     }
 
     [HttpPost]

@@ -15,6 +15,7 @@ builder.Services.AddScoped<SupabaseUserRepository>();
 
 // Add Services
 builder.Services.AddScoped<IUserService, UserServiceImpl>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 // 配置 DaprClient 连接到 Dapr sidecar
 // Dapr sidecar 与应用共享网络命名空间，通过 localhost 访问
