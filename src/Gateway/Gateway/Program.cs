@@ -126,10 +126,10 @@ app.UseDynamicRateLimit();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// 注释掉自定义 JWT 中间件 - 让后端服务自己处理认证
-// Gateway 作为反向代理，应该透明地转发请求和 Authorization 头
-// 每个后端服务有自己的 JWT 验证逻辑
-// app.UseJwtAuthentication();
+// 使用 JWT 认证拦截中间件 - 在转发前验证 token
+// 如果 token 无效或缺失,直接返回 401,不转发请求
+// 如果 token 有效,提取用户信息并添加到请求头,然后转发
+app.UseJwtAuthenticationInterceptor();
 
 // Map controllers BEFORE reverse proxy (so /api/test/* routes are handled first)
 app.MapControllers();

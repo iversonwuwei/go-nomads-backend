@@ -3,6 +3,7 @@ using GoNomads.Shared.Models;
 using GoNomads.Shared.Middleware;
 using Dapr.Client;
 using UserService.DTOs;
+using System.ComponentModel.DataAnnotations;
 
 namespace UserService.Controllers;
 
@@ -339,7 +340,7 @@ public class UsersController : ControllerBase
 
         try
         {
-            var user = await _userService.CreateUserAsync(dto.Name, dto.Email, dto.Phone, cancellationToken);
+            var user = await _userService.CreateUserWithPasswordAsync(dto.Name, dto.Email, dto.Password, dto.Phone, cancellationToken);
 
             // 使用 Dapr 发布用户创建事件到其他服务
             try
@@ -644,8 +645,17 @@ public class UsersController : ControllerBase
 
 public class CreateUserDto
 {
+    [Required(ErrorMessage = "姓名不能为空")]
     public string Name { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "邮箱不能为空")]
+    [EmailAddress(ErrorMessage = "邮箱格式不正确")]
     public string Email { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "密码不能为空")]
+    [MinLength(6, ErrorMessage = "密码至少需要6个字符")]
+    public string Password { get; set; } = string.Empty;
+
     public string Phone { get; set; } = string.Empty;
 }
 

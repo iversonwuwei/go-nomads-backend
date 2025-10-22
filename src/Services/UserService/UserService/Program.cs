@@ -17,6 +17,7 @@ builder.Services.AddSingleton<JwtTokenService>();
 
 // Add Repositories - 直接注册 SupabaseUserRepository（不使用接口）
 builder.Services.AddScoped<SupabaseUserRepository>();
+builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 
 // Add Services
 builder.Services.AddScoped<IUserService, UserServiceImpl>();
