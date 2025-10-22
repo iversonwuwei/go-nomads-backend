@@ -7,11 +7,16 @@ namespace UserService.Services;
 public class UserServiceImpl : IUserService
 {
     private readonly SupabaseUserRepository _userRepository;
+    private readonly IRoleRepository _roleRepository;
     private readonly ILogger<UserServiceImpl> _logger;
 
-    public UserServiceImpl(SupabaseUserRepository userRepository, ILogger<UserServiceImpl> logger)
+    public UserServiceImpl(
+        SupabaseUserRepository userRepository,
+        IRoleRepository roleRepository,
+        ILogger<UserServiceImpl> logger)
     {
         _userRepository = userRepository;
+        _roleRepository = roleRepository;
         _logger = logger;
     }
 
@@ -70,13 +75,21 @@ public class UserServiceImpl : IUserService
             throw new InvalidOperationException($"User with email '{email}' already exists");
         }
 
+        // 获取默认的 user 角色 ID
+        var defaultRole = await _roleRepository.GetRoleByNameAsync("user", cancellationToken);
+        if (defaultRole == null)
+        {
+            _logger.LogError("默认角色 'user' 不存在");
+            throw new InvalidOperationException("系统配置错误: 默认用户角色不存在");
+        }
+
         var user = new User
         {
             Name = name,
             Email = email,
             Phone = phone,
             PasswordHash = PasswordHasher.HashPassword(password),
-            Role = "user"
+            RoleId = defaultRole.Id // 使用从数据库查询到的角色 UUID
         };
 
         return await _userRepository.CreateUserAsync(user, cancellationToken);

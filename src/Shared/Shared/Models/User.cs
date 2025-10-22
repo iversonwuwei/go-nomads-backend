@@ -37,16 +37,10 @@ public class User : BaseModel
     public string PasswordHash { get; set; } = string.Empty;
 
     /// <summary>
-    /// 用户角色 (如: user, admin) - 已弃用,使用 RoleId
-    /// </summary>
-    [Column("role")]
-    public string Role { get; set; } = "user";
-
-    /// <summary>
-    /// 角色ID - 外键引用 roles 表
+    /// 角色ID - 外键引用 roles 表 (UUID)
     /// </summary>
     [Column("role_id")]
-    public string RoleId { get; set; } = "role_user";
+    public string RoleId { get; set; } = string.Empty;
 
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
