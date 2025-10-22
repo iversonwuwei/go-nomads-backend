@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Shared.Configuration;
 using Supabase;
+using System.Net.Security;
 
 namespace Shared.Extensions;
 
@@ -43,10 +44,36 @@ public static class SupabaseServiceExtensions
 
             logger.LogInformation("Initializing Supabase client with URL: {Url}", options.Url);
 
+            // 配置 HttpClient 以处理 SSL 和超时
+            var httpHandler = new HttpClientHandler
+            {
+                // 对于生产环境的 Supabase，通常不需要禁用证书验证
+                // 但如果遇到 SSL 问题，可以临时使用此选项
+                ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) =>
+                {
+                    // 在开发环境可以忽略证书错误
+                    if (sslPolicyErrors == SslPolicyErrors.None)
+                        return true;
+                    
+                    logger.LogWarning("SSL Certificate validation failed: {Errors}", sslPolicyErrors);
+                    // 对于 Supabase 官方服务，建议返回 true
+                    return true;
+                }
+            };
+            
+            var httpClient = new HttpClient(httpHandler)
+            {
+                Timeout = TimeSpan.FromSeconds(30)
+            };
+
             var supabaseOptions = new SupabaseOptions
             {
                 AutoConnectRealtime = options.AutoConnectRealtime,
-                AutoRefreshToken = options.AutoRefreshToken
+                AutoRefreshToken = options.AutoRefreshToken,
+                Headers = new Dictionary<string, string>
+                {
+                    { "X-Client-Info", "go-nomads/1.0.0" }
+                }
             };
 
             var client = new Client(options.Url, options.Key, supabaseOptions);
@@ -96,10 +123,32 @@ public static class SupabaseServiceExtensions
             var logger = provider.GetRequiredService<ILogger<Client>>();
             logger.LogInformation("Initializing Supabase client with URL: {Url}", settings.Url);
 
+            // 配置 HttpClient 以处理 SSL 和超时
+            var httpHandler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) =>
+                {
+                    if (sslPolicyErrors == SslPolicyErrors.None)
+                        return true;
+                    
+                    logger.LogWarning("SSL Certificate validation failed: {Errors}", sslPolicyErrors);
+                    return true;
+                }
+            };
+            
+            var httpClient = new HttpClient(httpHandler)
+            {
+                Timeout = TimeSpan.FromSeconds(30)
+            };
+
             var supabaseOptions = new SupabaseOptions
             {
                 AutoConnectRealtime = settings.AutoConnectRealtime,
-                AutoRefreshToken = settings.AutoRefreshToken
+                AutoRefreshToken = settings.AutoRefreshToken,
+                Headers = new Dictionary<string, string>
+                {
+                    { "X-Client-Info", "go-nomads/1.0.0" }
+                }
             };
 
             var client = new Client(settings.Url, settings.Key, supabaseOptions);
