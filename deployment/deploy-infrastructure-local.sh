@@ -183,6 +183,18 @@ start_grafana() {
     echo "Dashboards will be automatically provisioned"
 }
 
+start_nginx() {
+    header "Deploying Nginx"
+    remove_container go-nomads-nginx
+    docker run -d \
+        --name go-nomads-nginx \
+        --network "${NETWORK_NAME}" \
+        -p 80:80 \
+        -p 443:443 \
+        nginx:latest >/dev/null
+    echo "Nginx running at http://localhost"
+}
+
 start_all() {
     header "Go-Nomads Local Infrastructure"
     require_docker
@@ -192,6 +204,7 @@ start_all() {
     start_zipkin
     start_prometheus
     start_grafana
+    start_nginx
     status_all
     echo "Infrastructure ready."
 }
@@ -200,6 +213,7 @@ stop_all() {
     header "Stopping local infrastructure"
     require_docker
     local containers=(
+        go-nomads-nginx
         go-nomads-grafana
         go-nomads-prometheus
         go-nomads-zipkin
@@ -219,6 +233,7 @@ clean_all() {
     require_docker
     stop_all
     local containers=(
+        go-nomads-nginx
         go-nomads-grafana
         go-nomads-prometheus
         go-nomads-zipkin
@@ -242,6 +257,7 @@ status_all() {
     docker ps --filter "name=go-nomads" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
     echo
     echo "Access URLs:"
+    echo "  Nginx:       http://localhost"
     echo "  Redis:       redis://localhost:6379"
     echo "  Consul:      http://localhost:8500"
     echo "  Zipkin:      http://localhost:9411"

@@ -254,6 +254,21 @@ function Start-Grafana {
     Write-Host "Grafana UI available at: http://localhost:3000 (admin/admin)" -ForegroundColor Green
 }
 
+function Start-Nginx {
+    Write-Header "Deploying Nginx"
+    Remove-Container "go-nomads-nginx"
+    
+    & $RUNTIME run -d `
+        --name go-nomads-nginx `
+        --network $NETWORK_NAME `
+        -p 80:80 `
+        -p 443:443 `
+        nginx:latest | Out-Null
+    
+    Write-Host "Nginx running at: http://localhost" -ForegroundColor Green
+    Write-Host "  Note: Mount custom nginx.conf using volumes if needed" -ForegroundColor Gray
+}
+
 function Start-Infrastructure {
     Write-Header "Starting Go-Nomads Infrastructure"
     
@@ -263,9 +278,11 @@ function Start-Infrastructure {
     Start-Zipkin
     Start-Prometheus
     Start-Grafana
+    Start-Nginx
     
     Write-Host "`nAll infrastructure containers started!" -ForegroundColor Green
     Write-Host "`nAccess URLs:" -ForegroundColor Cyan
+    Write-Host "  Nginx:       http://localhost" -ForegroundColor White
     Write-Host "  Redis:       redis://localhost:6379" -ForegroundColor White
     Write-Host "  Consul:      http://localhost:8500" -ForegroundColor White
     Write-Host "  Zipkin:      http://localhost:9411" -ForegroundColor White
@@ -277,6 +294,7 @@ function Stop-Infrastructure {
     Write-Header "Stopping Infrastructure Containers"
     
     $containers = @(
+        "go-nomads-nginx",
         "go-nomads-grafana",
         "go-nomads-prometheus",
         "go-nomads-zipkin",
@@ -306,6 +324,7 @@ function Remove-Infrastructure {
     Stop-Infrastructure
     
     $containers = @(
+        "go-nomads-nginx",
         "go-nomads-grafana",
         "go-nomads-prometheus",
         "go-nomads-zipkin",

@@ -363,6 +363,29 @@ deploy_grafana() {
     fi
 }
 
+# Deploy Nginx
+deploy_nginx() {
+    show_header "Deploying Nginx"
+    
+    remove_container_if_exists "go-nomads-nginx"
+    
+    echo -e "${YELLOW}  Starting Nginx container...${NC}"
+    $CONTAINER_RUNTIME run -d \
+        --name go-nomads-nginx \
+        --network "$NETWORK_NAME" \
+        -p 80:80 \
+        -p 443:443 \
+        nginx:latest > /dev/null
+    
+    if container_running "go-nomads-nginx"; then
+        echo -e "${GREEN}  Nginx deployed successfully!${NC}"
+        echo -e "${CYAN}  Note: You can mount custom nginx.conf using volumes${NC}"
+    else
+        echo -e "${RED}  [ERROR] Failed to start Nginx${NC}"
+        exit 1
+    fi
+}
+
 # Show Status
 show_status() {
     show_header "Infrastructure Status"
@@ -387,6 +410,7 @@ show_status() {
     fi
     
     echo -e "${YELLOW}Access URLs:${NC}"
+    echo -e "${CYAN}  - Nginx:        http://localhost${NC}"
     echo -e "${CYAN}  - Consul UI:    http://localhost:8500${NC}"
     echo -e "${CYAN}  - Prometheus:   http://localhost:9090${NC}"
     echo -e "${CYAN}  - Grafana:      http://localhost:3000 (admin/admin)${NC}"
@@ -399,6 +423,7 @@ stop_infrastructure() {
     show_header "Stopping Infrastructure"
     
     local containers=(
+        "go-nomads-nginx"
         "go-nomads-grafana"
         "go-nomads-prometheus"
         "go-nomads-zipkin"
@@ -480,6 +505,7 @@ case "$ACTION" in
         deploy_zipkin
         deploy_prometheus
         deploy_grafana
+        deploy_nginx
         show_status
         
         echo ""

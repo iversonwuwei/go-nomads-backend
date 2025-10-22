@@ -361,6 +361,29 @@ function Deploy-Grafana {
     }
 }
 
+# Deploy Nginx
+function Deploy-Nginx {
+    Show-Header "Deploying Nginx"
+    
+    Remove-ContainerIfExists "go-nomads-nginx"
+    
+    Write-Host "  Starting Nginx container..." -ForegroundColor Yellow
+    & $CONTAINER_RUNTIME run -d `
+        --name go-nomads-nginx `
+        --network $NETWORK_NAME `
+        -p 80:80 `
+        -p 443:443 `
+        nginx:latest | Out-Null
+    
+    if (Test-ContainerRunning "go-nomads-nginx") {
+        Write-Host "  Nginx deployed successfully!" -ForegroundColor Green
+        Write-Host "  Note: You can mount custom nginx.conf using volumes" -ForegroundColor Cyan
+    } else {
+        Write-Host "  [ERROR] Failed to start Nginx" -ForegroundColor Red
+        exit 1
+    }
+}
+
 # Show Status
 function Show-Status {
     Show-Header "Infrastructure Status"
@@ -385,6 +408,7 @@ function Show-Status {
     }
     
     Write-Host "Access URLs:" -ForegroundColor Yellow
+    Write-Host "  - Nginx:        http://localhost" -ForegroundColor Cyan
     Write-Host "  - Consul UI:    http://localhost:8500" -ForegroundColor Cyan
     Write-Host "  - Prometheus:   http://localhost:9090" -ForegroundColor Cyan
     Write-Host "  - Grafana:      http://localhost:3000 (admin/admin)" -ForegroundColor Cyan
@@ -484,6 +508,7 @@ switch ($Action) {
         Deploy-Zipkin
         Deploy-Prometheus
         Deploy-Grafana
+        Deploy-Nginx
         Show-Status
         
         Write-Host ""
