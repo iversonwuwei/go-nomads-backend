@@ -340,6 +340,16 @@ main() {
         "city-service"
     echo ""
     
+    # 部署 EventService
+    deploy_service_local \
+        "event-service" \
+        "src/Services/EventService/EventService" \
+        "8005" \
+        "EventService.dll" \
+        "3505" \
+        "event-service"
+    echo ""
+    
     # 显示部署摘要
     show_header "部署摘要"
     
@@ -351,11 +361,12 @@ main() {
     echo -e "  ${GREEN}Product Service:  http://localhost:5002${NC}"
     echo -e "  ${GREEN}Document Service: http://localhost:5003${NC}"
     echo -e "  ${GREEN}City Service:     http://localhost:8002${NC}"
+    echo -e "  ${GREEN}Event Service:    http://localhost:8005${NC}"
     echo ""
     echo -e "${BLUE}Dapr 配置:${NC}"
     echo -e "  ${GREEN}模式:             Container Sidecar (共享网络命名空间)${NC}"
     echo -e "  ${GREEN}gRPC 端口:        50001 (通过 DAPR_GRPC_PORT 环境变量)${NC}"
-    echo -e "  ${GREEN}HTTP 端口:        3500-3504 (各服务独立端口)${NC}"
+    echo -e "  ${GREEN}HTTP 端口:        3500-3505 (各服务独立端口)${NC}"
     echo ""
     echo -e "${BLUE}基础设施:${NC}"
     echo -e "  ${GREEN}Consul UI:        http://localhost:8500${NC}"

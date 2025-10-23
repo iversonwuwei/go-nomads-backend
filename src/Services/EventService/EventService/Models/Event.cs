@@ -129,3 +129,27 @@ public class EventParticipant : BaseModel
     [Column("registered_at")]
     public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;
 }
+
+/// <summary>
+/// 活动关注者实体模型
+/// </summary>
+[Table("event_followers")]
+public class EventFollower : BaseModel
+{
+    [PrimaryKey("id", false)]
+    public Guid Id { get; set; }
+
+    [Required]
+    [Column("event_id")]
+    public Guid EventId { get; set; }
+
+    [Required]
+    [Column("user_id")]
+    public Guid UserId { get; set; }
+
+    [Column("followed_at")]
+    public DateTime FollowedAt { get; set; } = DateTime.UtcNow;
+
+    [Column("notification_enabled")]
+    public bool NotificationEnabled { get; set; } = true;
+}

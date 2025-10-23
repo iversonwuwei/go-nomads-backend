@@ -1,0 +1,261 @@
+using System.ComponentModel.DataAnnotations;
+using Postgrest.Attributes;
+using Postgrest.Models;
+
+namespace EventService.Domain.Entities;
+
+/// <summary>
+/// Event 聚合根 - 领域实体
+/// </summary>
+[Table("events")]
+public class Event : BaseModel
+{
+    [PrimaryKey("id", false)]
+    public Guid Id { get; private set; }
+
+    [Required]
+    [MaxLength(200)]
+    [Column("title")]
+    public string Title { get; private set; } = string.Empty;
+
+    [Column("description")]
+    public string? Description { get; private set; }
+
+    [Required]
+    [Column("organizer_id")]
+    public Guid OrganizerId { get; private set; }
+
+    [Column("city_id")]
+    public Guid? CityId { get; private set; }
+
+    [MaxLength(200)]
+    [Column("location")]
+    public string? Location { get; private set; }
+
+    [Column("address")]
+    public string? Address { get; private set; }
+
+    [Column("image_url")]
+    public string? ImageUrl { get; private set; }
+
+    [Column("images")]
+    public string[]? Images { get; private set; }
+
+    [MaxLength(50)]
+    [Column("category")]
+    public string? Category { get; private set; }
+
+    [Required]
+    [Column("start_time")]
+    public DateTime StartTime { get; private set; }
+
+    [Column("end_time")]
+    public DateTime? EndTime { get; private set; }
+
+    [Column("max_participants")]
+    public int? MaxParticipants { get; private set; }
+
+    [Column("current_participants")]
+    public int CurrentParticipants { get; private set; }
+
+    [Column("price")]
+    public decimal Price { get; private set; }
+
+    [MaxLength(10)]
+    [Column("currency")]
+    public string Currency { get; private set; } = "USD";
+
+    [MaxLength(20)]
+    [Column("status")]
+    public string Status { get; private set; } = "upcoming";
+
+    [MaxLength(20)]
+    [Column("location_type")]
+    public string LocationType { get; private set; } = "physical";
+
+    [Column("meeting_link")]
+    public string? MeetingLink { get; private set; }
+
+    [Column("latitude")]
+    public decimal? Latitude { get; private set; }
+
+    [Column("longitude")]
+    public decimal? Longitude { get; private set; }
+
+    [Column("tags")]
+    public string[]? Tags { get; private set; }
+
+    [Column("is_featured")]
+    public bool IsFeatured { get; private set; }
+
+    [Column("created_by")]
+    public Guid? CreatedBy { get; private set; }
+
+    [Column("updated_by")]
+    public Guid? UpdatedBy { get; private set; }
+
+    [Column("created_at")]
+    public DateTime CreatedAt { get; private set; }
+
+    [Column("updated_at")]
+    public DateTime UpdatedAt { get; private set; }
+
+    // 公共无参构造函数 (Supabase 需要)
+    public Event() { }
+
+    /// <summary>
+    /// 创建新的 Event - 工厂方法
+    /// </summary>
+    public static Event Create(
+        string title,
+        Guid organizerId,
+        DateTime startTime,
+        string? description = null,
+        Guid? cityId = null,
+        string? location = null,
+        string? address = null,
+        string? imageUrl = null,
+        string[]? images = null,
+        string? category = null,
+        DateTime? endTime = null,
+        int? maxParticipants = null,
+        decimal price = 0,
+        string currency = "USD",
+        string locationType = "physical",
+        string? meetingLink = null,
+        decimal? latitude = null,
+        decimal? longitude = null,
+        string[]? tags = null)
+    {
+        var @event = new Event
+        {
+            Id = Guid.NewGuid(),
+            Title = title ?? throw new ArgumentNullException(nameof(title)),
+            OrganizerId = organizerId,
+            StartTime = startTime,
+            Description = description,
+            CityId = cityId,
+            Location = location,
+            Address = address,
+            ImageUrl = imageUrl,
+            Images = images,
+            Category = category,
+            EndTime = endTime,
+            MaxParticipants = maxParticipants,
+            CurrentParticipants = 0,
+            Price = price,
+            Currency = currency,
+            Status = "upcoming",
+            LocationType = locationType,
+            MeetingLink = meetingLink,
+            Latitude = latitude,
+            Longitude = longitude,
+            Tags = tags,
+            IsFeatured = false,
+            CreatedBy = organizerId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        return @event;
+    }
+
+    /// <summary>
+    /// 更新 Event 信息 - 领域逻辑
+    /// </summary>
+    public void Update(
+        Guid userId,
+        string? title = null,
+        string? description = null,
+        Guid? cityId = null,
+        string? location = null,
+        string? address = null,
+        string? imageUrl = null,
+        string[]? images = null,
+        string? category = null,
+        DateTime? startTime = null,
+        DateTime? endTime = null,
+        int? maxParticipants = null,
+        decimal? price = null,
+        string? currency = null,
+        string? status = null,
+        string? locationType = null,
+        string? meetingLink = null,
+        decimal? latitude = null,
+        decimal? longitude = null,
+        string[]? tags = null)
+    {
+        // 权限验证
+        if (OrganizerId != userId)
+        {
+            throw new UnauthorizedAccessException("只有创建者可以修改 Event");
+        }
+
+        if (!string.IsNullOrEmpty(title)) Title = title;
+        if (description != null) Description = description;
+        if (cityId.HasValue) CityId = cityId;
+        if (!string.IsNullOrEmpty(location)) Location = location;
+        if (address != null) Address = address;
+        if (imageUrl != null) ImageUrl = imageUrl;
+        if (images != null) Images = images;
+        if (!string.IsNullOrEmpty(category)) Category = category;
+        if (startTime.HasValue) StartTime = startTime.Value;
+        if (endTime.HasValue) EndTime = endTime;
+        if (maxParticipants.HasValue) MaxParticipants = maxParticipants;
+        if (price.HasValue) Price = price.Value;
+        if (!string.IsNullOrEmpty(currency)) Currency = currency;
+        if (!string.IsNullOrEmpty(status)) Status = status;
+        if (!string.IsNullOrEmpty(locationType)) LocationType = locationType;
+        if (meetingLink != null) MeetingLink = meetingLink;
+        if (latitude.HasValue) Latitude = latitude;
+        if (longitude.HasValue) Longitude = longitude;
+        if (tags != null) Tags = tags;
+
+        UpdatedBy = userId;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// 增加参与者 - 领域逻辑
+    /// </summary>
+    public void AddParticipant()
+    {
+        if (MaxParticipants.HasValue && CurrentParticipants >= MaxParticipants.Value)
+        {
+            throw new InvalidOperationException("Event 已满员");
+        }
+
+        CurrentParticipants++;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// 移除参与者 - 领域逻辑
+    /// </summary>
+    public void RemoveParticipant()
+    {
+        if (CurrentParticipants > 0)
+        {
+            CurrentParticipants--;
+            UpdatedAt = DateTime.UtcNow;
+        }
+    }
+
+    /// <summary>
+    /// 检查是否可以参加
+    /// </summary>
+    public bool CanJoin()
+    {
+        if (Status != "upcoming")
+        {
+            return false;
+        }
+
+        if (MaxParticipants.HasValue && CurrentParticipants >= MaxParticipants.Value)
+        {
+            return false;
+        }
+
+        return true;
+    }
+}
