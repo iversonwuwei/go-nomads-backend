@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace UserService.DTOs;
+namespace UserService.Application.DTOs;
 
 /// <summary>
 /// 登录请求 DTO

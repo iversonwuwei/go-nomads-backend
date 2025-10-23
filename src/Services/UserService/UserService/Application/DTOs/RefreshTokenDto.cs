@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace UserService.DTOs;
+namespace UserService.Application.DTOs;
 
 /// <summary>
 /// 刷新令牌请求 DTO

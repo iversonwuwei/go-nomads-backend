@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace UserService.DTOs;
+namespace UserService.Application.DTOs;
 
 /// <summary>
 /// 用户注册 DTO

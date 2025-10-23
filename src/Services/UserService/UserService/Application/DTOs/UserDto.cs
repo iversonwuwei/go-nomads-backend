@@ -1,4 +1,4 @@
-namespace UserService.DTOs;
+namespace UserService.Application.DTOs;
 
 public class UserDto
 {

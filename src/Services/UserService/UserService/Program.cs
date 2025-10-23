@@ -1,11 +1,12 @@
-using UserService.Services;
-using UserService.Repositories;
 using Dapr.Client;
 using Scalar.AspNetCore;
 using Prometheus;
 using Shared.Extensions;
 using GoNomads.Shared.Extensions;
 using GoNomads.Shared.Security;
+using UserService.Domain.Repositories;
+using UserService.Infrastructure.Repositories;
+using UserService.Application.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,13 +16,13 @@ builder.Services.AddSupabase(builder.Configuration);
 // 添加 JWT Token 服务
 builder.Services.AddSingleton<JwtTokenService>();
 
-// Add Repositories - 直接注册 SupabaseUserRepository（不使用接口）
-builder.Services.AddScoped<SupabaseUserRepository>();
+// Register Domain Repositories (Infrastructure Layer)
+builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 
-// Add Services
-builder.Services.AddScoped<IUserService, UserServiceImpl>();
-builder.Services.AddScoped<IAuthService, AuthService>();
+// Register Application Services
+builder.Services.AddScoped<IUserService, UserApplicationService>();
+builder.Services.AddScoped<IAuthService, AuthApplicationService>();
 
 // 配置 DaprClient 连接到 Dapr sidecar
 // Dapr sidecar 与应用共享网络命名空间，通过 localhost 访问

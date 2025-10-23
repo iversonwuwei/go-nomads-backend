@@ -1,4 +1,4 @@
-namespace UserService.DTOs;
+namespace UserService.Application.DTOs;
 
 /// <summary>
 /// 认证响应 DTO
