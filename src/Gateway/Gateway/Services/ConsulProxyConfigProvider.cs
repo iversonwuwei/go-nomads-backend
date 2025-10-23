@@ -187,6 +187,34 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                 };
                 routes.Add(exactRoute);
 
+                // Special handling: user-service also handles /api/auth endpoints
+                if (serviceName == "user-service")
+                {
+                    var authRoute = new YarpRouteConfig
+                    {
+                        RouteId = $"{serviceName}-auth-route",
+                        ClusterId = $"{serviceName}-cluster",
+                        Match = new YarpRouteMatch
+                        {
+                            Path = "/api/auth/{**remainder}"
+                        }
+                    };
+                    routes.Add(authRoute);
+
+                    var authExactRoute = new YarpRouteConfig
+                    {
+                        RouteId = $"{serviceName}-auth-exact-route",
+                        ClusterId = $"{serviceName}-cluster",
+                        Match = new YarpRouteMatch
+                        {
+                            Path = "/api/auth"
+                        }
+                    };
+                    routes.Add(authExactRoute);
+
+                    _logger.LogInformation("Added /api/auth routes for user-service");
+                }
+
                 // Create cluster config with all healthy instances
                 var destinations = new Dictionary<string, YarpDestinationConfig>();
                 
