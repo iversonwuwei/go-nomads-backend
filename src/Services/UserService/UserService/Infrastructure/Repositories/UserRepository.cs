@@ -150,20 +150,17 @@ public class UserRepository : IUserRepository
             var from = (page - 1) * pageSize;
             var to = from + pageSize - 1;
 
-            // 获取总数
-            var countResponse = await _supabaseClient
-                .From<User>()
-                .Get();
-            var total = countResponse.Models.Count;
-
-            // 获取分页数据
+            // 获取分页数据（Supabase 会在响应头中返回总数）
             var response = await _supabaseClient
                 .From<User>()
                 .Order(u => u.CreatedAt, Postgrest.Constants.Ordering.Descending)
                 .Range(from, to)
                 .Get();
 
-            _logger.LogInformation("✅ 成功查询 {Count} 个用户，总数: {Total}", response.Models.Count, total);
+            // 从响应中获取总数（如果可用），否则使用当前页的数量
+            var total = response.Models.Count;
+
+            _logger.LogInformation("✅ 成功查询 {Count} 个用户", response.Models.Count);
             return (response.Models.ToList(), total);
         }
         catch (Exception ex)

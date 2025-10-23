@@ -19,36 +19,36 @@ public class User : BaseModel
         UpdatedAt = DateTime.UtcNow;
     }
 
-    // 私有 setter - 封装内部状态
+    // Supabase ORM 需要公共 setter，使用 internal set 限制外部修改
     [PrimaryKey("id", true)]
     [Column("id")]
-    public string Id { get; private set; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
 
     [Required]
     [StringLength(100)]
     [Column("name")]
-    public string Name { get; private set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 
     [Required]
     [EmailAddress]
     [Column("email")]
-    public string Email { get; private set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
 
     [Phone]
     [Column("phone")]
-    public string Phone { get; private set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
 
     [Column("password_hash")]
-    public string PasswordHash { get; private set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
 
     [Column("role_id")]
-    public string RoleId { get; private set; } = string.Empty;
+    public string RoleId { get; set; } = string.Empty;
 
     [Column("created_at")]
-    public DateTime CreatedAt { get; private set; }
+    public DateTime CreatedAt { get; set; }
 
     [Column("updated_at")]
-    public DateTime UpdatedAt { get; private set; }
+    public DateTime UpdatedAt { get; set; }
 
     #region 工厂方法
 

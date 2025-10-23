@@ -20,20 +20,20 @@ public class Role : BaseModel
 
     [PrimaryKey("id", false)]
     [Column("id")]
-    public string Id { get; private set; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
 
     [Required]
     [Column("name")]
-    public string Name { get; private set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 
     [Column("description")]
-    public string? Description { get; private set; }
+    public string? Description { get; set; }
 
     [Column("created_at")]
-    public DateTime CreatedAt { get; private set; }
+    public DateTime CreatedAt { get; set; }
 
     [Column("updated_at")]
-    public DateTime UpdatedAt { get; private set; }
+    public DateTime UpdatedAt { get; set; }
 
     #region 工厂方法
 
