@@ -21,7 +21,20 @@ builder.Services.AddSingleton<IConsulClient>(sp =>
 });
 
 // Add services to the container.
-builder.Services.AddDaprClient();
+// 配置 DaprClient 使用 gRPC 协议（性能更好）
+builder.Services.AddDaprClient(daprClientBuilder =>
+{
+    // 使用 gRPC 端点（默认端口 50001）
+    // 在 container sidecar 模式下，Gateway 和 Dapr 共享网络命名空间，使用 localhost
+    var daprGrpcPort = builder.Configuration.GetValue<int>("Dapr:GrpcPort", 50001);
+    var daprGrpcEndpoint = $"http://localhost:{daprGrpcPort}";
+
+    daprClientBuilder.UseGrpcEndpoint(daprGrpcEndpoint);
+
+    // 记录配置
+    var logger = LoggerFactory.Create(loggingBuilder => loggingBuilder.AddConsole()).CreateLogger("DaprSetup");
+    logger.LogInformation("🚀 Dapr Client 配置使用 gRPC: {Endpoint}", daprGrpcEndpoint);
+});
 
 // Configure JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"];

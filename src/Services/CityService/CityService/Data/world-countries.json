@@ -1,0 +1,322 @@
+[
+  {
+    "name": "China",
+    "nameZh": "中国",
+    "code": "CN",
+    "codeAlpha3": "CHN",
+    "continent": "Asia",
+    "callingCode": "+86"
+  },
+  {
+    "name": "United States",
+    "nameZh": "美国",
+    "code": "US",
+    "codeAlpha3": "USA",
+    "continent": "North America",
+    "callingCode": "+1"
+  },
+  {
+    "name": "India",
+    "nameZh": "印度",
+    "code": "IN",
+    "codeAlpha3": "IND",
+    "continent": "Asia",
+    "callingCode": "+91"
+  },
+  {
+    "name": "Japan",
+    "nameZh": "日本",
+    "code": "JP",
+    "codeAlpha3": "JPN",
+    "continent": "Asia",
+    "callingCode": "+81"
+  },
+  {
+    "name": "Germany",
+    "nameZh": "德国",
+    "code": "DE",
+    "codeAlpha3": "DEU",
+    "continent": "Europe",
+    "callingCode": "+49"
+  },
+  {
+    "name": "United Kingdom",
+    "nameZh": "英国",
+    "code": "GB",
+    "codeAlpha3": "GBR",
+    "continent": "Europe",
+    "callingCode": "+44"
+  },
+  {
+    "name": "France",
+    "nameZh": "法国",
+    "code": "FR",
+    "codeAlpha3": "FRA",
+    "continent": "Europe",
+    "callingCode": "+33"
+  },
+  {
+    "name": "Italy",
+    "nameZh": "意大利",
+    "code": "IT",
+    "codeAlpha3": "ITA",
+    "continent": "Europe",
+    "callingCode": "+39"
+  },
+  {
+    "name": "Brazil",
+    "nameZh": "巴西",
+    "code": "BR",
+    "codeAlpha3": "BRA",
+    "continent": "South America",
+    "callingCode": "+55"
+  },
+  {
+    "name": "Canada",
+    "nameZh": "加拿大",
+    "code": "CA",
+    "codeAlpha3": "CAN",
+    "continent": "North America",
+    "callingCode": "+1"
+  },
+  {
+    "name": "Russia",
+    "nameZh": "俄罗斯",
+    "code": "RU",
+    "codeAlpha3": "RUS",
+    "continent": "Europe",
+    "callingCode": "+7"
+  },
+  {
+    "name": "South Korea",
+    "nameZh": "韩国",
+    "code": "KR",
+    "codeAlpha3": "KOR",
+    "continent": "Asia",
+    "callingCode": "+82"
+  },
+  {
+    "name": "Spain",
+    "nameZh": "西班牙",
+    "code": "ES",
+    "codeAlpha3": "ESP",
+    "continent": "Europe",
+    "callingCode": "+34"
+  },
+  {
+    "name": "Australia",
+    "nameZh": "澳大利亚",
+    "code": "AU",
+    "codeAlpha3": "AUS",
+    "continent": "Oceania",
+    "callingCode": "+61"
+  },
+  {
+    "name": "Mexico",
+    "nameZh": "墨西哥",
+    "code": "MX",
+    "codeAlpha3": "MEX",
+    "continent": "North America",
+    "callingCode": "+52"
+  },
+  {
+    "name": "Indonesia",
+    "nameZh": "印度尼西亚",
+    "code": "ID",
+    "codeAlpha3": "IDN",
+    "continent": "Asia",
+    "callingCode": "+62"
+  },
+  {
+    "name": "Netherlands",
+    "nameZh": "荷兰",
+    "code": "NL",
+    "codeAlpha3": "NLD",
+    "continent": "Europe",
+    "callingCode": "+31"
+  },
+  {
+    "name": "Saudi Arabia",
+    "nameZh": "沙特阿拉伯",
+    "code": "SA",
+    "codeAlpha3": "SAU",
+    "continent": "Asia",
+    "callingCode": "+966"
+  },
+  {
+    "name": "Turkey",
+    "nameZh": "土耳其",
+    "code": "TR",
+    "codeAlpha3": "TUR",
+    "continent": "Asia",
+    "callingCode": "+90"
+  },
+  {
+    "name": "Switzerland",
+    "nameZh": "瑞士",
+    "code": "CH",
+    "codeAlpha3": "CHE",
+    "continent": "Europe",
+    "callingCode": "+41"
+  },
+  {
+    "name": "Poland",
+    "nameZh": "波兰",
+    "code": "PL",
+    "codeAlpha3": "POL",
+    "continent": "Europe",
+    "callingCode": "+48"
+  },
+  {
+    "name": "Belgium",
+    "nameZh": "比利时",
+    "code": "BE",
+    "codeAlpha3": "BEL",
+    "continent": "Europe",
+    "callingCode": "+32"
+  },
+  {
+    "name": "Sweden",
+    "nameZh": "瑞典",
+    "code": "SE",
+    "codeAlpha3": "SWE",
+    "continent": "Europe",
+    "callingCode": "+46"
+  },
+  {
+    "name": "Argentina",
+    "nameZh": "阿根廷",
+    "code": "AR",
+    "codeAlpha3": "ARG",
+    "continent": "South America",
+    "callingCode": "+54"
+  },
+  {
+    "name": "Norway",
+    "nameZh": "挪威",
+    "code": "NO",
+    "codeAlpha3": "NOR",
+    "continent": "Europe",
+    "callingCode": "+47"
+  },
+  {
+    "name": "Austria",
+    "nameZh": "奥地利",
+    "code": "AT",
+    "codeAlpha3": "AUT",
+    "continent": "Europe",
+    "callingCode": "+43"
+  },
+  {
+    "name": "United Arab Emirates",
+    "nameZh": "阿联酋",
+    "code": "AE",
+    "codeAlpha3": "ARE",
+    "continent": "Asia",
+    "callingCode": "+971"
+  },
+  {
+    "name": "Thailand",
+    "nameZh": "泰国",
+    "code": "TH",
+    "codeAlpha3": "THA",
+    "continent": "Asia",
+    "callingCode": "+66"
+  },
+  {
+    "name": "Ireland",
+    "nameZh": "爱尔兰",
+    "code": "IE",
+    "codeAlpha3": "IRL",
+    "continent": "Europe",
+    "callingCode": "+353"
+  },
+  {
+    "name": "Singapore",
+    "nameZh": "新加坡",
+    "code": "SG",
+    "codeAlpha3": "SGP",
+    "continent": "Asia",
+    "callingCode": "+65"
+  },
+  {
+    "name": "Denmark",
+    "nameZh": "丹麦",
+    "code": "DK",
+    "codeAlpha3": "DNK",
+    "continent": "Europe",
+    "callingCode": "+45"
+  },
+  {
+    "name": "Malaysia",
+    "nameZh": "马来西亚",
+    "code": "MY",
+    "codeAlpha3": "MYS",
+    "continent": "Asia",
+    "callingCode": "+60"
+  },
+  {
+    "name": "Philippines",
+    "nameZh": "菲律宾",
+    "code": "PH",
+    "codeAlpha3": "PHL",
+    "continent": "Asia",
+    "callingCode": "+63"
+  },
+  {
+    "name": "Vietnam",
+    "nameZh": "越南",
+    "code": "VN",
+    "codeAlpha3": "VNM",
+    "continent": "Asia",
+    "callingCode": "+84"
+  },
+  {
+    "name": "Portugal",
+    "nameZh": "葡萄牙",
+    "code": "PT",
+    "codeAlpha3": "PRT",
+    "continent": "Europe",
+    "callingCode": "+351"
+  },
+  {
+    "name": "Greece",
+    "nameZh": "希腊",
+    "code": "GR",
+    "codeAlpha3": "GRC",
+    "continent": "Europe",
+    "callingCode": "+30"
+  },
+  {
+    "name": "New Zealand",
+    "nameZh": "新西兰",
+    "code": "NZ",
+    "codeAlpha3": "NZL",
+    "continent": "Oceania",
+    "callingCode": "+64"
+  },
+  {
+    "name": "South Africa",
+    "nameZh": "南非",
+    "code": "ZA",
+    "codeAlpha3": "ZAF",
+    "continent": "Africa",
+    "callingCode": "+27"
+  },
+  {
+    "name": "Egypt",
+    "nameZh": "埃及",
+    "code": "EG",
+    "codeAlpha3": "EGY",
+    "continent": "Africa",
+    "callingCode": "+20"
+  },
+  {
+    "name": "Nigeria",
+    "nameZh": "尼日利亚",
+    "code": "NG",
+    "codeAlpha3": "NGA",
+    "continent": "Africa",
+    "callingCode": "+234"
+  }
+]

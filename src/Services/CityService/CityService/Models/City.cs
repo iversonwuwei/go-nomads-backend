@@ -20,6 +20,18 @@ public class City : BaseModel
     [Column("country")]
     public string Country { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 国家外键关联
+    /// </summary>
+    [Column("country_id")]
+    public Guid? CountryId { get; set; }
+
+    /// <summary>
+    /// 省份外键关联
+    /// </summary>
+    [Column("province_id")]
+    public Guid? ProvinceId { get; set; }
+
     [MaxLength(100)]
     [Column("region")]
     public string? Region { get; set; }
@@ -90,4 +102,11 @@ public class City : BaseModel
     public Guid? CreatedById { get; set; }
     [Column("updated_by_id")]
     public Guid? UpdatedById { get; set; }
+
+    // Navigation properties (not mapped to database)
+    [Reference(typeof(Country), ReferenceAttribute.JoinType.Inner, false)]
+    public Country? CountryDetails { get; set; }
+
+    [Reference(typeof(Province), ReferenceAttribute.JoinType.Inner, false)]
+    public Province? ProvinceDetails { get; set; }
 }

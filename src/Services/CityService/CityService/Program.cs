@@ -23,7 +23,18 @@ builder.Host.UseSerilog();
 // Add services to the container
 builder.Services.AddControllers().AddDapr();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, context, cancellationToken) =>
+    {
+        // 配置正确的服务器 URL
+        document.Servers = new List<Microsoft.OpenApi.Models.OpenApiServer>
+        {
+            new() { Url = "http://localhost:8002", Description = "Local Development" }
+        };
+        return Task.CompletedTask;
+    });
+});
 
 // 添加 Supabase 客户端
 builder.Services.AddSupabase(builder.Configuration);
@@ -69,7 +80,10 @@ builder.Services.AddCors(options =>
 
 // Register Services
 builder.Services.AddScoped<ICityRepository, SupabaseCityRepository>();
+builder.Services.AddScoped<ICountryRepository, SupabaseCountryRepository>();
+builder.Services.AddScoped<IProvinceRepository, SupabaseProvinceRepository>();
 builder.Services.AddScoped<ICityService, CityService.Services.CityService>();
+builder.Services.AddScoped<GeographyDataSeeder>();
 
 // 添加内存缓存
 builder.Services.AddMemoryCache();
@@ -87,7 +101,8 @@ app.MapScalarApiReference(options =>
     options
         .WithTitle("City Service API")
         .WithTheme(ScalarTheme.BluePlanet)
-        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient)
+        .WithEndpointPrefix("/scalar/{documentName}");
 });
 
 app.UseSerilogRequestLogging();
