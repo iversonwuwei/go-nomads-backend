@@ -183,6 +183,21 @@ start_grafana() {
     echo "Dashboards will be automatically provisioned"
 }
 
+start_elasticsearch() {
+    header "Deploying Elasticsearch"
+    remove_container go-nomads-elasticsearch
+    docker run -d \
+        --name go-nomads-elasticsearch \
+        --network "${NETWORK_NAME}" \
+        -p 9200:9200 \
+        -p 9300:9300 \
+        -e "discovery.type=single-node" \
+        -e "xpack.security.enabled=false" \
+        -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" \
+        docker.elastic.co/elasticsearch/elasticsearch:8.11.0 >/dev/null
+    echo "Elasticsearch running at http://localhost:9200"
+}
+
 start_nginx() {
     header "Deploying Nginx"
     remove_container go-nomads-nginx
@@ -204,6 +219,7 @@ start_all() {
     start_zipkin
     start_prometheus
     start_grafana
+    start_elasticsearch
     start_nginx
     status_all
     echo "Infrastructure ready."
@@ -219,6 +235,7 @@ stop_all() {
         go-nomads-zipkin
         go-nomads-consul
         go-nomads-redis
+        go-nomads-elasticsearch
     )
     for c in "${containers[@]}"; do
         if container_running "$c"; then
@@ -239,6 +256,7 @@ clean_all() {
         go-nomads-zipkin
         go-nomads-consul
         go-nomads-redis
+        go-nomads-elasticsearch
     )
     for c in "${containers[@]}"; do
         remove_container "$c"
@@ -257,12 +275,13 @@ status_all() {
     docker ps --filter "name=go-nomads" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
     echo
     echo "Access URLs:"
-    echo "  Nginx:       http://localhost"
-    echo "  Redis:       redis://localhost:6379"
-    echo "  Consul:      http://localhost:8500"
-    echo "  Zipkin:      http://localhost:9411"
-    echo "  Prometheus:  http://localhost:9090"
-    echo "  Grafana:     http://localhost:3000 (admin/admin)"
+    echo "  Nginx:          http://localhost"
+    echo "  Redis:          redis://localhost:6379"
+    echo "  Consul:         http://localhost:8500"
+    echo "  Zipkin:         http://localhost:9411"
+    echo "  Prometheus:     http://localhost:9090"
+    echo "  Grafana:        http://localhost:3000 (admin/admin)"
+    echo "  Elasticsearch:  http://localhost:9200"
 }
 
 show_help() {

@@ -330,6 +330,16 @@ main() {
         "document-service"
     echo ""
     
+    # 部署 CityService
+    deploy_service_local \
+        "city-service" \
+        "src/Services/CityService/CityService" \
+        "8002" \
+        "CityService.dll" \
+        "3504" \
+        "city-service"
+    echo ""
+    
     # 显示部署摘要
     show_header "部署摘要"
     
@@ -340,11 +350,12 @@ main() {
     echo -e "  ${GREEN}User Service:     http://localhost:5001${NC}"
     echo -e "  ${GREEN}Product Service:  http://localhost:5002${NC}"
     echo -e "  ${GREEN}Document Service: http://localhost:5003${NC}"
+    echo -e "  ${GREEN}City Service:     http://localhost:8002${NC}"
     echo ""
     echo -e "${BLUE}Dapr 配置:${NC}"
     echo -e "  ${GREEN}模式:             Container Sidecar (共享网络命名空间)${NC}"
     echo -e "  ${GREEN}gRPC 端口:        50001 (通过 DAPR_GRPC_PORT 环境变量)${NC}"
-    echo -e "  ${GREEN}HTTP 端口:        3500-3503 (各服务独立端口)${NC}"
+    echo -e "  ${GREEN}HTTP 端口:        3500-3504 (各服务独立端口)${NC}"
     echo ""
     echo -e "${BLUE}基础设施:${NC}"
     echo -e "  ${GREEN}Consul UI:        http://localhost:8500${NC}"

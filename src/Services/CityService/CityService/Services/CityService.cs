@@ -7,18 +7,28 @@ namespace CityService.Services;
 public class CityService : ICityService
 {
     private readonly ICityRepository _repository;
+    private readonly IWeatherService _weatherService;
     private readonly ILogger<CityService> _logger;
 
-    public CityService(ICityRepository repository, ILogger<CityService> logger)
+    public CityService(
+        ICityRepository repository,
+        IWeatherService weatherService,
+        ILogger<CityService> logger)
     {
         _repository = repository;
+        _weatherService = weatherService;
         _logger = logger;
     }
 
     public async Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize)
     {
         var cities = await _repository.GetAllAsync(pageNumber, pageSize);
-        return cities.Select(MapToDto);
+        var cityDtos = cities.Select(MapToDto).ToList();
+
+        // 并行获取天气数据
+        await EnrichCitiesWithWeatherAsync(cityDtos);
+
+        return cityDtos;
     }
 
     public async Task<CityDto?> GetCityByIdAsync(Guid id)
@@ -199,5 +209,45 @@ public class CityService : ICityService
             CreatedAt = city.CreatedAt,
             UpdatedAt = city.UpdatedAt
         };
+    }
+
+    /// <summary>
+    /// 为城市列表添加天气信息
+    /// </summary>
+    private async Task EnrichCitiesWithWeatherAsync(List<CityDto> cities)
+    {
+        try
+        {
+            // 并行获取所有城市的天气数据
+            var weatherTasks = cities.Select(async city =>
+            {
+                try
+                {
+                    // 优先使用经纬度获取天气（更精确）
+                    if (city.Latitude.HasValue && city.Longitude.HasValue)
+                    {
+                        city.Weather = await _weatherService.GetWeatherByCoordinatesAsync(
+                            city.Latitude.Value,
+                            city.Longitude.Value);
+                    }
+                    else
+                    {
+                        // 否则使用城市名称
+                        city.Weather = await _weatherService.GetWeatherByCityNameAsync(city.Name);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "获取城市天气失败: {CityName}", city.Name);
+                    city.Weather = null;
+                }
+            });
+
+            await Task.WhenAll(weatherTasks);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "批量获取天气数据失败");
+        }
     }
 }

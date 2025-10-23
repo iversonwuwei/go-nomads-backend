@@ -28,12 +28,16 @@ public static class ConsulServiceRegistration
         var consulConfig = configuration.GetSection("Consul");
         var consulAddress = consulConfig["Address"] ?? "http://localhost:8500";
         var serviceName = consulConfig["ServiceName"] ?? app.Environment.ApplicationName;
-        var serviceId = consulConfig["ServiceId"] ?? $"{serviceName}-{Guid.NewGuid():N}";
-        
-        // 获取服务地址
+
+        // 获取服务地址和端口
         var serviceAddress = await GetServiceAddressAsync(app);
         var servicePort = GetServicePort(app);
-        
+
+        // 使用固定的 ServiceId：serviceName-hostname:port
+        // 这样同一个服务在同一个主机/端口上重启时会复用同一个 ID
+        var hostname = serviceAddress.Replace("http://", "").Replace("https://", "").Split(':')[0];
+        var serviceId = consulConfig["ServiceId"] ?? $"{serviceName}-{hostname}:{servicePort}";
+
         // 健康检查配置
         var healthCheckPath = consulConfig["HealthCheckPath"] ?? "/health";
         var healthCheckInterval = consulConfig["HealthCheckInterval"] ?? "10s";
@@ -65,8 +69,17 @@ public static class ConsulServiceRegistration
             }
         };
 
-        // 注册到 Consul
+        // 先注销可能存在的旧实例（相同 ServiceId），然后注册新实例
         using var httpClient = new HttpClient();
+        try
+        {
+            await httpClient.PutAsync($"{consulAddress}/v1/agent/service/deregister/{serviceId}", null);
+            logger.LogDebug("已注销可能存在的旧服务实例: {ServiceId}", serviceId);
+        }
+        catch
+        {
+            // 忽略注销失败（可能服务不存在）
+        }
         var json = JsonSerializer.Serialize(registration);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 

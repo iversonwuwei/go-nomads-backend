@@ -71,6 +71,13 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<ICityRepository, SupabaseCityRepository>();
 builder.Services.AddScoped<ICityService, CityService.Services.CityService>();
 
+// 添加内存缓存
+builder.Services.AddMemoryCache();
+
+// 注册天气服务
+builder.Services.AddHttpClient<IWeatherService, WeatherService>();
+builder.Services.AddScoped<IWeatherService, WeatherService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
@@ -96,5 +103,8 @@ app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "CityService", timestamp = DateTime.UtcNow }));
 
 Log.Information("City Service starting on port 8002...");
+
+// 自动注册到 Consul
+await app.RegisterWithConsulAsync();
 
 app.Run();

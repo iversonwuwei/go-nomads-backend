@@ -363,6 +363,57 @@ deploy_grafana() {
     fi
 }
 
+# Deploy PostgreSQL
+deploy_postgres() {
+    show_header "Deploying PostgreSQL"
+    
+    remove_container_if_exists "go-nomads-postgres"
+    
+    echo -e "${YELLOW}  Starting PostgreSQL container...${NC}"
+    $CONTAINER_RUNTIME run -d \
+        --name go-nomads-postgres \
+        --network "$NETWORK_NAME" \
+        -p 5432:5432 \
+        -e POSTGRES_USER=postgres \
+        -e POSTGRES_PASSWORD=postgres \
+        -e POSTGRES_DB=gonomads \
+        postgres:16-alpine > /dev/null
+    
+    if container_running "go-nomads-postgres"; then
+        echo -e "${GREEN}  PostgreSQL deployed successfully!${NC}"
+        wait_for_service "PostgreSQL" "http://localhost:5432" 10 || true
+    else
+        echo -e "${RED}  [ERROR] Failed to start PostgreSQL${NC}"
+        exit 1
+    fi
+}
+
+# Deploy Elasticsearch
+deploy_elasticsearch() {
+    show_header "Deploying Elasticsearch"
+    
+    remove_container_if_exists "go-nomads-elasticsearch"
+    
+    echo -e "${YELLOW}  Starting Elasticsearch container...${NC}"
+    $CONTAINER_RUNTIME run -d \
+        --name go-nomads-elasticsearch \
+        --network "$NETWORK_NAME" \
+        -p 9200:9200 \
+        -p 9300:9300 \
+        -e "discovery.type=single-node" \
+        -e "xpack.security.enabled=false" \
+        -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" \
+        elasticsearch:8.11.0 > /dev/null
+    
+    if container_running "go-nomads-elasticsearch"; then
+        echo -e "${GREEN}  Elasticsearch deployed successfully!${NC}"
+        wait_for_service "Elasticsearch" "http://localhost:9200" 30 || true
+    else
+        echo -e "${RED}  [ERROR] Failed to start Elasticsearch${NC}"
+        exit 1
+    fi
+}
+
 # Deploy Nginx
 deploy_nginx() {
     show_header "Deploying Nginx"
@@ -410,11 +461,13 @@ show_status() {
     fi
     
     echo -e "${YELLOW}Access URLs:${NC}"
-    echo -e "${CYAN}  - Nginx:        http://localhost${NC}"
-    echo -e "${CYAN}  - Consul UI:    http://localhost:8500${NC}"
-    echo -e "${CYAN}  - Prometheus:   http://localhost:9090${NC}"
-    echo -e "${CYAN}  - Grafana:      http://localhost:3000 (admin/admin)${NC}"
-    echo -e "${CYAN}  - Zipkin:       http://localhost:9411${NC}"
+    echo -e "${CYAN}  - Nginx:          http://localhost${NC}"
+    echo -e "${CYAN}  - Consul UI:      http://localhost:8500${NC}"
+    echo -e "${CYAN}  - Prometheus:     http://localhost:9090${NC}"
+    echo -e "${CYAN}  - Grafana:        http://localhost:3000 (admin/admin)${NC}"
+    echo -e "${CYAN}  - Zipkin:         http://localhost:9411${NC}"
+    echo -e "${CYAN}  - PostgreSQL:     localhost:5432 (postgres/postgres)${NC}"
+    echo -e "${CYAN}  - Elasticsearch:  http://localhost:9200${NC}"
     echo ""
 }
 
@@ -429,6 +482,8 @@ stop_infrastructure() {
         "go-nomads-zipkin"
         "go-nomads-consul"
         "go-nomads-redis"
+        "go-nomads-postgres"
+        "go-nomads-elasticsearch"
     )
     
     for container in "${containers[@]}"; do
@@ -452,6 +507,8 @@ clean_infrastructure() {
         "go-nomads-zipkin"
         "go-nomads-consul"
         "go-nomads-redis"
+        "go-nomads-postgres"
+        "go-nomads-elasticsearch"
     )
     
     for container in "${containers[@]}"; do
@@ -490,6 +547,9 @@ show_help() {
     echo -e "${WHITE}  - Zipkin (Distributed Tracing)${NC}"
     echo -e "${WHITE}  - Prometheus (Metrics Collection)${NC}"
     echo -e "${WHITE}  - Grafana (Metrics Visualization)${NC}"
+    echo -e "${WHITE}  - PostgreSQL (Relational Database)${NC}"
+    echo -e "${WHITE}  - Elasticsearch (Search Engine)${NC}"
+    echo -e "${WHITE}  - Nginx (Reverse Proxy)${NC}"
     echo ""
 }
 
@@ -505,6 +565,8 @@ case "$ACTION" in
         deploy_zipkin
         deploy_prometheus
         deploy_grafana
+        deploy_postgres
+        deploy_elasticsearch
         deploy_nginx
         show_status
         

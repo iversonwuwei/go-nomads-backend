@@ -22,7 +22,7 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         
         var response = await SupabaseClient
             .From<City>()
-            .Where(x => x.IsActive)
+            .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
             .Order(x => x.OverallScore, Postgrest.Constants.Ordering.Descending)
             .Range(offset, offset + pageSize - 1)
             .Get();
@@ -52,7 +52,7 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         // 获取所有活跃城市
         var response = await SupabaseClient
             .From<City>()
-            .Where(x => x.IsActive)
+            .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
             .Order(x => x.OverallScore, Postgrest.Constants.Ordering.Descending)
             .Get();
 
@@ -155,7 +155,7 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
     {
         var response = await SupabaseClient
             .From<City>()
-            .Where(x => x.IsActive)
+            .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
             .Get();
 
         return response.Models.Count;
@@ -165,7 +165,7 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
     {
         var response = await SupabaseClient
             .From<City>()
-            .Where(x => x.IsActive)
+            .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
             .Order(x => x.OverallScore, Postgrest.Constants.Ordering.Descending)
             .Order(x => x.CommunityScore, Postgrest.Constants.Ordering.Descending)
             .Limit(count)

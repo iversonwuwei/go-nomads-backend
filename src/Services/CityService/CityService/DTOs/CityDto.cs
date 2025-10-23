@@ -27,6 +27,16 @@ public class CityDto
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+
+    /// <summary>
+    /// 当前天气信息
+    /// </summary>
+    public WeatherDto? Weather { get; set; }
+
+    /// <summary>
+    /// Meetup 活动数量
+    /// </summary>
+    public int MeetupCount { get; set; }
 }
 
 public class CreateCityDto
