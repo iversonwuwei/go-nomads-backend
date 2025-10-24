@@ -141,7 +141,7 @@ public class UsersController : ControllerBase
 
         try
         {
-            var user = await _userService.GetUserByIdAsync(userContext.UserId, cancellationToken);
+            var user = await _userService.GetUserByIdAsync(userContext.UserId!, cancellationToken);
 
             if (user == null)
             {
@@ -354,7 +354,7 @@ public class UsersController : ControllerBase
         try
         {
             var user = await _userService.UpdateUserAsync(
-                userContext.UserId,
+                userContext.UserId!,
                 request.Name,
                 request.Email,
                 request.Phone,

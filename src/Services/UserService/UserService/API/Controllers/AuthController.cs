@@ -206,7 +206,7 @@ public class AuthController : ControllerBase
 
         try
         {
-            await _authService.SignOutAsync(userContext.UserId, cancellationToken);
+            await _authService.SignOutAsync(userContext.UserId!, cancellationToken);
 
             return Ok(new ApiResponse<object>
             {
@@ -260,7 +260,7 @@ public class AuthController : ControllerBase
         try
         {
             await _authService.ChangePasswordAsync(
-                userContext.UserId,
+                userContext.UserId!,
                 request.OldPassword,
                 request.NewPassword,
                 cancellationToken);
