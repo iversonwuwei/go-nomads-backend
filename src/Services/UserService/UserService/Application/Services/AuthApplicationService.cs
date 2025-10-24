@@ -55,7 +55,7 @@ public class AuthApplicationService : IAuthService
                 request.Name,
                 request.Email,
                 request.Password,
-                request.Phone,
+                request.Phone ?? string.Empty,
                 defaultRole.Id);
 
             // 持久化

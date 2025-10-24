@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using CityService.Services;
+using GoNomads.Shared.Models;
+using System.Collections.Generic;
 using System.Text.Json;
 
 namespace CityService.Controllers;
@@ -23,7 +25,7 @@ public class GeographyAdminController : ControllerBase
     /// 导入中国省市数据
     /// </summary>
     [HttpPost("seed/china-provinces")]
-    public async Task<IActionResult> SeedChinaProvinces([FromBody] List<ProvinceData> provinceDataList)
+    public async Task<ActionResult<ApiResponse<SeedResult>>> SeedChinaProvinces([FromBody] List<ProvinceData> provinceDataList)
     {
         try
         {
@@ -31,29 +33,32 @@ public class GeographyAdminController : ControllerBase
             
             if (result.Success)
             {
-                return Ok(new
+                return Ok(new ApiResponse<SeedResult>
                 {
-                    success = true,
-                    message = "Data seeded successfully",
-                    data = result
+                    Success = true,
+                    Message = "Data seeded successfully",
+                    Data = result
                 });
             }
 
-            return BadRequest(new
+            return BadRequest(new ApiResponse<SeedResult>
             {
-                success = false,
-                message = "Data seeding failed",
-                error = result.ErrorMessage
+                Success = false,
+                Message = "Data seeding failed",
+                Data = result,
+                Errors = string.IsNullOrWhiteSpace(result.ErrorMessage)
+                    ? new List<string> { "Unknown error" }
+                    : new List<string> { result.ErrorMessage }
             });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in seed China provinces endpoint");
-            return StatusCode(500, new
+            return StatusCode(500, new ApiResponse<SeedResult>
             {
-                success = false,
-                message = "Internal server error",
-                error = ex.Message
+                Success = false,
+                Message = "Internal server error",
+                Errors = new List<string> { ex.Message }
             });
         }
     }
@@ -62,27 +67,27 @@ public class GeographyAdminController : ControllerBase
     /// 批量导入国家数据
     /// </summary>
     [HttpPost("seed/countries")]
-    public async Task<IActionResult> SeedCountries([FromBody] List<CountryData> countryDataList)
+    public async Task<ActionResult<ApiResponse<int>>> SeedCountries([FromBody] List<CountryData> countryDataList)
     {
         try
         {
             var count = await _seeder.SeedCountriesAsync(countryDataList);
             
-            return Ok(new
+            return Ok(new ApiResponse<int>
             {
-                success = true,
-                message = $"Created {count} countries",
-                countriesCreated = count
+                Success = true,
+                Message = $"Created {count} countries",
+                Data = count
             });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in seed countries endpoint");
-            return StatusCode(500, new
+            return StatusCode(500, new ApiResponse<int>
             {
-                success = false,
-                message = "Internal server error",
-                error = ex.Message
+                Success = false,
+                Message = "Internal server error",
+                Errors = new List<string> { ex.Message }
             });
         }
     }
@@ -91,7 +96,7 @@ public class GeographyAdminController : ControllerBase
     /// 使用预定义的中国省市数据进行初始化
     /// </summary>
     [HttpPost("seed/china-default")]
-    public async Task<IActionResult> SeedChinaDefault()
+    public async Task<ActionResult<ApiResponse<SeedResult>>> SeedChinaDefault()
     {
         try
         {
@@ -101,29 +106,32 @@ public class GeographyAdminController : ControllerBase
             
             if (result.Success)
             {
-                return Ok(new
+                return Ok(new ApiResponse<SeedResult>
                 {
-                    success = true,
-                    message = "China provinces and cities seeded successfully",
-                    data = result
+                    Success = true,
+                    Message = "China provinces and cities seeded successfully",
+                    Data = result
                 });
             }
 
-            return BadRequest(new
+            return BadRequest(new ApiResponse<SeedResult>
             {
-                success = false,
-                message = "Data seeding failed",
-                error = result.ErrorMessage
+                Success = false,
+                Message = "Data seeding failed",
+                Data = result,
+                Errors = string.IsNullOrWhiteSpace(result.ErrorMessage)
+                    ? new List<string> { "Unknown error" }
+                    : new List<string> { result.ErrorMessage }
             });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in seed China default endpoint");
-            return StatusCode(500, new
+            return StatusCode(500, new ApiResponse<SeedResult>
             {
-                success = false,
-                message = "Internal server error",
-                error = ex.Message
+                Success = false,
+                Message = "Internal server error",
+                Errors = new List<string> { ex.Message }
             });
         }
     }
