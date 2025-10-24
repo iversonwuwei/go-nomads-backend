@@ -173,4 +173,16 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
 
         return response.Models;
     }
+
+    public async Task<IEnumerable<City>> GetByCountryAsync(string country)
+    {
+        var response = await SupabaseClient
+            .From<City>()
+            .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
+            .Filter("country", Postgrest.Constants.Operator.ILike, $"%{country}%")
+            .Order(x => x.Name, Postgrest.Constants.Ordering.Ascending)
+            .Get();
+
+        return response.Models;
+    }
 }

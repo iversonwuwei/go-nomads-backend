@@ -20,7 +20,7 @@ public class SupabaseCountryRepository : ICountryRepository
         {
             var response = await _supabaseClient
                 .From<Country>()
-                .Filter("is_active", Postgrest.Constants.Operator.Equals, true)
+                .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
                 .Order("name", Postgrest.Constants.Ordering.Ascending)
                 .Get();
 

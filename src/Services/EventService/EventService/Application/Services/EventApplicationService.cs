@@ -44,8 +44,6 @@ public class EventApplicationService : IEventService
             category: request.Category,
             endTime: request.EndTime,
             maxParticipants: request.MaxParticipants,
-            price: request.Price,
-            currency: request.Currency,
             locationType: request.LocationType,
             meetingLink: request.MeetingLink,
             latitude: request.Latitude,
@@ -102,8 +100,6 @@ public class EventApplicationService : IEventService
             startTime: request.StartTime,
             endTime: request.EndTime,
             maxParticipants: request.MaxParticipants,
-            price: request.Price,
-            currency: request.Currency,
             status: request.Status,
             locationType: request.LocationType,
             meetingLink: request.MeetingLink,
@@ -154,7 +150,7 @@ public class EventApplicationService : IEventService
         }
 
         // 创建参与记录
-        var participant = EventParticipant.Create(eventId, userId, request.PaymentStatus);
+        var participant = EventParticipant.Create(eventId, userId);
         var createdParticipant = await _participantRepository.CreateAsync(participant);
 
         // 更新参与人数（领域逻辑）
@@ -299,8 +295,6 @@ public class EventApplicationService : IEventService
             EndTime = @event.EndTime,
             MaxParticipants = @event.MaxParticipants,
             CurrentParticipants = @event.CurrentParticipants,
-            Price = @event.Price,
-            Currency = @event.Currency,
             Status = @event.Status,
             LocationType = @event.LocationType,
             MeetingLink = @event.MeetingLink,
@@ -321,7 +315,6 @@ public class EventApplicationService : IEventService
             EventId = participant.EventId,
             UserId = participant.UserId,
             Status = participant.Status,
-            PaymentStatus = participant.PaymentStatus,
             RegisteredAt = participant.RegisteredAt
         };
     }

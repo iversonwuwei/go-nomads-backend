@@ -58,13 +58,6 @@ public class Event : BaseModel
     [Column("current_participants")]
     public int CurrentParticipants { get; set; } = 0;
 
-    [Column("price")]
-    public decimal Price { get; set; } = 0;
-
-    [MaxLength(10)]
-    [Column("currency")]
-    public string Currency { get; set; } = "USD";
-
     [MaxLength(20)]
     [Column("status")]
     public string Status { get; set; } = "upcoming"; // upcoming, ongoing, completed, cancelled
@@ -121,10 +114,6 @@ public class EventParticipant : BaseModel
     [MaxLength(20)]
     [Column("status")]
     public string Status { get; set; } = "registered"; // registered, attended, cancelled, no-show
-
-    [MaxLength(20)]
-    [Column("payment_status")]
-    public string PaymentStatus { get; set; } = "pending"; // pending, paid, refunded
 
     [Column("registered_at")]
     public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;

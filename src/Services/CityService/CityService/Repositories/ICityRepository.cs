@@ -13,4 +13,5 @@ public interface ICityRepository
     Task<bool> DeleteAsync(Guid id);
     Task<int> GetTotalCountAsync();
     Task<IEnumerable<City>> GetRecommendedAsync(int count);
+    Task<IEnumerable<City>> GetByCountryAsync(string country);
 }

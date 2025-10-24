@@ -10,6 +10,9 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 配置端口 - 容器内监听 8080，外部通过 docker-compose 映射到 8002
+// builder.WebHost.UseUrls("http://localhost:8002"); // 注释掉，使用环境变量 ASPNETCORE_URLS
+
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)

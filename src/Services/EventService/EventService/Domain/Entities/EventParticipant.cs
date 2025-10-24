@@ -25,10 +25,6 @@ public class EventParticipant : BaseModel
     [Column("status")]
     public string Status { get; private set; } = "registered";
 
-    [MaxLength(20)]
-    [Column("payment_status")]
-    public string PaymentStatus { get; private set; } = "pending";
-
     [Column("registered_at")]
     public DateTime RegisteredAt { get; private set; }
 
@@ -38,7 +34,7 @@ public class EventParticipant : BaseModel
     /// <summary>
     /// 创建参与者 - 工厂方法
     /// </summary>
-    public static EventParticipant Create(Guid eventId, Guid userId, string? paymentStatus = null)
+    public static EventParticipant Create(Guid eventId, Guid userId)
     {
         return new EventParticipant
         {
@@ -46,7 +42,6 @@ public class EventParticipant : BaseModel
             EventId = eventId,
             UserId = userId,
             Status = "registered",
-            PaymentStatus = paymentStatus ?? "pending",
             RegisteredAt = DateTime.UtcNow
         };
     }
@@ -57,13 +52,5 @@ public class EventParticipant : BaseModel
     public void UpdateStatus(string status)
     {
         Status = status;
-    }
-
-    /// <summary>
-    /// 更新支付状态
-    /// </summary>
-    public void UpdatePaymentStatus(string paymentStatus)
-    {
-        PaymentStatus = paymentStatus;
     }
 }

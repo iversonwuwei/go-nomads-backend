@@ -7,15 +7,18 @@ namespace CityService.Services;
 public class CityService : ICityService
 {
     private readonly ICityRepository _repository;
+    private readonly ICountryRepository _countryRepository;
     private readonly IWeatherService _weatherService;
     private readonly ILogger<CityService> _logger;
 
     public CityService(
         ICityRepository repository,
+        ICountryRepository countryRepository,
         IWeatherService weatherService,
         ILogger<CityService> logger)
     {
         _repository = repository;
+        _countryRepository = countryRepository;
         _weatherService = weatherService;
         _logger = logger;
     }
@@ -181,6 +184,88 @@ public class CityService : ICityService
         };
     }
 
+    public async Task<IEnumerable<CountryCitiesDto>> GetCitiesGroupedByCountryAsync()
+    {
+        try
+        {
+            // 获取所有国家
+            var countries = await _countryRepository.GetAllCountriesAsync();
+            var result = new List<CountryCitiesDto>();
+
+            // 为每个国家获取城市
+            foreach (var country in countries)
+            {
+                var cities = await _repository.GetByCountryAsync(country.Name);
+
+                var countryDto = new CountryCitiesDto
+                {
+                    Country = country.Name,
+                    Cities = cities.Select(city => new CitySummaryDto
+                    {
+                        Id = city.Id,
+                        Name = city.Name,
+                        Region = city.Region
+                    }).ToList()
+                };
+
+                // 只返回有城市的国家
+                if (countryDto.Cities.Any())
+                {
+                    result.Add(countryDto);
+                }
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting cities grouped by country");
+            throw;
+        }
+    }
+
+    public async Task<IEnumerable<CitySummaryDto>> GetCitiesByCountryIdAsync(Guid countryId)
+    {
+        try
+        {
+            // 根据国家ID获取国家信息
+            var country = await _countryRepository.GetCountryByIdAsync(countryId);
+            if (country == null)
+            {
+                return Enumerable.Empty<CitySummaryDto>();
+            }
+
+            // 根据国家名称获取城市列表
+            var cities = await _repository.GetByCountryAsync(country.Name);
+
+            return cities.Select(city => new CitySummaryDto
+            {
+                Id = city.Id,
+                Name = city.Name,
+                Region = city.Region
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting cities by country ID {CountryId}", countryId);
+            throw;
+        }
+    }
+
+    public async Task<IEnumerable<CountryDto>> GetAllCountriesAsync()
+    {
+        try
+        {
+            var countries = await _countryRepository.GetAllCountriesAsync();
+            return countries.Select(MapToCountryDto);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all countries");
+            throw;
+        }
+    }
+
     private static CityDto MapToDto(City city)
     {
         return new CityDto
@@ -208,6 +293,22 @@ public class CityService : ICityService
             IsActive = city.IsActive,
             CreatedAt = city.CreatedAt,
             UpdatedAt = city.UpdatedAt
+        };
+    }
+
+    private static CountryDto MapToCountryDto(Models.Country country)
+    {
+        return new CountryDto
+        {
+            Id = country.Id,
+            Name = country.Name,
+            NameZh = country.NameZh,
+            Code = country.Code,
+            CodeAlpha3 = country.CodeAlpha3,
+            Continent = country.Continent,
+            FlagUrl = country.FlagUrl,
+            CallingCode = country.CallingCode,
+            IsActive = country.IsActive
         };
     }
 

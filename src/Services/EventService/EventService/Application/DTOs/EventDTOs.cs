@@ -36,12 +36,6 @@ public class CreateEventRequest
     [Range(1, 10000, ErrorMessage = "最大参与人数必须在1-10000之间")]
     public int? MaxParticipants { get; set; }
 
-    [Range(0, double.MaxValue, ErrorMessage = "价格不能为负数")]
-    public decimal Price { get; set; } = 0;
-
-    [MaxLength(10)]
-    public string Currency { get; set; } = "USD";
-
     [MaxLength(20)]
     public string LocationType { get; set; } = "physical"; // physical, online, hybrid
 
@@ -86,12 +80,6 @@ public class UpdateEventRequest
     [Range(1, 10000)]
     public int? MaxParticipants { get; set; }
 
-    [Range(0, double.MaxValue)]
-    public decimal? Price { get; set; }
-
-    [MaxLength(10)]
-    public string? Currency { get; set; }
-
     [MaxLength(20)]
     public string? Status { get; set; }
 
@@ -126,8 +114,6 @@ public class EventResponse
     public DateTime? EndTime { get; set; }
     public int? MaxParticipants { get; set; }
     public int CurrentParticipants { get; set; }
-    public decimal Price { get; set; }
-    public string Currency { get; set; } = "USD";
     public string Status { get; set; } = "upcoming";
     public string LocationType { get; set; } = "physical";
     public string? MeetingLink { get; set; }
@@ -149,7 +135,6 @@ public class EventResponse
 /// </summary>
 public class JoinEventRequest
 {
-    public string? PaymentStatus { get; set; } = "pending";
 }
 
 /// <summary>
@@ -169,7 +154,6 @@ public class ParticipantResponse
     public Guid EventId { get; set; }
     public Guid UserId { get; set; }
     public string Status { get; set; } = "registered";
-    public string PaymentStatus { get; set; } = "pending";
     public DateTime RegisteredAt { get; set; }
 }
 

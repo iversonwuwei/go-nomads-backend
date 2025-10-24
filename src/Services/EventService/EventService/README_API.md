@@ -29,8 +29,6 @@ APP 端用户提交创建 Meetup 请求
   "startTime": "2025-10-25T14:00:00Z",
   "endTime": "2025-10-25T16:00:00Z",
   "maxParticipants": 20,
-  "price": 0,
-  "currency": "CNY",
   "locationType": "physical",
   "latitude": 31.2304,
   "longitude": 121.4737,
@@ -131,8 +129,6 @@ APP 端用户提交创建 Meetup 请求
 **请求体**:
 ```json
 {
-  "userId": "550e8400-e29b-41d4-a716-446655440000",
-  "paymentStatus": "pending"
 }
 ```
 
@@ -185,7 +181,6 @@ APP 端用户提交创建 Meetup 请求
     "eventId": "770e8400-e29b-41d4-a716-446655440000",
     "userId": "550e8400-e29b-41d4-a716-446655440000",
     "status": "registered",
-    "paymentStatus": "pending",
     "registeredAt": "2025-10-23T10:30:00Z"
   }
 ]
@@ -310,8 +305,6 @@ APP 端用户提交创建 Meetup 请求
 - `endTime`: 结束时间
 - `maxParticipants`: 最大参与人数
 - `currentParticipants`: 当前参与人数
-- `price`: 价格
-- `currency`: 币种 (默认 USD)
 - `status`: 状态 (upcoming, ongoing, completed, cancelled)
 - `locationType`: 类型 (physical, online, hybrid)
 - `meetingLink`: 线上会议链接

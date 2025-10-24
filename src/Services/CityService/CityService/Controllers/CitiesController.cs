@@ -44,25 +44,74 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Get city by ID
+    /// Get recommended cities
     /// </summary>
-    [HttpGet("{id}")]
-    public async Task<ActionResult<CityDto>> GetCity(Guid id)
+    [HttpGet("recommend")]
+    public async Task<ActionResult<IEnumerable<CityDto>>> GetRecommendedCities([FromQuery] int count = 5)
     {
         try
         {
-            var city = await _cityService.GetCityByIdAsync(id);
-            if (city == null)
-            {
-                return NotFound(new { message = $"City with ID {id} not found" });
-            }
-
-            return Ok(city);
+            var cities = await _cityService.GetRecommendedCitiesAsync(count);
+            return Ok(cities);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting city {CityId}", id);
-            return StatusCode(500, new { message = "An error occurred while retrieving the city" });
+            _logger.LogError(ex, "Error getting recommended cities");
+            return StatusCode(500, new { message = "An error occurred while retrieving recommended cities" });
+        }
+    }
+
+    /// <summary>
+    /// Get cities by country ID
+    /// </summary>
+    [HttpGet("country/{countryId:guid}/cities")]
+    public async Task<ActionResult<IEnumerable<CitySummaryDto>>> GetCitiesByCountryId(Guid countryId)
+    {
+        try
+        {
+            var cities = await _cityService.GetCitiesByCountryIdAsync(countryId);
+            return Ok(cities);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting cities by country ID {CountryId}", countryId);
+            return StatusCode(500, new { message = "An error occurred while retrieving cities by country" });
+        }
+    }
+
+    /// <summary>
+    /// Get cities grouped by country
+    /// </summary>
+    [HttpGet("by-country")]
+    public async Task<ActionResult<IEnumerable<CountryCitiesDto>>> GetCitiesGroupedByCountry()
+    {
+        try
+        {
+            var groupedCities = await _cityService.GetCitiesGroupedByCountryAsync();
+            return Ok(groupedCities);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting cities grouped by country");
+            return StatusCode(500, new { message = "An error occurred while retrieving cities grouped by country" });
+        }
+    }
+
+    /// <summary>
+    /// Get all countries
+    /// </summary>
+    [HttpGet("countries")]
+    public async Task<ActionResult<IEnumerable<CountryDto>>> GetAllCountries()
+    {
+        try
+        {
+            var countries = await _cityService.GetAllCountriesAsync();
+            return Ok(countries);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all countries");
+            return StatusCode(500, new { message = "An error occurred while retrieving countries" });
         }
     }
 
@@ -85,27 +134,32 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Get recommended cities
+    /// Get city by ID
     /// </summary>
-    [HttpGet("recommend")]
-    public async Task<ActionResult<IEnumerable<CityDto>>> GetRecommendedCities([FromQuery] int count = 5)
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<CityDto>> GetCity(Guid id)
     {
         try
         {
-            var cities = await _cityService.GetRecommendedCitiesAsync(count);
-            return Ok(cities);
+            var city = await _cityService.GetCityByIdAsync(id);
+            if (city == null)
+            {
+                return NotFound(new { message = $"City with ID {id} not found" });
+            }
+
+            return Ok(city);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting recommended cities");
-            return StatusCode(500, new { message = "An error occurred while retrieving recommended cities" });
+            _logger.LogError(ex, "Error getting city {CityId}", id);
+            return StatusCode(500, new { message = "An error occurred while retrieving the city" });
         }
     }
 
     /// <summary>
     /// Get city statistics
     /// </summary>
-    [HttpGet("{id}/statistics")]
+    [HttpGet("{id:guid}/statistics")]
     public async Task<ActionResult<CityStatisticsDto>> GetCityStatistics(Guid id)
     {
         try

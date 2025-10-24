@@ -58,13 +58,6 @@ public class Event : BaseModel
     [Column("current_participants")]
     public int CurrentParticipants { get; private set; }
 
-    [Column("price")]
-    public decimal Price { get; private set; }
-
-    [MaxLength(10)]
-    [Column("currency")]
-    public string Currency { get; private set; } = "USD";
-
     [MaxLength(20)]
     [Column("status")]
     public string Status { get; private set; } = "upcoming";
@@ -119,8 +112,7 @@ public class Event : BaseModel
         string? category = null,
         DateTime? endTime = null,
         int? maxParticipants = null,
-        decimal price = 0,
-        string currency = "USD",
+
         string locationType = "physical",
         string? meetingLink = null,
         decimal? latitude = null,
@@ -143,8 +135,6 @@ public class Event : BaseModel
             EndTime = endTime,
             MaxParticipants = maxParticipants,
             CurrentParticipants = 0,
-            Price = price,
-            Currency = currency,
             Status = "upcoming",
             LocationType = locationType,
             MeetingLink = meetingLink,
@@ -176,8 +166,6 @@ public class Event : BaseModel
         DateTime? startTime = null,
         DateTime? endTime = null,
         int? maxParticipants = null,
-        decimal? price = null,
-        string? currency = null,
         string? status = null,
         string? locationType = null,
         string? meetingLink = null,
@@ -202,8 +190,6 @@ public class Event : BaseModel
         if (startTime.HasValue) StartTime = startTime.Value;
         if (endTime.HasValue) EndTime = endTime;
         if (maxParticipants.HasValue) MaxParticipants = maxParticipants;
-        if (price.HasValue) Price = price.Value;
-        if (!string.IsNullOrEmpty(currency)) Currency = currency;
         if (!string.IsNullOrEmpty(status)) Status = status;
         if (!string.IsNullOrEmpty(locationType)) LocationType = locationType;
         if (meetingLink != null) MeetingLink = meetingLink;
