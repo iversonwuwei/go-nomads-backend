@@ -8,7 +8,7 @@ namespace Gateway.Controllers;
 /// 首页控制器 - BFF 层聚合接口
 /// </summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v1/home")]
 public class HomeController : ControllerBase
 {
     private readonly DaprClient _daprClient;
@@ -110,7 +110,7 @@ public class HomeController : ControllerBase
             var response = await _daprClient.InvokeMethodAsync<ApiResponse<List<MeetupDto>>>(
                 HttpMethod.Get,
                 "event-service",
-                $"api/meetups?limit={limit}&status=upcoming");
+                $"api/v1/events?status=upcoming&pageSize={limit}");
 
             return response ?? ApiResponse<List<MeetupDto>>.ErrorResponse("活动服务无响应");
         }
