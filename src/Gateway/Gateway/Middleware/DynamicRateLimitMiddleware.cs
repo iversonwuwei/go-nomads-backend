@@ -42,22 +42,23 @@ public class DynamicRateLimitMiddleware
     /// </summary>
     private string? DeterminePolicyName(string path)
     {
-        // 登录端点 - 严格限流
-        if (path.Contains("/api/users/login"))
+        // 登录端点 - 严格限流 (v1 API + legacy)
+        if (path.Contains("/api/v1/auth/login") || path.Contains("/api/users/login"))
         {
             return RateLimitConfig.LoginPolicy;
         }
 
-        // 注册端点 - 严格限流
-        if (path.Contains("/api/users/register"))
+        // 注册端点 - 严格限流 (v1 API + legacy)
+        if (path.Contains("/api/v1/auth/register") || path.Contains("/api/users/register"))
         {
             return RateLimitConfig.RegisterPolicy;
         }
 
         // 敏感操作 - 严格限流
         if (path.Contains("/api/users/admin") ||
+            path.Contains("/api/v1/users/admin") ||
             path.Contains("/api/users/delete") ||
-            path.Contains("/api/users/reset-password"))
+            path.Contains("/api/v1/auth/change-password"))
         {
             return RateLimitConfig.StrictPolicy;
         }

@@ -4,8 +4,11 @@ using Dapr.Client;
 
 namespace ProductService.Controllers;
 
+/// <summary>
+/// Products API - RESTful endpoints for product management
+/// </summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v1/products")]
 public class ProductsController : ControllerBase
 {
     private static readonly List<Product> Products = new();

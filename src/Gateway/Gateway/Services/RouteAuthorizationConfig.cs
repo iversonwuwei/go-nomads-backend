@@ -10,9 +10,18 @@ public class RouteAuthorizationConfig
     /// </summary>
     public static readonly HashSet<string> PublicRoutes = new(StringComparer.OrdinalIgnoreCase)
     {
+        // Authentication endpoints (v1 API)
+        "/api/v1/auth/login",
+        "/api/v1/auth/register",
+        "/api/v1/auth/refresh",
+        "/api/v1/auth/logout",
+        
+        // Legacy routes (for backward compatibility - remove after migration)
         "/api/users/login",
         "/api/users/register",
         "/api/users/refresh",
+        
+        // System endpoints
         "/api/test",          // 测试端点
         "/health",
         "/metrics",

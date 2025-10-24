@@ -10,8 +10,11 @@ namespace UserService.API.Controllers;
 /// <summary>
 /// 认证相关 API - 薄层控制器
 /// </summary>
+/// <summary>
+/// Authentication API - RESTful endpoints for authentication
+/// </summary>
 [ApiController]
-[Route("api/auth")]
+[Route("api/v1/auth")]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;

@@ -6,8 +6,11 @@ using System.Security.Claims;
 
 namespace CityService.Controllers;
 
+/// <summary>
+/// Cities API - RESTful endpoints for city management
+/// </summary>
 [ApiController]
-[Route("api/v1/[controller]")]
+[Route("api/v1/cities")]
 public class CitiesController : ControllerBase
 {
     private readonly ICityService _cityService;
@@ -45,9 +48,10 @@ public class CitiesController : ControllerBase
 
     /// <summary>
     /// Get recommended cities
+    /// GET /api/v1/cities/recommended?count=10
     /// </summary>
-    [HttpGet("recommend")]
-    public async Task<ActionResult<IEnumerable<CityDto>>> GetRecommendedCities([FromQuery] int count = 5)
+    [HttpGet("recommended")]
+    public async Task<ActionResult<IEnumerable<CityDto>>> GetRecommendedCities([FromQuery] int count = 10)
     {
         try
         {
@@ -62,9 +66,10 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Get cities by country ID
+    /// Get cities by country ID (Query parameter approach)
+    /// GET /api/v1/cities?countryId={guid}
     /// </summary>
-    [HttpGet("country/{countryId:guid}/cities")]
+    [HttpGet("by-country/{countryId:guid}")]
     public async Task<ActionResult<IEnumerable<CitySummaryDto>>> GetCitiesByCountryId(Guid countryId)
     {
         try
@@ -81,8 +86,9 @@ public class CitiesController : ControllerBase
 
     /// <summary>
     /// Get cities grouped by country
+    /// GET /api/v1/cities/grouped-by-country
     /// </summary>
-    [HttpGet("by-country")]
+    [HttpGet("grouped-by-country")]
     public async Task<ActionResult<IEnumerable<CountryCitiesDto>>> GetCitiesGroupedByCountry()
     {
         try
@@ -98,7 +104,9 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Get all countries
+    /// Get all countries (as a related resource)
+    /// GET /api/v1/cities/countries
+    /// Note: Consider moving to separate /api/v1/countries endpoint
     /// </summary>
     [HttpGet("countries")]
     public async Task<ActionResult<IEnumerable<CountryDto>>> GetAllCountries()

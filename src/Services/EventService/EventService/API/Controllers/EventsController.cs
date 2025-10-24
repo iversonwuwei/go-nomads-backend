@@ -6,10 +6,10 @@ using GoNomads.Shared.Middleware;
 namespace EventService.API.Controllers;
 
 /// <summary>
-/// Event API 控制器 - 遵循三层架构 + DDD
+/// Events API - RESTful endpoints for event management
 /// </summary>
 [ApiController]
-[Route("api/v1/[controller]")]
+[Route("api/v1/events")]
 public class EventsController : ControllerBase
 {
     private readonly IEventService _eventService;

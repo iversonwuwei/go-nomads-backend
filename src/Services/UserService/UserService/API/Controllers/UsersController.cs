@@ -9,10 +9,10 @@ using System.ComponentModel.DataAnnotations;
 namespace UserService.API.Controllers;
 
 /// <summary>
-/// 用户管理 API - 薄层控制器
+/// Users API - RESTful endpoints for user management
 /// </summary>
 [ApiController]
-[Route("api/users")]
+[Route("api/v1/users")]
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
