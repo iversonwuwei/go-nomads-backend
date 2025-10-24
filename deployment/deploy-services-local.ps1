@@ -40,9 +40,11 @@ foreach ($svc in $required) {
 
 $services = @(
     @{Name="gateway"; Port=5000; DaprPort=3500; AppId="gateway"; Path="src/Gateway/Gateway"; Dll="Gateway.dll"; Container="go-nomads-gateway"},
-    @{Name="product"; Port=5001; DaprPort=3501; AppId="product-service"; Path="src/Services/ProductService/ProductService"; Dll="ProductService.dll"; Container="go-nomads-product-service"},
-    @{Name="user"; Port=5002; DaprPort=3502; AppId="user-service"; Path="src/Services/UserService/UserService"; Dll="UserService.dll"; Container="go-nomads-user-service"},
-    @{Name="document"; Port=5003; DaprPort=3503; AppId="document-service"; Path="src/Services/DocumentService/DocumentService"; Dll="DocumentService.dll"; Container="go-nomads-document-service"}
+    @{Name="user"; Port=5001; DaprPort=3502; AppId="user-service"; Path="src/Services/UserService/UserService"; Dll="UserService.dll"; Container="go-nomads-user-service"},
+    @{Name="product"; Port=5002; DaprPort=3501; AppId="product-service"; Path="src/Services/ProductService/ProductService"; Dll="ProductService.dll"; Container="go-nomads-product-service"},
+    @{Name="document"; Port=5003; DaprPort=3503; AppId="document-service"; Path="src/Services/DocumentService/DocumentService"; Dll="DocumentService.dll"; Container="go-nomads-document-service"},
+    @{Name="city"; Port=8002; DaprPort=3504; AppId="city-service"; Path="src/Services/CityService/CityService"; Dll="CityService.dll"; Container="go-nomads-city-service"},
+    @{Name="event"; Port=8005; DaprPort=3505; AppId="event-service"; Path="src/Services/EventService/EventService"; Dll="EventService.dll"; Container="go-nomads-event-service"}
 )
 
 if (-not $SkipBuild) {
@@ -62,7 +64,7 @@ Write-Host "\nDeploying services..." -ForegroundColor Cyan
 
 # 停止并删除旧容器（如果存在）
 Write-Host "\nCleaning up old containers and images..." -ForegroundColor Yellow
-$oldContainers = @("go-nomads-product", "go-nomads-user", "go-nomads-document", "go-nomads-gateway")
+$oldContainers = @("go-nomads-gateway", "go-nomads-user", "go-nomads-product", "go-nomads-document", "go-nomads-city", "go-nomads-event")
 foreach ($oldName in $oldContainers) {
     $exists = docker ps -a --filter "name=^${oldName}$" --format '{{.Names}}'
     if ($exists) {

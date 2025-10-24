@@ -254,6 +254,23 @@ function Start-Grafana {
     Write-Host "Grafana UI available at: http://localhost:3000 (admin/admin)" -ForegroundColor Green
 }
 
+function Start-Elasticsearch {
+    Write-Header "Deploying Elasticsearch"
+    Remove-Container "go-nomads-elasticsearch"
+    
+    & $RUNTIME run -d `
+        --name go-nomads-elasticsearch `
+        --network $NETWORK_NAME `
+        -p 9200:9200 `
+        -p 9300:9300 `
+        -e "discovery.type=single-node" `
+        -e "xpack.security.enabled=false" `
+        -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" `
+        docker.elastic.co/elasticsearch/elasticsearch:8.11.0 | Out-Null
+    
+    Write-Host "Elasticsearch available at: http://localhost:9200" -ForegroundColor Green
+}
+
 function Start-Nginx {
     Write-Header "Deploying Nginx"
     Remove-Container "go-nomads-nginx"
@@ -278,16 +295,18 @@ function Start-Infrastructure {
     Start-Zipkin
     Start-Prometheus
     Start-Grafana
+    Start-Elasticsearch
     Start-Nginx
     
     Write-Host "`nAll infrastructure containers started!" -ForegroundColor Green
     Write-Host "`nAccess URLs:" -ForegroundColor Cyan
-    Write-Host "  Nginx:       http://localhost" -ForegroundColor White
-    Write-Host "  Redis:       redis://localhost:6379" -ForegroundColor White
-    Write-Host "  Consul:      http://localhost:8500" -ForegroundColor White
-    Write-Host "  Zipkin:      http://localhost:9411" -ForegroundColor White
-    Write-Host "  Prometheus:  http://localhost:9090" -ForegroundColor White
-    Write-Host "  Grafana:     http://localhost:3000 (admin/admin)" -ForegroundColor White
+    Write-Host "  Nginx:          http://localhost" -ForegroundColor White
+    Write-Host "  Redis:          redis://localhost:6379" -ForegroundColor White
+    Write-Host "  Consul:         http://localhost:8500" -ForegroundColor White
+    Write-Host "  Zipkin:         http://localhost:9411" -ForegroundColor White
+    Write-Host "  Prometheus:     http://localhost:9090" -ForegroundColor White
+    Write-Host "  Grafana:        http://localhost:3000 (admin/admin)" -ForegroundColor White
+    Write-Host "  Elasticsearch:  http://localhost:9200" -ForegroundColor White
 }
 
 function Stop-Infrastructure {
@@ -295,6 +314,7 @@ function Stop-Infrastructure {
     
     $containers = @(
         "go-nomads-nginx",
+        "go-nomads-elasticsearch",
         "go-nomads-grafana",
         "go-nomads-prometheus",
         "go-nomads-zipkin",
@@ -325,6 +345,7 @@ function Remove-Infrastructure {
     
     $containers = @(
         "go-nomads-nginx",
+        "go-nomads-elasticsearch",
         "go-nomads-grafana",
         "go-nomads-prometheus",
         "go-nomads-zipkin",
