@@ -306,8 +306,10 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
         // Map service names to API paths
         return serviceName switch
         {
-            "product-service" => "products",
-            "user-service" => "users",
+            "product-service" => "v1/products",
+            "user-service" => "v1/users",
+            "city-service" => "v1/cities",
+            "event-service" => "v1/events",
             "gateway" => "gateway",
             _ => serviceName
         };
