@@ -34,8 +34,8 @@ public class HomeController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<HomeFeedDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<HomeFeedDto>), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<ApiResponse<HomeFeedDto>>> GetHomeFeed(
-        [FromQuery] int cityLimit = 10,
-        [FromQuery] int meetupLimit = 20)
+        [FromQuery] int cityLimit = 6,
+        [FromQuery] int meetupLimit = 6)
     {
         try
         {
