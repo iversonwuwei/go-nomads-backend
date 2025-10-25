@@ -1,17 +1,21 @@
-using CityService.Models;
-using CityService.DTOs;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using CityService.Domain.Entities;
+using CityService.Domain.Repositories;
+using CityService.Domain.ValueObjects;
 using Microsoft.Extensions.Logging;
 using Shared.Repositories;
 using Supabase;
 
-namespace CityService.Repositories;
+namespace CityService.Infrastructure.Repositories;
 
 /// <summary>
-/// City 仓储 - 使用 Supabase
+/// 基于 Supabase 的城市仓储实现
 /// </summary>
 public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityRepository
 {
-    public SupabaseCityRepository(Client supabaseClient, ILogger<SupabaseCityRepository> logger) 
+    public SupabaseCityRepository(Client supabaseClient, ILogger<SupabaseCityRepository> logger)
         : base(supabaseClient, logger)
     {
     }
@@ -19,7 +23,7 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
     public async Task<IEnumerable<City>> GetAllAsync(int pageNumber, int pageSize)
     {
         var offset = (pageNumber - 1) * pageSize;
-        
+
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
@@ -47,9 +51,8 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         }
     }
 
-    public async Task<IEnumerable<City>> SearchAsync(CitySearchDto searchDto)
+    public async Task<IEnumerable<City>> SearchAsync(CitySearchCriteria criteria)
     {
-        // 获取所有活跃城市
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
@@ -58,48 +61,45 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
 
         var cities = response.Models.AsEnumerable();
 
-        // 客户端过滤
-        if (!string.IsNullOrWhiteSpace(searchDto.Name))
+        if (!string.IsNullOrWhiteSpace(criteria.Name))
         {
-            cities = cities.Where(c => c.Name.Contains(searchDto.Name, StringComparison.OrdinalIgnoreCase));
+            cities = cities.Where(c => c.Name.Contains(criteria.Name, StringComparison.OrdinalIgnoreCase));
         }
 
-        if (!string.IsNullOrWhiteSpace(searchDto.Country))
+        if (!string.IsNullOrWhiteSpace(criteria.Country))
         {
-            cities = cities.Where(c => c.Country.Contains(searchDto.Country, StringComparison.OrdinalIgnoreCase));
+            cities = cities.Where(c => c.Country.Contains(criteria.Country, StringComparison.OrdinalIgnoreCase));
         }
 
-        if (!string.IsNullOrWhiteSpace(searchDto.Region))
+        if (!string.IsNullOrWhiteSpace(criteria.Region))
         {
-            cities = cities.Where(c => c.Region != null && c.Region.Contains(searchDto.Region, StringComparison.OrdinalIgnoreCase));
+            cities = cities.Where(c => c.Region != null && c.Region.Contains(criteria.Region, StringComparison.OrdinalIgnoreCase));
         }
 
-        if (searchDto.MinCostOfLiving.HasValue)
+        if (criteria.MinCostOfLiving.HasValue)
         {
-            cities = cities.Where(c => c.AverageCostOfLiving >= searchDto.MinCostOfLiving.Value);
+            cities = cities.Where(c => c.AverageCostOfLiving >= criteria.MinCostOfLiving.Value);
         }
 
-        if (searchDto.MaxCostOfLiving.HasValue)
+        if (criteria.MaxCostOfLiving.HasValue)
         {
-            cities = cities.Where(c => c.AverageCostOfLiving <= searchDto.MaxCostOfLiving.Value);
+            cities = cities.Where(c => c.AverageCostOfLiving <= criteria.MaxCostOfLiving.Value);
         }
 
-        if (searchDto.MinScore.HasValue)
+        if (criteria.MinScore.HasValue)
         {
-            cities = cities.Where(c => c.OverallScore >= searchDto.MinScore.Value);
+            cities = cities.Where(c => c.OverallScore >= criteria.MinScore.Value);
         }
 
-        if (searchDto.Tags != null && searchDto.Tags.Any())
+        if (criteria.Tags is { Count: > 0 })
         {
-            cities = cities.Where(c => c.Tags != null && searchDto.Tags.All(tag => c.Tags.Contains(tag)));
+            cities = cities.Where(c => c.Tags != null && criteria.Tags.All(tag => c.Tags.Contains(tag)));
         }
 
-        // 应用分页
-        cities = cities
-            .Skip((searchDto.PageNumber - 1) * searchDto.PageSize)
-            .Take(searchDto.PageSize);
-
-        return cities.ToList();
+        return cities
+            .Skip((criteria.PageNumber - 1) * criteria.PageSize)
+            .Take(criteria.PageSize)
+            .ToList();
     }
 
     public async Task<City> CreateAsync(City city)
@@ -174,12 +174,12 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         return response.Models;
     }
 
-    public async Task<IEnumerable<City>> GetByCountryAsync(string country)
+    public async Task<IEnumerable<City>> GetByCountryAsync(string countryName)
     {
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
-            .Filter("country", Postgrest.Constants.Operator.ILike, $"%{country}%")
+            .Filter("country", Postgrest.Constants.Operator.ILike, $"%{countryName}%")
             .Order(x => x.Name, Postgrest.Constants.Ordering.Ascending)
             .Get();
 

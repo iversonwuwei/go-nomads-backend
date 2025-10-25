@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using System.Linq;
 
-namespace CityService.Controllers;
+namespace CityService.API.Controllers;
 
 /// <summary>
 /// Cities API - RESTful endpoints for city management

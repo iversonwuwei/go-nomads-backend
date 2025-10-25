@@ -1,5 +1,8 @@
-using CityService.Repositories;
-using CityService.Services;
+using CityService.Application.Abstractions.Services;
+using CityService.Application.Services;
+using CityService.Domain.Repositories;
+using CityService.Infrastructure.Repositories;
+using CityService.Infrastructure.Integrations.Weather;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -85,7 +88,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<ICityRepository, SupabaseCityRepository>();
 builder.Services.AddScoped<ICountryRepository, SupabaseCountryRepository>();
 builder.Services.AddScoped<IProvinceRepository, SupabaseProvinceRepository>();
-builder.Services.AddScoped<ICityService, CityService.Services.CityService>();
+builder.Services.AddScoped<ICityService, CityApplicationService>();
 builder.Services.AddScoped<GeographyDataSeeder>();
 
 // 添加内存缓存
@@ -93,7 +96,6 @@ builder.Services.AddMemoryCache();
 
 // 注册天气服务
 builder.Services.AddHttpClient<IWeatherService, WeatherService>();
-builder.Services.AddScoped<IWeatherService, WeatherService>();
 
 var app = builder.Build();
 

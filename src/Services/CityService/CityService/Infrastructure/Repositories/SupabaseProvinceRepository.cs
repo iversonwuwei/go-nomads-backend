@@ -1,8 +1,16 @@
-using CityService.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using CityService.Domain.Entities;
+using CityService.Domain.Repositories;
+using Microsoft.Extensions.Logging;
 using Supabase;
 
-namespace CityService.Repositories;
+namespace CityService.Infrastructure.Repositories;
 
+/// <summary>
+/// 基于 Supabase 的省份仓储实现
+/// </summary>
 public class SupabaseProvinceRepository : IProvinceRepository
 {
     private readonly Client _supabaseClient;
@@ -20,7 +28,7 @@ public class SupabaseProvinceRepository : IProvinceRepository
         {
             var response = await _supabaseClient
                 .From<Province>()
-                .Filter("is_active", Postgrest.Constants.Operator.Equals, true)
+                .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
                 .Order("name", Postgrest.Constants.Ordering.Ascending)
                 .Get();
 
@@ -40,7 +48,7 @@ public class SupabaseProvinceRepository : IProvinceRepository
             var response = await _supabaseClient
                 .From<Province>()
                 .Filter("country_id", Postgrest.Constants.Operator.Equals, countryId.ToString())
-                .Filter("is_active", Postgrest.Constants.Operator.Equals, true)
+                .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
                 .Order("name", Postgrest.Constants.Ordering.Ascending)
                 .Get();
 
@@ -77,7 +85,7 @@ public class SupabaseProvinceRepository : IProvinceRepository
         {
             province.Id = Guid.NewGuid();
             province.CreatedAt = DateTime.UtcNow;
-            
+
             var response = await _supabaseClient
                 .From<Province>()
                 .Insert(province);
@@ -96,7 +104,7 @@ public class SupabaseProvinceRepository : IProvinceRepository
         try
         {
             province.UpdatedAt = DateTime.UtcNow;
-            
+
             var response = await _supabaseClient
                 .From<Province>()
                 .Update(province);

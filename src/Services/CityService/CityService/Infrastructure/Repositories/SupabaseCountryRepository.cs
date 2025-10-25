@@ -1,8 +1,16 @@
-using CityService.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using CityService.Domain.Entities;
+using CityService.Domain.Repositories;
+using Microsoft.Extensions.Logging;
 using Supabase;
 
-namespace CityService.Repositories;
+namespace CityService.Infrastructure.Repositories;
 
+/// <summary>
+/// 基于 Supabase 的国家仓储实现
+/// </summary>
 public class SupabaseCountryRepository : ICountryRepository
 {
     private readonly Client _supabaseClient;
@@ -57,7 +65,7 @@ public class SupabaseCountryRepository : ICountryRepository
         {
             var response = await _supabaseClient
                 .From<Country>()
-                .Filter("code", Postgrest.Constants.Operator.Equals, code.ToUpper())
+                .Filter("code", Postgrest.Constants.Operator.Equals, code.ToUpperInvariant())
                 .Single();
 
             return response;
@@ -75,7 +83,7 @@ public class SupabaseCountryRepository : ICountryRepository
         {
             country.Id = Guid.NewGuid();
             country.CreatedAt = DateTime.UtcNow;
-            
+
             var response = await _supabaseClient
                 .From<Country>()
                 .Insert(country);
@@ -94,7 +102,7 @@ public class SupabaseCountryRepository : ICountryRepository
         try
         {
             country.UpdatedAt = DateTime.UtcNow;
-            
+
             var response = await _supabaseClient
                 .From<Country>()
                 .Update(country);
