@@ -11,87 +11,87 @@ namespace EventService.Domain.Entities;
 public class Event : BaseModel
 {
     [PrimaryKey("id", false)]
-    public Guid Id { get; private set; }
+    public Guid Id { get; set; }
 
     [Required]
     [MaxLength(200)]
     [Column("title")]
-    public string Title { get; private set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
 
     [Column("description")]
-    public string? Description { get; private set; }
+    public string? Description { get; set; }
 
     [Required]
     [Column("organizer_id")]
-    public Guid OrganizerId { get; private set; }
+    public Guid OrganizerId { get; set; }
 
     [Column("city_id")]
-    public Guid? CityId { get; private set; }
+    public Guid? CityId { get; set; }
 
     [MaxLength(200)]
     [Column("location")]
-    public string? Location { get; private set; }
+    public string? Location { get; set; }
 
     [Column("address")]
-    public string? Address { get; private set; }
+    public string? Address { get; set; }
 
     [Column("image_url")]
-    public string? ImageUrl { get; private set; }
+    public string? ImageUrl { get; set; }
 
     [Column("images")]
-    public string[]? Images { get; private set; }
+    public string[]? Images { get; set; }
 
     [MaxLength(50)]
     [Column("category")]
-    public string? Category { get; private set; }
+    public string? Category { get; set; }
 
     [Required]
     [Column("start_time")]
-    public DateTime StartTime { get; private set; }
+    public DateTime StartTime { get; set; }
 
     [Column("end_time")]
-    public DateTime? EndTime { get; private set; }
+    public DateTime? EndTime { get; set; }
 
     [Column("max_participants")]
-    public int? MaxParticipants { get; private set; }
+    public int? MaxParticipants { get; set; }
 
     [Column("current_participants")]
-    public int CurrentParticipants { get; private set; }
+    public int CurrentParticipants { get; set; }
 
     [MaxLength(20)]
     [Column("status")]
-    public string Status { get; private set; } = "upcoming";
+    public string Status { get; set; } = "upcoming";
 
     [MaxLength(20)]
     [Column("location_type")]
-    public string LocationType { get; private set; } = "physical";
+    public string LocationType { get; set; } = "physical";
 
     [Column("meeting_link")]
-    public string? MeetingLink { get; private set; }
+    public string? MeetingLink { get; set; }
 
     [Column("latitude")]
-    public decimal? Latitude { get; private set; }
+    public decimal? Latitude { get; set; }
 
     [Column("longitude")]
-    public decimal? Longitude { get; private set; }
+    public decimal? Longitude { get; set; }
 
     [Column("tags")]
-    public string[]? Tags { get; private set; }
+    public string[]? Tags { get; set; }
 
     [Column("is_featured")]
-    public bool IsFeatured { get; private set; }
+    public bool IsFeatured { get; set; }
 
     [Column("created_by")]
-    public Guid? CreatedBy { get; private set; }
+    public Guid? CreatedBy { get; set; }
 
     [Column("updated_by")]
-    public Guid? UpdatedBy { get; private set; }
+    public Guid? UpdatedBy { get; set; }
 
     [Column("created_at")]
-    public DateTime CreatedAt { get; private set; }
+    public DateTime CreatedAt { get; set; }
 
     [Column("updated_at")]
-    public DateTime UpdatedAt { get; private set; }
+    public DateTime UpdatedAt { get; set; }
 
     // 公共无参构造函数 (Supabase 需要)
     public Event() { }
@@ -220,11 +220,17 @@ public class Event : BaseModel
     /// </summary>
     public void RemoveParticipant()
     {
+        // 确保参与者数量不会变成负数
         if (CurrentParticipants > 0)
         {
             CurrentParticipants--;
-            UpdatedAt = DateTime.UtcNow;
         }
+        else
+        {
+            // 如果已经是 0,记录警告但不抛出异常
+            CurrentParticipants = 0;
+        }
+        UpdatedAt = DateTime.UtcNow;
     }
 
     /// <summary>

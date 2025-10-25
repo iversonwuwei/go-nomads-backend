@@ -45,18 +45,22 @@ public class JwtAuthenticationTransform : ITransformProvider
                         ?? httpContext.User.FindFirst(ClaimTypes.Role)?.Value;
 
                 // 添加自定义请求头，传递给下游服务
+                // 先移除可能存在的旧头，避免重复
                 if (!string.IsNullOrEmpty(userId))
                 {
+                    transformContext.ProxyRequest.Headers.Remove("X-User-Id");
                     transformContext.ProxyRequest.Headers.Add("X-User-Id", userId);
                 }
                 
                 if (!string.IsNullOrEmpty(email))
                 {
+                    transformContext.ProxyRequest.Headers.Remove("X-User-Email");
                     transformContext.ProxyRequest.Headers.Add("X-User-Email", email);
                 }
                 
                 if (!string.IsNullOrEmpty(role))
                 {
+                    transformContext.ProxyRequest.Headers.Remove("X-User-Role");
                     transformContext.ProxyRequest.Headers.Add("X-User-Role", role);
                 }
 

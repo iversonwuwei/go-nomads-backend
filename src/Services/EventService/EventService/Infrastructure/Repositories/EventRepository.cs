@@ -22,17 +22,36 @@ public class EventRepository : IEventRepository
     {
         try
         {
-            var result = await _supabaseClient
+            // 插入数据（Supabase C# SDK 的 Insert 有时不返回数据）
+            var insertResult = await _supabaseClient
                 .From<Event>()
-                .Insert(@event);
+                .Insert(@event, new Postgrest.QueryOptions { Returning = Postgrest.QueryOptions.ReturnType.Representation });
 
-            var createdEvent = result.Models.FirstOrDefault();
-            if (createdEvent == null)
+            // 尝试从 insert 结果获取
+            var createdEvent = insertResult.Models.FirstOrDefault();
+
+            // 如果 insert 没有返回数据，通过 ID 查询
+            if (createdEvent == null || createdEvent.Id == Guid.Empty)
             {
-                throw new InvalidOperationException("创建 Event 失败");
+                _logger.LogWarning("⚠️ Insert 未返回数据，尝试通过 Title 查询最新记录");
+
+                // 通过标题和创建者查询最新创建的 Event
+                var queryResult = await _supabaseClient
+                    .From<Event>()
+                    .Where(e => e.Title == @event.Title && e.OrganizerId == @event.OrganizerId)
+                    .Order("created_at", Postgrest.Constants.Ordering.Descending)
+                    .Limit(1)
+                    .Get();
+
+                createdEvent = queryResult.Models.FirstOrDefault();
             }
 
-            _logger.LogInformation("✅ Event 创建成功，ID: {EventId}", createdEvent.Id);
+            if (createdEvent == null)
+            {
+                throw new InvalidOperationException("创建 Event 失败 - 无法获取创建的记录");
+            }
+
+            _logger.LogInformation("✅ Event 创建成功，ID: {EventId}, Title: {Title}", createdEvent.Id, createdEvent.Title);
             return createdEvent;
         }
         catch (Exception ex)

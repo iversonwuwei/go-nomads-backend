@@ -30,7 +30,8 @@ public interface IEventService
         string? category = null,
         string? status = null,
         int page = 1,
-        int pageSize = 20);
+        int pageSize = 20,
+        Guid? userId = null);
 
     /// <summary>
     /// 参加 Event

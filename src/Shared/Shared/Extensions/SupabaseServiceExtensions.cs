@@ -93,6 +93,12 @@ public static class SupabaseServiceExtensions
             return client;
         });
 
+        // 注册作用域的 Supabase 客户端（每个请求创建一个，自动设置用户 token）
+        services.AddScoped<Shared.Services.ScopedSupabaseClient>();
+
+        // 注册 HttpContextAccessor（ScopedSupabaseClient 需要）
+        services.AddHttpContextAccessor();
+
         return services;
     }
 

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace EventService.Application.DTOs;
 
@@ -128,6 +129,40 @@ public class EventResponse
     public bool IsFollowing { get; set; }
     public bool IsParticipant { get; set; }
     public int FollowerCount { get; set; }
+
+    // 从其他服务获取的关联数据
+    [JsonInclude]
+    public CityInfo? City { get; set; }
+
+    [JsonInclude]
+    public OrganizerInfo? Organizer { get; set; }
+
+    // 参与者列表
+    [JsonInclude]
+    public List<ParticipantResponse>? Participants { get; set; }
+}
+
+/// <summary>
+/// 城市信息（从 CityService 获取）
+/// </summary>
+public class CityInfo
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+    public string? Region { get; set; }
+    public string? ImageUrl { get; set; }
+    public string? TimeZone { get; set; }
+}
+
+/// <summary>
+/// 组织者信息（从 UserService 获取）
+/// </summary>
+public class OrganizerInfo
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
 }
 
 /// <summary>

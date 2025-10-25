@@ -11,22 +11,22 @@ namespace EventService.Domain.Entities;
 public class EventParticipant : BaseModel
 {
     [PrimaryKey("id", false)]
-    public Guid Id { get; private set; }
+    public Guid Id { get; set; }
 
     [Required]
     [Column("event_id")]
-    public Guid EventId { get; private set; }
+    public Guid EventId { get; set; }
 
     [Required]
     [Column("user_id")]
-    public Guid UserId { get; private set; }
+    public Guid UserId { get; set; }
 
     [MaxLength(20)]
     [Column("status")]
-    public string Status { get; private set; } = "registered";
+    public string Status { get; set; } = "registered";
 
     [Column("registered_at")]
-    public DateTime RegisteredAt { get; private set; }
+    public DateTime RegisteredAt { get; set; }
 
     // 公共无参构造函数 (Supabase 需要)
     public EventParticipant() { }

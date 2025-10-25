@@ -25,6 +25,10 @@ builder.Services.AddScoped<EventService.Domain.Repositories.IEventRepository, Ev
 builder.Services.AddScoped<EventService.Domain.Repositories.IEventParticipantRepository, EventService.Infrastructure.Repositories.EventParticipantRepository>();
 builder.Services.AddScoped<EventService.Domain.Repositories.IEventFollowerRepository, EventService.Infrastructure.Repositories.EventFollowerRepository>();
 
+// 注册 gRPC 客户端 (通过 Dapr Service Invocation)
+builder.Services.AddScoped<EventService.Infrastructure.GrpcClients.ICityGrpcClient, EventService.Infrastructure.GrpcClients.CityGrpcClient>();
+builder.Services.AddScoped<EventService.Infrastructure.GrpcClients.IUserGrpcClient, EventService.Infrastructure.GrpcClients.UserGrpcClient>();
+
 // 注册应用服务 (Application Layer)
 builder.Services.AddScoped<EventService.Application.Services.IEventService, EventService.Application.Services.EventApplicationService>();
 

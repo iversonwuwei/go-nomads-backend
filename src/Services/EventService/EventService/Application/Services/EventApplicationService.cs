@@ -1,6 +1,7 @@
 using EventService.Application.DTOs;
 using EventService.Domain.Entities;
 using EventService.Domain.Repositories;
+using EventService.Infrastructure.GrpcClients;
 
 namespace EventService.Application.Services;
 
@@ -12,17 +13,23 @@ public class EventApplicationService : IEventService
     private readonly IEventRepository _eventRepository;
     private readonly IEventParticipantRepository _participantRepository;
     private readonly IEventFollowerRepository _followerRepository;
+    private readonly ICityGrpcClient _cityGrpcClient;
+    private readonly IUserGrpcClient _userGrpcClient;
     private readonly ILogger<EventApplicationService> _logger;
 
     public EventApplicationService(
         IEventRepository eventRepository,
         IEventParticipantRepository participantRepository,
         IEventFollowerRepository followerRepository,
+        ICityGrpcClient cityGrpcClient,
+        IUserGrpcClient userGrpcClient,
         ILogger<EventApplicationService> logger)
     {
         _eventRepository = eventRepository;
         _participantRepository = participantRepository;
         _followerRepository = followerRepository;
+        _cityGrpcClient = cityGrpcClient;
+        _userGrpcClient = userGrpcClient;
         _logger = logger;
     }
 
@@ -66,14 +73,26 @@ public class EventApplicationService : IEventService
 
         var response = MapToResponse(@event);
 
-        // 如果提供了 userId，检查关注和参与状态
+        // 如果提供了 userId，检查参与状态
         if (userId.HasValue)
         {
-            response.IsFollowing = await _followerRepository.IsFollowingAsync(id, userId.Value);
+            // 暂时不使用 follower 功能,只检查参与状态
+            response.IsFollowing = false;
             response.IsParticipant = await _participantRepository.IsParticipantAsync(id, userId.Value);
         }
 
-        response.FollowerCount = await _followerRepository.GetFollowerCountAsync(id);
+        // 暂时将关注者数量设为 0
+        response.FollowerCount = 0;
+
+        // 获取参与者列表
+        var participants = await GetParticipantsAsync(id);
+        response.Participants = participants.ToList();
+
+        // 🔧 修正参与者数量:使用实际参与者列表的长度,确保数据准确
+        response.CurrentParticipants = participants.Count;
+
+        // 填充关联数据
+        await EnrichEventResponsesWithRelatedDataAsync(new List<EventResponse> { response });
 
         return response;
     }
@@ -117,13 +136,129 @@ public class EventApplicationService : IEventService
         string? category = null,
         string? status = null,
         int page = 1,
-        int pageSize = 20)
+        int pageSize = 20,
+        Guid? userId = null)
     {
         var (events, total) = await _eventRepository.GetListAsync(cityId, category, status, page, pageSize);
 
+        // 转换为 DTO
         var responses = events.Select(MapToResponse).ToList();
 
+        // 批量获取关联数据
+        await EnrichEventResponsesWithRelatedDataAsync(responses);
+
+        // 🔧 修正参与者数量:批量查询每个事件的实际参与者数量
+        foreach (var response in responses)
+        {
+            var participantCount = await _participantRepository.CountByEventIdAsync(response.Id);
+            response.CurrentParticipants = participantCount;
+        }
+
+        // 如果有用户ID,批量检查参与状态
+        if (userId.HasValue)
+        {
+            await EnrichEventParticipationStatusAsync(responses, userId.Value);
+        }
+
         return (responses, total);
+    }
+
+    /// <summary>
+    /// 为事件列表填充关联数据（城市、组织者信息）
+    /// </summary>
+    private async Task EnrichEventResponsesWithRelatedDataAsync(List<EventResponse> responses)
+    {
+        _logger.LogInformation("🔍 开始为 {Count} 个事件填充关联数据", responses.Count);
+
+        if (!responses.Any())
+        {
+            _logger.LogInformation("⚠️ 事件列表为空，跳过关联数据填充");
+            return;
+        }
+
+        try
+        {
+            // 收集所有需要查询的 CityId 和 OrganizerId
+            var cityIds = responses
+                .Where(r => r.CityId.HasValue)
+                .Select(r => r.CityId!.Value)
+                .Distinct()
+                .ToList();
+
+            var organizerIds = responses
+                .Select(r => r.OrganizerId)
+                .Distinct()
+                .ToList();
+
+            _logger.LogInformation("📊 需要查询 {CityCount} 个城市和 {OrganizerCount} 个组织者",
+                cityIds.Count, organizerIds.Count);
+
+            // 并行批量获取城市和用户信息
+            var getCitiesTask = _cityGrpcClient.GetCitiesByIdsAsync(cityIds);
+            var getUsersTask = _userGrpcClient.GetUsersByIdsAsync(organizerIds);
+
+            await Task.WhenAll(getCitiesTask, getUsersTask);
+
+            var cities = await getCitiesTask;
+            var users = await getUsersTask;
+
+            _logger.LogInformation("📥 获取到 {CityCount} 个城市和 {UserCount} 个组织者信息",
+                cities.Count, users.Count);
+
+            // 填充数据到每个 EventResponse
+            foreach (var response in responses)
+            {
+                // 填充城市信息
+                if (response.CityId.HasValue && cities.TryGetValue(response.CityId.Value, out var cityInfo))
+                {
+                    response.City = cityInfo;
+                }
+
+                // 填充组织者信息
+                if (users.TryGetValue(response.OrganizerId, out var organizerInfo))
+                {
+                    response.Organizer = organizerInfo;
+                }
+            }
+
+            _logger.LogInformation("✅ 已为 {Count} 个事件填充关联数据（城市: {CityCount}, 组织者: {OrganizerCount}）",
+                responses.Count, cities.Count, users.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 填充事件关联数据失败，将返回不完整的数据");
+            // 不抛出异常，允许返回不完整的数据
+        }
+    }
+
+    /// <summary>
+    /// 批量填充事件参与状态
+    /// </summary>
+    private async Task EnrichEventParticipationStatusAsync(List<EventResponse> responses, Guid userId)
+    {
+        _logger.LogInformation("👥 开始为 {Count} 个事件填充参与状态，用户ID: {UserId}", responses.Count, userId);
+
+        if (!responses.Any())
+        {
+            return;
+        }
+
+        try
+        {
+            // 批量检查用户是否参与了这些活动
+            foreach (var response in responses)
+            {
+                response.IsParticipant = await _participantRepository.IsParticipantAsync(response.Id, userId);
+            }
+
+            var participatedCount = responses.Count(r => r.IsParticipant);
+            _logger.LogInformation("✅ 用户参与了 {ParticipatedCount}/{TotalCount} 个活动",
+                participatedCount, responses.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 填充参与状态失败");
+        }
     }
 
     public async Task<ParticipantResponse> JoinEventAsync(Guid eventId, Guid userId, JoinEventRequest request)

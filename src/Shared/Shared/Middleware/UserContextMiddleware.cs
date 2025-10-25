@@ -28,22 +28,22 @@ public class UserContextMiddleware
         // 从请求头中提取 Gateway 传递的用户信息
         if (context.Request.Headers.TryGetValue("X-User-Id", out var userId))
         {
-            userContext.UserId = userId.ToString();
+            userContext.UserId = userId.FirstOrDefault() ?? string.Empty;
         }
 
         if (context.Request.Headers.TryGetValue("X-User-Email", out var email))
         {
-            userContext.Email = email.ToString();
+            userContext.Email = email.FirstOrDefault() ?? string.Empty;
         }
 
         if (context.Request.Headers.TryGetValue("X-User-Role", out var role))
         {
-            userContext.Role = role.ToString();
+            userContext.Role = role.FirstOrDefault() ?? string.Empty;
         }
 
         if (context.Request.Headers.TryGetValue("Authorization", out var authHeader))
         {
-            userContext.AuthorizationHeader = authHeader.ToString();
+            userContext.AuthorizationHeader = authHeader.FirstOrDefault() ?? string.Empty;
         }
 
         // 将用户上下文存储到 HttpContext.Items 中

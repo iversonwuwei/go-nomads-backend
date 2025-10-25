@@ -35,6 +35,9 @@ public class EventsController : ControllerBase
     {
         try
         {
+            _logger.LogInformation("📥 收到创建 Event 请求: Title={Title}, CityId={CityId}, Location={Location}",
+                request.Title, request.CityId, request.Location);
+
             // 从 UserContext 获取当前用户信息
             var userContext = UserContextMiddleware.GetUserContext(HttpContext);
             if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
@@ -46,6 +49,9 @@ public class EventsController : ControllerBase
                     Errors = new List<string> { "用户未认证" }
                 });
             }
+
+            _logger.LogInformation("🔍 用户上下文: UserId={UserId}, Length={Length}",
+                userContext.UserId, userContext.UserId.Length);
 
             var organizerId = Guid.Parse(userContext.UserId);
             var response = await _eventService.CreateEventAsync(request, organizerId);
@@ -135,7 +141,16 @@ public class EventsController : ControllerBase
     {
         try
         {
-            var (events, total) = await _eventService.GetEventsAsync(cityId, category, status, page, pageSize);
+            // 从 UserContext 获取当前用户信息（用于判断参与状态）
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            Guid? userId = null;
+
+            if (userContext?.IsAuthenticated == true && !string.IsNullOrEmpty(userContext.UserId))
+            {
+                userId = Guid.Parse(userContext.UserId);
+            }
+
+            var (events, total) = await _eventService.GetEventsAsync(cityId, category, status, page, pageSize, userId);
             return Ok(new ApiResponse<PaginatedResponse<EventResponse>>
             {
                 Success = true,

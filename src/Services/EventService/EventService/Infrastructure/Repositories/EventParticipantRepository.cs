@@ -132,4 +132,22 @@ public class EventParticipantRepository : IEventParticipantRepository
             throw;
         }
     }
+
+    public async Task<int> CountByEventIdAsync(Guid eventId)
+    {
+        try
+        {
+            var result = await _supabaseClient
+                .From<EventParticipant>()
+                .Where(p => p.EventId == eventId)
+                .Get();
+
+            return result.Models.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取 Event 参与者数量失败，EventId: {EventId}", eventId);
+            throw;
+        }
+    }
 }

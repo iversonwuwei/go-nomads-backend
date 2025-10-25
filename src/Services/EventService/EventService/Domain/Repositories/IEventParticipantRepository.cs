@@ -36,4 +36,9 @@ public interface IEventParticipantRepository
     /// 检查用户是否已参加
     /// </summary>
     Task<bool> IsParticipantAsync(Guid eventId, Guid userId);
+
+    /// <summary>
+    /// 获取 Event 的参与者数量
+    /// </summary>
+    Task<int> CountByEventIdAsync(Guid eventId);
 }
