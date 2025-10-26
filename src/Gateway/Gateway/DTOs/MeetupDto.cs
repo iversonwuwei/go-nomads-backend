@@ -1,4 +1,16 @@
+using System.Text.Json.Serialization;
+
 namespace Gateway.DTOs;
+
+/// <summary>
+/// 组织者信息
+/// </summary>
+public class OrganizerDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+}
 
 /// <summary>
 /// 活动 DTO
@@ -74,4 +86,15 @@ public class MeetupDto
     /// 创建者名称
     /// </summary>
     public string? CreatorName { get; set; }
+
+    /// <summary>
+    /// 组织者信息（从 Event Service 获取）
+    /// </summary>
+    [JsonInclude]
+    public OrganizerDto? Organizer { get; set; }
+
+    /// <summary>
+    /// 当前用户是否已参加
+    /// </summary>
+    public bool IsParticipant { get; set; }
 }

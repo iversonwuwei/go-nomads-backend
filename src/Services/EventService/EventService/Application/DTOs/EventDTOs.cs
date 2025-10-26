@@ -114,7 +114,10 @@ public class EventResponse
     public DateTime StartTime { get; set; }
     public DateTime? EndTime { get; set; }
     public int? MaxParticipants { get; set; }
+    
+    [JsonPropertyName("participantCount")]
     public int CurrentParticipants { get; set; }
+    
     public string Status { get; set; } = "upcoming";
     public string LocationType { get; set; } = "physical";
     public string? MeetingLink { get; set; }

@@ -156,11 +156,28 @@ public class HomeController : ControllerBase
     {
         try
         {
-            // Dapr 服务调用: event-service
-            var result = await _daprClient.InvokeApiAsync<PaginatedResponse<MeetupDto>>(
+            // 准备请求，传递用户认证信息
+            var request = _daprClient.CreateInvokeMethodRequest(
                 HttpMethod.Get,
                 "event-service",
                 $"api/v1/events?status=upcoming&pageSize={limit}");
+
+            // 转发 Authorization header（如果存在）
+            if (Request.Headers.ContainsKey("Authorization"))
+            {
+                var authHeader = Request.Headers["Authorization"].ToString();
+                request.Headers.Add("Authorization", authHeader);
+            }
+
+            // 转发 X-User-Id header（如果存在）
+            if (Request.Headers.ContainsKey("X-User-Id"))
+            {
+                var userIdHeader = Request.Headers["X-User-Id"].ToString();
+                request.Headers.Add("X-User-Id", userIdHeader);
+            }
+
+            // 发送请求（EventResponse 实际上就是 MeetupDto，它们是同一个类型）
+            var result = await _daprClient.InvokeMethodAsync<ApiResponse<PaginatedResponse<MeetupDto>>>(request);
 
             if (!result.Success)
             {

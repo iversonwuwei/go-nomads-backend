@@ -137,17 +137,21 @@ public class EventParticipantRepository : IEventParticipantRepository
     {
         try
         {
+            _logger.LogInformation("� 开始统计Event参与者数量，EventId: {EventId}", eventId);
+            
             var result = await _supabaseClient
                 .From<EventParticipant>()
                 .Where(p => p.EventId == eventId)
                 .Get();
 
-            return result.Models.Count;
+            var count = result.Models?.Count ?? 0;
+            _logger.LogInformation("✅ Event {EventId} 有 {Count} 个参与者", eventId, count);
+            return count;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ 获取 Event 参与者数量失败，EventId: {EventId}", eventId);
-            throw;
+            return 0; // 失败时返回 0 而不是抛出异常
         }
     }
 }
