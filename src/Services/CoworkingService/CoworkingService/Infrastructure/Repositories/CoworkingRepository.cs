@@ -23,22 +23,55 @@ public class CoworkingRepository : ICoworkingRepository
     {
         try
         {
+            _logger.LogInformation("📝 准备创建 Coworking: Name={Name}, Address={Address}", 
+                coworkingSpace.Name, coworkingSpace.Address);
+
+            // 使用 Upsert 替代 Insert 以获取完整返回
             var response = await _supabaseClient
                 .From<CoworkingSpace>()
-                .Insert(coworkingSpace);
+                .Upsert(coworkingSpace);
 
-            var created = response.Models.FirstOrDefault();
+            _logger.LogInformation("📊 Upsert 响应: ModelCount={Count}", response.Models?.Count ?? 0);
+
+            var created = response.Models?.FirstOrDefault();
             if (created == null)
             {
-                throw new InvalidOperationException("创建共享办公空间失败");
+                _logger.LogError("❌ Upsert 未返回任何数据");
+                throw new InvalidOperationException("创建共享办公空间失败：无返回数据");
             }
 
-            _logger.LogInformation("✅ Supabase 创建成功: {Id}", created.Id);
+            _logger.LogInformation("🔍 返回的数据: Id={Id}, Name={Name}, Address={Address}", 
+                created.Id, created.Name ?? "null", created.Address ?? "null");
+
+            // 如果返回的数据不完整，尝试重新查询
+            if (created.Id == Guid.Empty || string.IsNullOrEmpty(created.Name))
+            {
+                _logger.LogWarning("⚠️  返回数据不完整，尝试按时间戳查询最新记录");
+                
+                // 按创建时间倒序查询，获取最新的一条
+                var queryResponse = await _supabaseClient
+                    .From<CoworkingSpace>()
+                    .Order("created_at", Postgrest.Constants.Ordering.Descending)
+                    .Limit(1)
+                    .Get();
+
+                _logger.LogInformation("📊 查询响应: ModelCount={Count}", queryResponse.Models?.Count ?? 0);
+
+                created = queryResponse.Models?.FirstOrDefault();
+                if (created == null)
+                {
+                    throw new InvalidOperationException("创建后无法查询到记录");
+                }
+                
+                _logger.LogInformation("🔍 查询到的数据: Id={Id}, Name={Name}", created.Id, created.Name);
+            }
+
+            _logger.LogInformation("✅ Supabase 创建成功: {Id}, Name: {Name}", created.Id, created.Name);
             return created;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Supabase 创建失败");
+            _logger.LogError(ex, "❌ Supabase 创建失败: {Message}", ex.Message);
             throw;
         }
     }

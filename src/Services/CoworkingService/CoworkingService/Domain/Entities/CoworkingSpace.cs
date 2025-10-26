@@ -12,100 +12,100 @@ namespace CoworkingService.Domain.Entities;
 public class CoworkingSpace : BaseModel
 {
     [PrimaryKey("id", false)]
-    public Guid Id { get; private set; }
+    public Guid Id { get; set; }
 
     [Column("name")]
-    public string Name { get; private set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 
     [Column("city_id")]
-    public Guid? CityId { get; private set; }
+    public Guid? CityId { get; set; }
 
     [Column("address")]
-    public string Address { get; private set; } = string.Empty;
+    public string Address { get; set; } = string.Empty;
 
     [Column("description")]
-    public string? Description { get; private set; }
+    public string? Description { get; set; }
 
     [Column("image_url")]
-    public string? ImageUrl { get; private set; }
+    public string? ImageUrl { get; set; }
 
     [Column("images")]
-    public string[]? Images { get; private set; }
+    public string[]? Images { get; set; }
 
     [Column("price_per_day")]
-    public decimal? PricePerDay { get; private set; }
+    public decimal? PricePerDay { get; set; }
 
     [Column("price_per_month")]
-    public decimal? PricePerMonth { get; private set; }
+    public decimal? PricePerMonth { get; set; }
 
     [Column("price_per_hour")]
-    public decimal? PricePerHour { get; private set; }
+    public decimal? PricePerHour { get; set; }
 
     [Column("currency")]
-    public string Currency { get; private set; } = "USD";
+    public string Currency { get; set; } = "USD";
 
     [Column("rating")]
-    public decimal Rating { get; private set; } = 0;
+    public decimal Rating { get; set; } = 0;
 
     [Column("review_count")]
-    public int ReviewCount { get; private set; } = 0;
+    public int ReviewCount { get; set; } = 0;
 
     [Column("wifi_speed")]
-    public decimal? WifiSpeed { get; private set; }
+    public decimal? WifiSpeed { get; set; }
 
     [Column("has_meeting_room")]
-    public bool HasMeetingRoom { get; private set; }
+    public bool HasMeetingRoom { get; set; }
 
     [Column("has_coffee")]
-    public bool HasCoffee { get; private set; }
+    public bool HasCoffee { get; set; }
 
     [Column("has_parking")]
-    public bool HasParking { get; private set; }
+    public bool HasParking { get; set; }
 
     [Column("has_24_7_access")]
-    public bool Has247Access { get; private set; }
+    public bool Has247Access { get; set; }
 
     [Column("amenities")]
-    public string[]? Amenities { get; private set; }
+    public string[]? Amenities { get; set; }
 
     [Column("capacity")]
-    public int? Capacity { get; private set; }
+    public int? Capacity { get; set; }
 
     [Column("location")]
-    public string? Location { get; private set; }
+    public string? Location { get; set; }
 
     [Column("latitude")]
-    public decimal? Latitude { get; private set; }
+    public decimal? Latitude { get; set; }
 
     [Column("longitude")]
-    public decimal? Longitude { get; private set; }
+    public decimal? Longitude { get; set; }
 
     [Column("phone")]
-    public string? Phone { get; private set; }
+    public string? Phone { get; set; }
 
     [Column("email")]
-    public string? Email { get; private set; }
+    public string? Email { get; set; }
 
     [Column("website")]
-    public string? Website { get; private set; }
+    public string? Website { get; set; }
 
     [Column("opening_hours")]
-    public string? OpeningHours { get; private set; }
+    public string? OpeningHours { get; set; }
 
     [Column("is_active")]
-    public bool IsActive { get; private set; } = true;
+    public bool IsActive { get; set; } = true;
 
     [Column("created_by")]
-    public Guid? CreatedBy { get; private set; }
+    public Guid? CreatedBy { get; set; }
 
     [Column("updated_by")]
-    public Guid? UpdatedBy { get; private set; }
+    public Guid? UpdatedBy { get; set; }
 
     [Column("created_at")]
-    public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     [Column("updated_at")]
-    public DateTime UpdatedAt { get; private set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
     /// 公共无参构造函数 (ORM 需要)
