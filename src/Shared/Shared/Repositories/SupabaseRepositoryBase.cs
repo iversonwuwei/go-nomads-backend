@@ -171,6 +171,42 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
     }
 
     /// <summary>
+    /// 更新记录
+    /// </summary>
+    public virtual async Task<T> UpdateAsync(T entity, string id, string idColumn = "id", CancellationToken cancellationToken = default)
+    {
+        Logger.LogInformation("Updating record by ID: {Id}", id);
+
+        try
+        {
+            // 先检查记录是否存在
+            var existing = await GetByIdAsync(id, idColumn, cancellationToken);
+            if (existing == null)
+            {
+                throw new InvalidOperationException($"Record with ID {id} not found");
+            }
+
+            // 使用 Upsert 更新记录
+            var response = await SupabaseClient
+                .From<T>()
+                .Update(entity);
+
+            if (response.Models.Count == 0)
+            {
+                throw new InvalidOperationException("Update operation did not return any records");
+            }
+
+            Logger.LogInformation("Successfully updated record: {Id}", id);
+            return response.Models.First();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating record: {Id}", id);
+            throw;
+        }
+    }
+
+    /// <summary>
     /// 删除记录
     /// </summary>
     public virtual async Task<bool> DeleteAsync(string id, string idColumn = "id", CancellationToken cancellationToken = default)
@@ -187,9 +223,10 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
                 return false;
             }
 
-            // 使用 Get() 获取所有记录，然后筛选并删除
+            // 使用 Filter 筛选要删除的记录
             await SupabaseClient
                 .From<T>()
+                .Filter(idColumn, Postgrest.Constants.Operator.Equals, id)
                 .Delete();
 
             Logger.LogInformation("Successfully deleted record: {Id}", id);

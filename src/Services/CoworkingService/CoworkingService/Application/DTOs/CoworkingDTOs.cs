@@ -1,11 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace CoworkingService.DTOs;
+namespace CoworkingService.Application.DTOs;
 
 /// <summary>
-/// Coworking 空间 DTO
+/// Coworking 空间响应 DTO
 /// </summary>
-public class CoworkingSpaceDto
+public class CoworkingSpaceResponse
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -39,17 +39,79 @@ public class CoworkingSpaceDto
 }
 
 /// <summary>
-/// 创建/更新 Coworking 空间请求 DTO
+/// 创建共享办公空间请求 DTO
 /// </summary>
 public class CreateCoworkingSpaceRequest
 {
-    [Required]
+    [Required(ErrorMessage = "名称不能为空")]
     [MaxLength(200)]
     public string Name { get; set; } = string.Empty;
 
     public Guid? CityId { get; set; }
 
-    [Required]
+    [Required(ErrorMessage = "地址不能为空")]
+    public string Address { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+    public string? ImageUrl { get; set; }
+    public string[]? Images { get; set; }
+
+    [Range(0, 10000, ErrorMessage = "日价格必须在 0-10000 之间")]
+    public decimal? PricePerDay { get; set; }
+
+    [Range(0, 50000, ErrorMessage = "月价格必须在 0-50000 之间")]
+    public decimal? PricePerMonth { get; set; }
+
+    [Range(0, 500, ErrorMessage = "时价格必须在 0-500 之间")]
+    public decimal? PricePerHour { get; set; }
+
+    [MaxLength(10)]
+    public string Currency { get; set; } = "USD";
+
+    [Range(0, 1000, ErrorMessage = "Wifi 速度必须在 0-1000 之间")]
+    public decimal? WifiSpeed { get; set; }
+
+    public bool HasMeetingRoom { get; set; }
+    public bool HasCoffee { get; set; }
+    public bool HasParking { get; set; }
+    public bool Has247Access { get; set; }
+    public string[]? Amenities { get; set; }
+
+    [Range(1, 1000, ErrorMessage = "容量必须在 1-1000 之间")]
+    public int? Capacity { get; set; }
+
+    [Range(-90, 90, ErrorMessage = "纬度必须在 -90 到 90 之间")]
+    public decimal? Latitude { get; set; }
+
+    [Range(-180, 180, ErrorMessage = "经度必须在 -180 到 180 之间")]
+    public decimal? Longitude { get; set; }
+
+    [Phone(ErrorMessage = "无效的电话号码")]
+    public string? Phone { get; set; }
+
+    [EmailAddress(ErrorMessage = "无效的电子邮件地址")]
+    public string? Email { get; set; }
+
+    [Url(ErrorMessage = "无效的网站 URL")]
+    public string? Website { get; set; }
+
+    public string? OpeningHours { get; set; }
+
+    public Guid? CreatedBy { get; set; }
+}
+
+/// <summary>
+/// 更新共享办公空间请求 DTO
+/// </summary>
+public class UpdateCoworkingSpaceRequest
+{
+    [Required(ErrorMessage = "名称不能为空")]
+    [MaxLength(200)]
+    public string Name { get; set; } = string.Empty;
+
+    public Guid? CityId { get; set; }
+
+    [Required(ErrorMessage = "地址不能为空")]
     public string Address { get; set; } = string.Empty;
 
     public string? Description { get; set; }
@@ -96,12 +158,26 @@ public class CreateCoworkingSpaceRequest
     public string? Website { get; set; }
 
     public string? OpeningHours { get; set; }
+
+    public Guid? UpdatedBy { get; set; }
 }
 
 /// <summary>
-/// Coworking 预订 DTO
+/// 分页的共享办公空间列表响应
 /// </summary>
-public class CoworkingBookingDto
+public class PaginatedCoworkingSpacesResponse
+{
+    public List<CoworkingSpaceResponse> Items { get; set; } = new();
+    public int TotalCount { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
+}
+
+/// <summary>
+/// Coworking 预订响应 DTO
+/// </summary>
+public class CoworkingBookingResponse
 {
     public Guid Id { get; set; }
     public Guid CoworkingId { get; set; }
@@ -126,37 +202,21 @@ public class CoworkingBookingDto
 /// </summary>
 public class CreateBookingRequest
 {
-    [Required]
+    [Required(ErrorMessage = "共享办公空间 ID 不能为空")]
     public Guid CoworkingId { get; set; }
 
-    [Required]
+    [Required(ErrorMessage = "用户 ID 不能为空")]
+    public Guid UserId { get; set; }
+
+    [Required(ErrorMessage = "预订日期不能为空")]
     public DateTime BookingDate { get; set; }
 
     public TimeSpan? StartTime { get; set; }
     public TimeSpan? EndTime { get; set; }
 
-    [Required]
-    [RegularExpression("^(hourly|daily|monthly)$")]
+    [Required(ErrorMessage = "预订类型不能为空")]
+    [RegularExpression("^(hourly|daily|monthly)$", ErrorMessage = "预订类型必须是 hourly、daily 或 monthly")]
     public string BookingType { get; set; } = "daily";
 
     public string? SpecialRequests { get; set; }
-}
-
-/// <summary>
-/// 搜索 Coworking 空间请求 DTO
-/// </summary>
-public class SearchCoworkingRequest
-{
-    public string? SearchTerm { get; set; }
-    public Guid? CityId { get; set; }
-    public decimal? MinPrice { get; set; }
-    public decimal? MaxPrice { get; set; }
-    public string PriceType { get; set; } = "day"; // day, hour, month
-    public decimal? MinRating { get; set; }
-    public bool? HasMeetingRoom { get; set; }
-    public bool? HasCoffee { get; set; }
-    public bool? HasParking { get; set; }
-    public bool? Has247Access { get; set; }
-    public int Page { get; set; } = 1;
-    public int PageSize { get; set; } = 20;
 }

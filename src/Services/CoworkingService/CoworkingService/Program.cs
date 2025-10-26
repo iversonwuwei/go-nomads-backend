@@ -1,8 +1,11 @@
-using CoworkingService.Repositories;
 using Shared.Extensions;
+using GoNomads.Shared.Extensions;
 using Dapr.Client;
 using Serilog;
 using Scalar.AspNetCore;
+using CoworkingService.Domain.Repositories;
+using CoworkingService.Infrastructure.Repositories;
+using CoworkingService.Application.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,12 +21,33 @@ builder.Host.UseSerilog();
 // 添加 Supabase 客户端
 builder.Services.AddSupabase(builder.Configuration);
 
-// 配置 DaprClient
-builder.Services.AddDaprClient();
+// 配置 DaprClient 使用 gRPC 协议
+// 在 container sidecar 模式下，CoworkingService 和 Dapr 共享网络命名空间，使用 localhost
+builder.Services.AddDaprClient(daprClientBuilder =>
+{
+    // 使用 gRPC 端点（默认端口 50001）
+    var daprGrpcPort = builder.Configuration.GetValue<int>("Dapr:GrpcPort", 50001);
+    var daprGrpcEndpoint = $"http://localhost:{daprGrpcPort}";
 
-// 注册 Supabase 仓储
-builder.Services.AddScoped<SupabaseCoworkingRepository>();
-builder.Services.AddScoped<SupabaseCoworkingBookingRepository>();
+    daprClientBuilder.UseGrpcEndpoint(daprGrpcEndpoint);
+
+    // 记录配置
+    var logger = LoggerFactory.Create(loggingBuilder => loggingBuilder.AddConsole()).CreateLogger("DaprSetup");
+    logger.LogInformation("🚀 Dapr Client 配置使用 gRPC: {Endpoint}", daprGrpcEndpoint);
+});
+
+// ============================================================
+// DDD 架构依赖注入配置
+// ============================================================
+
+// Infrastructure Layer - 仓储实现
+builder.Services.AddScoped<ICoworkingRepository, CoworkingRepository>();
+builder.Services.AddScoped<ICoworkingBookingRepository, CoworkingBookingRepository>();
+
+// Application Layer - 应用服务
+builder.Services.AddScoped<ICoworkingService, CoworkingApplicationService>();
+
+// Domain Layer 不需要注册（纯 POCO）
 
 // 添加控制器
 builder.Services.AddControllers().AddDapr();
@@ -65,6 +89,9 @@ app.MapControllers();
 app.MapHealthChecks("/health");
 
 Log.Information("CoworkingService 正在启动...");
+
+// 自动注册到 Consul
+await app.RegisterWithConsulAsync();
 
 try
 {
