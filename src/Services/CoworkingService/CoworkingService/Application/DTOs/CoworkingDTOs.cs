@@ -86,7 +86,7 @@ public class CreateCoworkingSpaceRequest
     [Range(-180, 180, ErrorMessage = "经度必须在 -180 到 180 之间")]
     public decimal? Longitude { get; set; }
 
-    [Phone(ErrorMessage = "无效的电话号码")]
+    // 移除 [Phone] 验证以支持各种电话号码格式(中国手机/固话等)
     public string? Phone { get; set; }
 
     [EmailAddress(ErrorMessage = "无效的电子邮件地址")]
@@ -148,7 +148,7 @@ public class UpdateCoworkingSpaceRequest
     [Range(-180, 180)]
     public decimal? Longitude { get; set; }
 
-    [Phone]
+    // 移除 [Phone] 验证以支持各种电话号码格式(中国手机/固话等)
     public string? Phone { get; set; }
 
     [EmailAddress]
