@@ -319,7 +319,7 @@ public class CoworkingRepository : ICoworkingRepository
             // 获取所有活跃的 Coworking 空间
             var response = await _supabaseClient
                 .From<CoworkingSpace>()
-                .Where(x => x.IsActive)
+                .Where(x => x.IsActive == true)
                 .Get();
 
             // 按城市分组统计

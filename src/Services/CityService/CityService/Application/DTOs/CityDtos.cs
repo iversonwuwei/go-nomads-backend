@@ -29,6 +29,7 @@ public class CityDto
     public DateTime? UpdatedAt { get; set; }
     public WeatherDto? Weather { get; set; }
     public int MeetupCount { get; set; }
+    public int CoworkingCount { get; set; }
 }
 
 public class CreateCityDto

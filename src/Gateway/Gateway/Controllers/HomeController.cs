@@ -224,6 +224,45 @@ public class HomeController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// 获取城市列表(含 Coworking 数量) - 专门为 coworking_home 页面设计
+    /// </summary>
+    [HttpGet("cities-with-coworking")]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResponse<CityDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResponse<CityDto>>), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<CityDto>>>> GetCitiesWithCoworking(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            // 调用 CityService 的新接口
+            var result = await _daprClient.InvokeApiAsync<PaginatedResponse<CityDto>>(
+                HttpMethod.Get,
+                "city-service",
+                $"api/v1/cities/with-coworking-count?page={page}&pageSize={pageSize}");
+
+            if (!result.Success)
+            {
+                _logger.LogWarning("城市服务(含Coworking数量)返回非成功结果: {Message}", result.Message);
+                return StatusCode(500, result);
+            }
+
+            _logger.LogInformation(
+                "获取城市列表(含Coworking数量)成功: {CityCount} 个城市",
+                result.Data?.Items?.Count ?? 0);
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取城市列表(含Coworking数量)失败");
+            return StatusCode(500, ApiResponse<PaginatedResponse<CityDto>>.ErrorResponse(
+                "获取城市列表失败，请稍后重试",
+                new List<string> { ex.Message }));
+        }
+    }
+
     private sealed class ServiceListResult<T>
     {
         public ApiResponse<List<T>> Response { get; init; } = ApiResponse<List<T>>.SuccessResponse(new List<T>());

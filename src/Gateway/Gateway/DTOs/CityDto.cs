@@ -36,6 +36,11 @@ public class CityDto
     public int MeetupCount { get; set; }
 
     /// <summary>
+    /// Coworking 空间数量
+    /// </summary>
+    public int CoworkingCount { get; set; }
+
+    /// <summary>
     /// 当前天气信息
     /// </summary>
     public WeatherDto? Weather { get; set; }

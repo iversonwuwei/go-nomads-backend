@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using System.Linq;
+using Dapr.Client;
 
 namespace CityService.API.Controllers;
 
@@ -16,11 +17,16 @@ namespace CityService.API.Controllers;
 public class CitiesController : ControllerBase
 {
     private readonly ICityService _cityService;
+    private readonly DaprClient _daprClient;
     private readonly ILogger<CitiesController> _logger;
 
-    public CitiesController(ICityService cityService, ILogger<CitiesController> logger)
+    public CitiesController(
+        ICityService cityService,
+        DaprClient daprClient,
+        ILogger<CitiesController> logger)
     {
         _cityService = cityService;
+        _daprClient = daprClient;
         _logger = logger;
     }
 
@@ -396,6 +402,120 @@ public class CitiesController : ControllerBase
                 Message = "An error occurred while deleting the city",
                 Errors = new List<string> { ex.Message }
             });
+        }
+    }
+
+    /// <summary>
+    /// Get cities with coworking count for coworking home page
+    /// 专门为 coworking_home 页面提供城市列表和每个城市的 coworking 数量
+    /// </summary>
+    [HttpGet("with-coworking-count")]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<CityDto>>>> GetCitiesWithCoworkingCount(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            // 获取城市列表
+            var cities = await _cityService.GetAllCitiesAsync(page, pageSize);
+            var totalCount = await _cityService.GetTotalCountAsync();
+            var cityList = cities.ToList();
+
+            // 批量获取每个城市的 coworking 数量
+            await EnrichCitiesWithCoworkingCountAsync(cityList);
+
+            _logger.LogInformation(
+                "获取城市列表(含Coworking数量)成功: {CityCount} 个城市, 第 {Page} 页",
+                cityList.Count,
+                page);
+
+            return Ok(new ApiResponse<PaginatedResponse<CityDto>>
+            {
+                Success = true,
+                Message = "城市列表(含Coworking数量)获取成功",
+                Data = new PaginatedResponse<CityDto>
+                {
+                    Items = cityList,
+                    TotalCount = totalCount,
+                    Page = page,
+                    PageSize = pageSize
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取城市列表(含Coworking数量)失败");
+            return StatusCode(500, new ApiResponse<PaginatedResponse<CityDto>>
+            {
+                Success = false,
+                Message = "获取城市列表失败，请稍后重试",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    /// 通过 Dapr 调用 CoworkingService 批量获取城市的 coworking 数量
+    /// </summary>
+    private async Task EnrichCitiesWithCoworkingCountAsync(List<CityDto> cities)
+    {
+        if (cities == null || cities.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            // 收集所有城市 ID
+            var cityIds = string.Join(",", cities.Select(c => c.Id));
+
+            // 调用 CoworkingService 的批量查询接口 (返回 ApiResponse 包装)
+            var apiResponse = await _daprClient.InvokeMethodAsync<ApiResponse<Dictionary<Guid, int>>>(
+                HttpMethod.Get,
+                "coworking-service",
+                $"api/v1/coworking/count-by-cities?cityIds={cityIds}");
+
+            // 检查响应是否成功
+            if (apiResponse?.Success == true && apiResponse.Data != null)
+            {
+                // 填充每个城市的 coworking 数量
+                foreach (var city in cities)
+                {
+                    if (apiResponse.Data.TryGetValue(city.Id, out var count))
+                    {
+                        city.CoworkingCount = count;
+                    }
+                    else
+                    {
+                        city.CoworkingCount = 0;
+                    }
+                }
+
+                _logger.LogInformation(
+                    "成功从 CoworkingService 获取 {CityCount} 个城市的 Coworking 数量",
+                    cities.Count);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "CoworkingService 返回非成功结果: {Message}",
+                    apiResponse?.Message ?? "响应为空");
+                
+                // 设置默认值
+                foreach (var city in cities)
+                {
+                    city.CoworkingCount = 0;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "调用 CoworkingService 获取 Coworking 数量失败，使用默认值 0");
+            // 容错: 如果调用失败，将所有城市的 CoworkingCount 设为 0
+            foreach (var city in cities)
+            {
+                city.CoworkingCount = 0;
+            }
         }
     }
 
