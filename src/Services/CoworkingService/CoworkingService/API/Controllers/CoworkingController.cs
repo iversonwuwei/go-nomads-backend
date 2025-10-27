@@ -52,6 +52,36 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
+    /// 根据城市ID获取 Coworking 空间列表（分页）
+    /// </summary>
+    [HttpGet("city/{cityId}")]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedCoworkingSpacesResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<PaginatedCoworkingSpacesResponse>>> GetCoworkingSpacesByCity(
+        Guid cityId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            _logger.LogInformation("获取城市 {CityId} 的 Coworking 空间列表, Page={Page}, PageSize={PageSize}", 
+                cityId, page, pageSize);
+
+            var result = await _coworkingService.GetCoworkingSpacesAsync(page, pageSize, cityId);
+
+            return Ok(ApiResponse<PaginatedCoworkingSpacesResponse>.SuccessResponse(
+                result,
+                $"成功获取城市的 {result.Items.Count} 个 Coworking 空间"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取城市 {CityId} 的 Coworking 空间列表失败", cityId);
+            return StatusCode(500, ApiResponse<PaginatedCoworkingSpacesResponse>.ErrorResponse(
+                "获取 Coworking 空间列表失败",
+                new List<string> { ex.Message }));
+        }
+    }
+
+    /// <summary>
     /// 根据 ID 获取单个 Coworking 空间
     /// </summary>
     [HttpGet("{id}")]
