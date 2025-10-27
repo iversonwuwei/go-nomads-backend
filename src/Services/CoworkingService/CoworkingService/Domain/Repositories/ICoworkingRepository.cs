@@ -64,6 +64,11 @@ public interface ICoworkingRepository
     Task<List<CoworkingSpace>> GetTopRatedAsync(int limit = 10);
 
     /// <summary>
+    /// 批量获取城市的 Coworking 空间数量
+    /// </summary>
+    Task<Dictionary<Guid, int>> GetCountByCitiesAsync(List<Guid> cityIds);
+
+    /// <summary>
     /// 检查共享办公空间是否存在
     /// </summary>
     Task<bool> ExistsAsync(Guid id);

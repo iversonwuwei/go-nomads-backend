@@ -26,6 +26,15 @@ public static class ConsulServiceRegistration
 
         // 读取配置
         var consulConfig = configuration.GetSection("Consul");
+        
+        // 检查是否启用 Consul 注册
+        var enabled = consulConfig.GetValue<bool?>("Enabled");
+        if (enabled.HasValue && !enabled.Value)
+        {
+            logger.LogInformation("🔧 Consul 服务注册已禁用，跳过注册");
+            return;
+        }
+
         var consulAddress = consulConfig["Address"] ?? "http://localhost:8500";
         var serviceName = consulConfig["ServiceName"] ?? app.Environment.ApplicationName;
 

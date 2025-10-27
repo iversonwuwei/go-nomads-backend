@@ -204,6 +204,21 @@ public class CoworkingApplicationService : ICoworkingService
         return spaces.Select(MapToResponse).ToList();
     }
 
+    public async Task<Dictionary<Guid, int>> GetCoworkingCountByCitiesAsync(List<Guid> cityIds)
+    {
+        _logger.LogInformation("批量获取城市的 Coworking 空间数量: CityCount={Count}", cityIds.Count);
+
+        if (cityIds == null || !cityIds.Any())
+        {
+            return new Dictionary<Guid, int>();
+        }
+
+        var result = await _coworkingRepository.GetCountByCitiesAsync(cityIds);
+        
+        _logger.LogInformation("成功获取 {Count} 个城市的 Coworking 统计", result.Count);
+        return result;
+    }
+
     #endregion
 
     #region Booking 用例

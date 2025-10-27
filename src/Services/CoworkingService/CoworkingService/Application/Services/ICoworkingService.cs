@@ -50,6 +50,11 @@ public interface ICoworkingService
     Task<List<CoworkingSpaceResponse>> GetTopRatedCoworkingSpacesAsync(int limit = 10);
 
     /// <summary>
+    /// 批量获取城市的 Coworking 空间数量
+    /// </summary>
+    Task<Dictionary<Guid, int>> GetCoworkingCountByCitiesAsync(List<Guid> cityIds);
+
+    /// <summary>
     /// 创建预订
     /// </summary>
     Task<CoworkingBookingResponse> CreateBookingAsync(CreateBookingRequest request);
