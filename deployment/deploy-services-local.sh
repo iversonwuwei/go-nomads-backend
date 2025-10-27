@@ -1,11 +1,38 @@
 #!/bin/bash
 
 # ============================================================
-# Go-Nomads Services Deployment Script (Local Build + Podman)
-# 在本地构建，然后部署到容器中
+# Go-Nomads Services Deployment Script (Local Build + Container)
+# Usage: bash deploy-services-local.sh [--skip-build] [--help]
 # ============================================================
 
 set -e
+
+# 参数解析
+SKIP_BUILD=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --skip-build)
+            SKIP_BUILD=true
+            shift
+            ;;
+        --help|-h)
+            echo ""
+            echo "Usage: ./deploy-services-local.sh [options]"
+            echo ""
+            echo "Options:"
+            echo "  --skip-build    Skip the build step and use existing published binaries"
+            echo "  --help, -h      Show this help message"
+            echo ""
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
 
 # 颜色定义
 RED='\033[0;31m'
@@ -132,17 +159,21 @@ deploy_service_local() {
     show_header "部署 $service_name"
     
     # 本地构建
-    echo -e "${YELLOW}  本地构建项目...${NC}"
-    cd "$ROOT_DIR/$service_path"
-    
-    dotnet publish -c Release --no-self-contained > /dev/null 2>&1
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}  本地构建成功!${NC}"
+    if [ "$SKIP_BUILD" = false ]; then
+        echo -e "${YELLOW}  本地构建项目...${NC}"
+        cd "$ROOT_DIR/$service_path"
+        
+        dotnet publish -c Release --no-self-contained > /dev/null 2>&1
+        
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}  本地构建成功!${NC}"
+        else
+            echo -e "${RED}  [错误] 本地构建失败${NC}"
+            dotnet publish -c Release --no-self-contained
+            return 1
+        fi
     else
-        echo -e "${RED}  [错误] 本地构建失败${NC}"
-        dotnet publish -c Release --no-self-contained
-        return 1
+        echo -e "${YELLOW}  跳过构建，使用已有的发布文件...${NC}"
     fi
     
     # 删除旧容器（应用容器和 Dapr sidecar）
@@ -283,7 +314,13 @@ check_prerequisites() {
 main() {
     show_header "Go-Nomads 服务部署 (本地构建 + $CONTAINER_RUNTIME)"
     
+    echo -e "${BLUE}使用容器运行时: $(basename "$CONTAINER_RUNTIME")${NC}"
     echo -e "${BLUE}根目录: $ROOT_DIR${NC}"
+    if [ "$SKIP_BUILD" = true ]; then
+        echo -e "${YELLOW}构建模式: 跳过构建${NC}"
+    else
+        echo -e "${BLUE}构建模式: 完整构建${NC}"
+    fi
     echo ""
     
     # 检查前置条件

@@ -230,12 +230,12 @@ stop_all() {
     require_docker
     local containers=(
         go-nomads-nginx
+        go-nomads-elasticsearch
         go-nomads-grafana
         go-nomads-prometheus
         go-nomads-zipkin
         go-nomads-consul
         go-nomads-redis
-        go-nomads-elasticsearch
     )
     for c in "${containers[@]}"; do
         if container_running "$c"; then
@@ -251,12 +251,12 @@ clean_all() {
     stop_all
     local containers=(
         go-nomads-nginx
+        go-nomads-elasticsearch
         go-nomads-grafana
         go-nomads-prometheus
         go-nomads-zipkin
         go-nomads-consul
         go-nomads-redis
-        go-nomads-elasticsearch
     )
     for c in "${containers[@]}"; do
         remove_container "$c"

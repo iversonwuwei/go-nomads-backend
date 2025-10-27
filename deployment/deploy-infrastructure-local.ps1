@@ -92,25 +92,6 @@ function Start-Redis {
     Write-Host "Redis running at: redis://localhost:6379" -ForegroundColor Green
 }
 
-function Start-PostgreSQL {
-    Write-Header "Deploying PostgreSQL"
-    Remove-Container "go-nomads-postgres"
-    
-    & $RUNTIME run -d `
-        --name go-nomads-postgres `
-        --network $NETWORK_NAME `
-        -p 5432:5432 `
-        -e POSTGRES_DB=postgres `
-        -e POSTGRES_USER=postgres `
-        -e POSTGRES_PASSWORD=Walden@19830527 `
-        postgres:16-alpine | Out-Null
-    
-    Write-Host "PostgreSQL running at: localhost:5432" -ForegroundColor Green
-    Write-Host "  Database: postgres" -ForegroundColor Gray
-    Write-Host "  User: postgres" -ForegroundColor Gray
-    Write-Host "  Password: Walden@19830527" -ForegroundColor Gray
-}
-
 function Start-Consul {
     Write-Header "Deploying Consul"
     Remove-Container "go-nomads-consul"
