@@ -40,11 +40,12 @@ foreach ($svc in $required) {
 
 $services = @(
     @{Name="gateway"; Port=5000; DaprPort=3500; AppId="gateway"; Path="src/Gateway/Gateway"; Dll="Gateway.dll"; Container="go-nomads-gateway"},
-    @{Name="user"; Port=5001; DaprPort=3502; AppId="user-service"; Path="src/Services/UserService/UserService"; Dll="UserService.dll"; Container="go-nomads-user-service"},
-    @{Name="product"; Port=5002; DaprPort=3501; AppId="product-service"; Path="src/Services/ProductService/ProductService"; Dll="ProductService.dll"; Container="go-nomads-product-service"},
-    @{Name="document"; Port=5003; DaprPort=3503; AppId="document-service"; Path="src/Services/DocumentService/DocumentService"; Dll="DocumentService.dll"; Container="go-nomads-document-service"},
-    @{Name="city"; Port=8002; DaprPort=3504; AppId="city-service"; Path="src/Services/CityService/CityService"; Dll="CityService.dll"; Container="go-nomads-city-service"},
-    @{Name="event"; Port=8005; DaprPort=3505; AppId="event-service"; Path="src/Services/EventService/EventService"; Dll="EventService.dll"; Container="go-nomads-event-service"}
+    @{Name="user-service"; Port=5001; DaprPort=3502; AppId="user-service"; Path="src/Services/UserService/UserService"; Dll="UserService.dll"; Container="go-nomads-user-service"},
+    @{Name="product-service"; Port=5002; DaprPort=3501; AppId="product-service"; Path="src/Services/ProductService/ProductService"; Dll="ProductService.dll"; Container="go-nomads-product-service"},
+    @{Name="document-service"; Port=5003; DaprPort=3503; AppId="document-service"; Path="src/Services/DocumentService/DocumentService"; Dll="DocumentService.dll"; Container="go-nomads-document-service"},
+    @{Name="city-service"; Port=8002; DaprPort=3504; AppId="city-service"; Path="src/Services/CityService/CityService"; Dll="CityService.dll"; Container="go-nomads-city-service"},
+    @{Name="event-service"; Port=8005; DaprPort=3505; AppId="event-service"; Path="src/Services/EventService/EventService"; Dll="EventService.dll"; Container="go-nomads-event-service"},
+    @{Name="coworking-service"; Port=8006; DaprPort=3506; AppId="coworking-service"; Path="src/Services/CoworkingService/CoworkingService"; Dll="CoworkingService.dll"; Container="go-nomads-coworking-service"}
 )
 
 if (-not $SkipBuild) {
@@ -64,29 +65,29 @@ Write-Host "\nDeploying services..." -ForegroundColor Cyan
 
 # 停止并删除旧容器（如果存在）
 Write-Host "\nCleaning up old containers and images..." -ForegroundColor Yellow
-$oldContainers = @("go-nomads-gateway", "go-nomads-user", "go-nomads-product", "go-nomads-document", "go-nomads-city", "go-nomads-event")
+$oldContainers = @("go-nomads-gateway", "go-nomads-user-service", "go-nomads-product-service", "go-nomads-document-service", "go-nomads-city-service", "go-nomads-event-service", "go-nomads-coworking-service")
 foreach ($oldName in $oldContainers) {
-    $exists = docker ps -a --filter "name=^${oldName}$" --format '{{.Names}}'
+    $exists = & $RUNTIME ps -a --filter "name=^${oldName}$" --format '{{.Names}}' 2>$null
     if ($exists) {
         Write-Host "  Stopping and removing container: $oldName" -ForegroundColor Yellow
-        docker stop $oldName 2>$null | Out-Null
-        docker rm $oldName 2>$null | Out-Null
+        & $RUNTIME stop $oldName 2>$null | Out-Null
+        & $RUNTIME rm $oldName 2>$null | Out-Null
         
         # 同时删除对应的 Dapr sidecar
         $daprName = "$oldName-dapr"
-        $daprExists = docker ps -a --filter "name=^${daprName}$" --format '{{.Names}}'
+        $daprExists = & $RUNTIME ps -a --filter "name=^${daprName}$" --format '{{.Names}}' 2>$null
         if ($daprExists) {
-            docker stop $daprName 2>$null | Out-Null
-            docker rm $daprName 2>$null | Out-Null
+            & $RUNTIME stop $daprName 2>$null | Out-Null
+            & $RUNTIME rm $daprName 2>$null | Out-Null
         }
     }
     
     # 删除对应的镜像（如果存在）
     $imageName = $oldName
-    $imageExists = docker images --filter "reference=${imageName}:latest" --format '{{.Repository}}'
+    $imageExists = & $RUNTIME images --filter "reference=${imageName}:latest" --format '{{.Repository}}' 2>$null
     if ($imageExists) {
         Write-Host "  Removing image: ${imageName}:latest" -ForegroundColor Yellow
-        docker rmi -f "${imageName}:latest" 2>$null | Out-Null
+        & $RUNTIME rmi -f "${imageName}:latest" 2>$null | Out-Null
     }
 }
 
@@ -115,10 +116,45 @@ foreach ($svc in $services) {
     # 其他服务继续使用 Development 环境
     $aspnetEnv = if ($svc.Name -eq "gateway") { "Production" } else { "Development" }
     
+    # 额外的环境变量（针对特定服务）
+    $extraEnvArgs = @()
+    if ($svc.Name -eq "document-service") {
+        $extraEnvArgs = @(
+            "-e", "Services__Gateway__Url=http://go-nomads-gateway:8080",
+            "-e", "Services__Gateway__OpenApiUrl=http://go-nomads-gateway:8080/openapi/v1.json",
+            "-e", "Services__ProductService__Url=http://go-nomads-product-service:8080",
+            "-e", "Services__ProductService__OpenApiUrl=http://go-nomads-product-service:8080/openapi/v1.json",
+            "-e", "Services__UserService__Url=http://go-nomads-user-service:8080",
+            "-e", "Services__UserService__OpenApiUrl=http://go-nomads-user-service:8080/openapi/v1.json"
+        )
+    }
+    
     # 启动应用容器（暴露应用端口和 Dapr HTTP 端口）
     # Dapr sidecar 将共享此容器的网络命名空间
     # 配置 Dapr gRPC: 通过环境变量 DAPR_GRPC_PORT 启用 gRPC 通信
-    & $RUNTIME run -d --name $container --network $NETWORK_NAME -p "$($svc.Port):8080" -p "$($svc.DaprPort):$($svc.DaprPort)" -e ASPNETCORE_URLS="http://+:8080" -e ASPNETCORE_ENVIRONMENT=$aspnetEnv -e DAPR_GRPC_PORT="50001" -e DAPR_HTTP_PORT="$($svc.DaprPort)" -e Consul__Address="http://go-nomads-consul:8500" -v "${publish}:/app:ro" -w /app mcr.microsoft.com/dotnet/aspnet:9.0 dotnet "$($svc.Dll)" | Out-Null
+    $runArgs = @(
+        "run", "-d",
+        "--name", $container,
+        "--network", $NETWORK_NAME,
+        "-p", "$($svc.Port):8080",
+        "-p", "$($svc.DaprPort):$($svc.DaprPort)",
+        "-e", "ASPNETCORE_URLS=http://+:8080",
+        "-e", "ASPNETCORE_ENVIRONMENT=$aspnetEnv",
+        "-e", "DAPR_GRPC_PORT=50001",
+        "-e", "DAPR_HTTP_PORT=$($svc.DaprPort)",
+        "-e", "Consul__Address=http://go-nomads-consul:8500",
+        "-e", "HTTP_PROXY=",
+        "-e", "HTTPS_PROXY=",
+        "-e", "NO_PROXY="
+    )
+    $runArgs += $extraEnvArgs
+    $runArgs += @(
+        "-v", "${publish}:/app:ro",
+        "-w", "/app",
+        "mcr.microsoft.com/dotnet/aspnet:9.0",
+        "dotnet", $svc.Dll
+    )
+    & $RUNTIME $runArgs | Out-Null
     
     if ($LASTEXITCODE -ne 0) { Write-Error "Failed to start $container"; exit 1 }
     Write-Host "[OK] $($svc.Name) container started" -ForegroundColor Green
@@ -133,7 +169,32 @@ foreach ($svc in $services) {
     Write-Host "[OK] $($svc.Name) deployed at http://localhost:$($svc.Port)" -ForegroundColor Green
 }
 
-Write-Host "`n============================================================" -ForegroundColor Green
+Write-Host "\n============================================================" -ForegroundColor Green
 Write-Host "All services deployed!" -ForegroundColor Green
-Write-Host "============================================================`n" -ForegroundColor Green
+Write-Host "============================================================\n" -ForegroundColor Green
+
+Write-Host "Service access URLs:" -ForegroundColor Cyan
+Write-Host "  Gateway:           http://localhost:5000" -ForegroundColor Green
+Write-Host "  User Service:      http://localhost:5001" -ForegroundColor Green
+Write-Host "  Product Service:   http://localhost:5002" -ForegroundColor Green
+Write-Host "  Document Service:  http://localhost:5003" -ForegroundColor Green
+Write-Host "  City Service:      http://localhost:8002" -ForegroundColor Green
+Write-Host "  Event Service:     http://localhost:8005" -ForegroundColor Green
+Write-Host "  Coworking Service: http://localhost:8006" -ForegroundColor Green
+
+Write-Host "\nDapr Configuration:" -ForegroundColor Cyan
+Write-Host "  Mode:              Container Sidecar (shared network namespace)" -ForegroundColor White
+Write-Host "  gRPC Port:         50001 (via DAPR_GRPC_PORT env)" -ForegroundColor White
+Write-Host "  HTTP Ports:        3500-3506 (per service)" -ForegroundColor White
+
+Write-Host "\nInfrastructure:" -ForegroundColor Cyan
+Write-Host "  Consul UI:         http://localhost:8500" -ForegroundColor White
+
+Write-Host "\nCommon Commands:" -ForegroundColor Cyan
+Write-Host "  View containers:   $RUNTIME ps" -ForegroundColor Yellow
+Write-Host "  View logs:         $RUNTIME logs go-nomads-gateway" -ForegroundColor Yellow
+
+Write-Host "\nContainer Status:" -ForegroundColor Cyan
 & $RUNTIME ps --filter "name=go-nomads" --format 'table {{.Names}}`t{{.Status}}`t{{.Ports}}'
+
+Write-Host "\nDeployment complete! 🚀" -ForegroundColor Green

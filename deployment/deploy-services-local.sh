@@ -175,8 +175,8 @@ deploy_service_local() {
     # 配置 Dapr gRPC: 通过环境变量 DAPR_GRPC_PORT 启用 gRPC 通信
     echo -e "${YELLOW}  启动应用容器...${NC}"
     
-    # Gateway 使用生产配置（不设置 Development 环境）以使用容器化 Consul 地址
-    # 其他服务继续使用 Development 环境
+    # Gateway 使用生产配置（appsettings.json 中的 go-nomads-consul:8500）
+    # 其他服务使用 Development 环境
     local env_config=()
     if [[ "$service_name" == "gateway" ]]; then
         # Gateway 使用生产配置（appsettings.json 中的 go-nomads-consul:8500）
