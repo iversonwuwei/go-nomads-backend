@@ -45,7 +45,8 @@ $services = @(
     @{Name="document-service"; Port=5003; DaprPort=3503; AppId="document-service"; Path="src/Services/DocumentService/DocumentService"; Dll="DocumentService.dll"; Container="go-nomads-document-service"},
     @{Name="city-service"; Port=8002; DaprPort=3504; AppId="city-service"; Path="src/Services/CityService/CityService"; Dll="CityService.dll"; Container="go-nomads-city-service"},
     @{Name="event-service"; Port=8005; DaprPort=3505; AppId="event-service"; Path="src/Services/EventService/EventService"; Dll="EventService.dll"; Container="go-nomads-event-service"},
-    @{Name="coworking-service"; Port=8006; DaprPort=3506; AppId="coworking-service"; Path="src/Services/CoworkingService/CoworkingService"; Dll="CoworkingService.dll"; Container="go-nomads-coworking-service"}
+    @{Name="coworking-service"; Port=8006; DaprPort=3506; AppId="coworking-service"; Path="src/Services/CoworkingService/CoworkingService"; Dll="CoworkingService.dll"; Container="go-nomads-coworking-service"},
+    @{Name="ai-service"; Port=8009; DaprPort=3509; AppId="ai-service"; Path="src/Services/AIService/AIService"; Dll="AIService.dll"; Container="go-nomads-ai-service"}
 )
 
 if (-not $SkipBuild) {
@@ -65,7 +66,7 @@ Write-Host "\nDeploying services..." -ForegroundColor Cyan
 
 # 停止并删除旧容器（如果存在）
 Write-Host "\nCleaning up old containers and images..." -ForegroundColor Yellow
-$oldContainers = @("go-nomads-gateway", "go-nomads-user-service", "go-nomads-product-service", "go-nomads-document-service", "go-nomads-city-service", "go-nomads-event-service", "go-nomads-coworking-service")
+$oldContainers = @("go-nomads-gateway", "go-nomads-user-service", "go-nomads-product-service", "go-nomads-document-service", "go-nomads-city-service", "go-nomads-event-service", "go-nomads-coworking-service", "go-nomads-ai-service")
 foreach ($oldName in $oldContainers) {
     $exists = & $RUNTIME ps -a --filter "name=^${oldName}$" --format '{{.Names}}' 2>$null
     if ($exists) {

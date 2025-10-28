@@ -397,6 +397,16 @@ main() {
         "coworking-service"
     echo ""
     
+    # 部署 AIService
+    deploy_service_local \
+        "ai-service" \
+        "src/Services/AIService/AIService" \
+        "8009" \
+        "AIService.dll" \
+        "3509" \
+        "ai-service"
+    echo ""
+    
     # 显示部署摘要
     show_header "部署摘要"
     
@@ -410,6 +420,7 @@ main() {
     echo -e "  ${GREEN}City Service:     http://localhost:8002${NC}"
     echo -e "  ${GREEN}Event Service:    http://localhost:8005${NC}"
     echo -e "  ${GREEN}Coworking Service: http://localhost:8006${NC}"
+    echo -e "  ${GREEN}AI Service:       http://localhost:8009${NC}"
     echo ""
     echo -e "${BLUE}Dapr 配置:${NC}"
     echo -e "  ${GREEN}模式:             Container Sidecar (共享网络命名空间)${NC}"

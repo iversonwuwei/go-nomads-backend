@@ -58,12 +58,14 @@ ALTER TABLE ai_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_messages ENABLE ROW LEVEL SECURITY;
 
 -- 对话表 RLS 策略
-CREATE POLICY IF NOT EXISTS "Users can only access their own conversations" 
+DROP POLICY IF EXISTS "Users can only access their own conversations" ON ai_conversations;
+CREATE POLICY "Users can only access their own conversations" 
 ON ai_conversations FOR ALL 
 USING (user_id = auth.uid());
 
 -- 消息表 RLS 策略 (通过对话表关联)
-CREATE POLICY IF NOT EXISTS "Users can only access messages from their conversations" 
+DROP POLICY IF EXISTS "Users can only access messages from their conversations" ON ai_messages;
+CREATE POLICY "Users can only access messages from their conversations" 
 ON ai_messages FOR ALL 
 USING (
     conversation_id IN (
@@ -81,10 +83,12 @@ END;
 $$ language 'plpgsql';
 
 -- 6. 为表创建 updated_at 触发器
+DROP TRIGGER IF EXISTS update_ai_conversations_updated_at ON ai_conversations;
 CREATE TRIGGER update_ai_conversations_updated_at 
     BEFORE UPDATE ON ai_conversations 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_ai_messages_updated_at ON ai_messages;
 CREATE TRIGGER update_ai_messages_updated_at 
     BEFORE UPDATE ON ai_messages 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -150,21 +154,24 @@ CREATE OR REPLACE FUNCTION cleanup_deleted_ai_records(days_old INTEGER DEFAULT 3
 RETURNS INTEGER AS $$
 DECLARE
     deleted_count INTEGER;
+    total_deleted INTEGER := 0;
 BEGIN
     -- 物理删除超过指定天数的软删除记录
     DELETE FROM ai_messages 
     WHERE deleted_at IS NOT NULL 
-    AND deleted_at < NOW() - INTERVAL '%s days';
+    AND deleted_at < NOW() - (days_old || ' days')::INTERVAL;
     
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
+    total_deleted := total_deleted + deleted_count;
     
     DELETE FROM ai_conversations 
     WHERE deleted_at IS NOT NULL 
-    AND deleted_at < NOW() - INTERVAL '%s days';
+    AND deleted_at < NOW() - (days_old || ' days')::INTERVAL;
     
-    GET DIAGNOSTICS deleted_count = deleted_count + ROW_COUNT;
+    GET DIAGNOSTICS deleted_count = ROW_COUNT;
+    total_deleted := total_deleted + deleted_count;
     
-    RETURN deleted_count;
+    RETURN total_deleted;
 END;
 $$ LANGUAGE plpgsql;
 
