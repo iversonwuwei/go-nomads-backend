@@ -86,6 +86,34 @@ public class EventApplicationService : IEventService
 
         // 获取参与者列表
         var participants = await GetParticipantsAsync(id);
+        
+        // 🔧 为参与者填充用户信息（通过 gRPC 调用 UserService）
+        if (participants.Any())
+        {
+            var userIds = participants.Select(p => p.UserId).Distinct().ToList();
+            _logger.LogInformation("📞 通过 gRPC 获取 {Count} 个参与者的完整用户信息", userIds.Count);
+            
+            try
+            {
+                var users = await _userGrpcClient.GetUsersInfoByIdsAsync(userIds);
+                
+                foreach (var participant in participants)
+                {
+                    if (users.TryGetValue(participant.UserId, out var userInfo))
+                    {
+                        participant.User = userInfo;
+                    }
+                }
+                
+                _logger.LogInformation("✅ 成功为 {Count} 个参与者填充用户信息", participants.Count(p => p.User != null));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ 获取参与者用户信息失败");
+                // 不抛出异常，返回不完整的数据
+            }
+        }
+        
         response.Participants = participants.ToList();
 
         // 🔧 修正参与者数量:使用实际参与者列表的长度,确保数据准确

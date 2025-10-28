@@ -21,6 +21,11 @@ public interface IUserService
     Task<UserDto?> GetUserByIdAsync(string id, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 批量根据 ID 获取用户列表
+    /// </summary>
+    Task<List<UserDto>> GetUsersByIdsAsync(List<string> ids, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 根据邮箱获取用户
     /// </summary>
     Task<UserDto?> GetUserByEmailAsync(string email, CancellationToken cancellationToken = default);

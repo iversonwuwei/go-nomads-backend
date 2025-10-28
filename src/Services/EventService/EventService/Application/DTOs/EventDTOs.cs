@@ -193,6 +193,22 @@ public class ParticipantResponse
     public Guid UserId { get; set; }
     public string Status { get; set; } = "registered";
     public DateTime RegisteredAt { get; set; }
+    
+    // 用户详细信息
+    [JsonInclude]
+    public UserInfo? User { get; set; }
+}
+
+/// <summary>
+/// 用户信息（从 UserService 获取）
+/// </summary>
+public class UserInfo
+{
+    public string Id { get; set; } = string.Empty;
+    public string? Name { get; set; }
+    public string? Email { get; set; }
+    public string? Avatar { get; set; }
+    public string? Phone { get; set; }
 }
 
 /// <summary>

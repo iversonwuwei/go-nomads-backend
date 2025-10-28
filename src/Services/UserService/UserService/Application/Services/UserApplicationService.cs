@@ -43,6 +43,31 @@ public class UserApplicationService : IUserService
         return user == null ? null : MapToDto(user);
     }
 
+    public async Task<List<UserDto>> GetUsersByIdsAsync(List<string> ids, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📋 批量获取用户 - Count: {Count}", ids.Count);
+
+        if (ids == null || ids.Count == 0)
+        {
+            return new List<UserDto>();
+        }
+
+        var users = new List<UserDto>();
+        
+        // 批量获取用户
+        foreach (var id in ids.Distinct())
+        {
+            var user = await _userRepository.GetByIdAsync(id, cancellationToken);
+            if (user != null)
+            {
+                users.Add(MapToDto(user));
+            }
+        }
+
+        _logger.LogInformation("✅ 成功获取 {Count}/{Total} 个用户", users.Count, ids.Count);
+        return users;
+    }
+
     public async Task<UserDto?> GetUserByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
         var user = await _userRepository.GetByEmailAsync(email, cancellationToken);

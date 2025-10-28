@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using GoNomads.Shared.Models;
 using GoNomads.Shared.Middleware;
 using Dapr.Client;
@@ -116,6 +117,58 @@ public class UsersController : ControllerBase
             {
                 Success = false,
                 Message = "获取用户失败"
+            });
+        }
+    }
+
+    /// <summary>
+    /// 批量根据 ID 获取用户
+    /// </summary>
+    [HttpPost("batch")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<List<UserDto>>>> GetUsersByIds(
+        [FromBody] BatchUserIdsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 批量获取用户: Count={Count}", request.UserIds?.Count ?? 0);
+
+        if (request.UserIds == null || request.UserIds.Count == 0)
+        {
+            return BadRequest(new ApiResponse<List<UserDto>>
+            {
+                Success = false,
+                Message = "用户ID列表不能为空"
+            });
+        }
+
+        // 限制批量请求数量
+        if (request.UserIds.Count > 100)
+        {
+            return BadRequest(new ApiResponse<List<UserDto>>
+            {
+                Success = false,
+                Message = "单次最多批量获取100个用户"
+            });
+        }
+
+        try
+        {
+            var users = await _userService.GetUsersByIdsAsync(request.UserIds, cancellationToken);
+
+            return Ok(new ApiResponse<List<UserDto>>
+            {
+                Success = true,
+                Message = $"成功获取 {users.Count} 个用户",
+                Data = users
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量获取用户失败");
+            return StatusCode(500, new ApiResponse<List<UserDto>>
+            {
+                Success = false,
+                Message = "批量获取用户失败"
             });
         }
     }
@@ -621,6 +674,15 @@ public class UpdateUserRequest
 
     [Required(ErrorMessage = "手机号不能为空")]
     public string Phone { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// 批量获取用户请求 DTO
+/// </summary>
+public class BatchUserIdsRequest
+{
+    [Required(ErrorMessage = "用户ID列表不能为空")]
+    public List<string> UserIds { get; set; } = new();
 }
 
 #endregion

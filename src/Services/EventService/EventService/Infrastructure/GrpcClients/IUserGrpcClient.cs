@@ -16,4 +16,9 @@ public interface IUserGrpcClient
     /// 批量获取用户信息
     /// </summary>
     Task<Dictionary<Guid, OrganizerInfo>> GetUsersByIdsAsync(IEnumerable<Guid> userIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 批量获取完整用户信息（包含 Avatar 和 Phone）
+    /// </summary>
+    Task<Dictionary<Guid, UserInfo>> GetUsersInfoByIdsAsync(IEnumerable<Guid> userIds, CancellationToken cancellationToken = default);
 }

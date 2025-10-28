@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using EventService.Application.Services;
 using EventService.Application.DTOs;
 using GoNomads.Shared.Middleware;
 using GoNomads.Shared.Models;
 using System.Collections.Generic;
 using System.Linq;
+using Dapr.Client;
+using System.Text.Json;
 
 namespace EventService.API.Controllers;
 
@@ -17,11 +20,13 @@ public class EventsController : ControllerBase
 {
     private readonly IEventService _eventService;
     private readonly ILogger<EventsController> _logger;
+    private readonly DaprClient _daprClient;
 
-    public EventsController(IEventService eventService, ILogger<EventsController> logger)
+    public EventsController(IEventService eventService, ILogger<EventsController> logger, DaprClient daprClient)
     {
         _eventService = eventService;
         _logger = logger;
+        _daprClient = daprClient;
     }
 
     /// <summary>
@@ -485,12 +490,87 @@ public class EventsController : ControllerBase
     /// 获取 Event 参与者列表
     /// </summary>
     [HttpGet("{id}/participants")]
+    [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<IEnumerable<ParticipantResponse>>>> GetEventParticipants(Guid id)
     {
         try
         {
             var participants = await _eventService.GetParticipantsAsync(id);
+            
+            if (!participants.Any())
+            {
+                return Ok(new ApiResponse<IEnumerable<ParticipantResponse>>
+                {
+                    Success = true,
+                    Message = "参与者列表为空",
+                    Data = participants
+                });
+            }
+
+            // 提取所有 userId
+            var userIds = participants.Select(p => p.UserId.ToString()).ToList();
+            
+            _logger.LogInformation("📋 获取 {Count} 个参与者的用户详细信息", userIds.Count);
+
+            try
+            {
+                // 通过 Dapr 调用 UserService 批量获取用户信息
+                var userServiceRequest = new { UserIds = userIds };
+                var userServiceResponse = await _daprClient.InvokeMethodAsync<object, JsonElement>(
+                    HttpMethod.Post,
+                    "user-service",
+                    "api/v1/users/batch",
+                    userServiceRequest
+                );
+
+                // 解析响应
+                if (userServiceResponse.TryGetProperty("success", out var successProp) && 
+                    successProp.GetBoolean() && 
+                    userServiceResponse.TryGetProperty("data", out var dataProp))
+                {
+                    var users = dataProp.EnumerateArray();
+                    var userMap = new Dictionary<string, JsonElement>();
+                    
+                    foreach (var user in users)
+                    {
+                        if (user.TryGetProperty("id", out var idProp))
+                        {
+                            userMap[idProp.GetString() ?? ""] = user;
+                        }
+                    }
+                    
+                    // 填充用户详细信息
+                    foreach (var participant in participants)
+                    {
+                        var userIdStr = participant.UserId.ToString();
+                        if (userMap.TryGetValue(userIdStr, out var user))
+                        {
+                            participant.User = new UserInfo
+                            {
+                                Id = user.TryGetProperty("id", out var userId) ? userId.GetString() ?? "" : "",
+                                Name = user.TryGetProperty("name", out var name) ? name.GetString() : null,
+                                Email = user.TryGetProperty("email", out var email) ? email.GetString() : null,
+                                Avatar = user.TryGetProperty("avatar", out var avatar) ? avatar.GetString() : null,
+                                Phone = user.TryGetProperty("phone", out var phone) ? phone.GetString() : null
+                            };
+                        }
+                    }
+                    
+                    _logger.LogInformation("✅ 成功填充 {Count}/{Total} 个用户详细信息", 
+                        userMap.Count, participants.Count());
+                }
+                else
+                {
+                    _logger.LogWarning("⚠️ 批量获取用户信息失败或返回空数据");
+                }
+            }
+            catch (Exception userEx)
+            {
+                _logger.LogWarning(userEx, "⚠️ 调用 UserService 失败，返回不含用户详细信息的参与者列表");
+                // 即使获取用户信息失败，仍然返回参与者列表（只是缺少用户详细信息）
+            }
+
             return Ok(new ApiResponse<IEnumerable<ParticipantResponse>>
             {
                 Success = true,
