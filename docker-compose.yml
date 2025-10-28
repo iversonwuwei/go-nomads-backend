@@ -276,6 +276,42 @@ services:
     networks:
       - gonomads-network
 
+  ai-service:
+    build:
+      context: .
+      dockerfile: src/Services/AIService/AIService/Dockerfile
+    container_name: go-nomads-ai-service
+    ports:
+      - "8009:8009"
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+      - consul
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8009
+      - ConnectionStrings__SupabaseDb=Host=postgres;Port=5432;Database=aiservice_db;Username=postgres;Password=postgres
+      - ConnectionStrings__Redis=redis:6379
+      - ConnectionStrings__QianWenApiKey=${QIANWEN_API_KEY:-your-qianwen-api-key-here}
+      - Consul__Address=http://consul:8500
+      - Consul__ServiceAddress=ai-service
+      - MessageBroker__Host=rabbitmq
+      - Dapr__GrpcPort=50001
+      - Dapr__HttpPort=3509
+    networks:
+      - gonomads-network
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.port=8009"
+      - "prometheus.path=/metrics"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
 networks:
   gonomads-network:
     driver: bridge

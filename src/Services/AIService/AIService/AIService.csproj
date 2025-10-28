@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Dapr 集成 -->
+    <PackageReference Include="Dapr.AspNetCore" Version="1.16.0" />
+    
+    <!-- Semantic Kernel 核心包 -->
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.25.0" />
+    <PackageReference Include="Microsoft.SemanticKernel.Connectors.OpenAI" Version="1.25.0" />
+    
+    <!-- OpenAPI 和 Scalar 文档 -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.10" />
+    <PackageReference Include="Scalar.AspNetCore" Version="1.2.42" />
+    
+    <!-- 数据库和缓存 -->
+    <PackageReference Include="postgrest-csharp" Version="3.5.1" />
+    <PackageReference Include="supabase-csharp" Version="0.16.2" />
+    
+    <!-- 监控和日志 -->
+    <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    
+    <!-- HTTP 客户端 -->
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.10" />
+    
+    <!-- Consul 服务发现 -->
+    <PackageReference Include="Consul" Version="1.6.10.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj" />
+  </ItemGroup>
+
+</Project>
