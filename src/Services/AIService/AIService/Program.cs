@@ -32,26 +32,29 @@ builder.Services.AddScoped<IAIMessageRepository, AIMessageRepository>();
 // 注册 gRPC 客户端 (通过 Dapr Service Invocation)
 builder.Services.AddScoped<IUserGrpcClient, UserGrpcClient>();
 
-// 配置 Semantic Kernel (简化配置，避免编译错误)
+// 配置 Semantic Kernel - 使用 DeepSeek 模型
 try
 {
-    var qianwenApiKey = builder.Configuration["QianWen:ApiKey"] ?? "test-key";
-    
-    #pragma warning disable SKEXP0010
+    var deepseekApiKey = builder.Configuration["DeepSeek:ApiKey"] ?? "test-key";
+    var deepseekBaseUrl = builder.Configuration["DeepSeek:BaseUrl"] ?? "https://api.deepseek.com";
+
+#pragma warning disable SKEXP0010
     var kernelBuilder = Kernel.CreateBuilder();
     kernelBuilder.AddOpenAIChatCompletion(
-        modelId: "qwen-plus",
-        apiKey: qianwenApiKey,
-        endpoint: new Uri("https://dashscope.aliyuncs.com/compatible-mode/v1"));
-    
+        modelId: "deepseek-chat",
+        apiKey: deepseekApiKey,
+        endpoint: new Uri(deepseekBaseUrl));
+
     var kernel = kernelBuilder.Build();
     builder.Services.AddSingleton(kernel);
-    #pragma warning restore SKEXP0010
+#pragma warning restore SKEXP0010
+
+    Log.Information("✅ DeepSeek AI 模型配置成功");
 }
 catch (Exception ex)
 {
     // 忽略 Semantic Kernel 配置错误，服务仍可正常启动
-    Console.WriteLine($"Semantic Kernel 配置失败: {ex.Message}");
+    Log.Warning(ex, "⚠️ Semantic Kernel 配置失败，AI 功能可能不可用");
 }
 
 // 注册应用服务 (Application Layer)
@@ -98,7 +101,7 @@ builder.Services.AddOpenApi(options =>
         
         // 添加 API 信息
         document.Info.Title = "AI Service API";
-        document.Info.Description = "Go Nomads AI 聊天服务 - 基于千问大模型和 Semantic Kernel";
+        document.Info.Description = "Go Nomads AI 聊天服务 - 基于 DeepSeek 大模型和 Semantic Kernel";
         document.Info.Version = "v1.0";
         
         return Task.CompletedTask;
@@ -149,7 +152,8 @@ app.MapGet("/health", () =>
         timestamp = DateTime.UtcNow,
         version = "1.0.0",
         semantic_kernel = "enabled",
-        qianwen_model = "qwen-plus"
+        ai_model = "deepseek-chat",
+        provider = "DeepSeek"
     });
 });
 
@@ -160,7 +164,9 @@ app.MapGet("/health/ai", () =>
     { 
         status = "healthy", 
         ai_service = "connected",
-        model = "qwen-plus",
+        model = "deepseek-chat",
+        provider = "DeepSeek",
+        max_tokens = 32000,
         timestamp = DateTime.UtcNow 
     });
 });

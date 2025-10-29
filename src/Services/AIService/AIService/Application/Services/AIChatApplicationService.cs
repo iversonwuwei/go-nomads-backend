@@ -233,7 +233,7 @@ public class AIChatApplicationService : IAIChatService
                 ModelId = request.ModelName ?? conversation.ModelName
             };
 
-            // 调用千问大模型
+            // 调用 DeepSeek 大模型
             var response = await _chatCompletionService.GetChatMessageContentAsync(
                 chatHistory, 
                 executionSettings, 
@@ -393,7 +393,7 @@ public class AIChatApplicationService : IAIChatService
     {
         try
         {
-            // 测试千问API连接
+            // 测试 DeepSeek API 连接
             var testMessage = new ChatHistory();
             testMessage.AddUserMessage("Hello");
 
