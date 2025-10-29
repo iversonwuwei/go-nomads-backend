@@ -87,3 +87,39 @@ public class GetMessagesRequest
 
     public bool IncludeSystem { get; set; } = false;
 }
+
+/// <summary>
+/// 生成旅行计划请求
+/// </summary>
+public class GenerateTravelPlanRequest
+{
+    [Required(ErrorMessage = "城市ID不能为空")]
+    public string CityId { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "城市名称不能为空")]
+    public string CityName { get; set; } = string.Empty;
+
+    public string? CityImage { get; set; }
+
+    [Range(1, 30, ErrorMessage = "旅行天数必须在1-30天之间")]
+    public int Duration { get; set; } = 7;
+
+    [Required(ErrorMessage = "预算等级不能为空")]
+    [RegularExpression("^(low|medium|high)$", ErrorMessage = "预算等级必须是 low, medium 或 high")]
+    public string Budget { get; set; } = "medium";
+
+    [Required(ErrorMessage = "旅行风格不能为空")]
+    [RegularExpression("^(adventure|relaxation|culture|nightlife)$", 
+        ErrorMessage = "旅行风格必须是 adventure, relaxation, culture 或 nightlife")]
+    public string TravelStyle { get; set; } = "culture";
+
+    public List<string> Interests { get; set; } = new();
+
+    public string? DepartureLocation { get; set; }
+
+    public string? CustomBudget { get; set; }
+
+    public string? Currency { get; set; } = "USD";
+
+    public List<string>? SelectedAttractions { get; set; }
+}

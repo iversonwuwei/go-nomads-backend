@@ -95,3 +95,99 @@ public class StreamResponse
     public int? TokenCount { get; set; }
     public string? Error { get; set; }
 }
+
+/// <summary>
+/// 旅行计划响应
+/// </summary>
+public class TravelPlanResponse
+{
+    public string Id { get; set; } = string.Empty;
+    public string CityId { get; set; } = string.Empty;
+    public string CityName { get; set; } = string.Empty;
+    public string CityImage { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public int Duration { get; set; }
+    public string Budget { get; set; } = string.Empty;
+    public string TravelStyle { get; set; } = string.Empty;
+    public List<string> Interests { get; set; } = new();
+    public TransportationPlanDto Transportation { get; set; } = new();
+    public AccommodationPlanDto Accommodation { get; set; } = new();
+    public List<DailyItineraryDto> DailyItineraries { get; set; } = new();
+    public List<AttractionDto> Attractions { get; set; } = new();
+    public List<RestaurantDto> Restaurants { get; set; } = new();
+    public List<string> Tips { get; set; } = new();
+    public BudgetBreakdownDto BudgetBreakdown { get; set; } = new();
+}
+
+public class TransportationPlanDto
+{
+    public string ArrivalMethod { get; set; } = string.Empty;
+    public string ArrivalDetails { get; set; } = string.Empty;
+    public double EstimatedCost { get; set; }
+    public string LocalTransport { get; set; } = string.Empty;
+    public string LocalTransportDetails { get; set; } = string.Empty;
+    public double DailyTransportCost { get; set; }
+}
+
+public class AccommodationPlanDto
+{
+    public string Type { get; set; } = string.Empty;
+    public string Recommendation { get; set; } = string.Empty;
+    public string Area { get; set; } = string.Empty;
+    public double PricePerNight { get; set; }
+    public List<string> Amenities { get; set; } = new();
+    public string BookingTips { get; set; } = string.Empty;
+}
+
+public class DailyItineraryDto
+{
+    public int Day { get; set; }
+    public string Theme { get; set; } = string.Empty;
+    public List<ActivityDto> Activities { get; set; } = new();
+    public string Notes { get; set; } = string.Empty;
+}
+
+public class ActivityDto
+{
+    public string Time { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string Location { get; set; } = string.Empty;
+    public double EstimatedCost { get; set; }
+    public int Duration { get; set; }
+}
+
+public class AttractionDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public double Rating { get; set; }
+    public string Location { get; set; } = string.Empty;
+    public double EntryFee { get; set; }
+    public string BestTime { get; set; } = string.Empty;
+    public string Image { get; set; } = string.Empty;
+}
+
+public class RestaurantDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string Cuisine { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public double Rating { get; set; }
+    public string PriceRange { get; set; } = string.Empty;
+    public string Location { get; set; } = string.Empty;
+    public string Specialty { get; set; } = string.Empty;
+    public string Image { get; set; } = string.Empty;
+}
+
+public class BudgetBreakdownDto
+{
+    public double Transportation { get; set; }
+    public double Accommodation { get; set; }
+    public double Food { get; set; }
+    public double Activities { get; set; }
+    public double Miscellaneous { get; set; }
+    public double Total { get; set; }
+    public string Currency { get; set; } = "USD";
+}

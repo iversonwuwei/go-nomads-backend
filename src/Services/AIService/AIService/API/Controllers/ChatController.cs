@@ -2,7 +2,8 @@ using AIService.Application.DTOs;
 using AIService.Application.Services;
 using Microsoft.AspNetCore.Mvc;
 using Shared.Extensions;
-using System.Security.Claims;
+using GoNomads.Shared.Middleware;
+using System.Text.Json;
 
 namespace AIService.API.Controllers;
 
@@ -373,12 +374,68 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 从JWT令牌中获取用户ID
+    /// 生成AI旅行计划
+    /// </summary>
+    /// <param name="request">旅行计划生成请求</param>
+    /// <returns>包含完整行程安排的旅行计划</returns>
+    [HttpPost("travel-plan")]
+    public async Task<IActionResult> GenerateTravelPlan([FromBody] GenerateTravelPlanRequest request)
+    {
+        try
+        {
+            // 获取当前用户ID
+            var userId = this.GetUserId();
+            if (userId == Guid.Empty)
+            {
+                _logger.LogWarning("⚠️ 未认证用户尝试生成旅行计划");
+                return Unauthorized(ApiResponse.Fail("用户未认证，请先登录"));
+            }
+
+            _logger.LogInformation("🗺️ 开始生成旅行计划 - 城市: {CityName}, 天数: {Duration}, 预算: {Budget}, 风格: {TravelStyle}, 用户: {UserId}", 
+                request.CityName, request.Duration, request.Budget, request.TravelStyle, userId);
+
+            // 调用AI服务生成旅行计划
+            var result = await _aiChatService.GenerateTravelPlanAsync(request, userId);
+            
+            _logger.LogInformation("✅ 旅行计划生成成功 - 计划ID: {PlanId}, 包含 {DayCount} 天行程", 
+                result.Id, result.DailyItineraries?.Count ?? 0);
+            
+            return Ok(ApiResponse.Success(result, "旅行计划生成成功"));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 生成旅行计划参数错误: {Message}", ex.Message);
+            return BadRequest(ApiResponse.Fail(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(ex, "❌ AI响应解析失败: {Message}", ex.Message);
+            return StatusCode(500, ApiResponse.Fail("AI服务返回格式错误，请稍后重试"));
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "❌ JSON解析失败: {Message}", ex.Message);
+            return StatusCode(500, ApiResponse.Fail("数据解析失败，请稍后重试"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 生成旅行计划失败");
+            return StatusCode(500, ApiResponse.Fail("生成旅行计划失败，请稍后重试"));
+        }
+    }
+
+    /// <summary>
+    /// 从 UserContext 中获取用户 ID
     /// </summary>
     private Guid GetUserId()
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return Guid.TryParse(userIdClaim, out var userId) ? userId : Guid.Empty;
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true)
+        {
+            return Guid.Empty;
+        }
+
+        return Guid.TryParse(userContext.UserId, out var userId) ? userId : Guid.Empty;
     }
 }
 

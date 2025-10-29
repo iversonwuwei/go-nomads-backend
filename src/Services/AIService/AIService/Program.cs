@@ -38,18 +38,34 @@ try
     var deepseekApiKey = builder.Configuration["DeepSeek:ApiKey"] ?? "test-key";
     var deepseekBaseUrl = builder.Configuration["DeepSeek:BaseUrl"] ?? "https://api.deepseek.com";
 
+    // 配置 HttpClient 用于 DeepSeek API 调用，增加超时时间
+    builder.Services.AddHttpClient("DeepSeekClient", client =>
+    {
+        client.Timeout = TimeSpan.FromMinutes(3); // 增加超时到 3 分钟（AI 生成可能需要较长时间）
+        client.DefaultRequestHeaders.Add("User-Agent", "GoNomads-AIService/1.0");
+    });
+
 #pragma warning disable SKEXP0010
     var kernelBuilder = Kernel.CreateBuilder();
+    
+    // 创建配置了超时的 HttpClient
+    var httpClient = new HttpClient
+    {
+        Timeout = TimeSpan.FromMinutes(3) // 3 分钟超时
+    };
+    httpClient.DefaultRequestHeaders.Add("User-Agent", "GoNomads-AIService/1.0");
+    
     kernelBuilder.AddOpenAIChatCompletion(
         modelId: "deepseek-chat",
         apiKey: deepseekApiKey,
-        endpoint: new Uri(deepseekBaseUrl));
+        endpoint: new Uri(deepseekBaseUrl),
+        httpClient: httpClient);
 
     var kernel = kernelBuilder.Build();
     builder.Services.AddSingleton(kernel);
 #pragma warning restore SKEXP0010
 
-    Log.Information("✅ DeepSeek AI 模型配置成功");
+    Log.Information("✅ DeepSeek AI 模型配置成功（超时: 3分钟）");
 }
 catch (Exception ex)
 {
@@ -108,9 +124,10 @@ builder.Services.AddOpenApi(options =>
     });
 });
 
-// Consul 服务发现将在应用启动后注册
-
 var app = builder.Build();
+
+// 自动注册到 Consul
+await app.RegisterWithConsulAsync();
 
 // Configure the HTTP request pipeline
 app.MapOpenApi();

@@ -470,4 +470,328 @@ public class AIChatApplicationService : IAIChatService
             CreatedAt = message.CreatedAt
         };
     }
+
+#pragma warning disable SKEXP0010 // ResponseFormat is experimental
+    public async Task<TravelPlanResponse> GenerateTravelPlanAsync(GenerateTravelPlanRequest request, Guid userId)
+    {
+        try
+        {
+            _logger.LogInformation("🗺️ 开始生成旅行计划，城市: {CityName}, 用户ID: {UserId}", request.CityName, userId);
+
+            // 构建 AI 提示词
+            var prompt = BuildTravelPlanPrompt(request);
+            
+            _logger.LogDebug("AI 提示词: {Prompt}", prompt);
+
+            // 创建聊天历史
+            var chatHistory = new ChatHistory();
+            chatHistory.AddSystemMessage("你是一个专业的旅行规划助手，擅长根据用户需求制定详细的旅行计划。请以 JSON 格式返回旅行计划。");
+            chatHistory.AddUserMessage(prompt);
+
+            // 设置执行参数
+            var executionSettings = new OpenAIPromptExecutionSettings
+            {
+                Temperature = 0.7,
+                MaxTokens = 4000,
+                ResponseFormat = "json_object"
+            };
+
+            var stopwatch = Stopwatch.StartNew();
+
+            // 获取 AI 响应
+            var response = await _chatCompletionService.GetChatMessageContentAsync(
+                chatHistory,
+                executionSettings,
+                _kernel);
+
+            stopwatch.Stop();
+
+            _logger.LogInformation("✅ AI 响应完成，耗时: {ElapsedMs}ms", stopwatch.ElapsedMilliseconds);
+
+            // 解析 JSON 响应
+            var aiContent = response.Content ?? string.Empty;
+            _logger.LogDebug("AI 响应内容: {Content}", aiContent);
+
+            var travelPlan = ParseTravelPlanFromAI(aiContent, request);
+
+            _logger.LogInformation("✅ 旅行计划生成成功，ID: {PlanId}", travelPlan.Id);
+
+            return travelPlan;
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "❌ 解析 AI 响应 JSON 失败");
+            throw new InvalidOperationException("AI 响应格式错误，无法生成旅行计划", ex);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 生成旅行计划失败，城市: {CityName}", request.CityName);
+            throw;
+        }
+    }
+#pragma warning restore SKEXP0010
+
+    private string BuildTravelPlanPrompt(GenerateTravelPlanRequest request)
+    {
+        var budgetDescription = request.Budget switch
+        {
+            "low" => "经济型预算（每天50-100美元）",
+            "medium" => "中等预算（每天100-200美元）",
+            "high" => "豪华预算（每天200美元以上）",
+            _ => "中等预算"
+        };
+
+        var styleDescription = request.TravelStyle switch
+        {
+            "adventure" => "冒险探索，喜欢户外活动和刺激体验",
+            "relaxation" => "休闲放松，注重舒适和享受",
+            "culture" => "文化探索，关注历史和艺术",
+            "nightlife" => "夜生活娱乐，喜欢酒吧和夜间活动",
+            _ => "文化探索"
+        };
+
+        var interestsText = request.Interests.Any() 
+            ? string.Join("、", request.Interests) 
+            : "无特定偏好";
+
+        var departureInfo = !string.IsNullOrWhiteSpace(request.DepartureLocation)
+            ? $"从 {request.DepartureLocation} 出发，"
+            : "";
+
+        return $@"请为我制定一个详细的 {request.CityName} 旅行计划。
+
+旅行信息：
+- 目的地：{request.CityName}
+- 旅行天数：{request.Duration} 天
+- 预算等级：{budgetDescription}
+- 旅行风格：{styleDescription}
+- 兴趣偏好：{interestsText}
+{(string.IsNullOrWhiteSpace(departureInfo) ? "" : $"- 出发地：{request.DepartureLocation}")}
+{(request.CustomBudget != null ? $"- 自定义预算：{request.CustomBudget} {request.Currency}" : "")}
+
+请以 JSON 格式返回完整的旅行计划，包含以下内容：
+
+1. transportation（交通计划）：
+   - arrivalMethod: 到达方式（飞机/火车/汽车）
+   - arrivalDetails: 到达详情（航班推荐、车站信息等）
+   - estimatedCost: 预估费用
+   - localTransport: 当地交通方式
+   - localTransportDetails: 当地交通详情
+   - dailyTransportCost: 每日交通费用
+
+2. accommodation（住宿计划）：
+   - type: 住宿类型（hotel/hostel/apartment）
+   - recommendation: 推荐说明
+   - area: 推荐区域
+   - pricePerNight: 每晚价格
+   - amenities: 设施列表
+   - bookingTips: 预订建议
+
+3. dailyItineraries（每日行程）：数组，每天包含：
+   - day: 第几天
+   - theme: 当天主题
+   - activities: 活动列表（时间、名称、描述、地点、费用、时长分钟）
+   - notes: 注意事项
+
+4. attractions（推荐景点）：数组，每个景点包含：
+   - name: 景点名称
+   - description: 描述
+   - category: 类别
+   - rating: 评分（1-5）
+   - location: 位置
+   - entryFee: 门票费用
+   - bestTime: 最佳游览时间
+   - image: 图片URL（可以是占位符）
+
+5. restaurants（推荐餐厅）：数组，每个餐厅包含：
+   - name: 餐厅名称
+   - cuisine: 菜系
+   - description: 描述
+   - rating: 评分（1-5）
+   - priceRange: 价格区间（$/$$/$$$/$$$$）
+   - location: 位置
+   - specialty: 招牌菜
+   - image: 图片URL（可以是占位符）
+
+6. tips（旅行建议）：字符串数组，包含实用建议
+
+7. budgetBreakdown（预算明细）：
+   - transportation: 交通费用
+   - accommodation: 住宿费用
+   - food: 餐饮费用
+   - activities: 活动费用
+   - miscellaneous: 其他费用
+   - total: 总费用
+   - currency: 货币单位
+
+请确保返回的是有效的 JSON 格式，所有数字字段使用数字类型，不要使用字符串。";
+    }
+
+    private TravelPlanResponse ParseTravelPlanFromAI(string aiContent, GenerateTravelPlanRequest request)
+    {
+        try
+        {
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+
+            var jsonDoc = JsonDocument.Parse(aiContent);
+            var root = jsonDoc.RootElement;
+
+            return new TravelPlanResponse
+            {
+                Id = Guid.NewGuid().ToString(),
+                CityId = request.CityId,
+                CityName = request.CityName,
+                CityImage = request.CityImage ?? "",
+                CreatedAt = DateTime.UtcNow,
+                Duration = request.Duration,
+                Budget = request.Budget,
+                TravelStyle = request.TravelStyle,
+                Interests = request.Interests,
+                Transportation = ParseTransportation(root.GetProperty("transportation")),
+                Accommodation = ParseAccommodation(root.GetProperty("accommodation")),
+                DailyItineraries = ParseDailyItineraries(root.GetProperty("dailyItineraries")),
+                Attractions = ParseAttractions(root.GetProperty("attractions")),
+                Restaurants = ParseRestaurants(root.GetProperty("restaurants")),
+                Tips = ParseStringArray(root.GetProperty("tips")),
+                BudgetBreakdown = ParseBudgetBreakdown(root.GetProperty("budgetBreakdown"))
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 解析旅行计划 JSON 失败: {Content}", aiContent);
+            throw new JsonException("无法解析 AI 生成的旅行计划", ex);
+        }
+    }
+
+    private TransportationPlanDto ParseTransportation(JsonElement element)
+    {
+        return new TransportationPlanDto
+        {
+            ArrivalMethod = element.GetProperty("arrivalMethod").GetString() ?? "",
+            ArrivalDetails = element.GetProperty("arrivalDetails").GetString() ?? "",
+            EstimatedCost = element.GetProperty("estimatedCost").GetDouble(),
+            LocalTransport = element.GetProperty("localTransport").GetString() ?? "",
+            LocalTransportDetails = element.GetProperty("localTransportDetails").GetString() ?? "",
+            DailyTransportCost = element.GetProperty("dailyTransportCost").GetDouble()
+        };
+    }
+
+    private AccommodationPlanDto ParseAccommodation(JsonElement element)
+    {
+        return new AccommodationPlanDto
+        {
+            Type = element.GetProperty("type").GetString() ?? "",
+            Recommendation = element.GetProperty("recommendation").GetString() ?? "",
+            Area = element.GetProperty("area").GetString() ?? "",
+            PricePerNight = element.GetProperty("pricePerNight").GetDouble(),
+            Amenities = ParseStringArray(element.GetProperty("amenities")),
+            BookingTips = element.GetProperty("bookingTips").GetString() ?? ""
+        };
+    }
+
+    private List<DailyItineraryDto> ParseDailyItineraries(JsonElement element)
+    {
+        var itineraries = new List<DailyItineraryDto>();
+        foreach (var item in element.EnumerateArray())
+        {
+            itineraries.Add(new DailyItineraryDto
+            {
+                Day = item.GetProperty("day").GetInt32(),
+                Theme = item.GetProperty("theme").GetString() ?? "",
+                Activities = ParseActivities(item.GetProperty("activities")),
+                Notes = item.GetProperty("notes").GetString() ?? ""
+            });
+        }
+        return itineraries;
+    }
+
+    private List<ActivityDto> ParseActivities(JsonElement element)
+    {
+        var activities = new List<ActivityDto>();
+        foreach (var item in element.EnumerateArray())
+        {
+            activities.Add(new ActivityDto
+            {
+                Time = item.GetProperty("time").GetString() ?? "",
+                Name = item.GetProperty("name").GetString() ?? "",
+                Description = item.GetProperty("description").GetString() ?? "",
+                Location = item.GetProperty("location").GetString() ?? "",
+                EstimatedCost = item.GetProperty("estimatedCost").GetDouble(),
+                Duration = item.GetProperty("duration").GetInt32()
+            });
+        }
+        return activities;
+    }
+
+    private List<AttractionDto> ParseAttractions(JsonElement element)
+    {
+        var attractions = new List<AttractionDto>();
+        foreach (var item in element.EnumerateArray())
+        {
+            attractions.Add(new AttractionDto
+            {
+                Name = item.GetProperty("name").GetString() ?? "",
+                Description = item.GetProperty("description").GetString() ?? "",
+                Category = item.GetProperty("category").GetString() ?? "",
+                Rating = item.GetProperty("rating").GetDouble(),
+                Location = item.GetProperty("location").GetString() ?? "",
+                EntryFee = item.GetProperty("entryFee").GetDouble(),
+                BestTime = item.GetProperty("bestTime").GetString() ?? "",
+                Image = item.GetProperty("image").GetString() ?? ""
+            });
+        }
+        return attractions;
+    }
+
+    private List<RestaurantDto> ParseRestaurants(JsonElement element)
+    {
+        var restaurants = new List<RestaurantDto>();
+        foreach (var item in element.EnumerateArray())
+        {
+            restaurants.Add(new RestaurantDto
+            {
+                Name = item.GetProperty("name").GetString() ?? "",
+                Cuisine = item.GetProperty("cuisine").GetString() ?? "",
+                Description = item.GetProperty("description").GetString() ?? "",
+                Rating = item.GetProperty("rating").GetDouble(),
+                PriceRange = item.GetProperty("priceRange").GetString() ?? "",
+                Location = item.GetProperty("location").GetString() ?? "",
+                Specialty = item.GetProperty("specialty").GetString() ?? "",
+                Image = item.GetProperty("image").GetString() ?? ""
+            });
+        }
+        return restaurants;
+    }
+
+    private BudgetBreakdownDto ParseBudgetBreakdown(JsonElement element)
+    {
+        return new BudgetBreakdownDto
+        {
+            Transportation = element.GetProperty("transportation").GetDouble(),
+            Accommodation = element.GetProperty("accommodation").GetDouble(),
+            Food = element.GetProperty("food").GetDouble(),
+            Activities = element.GetProperty("activities").GetDouble(),
+            Miscellaneous = element.GetProperty("miscellaneous").GetDouble(),
+            Total = element.GetProperty("total").GetDouble(),
+            Currency = element.TryGetProperty("currency", out var currency) ? currency.GetString() ?? "USD" : "USD"
+        };
+    }
+
+    private List<string> ParseStringArray(JsonElement element)
+    {
+        var result = new List<string>();
+        foreach (var item in element.EnumerateArray())
+        {
+            var value = item.GetString();
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                result.Add(value);
+            }
+        }
+        return result;
+    }
 }

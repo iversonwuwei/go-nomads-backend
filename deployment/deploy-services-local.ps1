@@ -144,6 +144,7 @@ foreach ($svc in $services) {
         "-e", "DAPR_GRPC_PORT=50001",
         "-e", "DAPR_HTTP_PORT=$($svc.DaprPort)",
         "-e", "Consul__Address=http://go-nomads-consul:8500",
+        "-e", "Consul__ServicePort=8080",
         "-e", "HTTP_PROXY=",
         "-e", "HTTPS_PROXY=",
         "-e", "NO_PROXY="
@@ -182,6 +183,7 @@ Write-Host "  Document Service:  http://localhost:5003" -ForegroundColor Green
 Write-Host "  City Service:      http://localhost:8002" -ForegroundColor Green
 Write-Host "  Event Service:     http://localhost:8005" -ForegroundColor Green
 Write-Host "  Coworking Service: http://localhost:8006" -ForegroundColor Green
+Write-Host "  AI Service:        http://localhost:8009" -ForegroundColor Green
 
 Write-Host "\nDapr Configuration:" -ForegroundColor Cyan
 Write-Host "  Mode:              Container Sidecar (shared network namespace)" -ForegroundColor White

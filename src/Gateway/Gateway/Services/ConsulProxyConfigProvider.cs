@@ -311,6 +311,7 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             "city-service" => "v1/cities",
             "event-service" => "v1/events",
             "coworking-service" => "v1/coworking",
+            "ai-service" => "v1/ai",
             "gateway" => "gateway",
             _ => serviceName
         };

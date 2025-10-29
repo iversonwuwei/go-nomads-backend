@@ -66,4 +66,9 @@ public interface IAIChatService
     /// 健康检查 - 测试AI服务连接
     /// </summary>
     Task<bool> HealthCheckAsync();
+
+    /// <summary>
+    /// 生成旅行计划
+    /// </summary>
+    Task<TravelPlanResponse> GenerateTravelPlanAsync(GenerateTravelPlanRequest request, Guid userId);
 }
