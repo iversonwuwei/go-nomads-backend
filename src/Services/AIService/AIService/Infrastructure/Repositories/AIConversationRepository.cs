@@ -81,7 +81,7 @@ public class AIConversationRepository : IAIConversationRepository
             // 分页
             var offset = (page - 1) * pageSize;
             query = query
-                .Order(c => c.LastMessageAt, Postgrest.Constants.Ordering.Descending)
+                .Order(c => c.LastMessageAt ?? DateTime.MinValue, Postgrest.Constants.Ordering.Descending)
                 .Range(offset, offset + pageSize - 1);
 
             var response = await query.Get();

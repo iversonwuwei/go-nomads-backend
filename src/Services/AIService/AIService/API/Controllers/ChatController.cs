@@ -10,7 +10,7 @@ namespace AIService.API.Controllers;
 /// AI 聊天控制器
 /// </summary>
 [ApiController]
-[Route("api/v1/[controller]")]
+[Route("api/v1/ai")]
 [Produces("application/json")]
 public class ChatController : ControllerBase
 {
@@ -98,7 +98,7 @@ public class ChatController : ControllerBase
         }
         catch (UnauthorizedAccessException ex)
         {
-            return Forbid(ApiResponse.Fail(ex.Message).ToString());
+            return StatusCode(403, ApiResponse.Fail(ex.Message));
         }
         catch (Exception ex)
         {
@@ -130,7 +130,7 @@ public class ChatController : ControllerBase
         }
         catch (UnauthorizedAccessException ex)
         {
-            return Forbid(ApiResponse.Fail(ex.Message).ToString());
+            return StatusCode(403, ApiResponse.Fail(ex.Message));
         }
         catch (Exception ex)
         {
@@ -154,7 +154,7 @@ public class ChatController : ControllerBase
             }
 
             await _aiChatService.DeleteConversationAsync(conversationId, userId);
-            return Ok(ApiResponse.Success<object>(null, "对话删除成功"));
+            return Ok(ApiResponse.Success(new { }, "对话删除成功"));
         }
         catch (ArgumentException ex)
         {
@@ -162,7 +162,7 @@ public class ChatController : ControllerBase
         }
         catch (UnauthorizedAccessException ex)
         {
-            return Forbid(ApiResponse.Fail(ex.Message).ToString());
+            return StatusCode(403, ApiResponse.Fail(ex.Message));
         }
         catch (Exception ex)
         {
@@ -194,7 +194,7 @@ public class ChatController : ControllerBase
         }
         catch (UnauthorizedAccessException ex)
         {
-            return Forbid(ApiResponse.Fail(ex.Message).ToString());
+            return StatusCode(403, ApiResponse.Fail(ex.Message));
         }
         catch (Exception ex)
         {
@@ -226,7 +226,7 @@ public class ChatController : ControllerBase
         }
         catch (UnauthorizedAccessException ex)
         {
-            return Forbid(ApiResponse.Fail(ex.Message).ToString());
+            return StatusCode(403, ApiResponse.Fail(ex.Message));
         }
         catch (Exception ex)
         {
@@ -258,7 +258,7 @@ public class ChatController : ControllerBase
         }
         catch (UnauthorizedAccessException ex)
         {
-            return Forbid(ApiResponse.Fail(ex.Message).ToString());
+            return StatusCode(403, ApiResponse.Fail(ex.Message));
         }
         catch (InvalidOperationException ex)
         {
@@ -313,7 +313,7 @@ public class ChatController : ControllerBase
         }
         catch (UnauthorizedAccessException ex)
         {
-            return Forbid(ApiResponse.Fail(ex.Message).ToString());
+            return StatusCode(403, ApiResponse.Fail(ex.Message));
         }
         catch (Exception ex)
         {
