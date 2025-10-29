@@ -1,19 +1,5 @@
 services:
   # Infrastructure Services
-  postgres:
-    image: postgis/postgis:15-3.3-alpine
-    container_name: go-nomads-postgres
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=gonomads_db
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - gonomads-network
-
   redis:
     image: redis:7-alpine
     container_name: go-nomads-redis
@@ -37,20 +23,6 @@ services:
       - "9300:9300"
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
-    networks:
-      - gonomads-network
-
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: go-nomads-rabbitmq
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    environment:
-      - RABBITMQ_DEFAULT_USER=admin
-      - RABBITMQ_DEFAULT_PASS=admin
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - gonomads-network
 
@@ -132,7 +104,6 @@ services:
     ports:
       - "8001:80"
     depends_on:
-      - postgres
       - redis
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -150,7 +121,6 @@ services:
     ports:
       - "8002:8002"
     depends_on:
-      - postgres
       - redis
       - elasticsearch
     environment:
@@ -170,7 +140,6 @@ services:
     ports:
       - "8003:8003"
     depends_on:
-      - postgres
       - redis
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -188,7 +157,6 @@ services:
     ports:
       - "8004:8004"
     depends_on:
-      - postgres
       - redis
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -206,9 +174,7 @@ services:
     ports:
       - "8005:8005"
     depends_on:
-      - postgres
       - redis
-      - rabbitmq
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8005
@@ -226,7 +192,6 @@ services:
     ports:
       - "8006:8006"
     depends_on:
-      - postgres
       - redis
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -244,7 +209,6 @@ services:
     ports:
       - "8007:8007"
     depends_on:
-      - postgres
       - redis
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -263,7 +227,6 @@ services:
     ports:
       - "8008:8008"
     depends_on:
-      - postgres
       - redis
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -297,9 +260,7 @@ services:
     ports:
       - "8009:8080"
     depends_on:
-      - postgres
       - redis
-      - rabbitmq
       - consul
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -331,10 +292,8 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
   redis_data:
   elasticsearch_data:
-  rabbitmq_data:
   consul_data:
   prometheus_data:
   grafana_data:

@@ -510,6 +510,7 @@ public class AIChatApplicationService : IAIChatService
 
             // 解析 JSON 响应
             var aiContent = response.Content ?? string.Empty;
+            _logger.LogInformation("📝 AI返回原始内容: {Content}", aiContent);
             _logger.LogDebug("AI 响应内容: {Content}", aiContent);
 
             var travelPlan = ParseTravelPlanFromAI(aiContent, request);
@@ -651,13 +652,13 @@ public class AIChatApplicationService : IAIChatService
                 Budget = request.Budget,
                 TravelStyle = request.TravelStyle,
                 Interests = request.Interests,
-                Transportation = ParseTransportation(root.GetProperty("transportation")),
-                Accommodation = ParseAccommodation(root.GetProperty("accommodation")),
-                DailyItineraries = ParseDailyItineraries(root.GetProperty("dailyItineraries")),
-                Attractions = ParseAttractions(root.GetProperty("attractions")),
-                Restaurants = ParseRestaurants(root.GetProperty("restaurants")),
-                Tips = ParseStringArray(root.GetProperty("tips")),
-                BudgetBreakdown = ParseBudgetBreakdown(root.GetProperty("budgetBreakdown"))
+                Transportation = root.TryGetProperty("transportation", out var trans) ? ParseTransportation(trans) : new TransportationPlanDto(),
+                Accommodation = root.TryGetProperty("accommodation", out var acc) ? ParseAccommodation(acc) : new AccommodationPlanDto(),
+                DailyItineraries = root.TryGetProperty("dailyItineraries", out var daily) ? ParseDailyItineraries(daily) : new List<DailyItineraryDto>(),
+                Attractions = root.TryGetProperty("attractions", out var attr) ? ParseAttractions(attr) : new List<AttractionDto>(),
+                Restaurants = root.TryGetProperty("restaurants", out var rest) ? ParseRestaurants(rest) : new List<RestaurantDto>(),
+                Tips = root.TryGetProperty("tips", out var tips) ? ParseStringArray(tips) : new List<string>(),
+                BudgetBreakdown = root.TryGetProperty("budgetBreakdown", out var budget) ? ParseBudgetBreakdown(budget) : new BudgetBreakdownDto()
             };
         }
         catch (Exception ex)
@@ -671,12 +672,12 @@ public class AIChatApplicationService : IAIChatService
     {
         return new TransportationPlanDto
         {
-            ArrivalMethod = element.GetProperty("arrivalMethod").GetString() ?? "",
-            ArrivalDetails = element.GetProperty("arrivalDetails").GetString() ?? "",
-            EstimatedCost = element.GetProperty("estimatedCost").GetDouble(),
-            LocalTransport = element.GetProperty("localTransport").GetString() ?? "",
-            LocalTransportDetails = element.GetProperty("localTransportDetails").GetString() ?? "",
-            DailyTransportCost = element.GetProperty("dailyTransportCost").GetDouble()
+            ArrivalMethod = element.TryGetProperty("arrivalMethod", out var am) ? am.GetString() ?? "" : "",
+            ArrivalDetails = element.TryGetProperty("arrivalDetails", out var ad) ? ad.GetString() ?? "" : "",
+            EstimatedCost = element.TryGetProperty("estimatedCost", out var ec) ? ec.GetDouble() : 0,
+            LocalTransport = element.TryGetProperty("localTransport", out var lt) ? lt.GetString() ?? "" : "",
+            LocalTransportDetails = element.TryGetProperty("localTransportDetails", out var ltd) ? ltd.GetString() ?? "" : "",
+            DailyTransportCost = element.TryGetProperty("dailyTransportCost", out var dtc) ? dtc.GetDouble() : 0
         };
     }
 
@@ -684,12 +685,12 @@ public class AIChatApplicationService : IAIChatService
     {
         return new AccommodationPlanDto
         {
-            Type = element.GetProperty("type").GetString() ?? "",
-            Recommendation = element.GetProperty("recommendation").GetString() ?? "",
-            Area = element.GetProperty("area").GetString() ?? "",
-            PricePerNight = element.GetProperty("pricePerNight").GetDouble(),
-            Amenities = ParseStringArray(element.GetProperty("amenities")),
-            BookingTips = element.GetProperty("bookingTips").GetString() ?? ""
+            Type = element.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "",
+            Recommendation = element.TryGetProperty("recommendation", out var r) ? r.GetString() ?? "" : "",
+            Area = element.TryGetProperty("area", out var a) ? a.GetString() ?? "" : "",
+            PricePerNight = element.TryGetProperty("pricePerNight", out var ppn) ? ppn.GetDouble() : 0,
+            Amenities = element.TryGetProperty("amenities", out var amenities) ? ParseStringArray(amenities) : new List<string>(),
+            BookingTips = element.TryGetProperty("bookingTips", out var bt) ? bt.GetString() ?? "" : ""
         };
     }
 
@@ -700,10 +701,10 @@ public class AIChatApplicationService : IAIChatService
         {
             itineraries.Add(new DailyItineraryDto
             {
-                Day = item.GetProperty("day").GetInt32(),
-                Theme = item.GetProperty("theme").GetString() ?? "",
-                Activities = ParseActivities(item.GetProperty("activities")),
-                Notes = item.GetProperty("notes").GetString() ?? ""
+                Day = item.TryGetProperty("day", out var day) ? day.GetInt32() : 0,
+                Theme = item.TryGetProperty("theme", out var theme) ? theme.GetString() ?? "" : "",
+                Activities = item.TryGetProperty("activities", out var acts) ? ParseActivities(acts) : new List<ActivityDto>(),
+                Notes = item.TryGetProperty("notes", out var notes) ? notes.GetString() ?? "" : ""
             });
         }
         return itineraries;
@@ -716,12 +717,12 @@ public class AIChatApplicationService : IAIChatService
         {
             activities.Add(new ActivityDto
             {
-                Time = item.GetProperty("time").GetString() ?? "",
-                Name = item.GetProperty("name").GetString() ?? "",
-                Description = item.GetProperty("description").GetString() ?? "",
-                Location = item.GetProperty("location").GetString() ?? "",
-                EstimatedCost = item.GetProperty("estimatedCost").GetDouble(),
-                Duration = item.GetProperty("duration").GetInt32()
+                Time = item.TryGetProperty("time", out var timeEl) ? timeEl.GetString() ?? "" : "",
+                Name = item.TryGetProperty("name", out var nameEl) ? nameEl.GetString() ?? "" : "",
+                Description = item.TryGetProperty("description", out var descEl) ? descEl.GetString() ?? "" : "",
+                Location = item.TryGetProperty("location", out var locEl) ? locEl.GetString() ?? "" : "",
+                EstimatedCost = item.TryGetProperty("estimatedCost", out var costEl) ? costEl.GetDouble() : 0,
+                Duration = item.TryGetProperty("duration", out var durEl) ? durEl.GetInt32() : 0
             });
         }
         return activities;
@@ -734,14 +735,14 @@ public class AIChatApplicationService : IAIChatService
         {
             attractions.Add(new AttractionDto
             {
-                Name = item.GetProperty("name").GetString() ?? "",
-                Description = item.GetProperty("description").GetString() ?? "",
-                Category = item.GetProperty("category").GetString() ?? "",
-                Rating = item.GetProperty("rating").GetDouble(),
-                Location = item.GetProperty("location").GetString() ?? "",
-                EntryFee = item.GetProperty("entryFee").GetDouble(),
-                BestTime = item.GetProperty("bestTime").GetString() ?? "",
-                Image = item.GetProperty("image").GetString() ?? ""
+                Name = item.TryGetProperty("name", out var name) ? name.GetString() ?? "" : "",
+                Description = item.TryGetProperty("description", out var desc) ? desc.GetString() ?? "" : "",
+                Category = item.TryGetProperty("category", out var cat) ? cat.GetString() ?? "" : "",
+                Rating = item.TryGetProperty("rating", out var rating) ? rating.GetDouble() : 0,
+                Location = item.TryGetProperty("location", out var loc) ? loc.GetString() ?? "" : "",
+                EntryFee = item.TryGetProperty("entryFee", out var fee) ? fee.GetDouble() : 0,
+                BestTime = item.TryGetProperty("bestTime", out var bt) ? bt.GetString() ?? "" : "",
+                Image = item.TryGetProperty("image", out var img) ? img.GetString() ?? "" : ""
             });
         }
         return attractions;
@@ -754,14 +755,14 @@ public class AIChatApplicationService : IAIChatService
         {
             restaurants.Add(new RestaurantDto
             {
-                Name = item.GetProperty("name").GetString() ?? "",
-                Cuisine = item.GetProperty("cuisine").GetString() ?? "",
-                Description = item.GetProperty("description").GetString() ?? "",
-                Rating = item.GetProperty("rating").GetDouble(),
-                PriceRange = item.GetProperty("priceRange").GetString() ?? "",
-                Location = item.GetProperty("location").GetString() ?? "",
-                Specialty = item.GetProperty("specialty").GetString() ?? "",
-                Image = item.GetProperty("image").GetString() ?? ""
+                Name = item.TryGetProperty("name", out var name) ? name.GetString() ?? "" : "",
+                Cuisine = item.TryGetProperty("cuisine", out var cuisine) ? cuisine.GetString() ?? "" : "",
+                Description = item.TryGetProperty("description", out var desc) ? desc.GetString() ?? "" : "",
+                Rating = item.TryGetProperty("rating", out var rating) ? rating.GetDouble() : 0,
+                PriceRange = item.TryGetProperty("priceRange", out var pr) ? pr.GetString() ?? "" : "",
+                Location = item.TryGetProperty("location", out var loc) ? loc.GetString() ?? "" : "",
+                Specialty = item.TryGetProperty("specialty", out var spec) ? spec.GetString() ?? "" : "",
+                Image = item.TryGetProperty("image", out var img) ? img.GetString() ?? "" : ""
             });
         }
         return restaurants;
@@ -771,12 +772,12 @@ public class AIChatApplicationService : IAIChatService
     {
         return new BudgetBreakdownDto
         {
-            Transportation = element.GetProperty("transportation").GetDouble(),
-            Accommodation = element.GetProperty("accommodation").GetDouble(),
-            Food = element.GetProperty("food").GetDouble(),
-            Activities = element.GetProperty("activities").GetDouble(),
-            Miscellaneous = element.GetProperty("miscellaneous").GetDouble(),
-            Total = element.GetProperty("total").GetDouble(),
+            Transportation = element.TryGetProperty("transportation", out var trans) ? trans.GetDouble() : 0,
+            Accommodation = element.TryGetProperty("accommodation", out var acc) ? acc.GetDouble() : 0,
+            Food = element.TryGetProperty("food", out var food) ? food.GetDouble() : 0,
+            Activities = element.TryGetProperty("activities", out var acts) ? acts.GetDouble() : 0,
+            Miscellaneous = element.TryGetProperty("miscellaneous", out var misc) ? misc.GetDouble() : 0,
+            Total = element.TryGetProperty("total", out var total) ? total.GetDouble() : 0,
             Currency = element.TryGetProperty("currency", out var currency) ? currency.GetString() ?? "USD" : "USD"
         };
     }
