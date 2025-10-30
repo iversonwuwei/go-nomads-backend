@@ -9,6 +9,10 @@ using Prometheus;
 using Scalar.AspNetCore;
 using Serilog;
 using Shared.Extensions;
+using AIService.Infrastructure.MessageBus;
+using AIService.Infrastructure.Cache;
+using AIService.API.Hubs;
+using AIService.API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -74,6 +78,19 @@ catch (Exception ex)
 // 注册应用服务 (Application Layer)
 builder.Services.AddScoped<IAIChatService, AIChatApplicationService>();
 
+// 注册消息队列和缓存服务 (Infrastructure Layer)
+builder.Services.AddSingleton<IMessageBus, RabbitMQMessageBus>();
+builder.Services.AddSingleton<IRedisCache, RedisCache>();
+
+// 注册 SignalR 通知服务
+builder.Services.AddSignalR();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+
+// 注册后台任务处理服务
+builder.Services.AddHostedService<AIWorkerService>();
+
+Log.Information("✅ 消息队列、缓存和后台服务已注册");
+
 // 配置 DaprClient 使用 gRPC 协议（性能更好）
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
@@ -99,6 +116,15 @@ builder.Services.AddCors(options =>
         builder.AllowAnyOrigin()
                .AllowAnyMethod()
                .AllowAnyHeader();
+    });
+    
+    // SignalR 需要更宽松的 CORS 策略
+    options.AddPolicy("SignalRPolicy", builder =>
+    {
+        builder.WithOrigins("http://localhost:5000", "http://localhost:8009")
+               .AllowAnyMethod()
+               .AllowAnyHeader()
+               .AllowCredentials(); // SignalR 需要允许凭据
     });
 });
 
@@ -156,6 +182,9 @@ app.UseUserContext();
 
 // Map controllers
 app.MapControllers();
+
+// Map SignalR Hub
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 // Add health check endpoint
 app.MapGet("/health", () => 

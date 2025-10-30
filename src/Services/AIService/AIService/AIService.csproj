@@ -21,6 +21,10 @@
     <!-- 数据库和缓存 -->
     <PackageReference Include="postgrest-csharp" Version="3.5.1" />
     <PackageReference Include="supabase-csharp" Version="0.16.2" />
+    <PackageReference Include="StackExchange.Redis" Version="2.7.33" />
+    
+    <!-- 消息队列 -->
+    <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
     
     <!-- 监控和日志 -->
     <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />

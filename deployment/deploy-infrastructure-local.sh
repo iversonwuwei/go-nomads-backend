@@ -195,7 +195,22 @@ start_elasticsearch() {
         -e "xpack.security.enabled=false" \
         -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" \
         docker.elastic.co/elasticsearch/elasticsearch:8.11.0 >/dev/null
-    echo "Elasticsearch running at http://localhost:9200"
+    echo "Elasticsearch available at http://localhost:9200"
+}
+
+start_rabbitmq() {
+    header "Deploying RabbitMQ"
+    remove_container go-nomads-rabbitmq
+    docker run -d \
+        --name go-nomads-rabbitmq \
+        --network "${NETWORK_NAME}" \
+        -p 5672:5672 \
+        -p 15672:15672 \
+        -e RABBITMQ_DEFAULT_USER=guest \
+        -e RABBITMQ_DEFAULT_PASS=guest \
+        rabbitmq:3-management-alpine >/dev/null
+    echo "RabbitMQ running at amqp://localhost:5672"
+    echo "RabbitMQ Management UI: http://localhost:15672 (guest/guest)"
 }
 
 start_nginx() {
@@ -215,6 +230,7 @@ start_all() {
     require_docker
     create_network
     start_redis
+    start_rabbitmq
     start_consul
     start_zipkin
     start_prometheus
@@ -235,6 +251,7 @@ stop_all() {
         go-nomads-prometheus
         go-nomads-zipkin
         go-nomads-consul
+        go-nomads-rabbitmq
         go-nomads-redis
     )
     for c in "${containers[@]}"; do

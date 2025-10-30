@@ -11,6 +11,25 @@ services:
     networks:
       - gonomads-network
 
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: go-nomads-rabbitmq
+    ports:
+      - "5672:5672"    # AMQP protocol port
+      - "15672:15672"  # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - gonomads-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     container_name: go-nomads-elasticsearch
@@ -261,6 +280,7 @@ services:
       - "8009:8080"
     depends_on:
       - redis
+      - rabbitmq
       - consul
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -271,7 +291,8 @@ services:
       - Consul__Address=http://consul:8500
       - Consul__ServiceAddress=ai-service
       - Consul__ServicePort=8080
-      - MessageBroker__Host=rabbitmq
+      - RabbitMQ__HostName=rabbitmq
+      - Redis__ConnectionString=redis:6379,abortConnect=false
       - Dapr__GrpcPort=50001
       - Dapr__HttpPort=3509
     networks:
@@ -293,6 +314,7 @@ networks:
 
 volumes:
   redis_data:
+  rabbitmq_data:
   elasticsearch_data:
   consul_data:
   prometheus_data:

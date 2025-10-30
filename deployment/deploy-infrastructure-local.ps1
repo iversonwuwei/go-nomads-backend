@@ -252,6 +252,23 @@ function Start-Elasticsearch {
     Write-Host "Elasticsearch available at: http://localhost:9200" -ForegroundColor Green
 }
 
+function Start-RabbitMQ {
+    Write-Header "Deploying RabbitMQ"
+    Remove-Container "go-nomads-rabbitmq"
+    
+    & $RUNTIME run -d `
+        --name go-nomads-rabbitmq `
+        --network $NETWORK_NAME `
+        -p 5672:5672 `
+        -p 15672:15672 `
+        -e RABBITMQ_DEFAULT_USER=guest `
+        -e RABBITMQ_DEFAULT_PASS=guest `
+        rabbitmq:3-management-alpine | Out-Null
+    
+    Write-Host "RabbitMQ running at: amqp://localhost:5672" -ForegroundColor Green
+    Write-Host "RabbitMQ Management UI: http://localhost:15672 (guest/guest)" -ForegroundColor Green
+}
+
 function Start-Nginx {
     Write-Header "Deploying Nginx"
     Remove-Container "go-nomads-nginx"
@@ -272,6 +289,7 @@ function Start-Infrastructure {
     
     New-Network
     Start-Redis
+    Start-RabbitMQ
     Start-Consul
     Start-Zipkin
     Start-Prometheus
@@ -283,6 +301,8 @@ function Start-Infrastructure {
     Write-Host "`nAccess URLs:" -ForegroundColor Cyan
     Write-Host "  Nginx:          http://localhost" -ForegroundColor White
     Write-Host "  Redis:          redis://localhost:6379" -ForegroundColor White
+    Write-Host "  RabbitMQ:       amqp://localhost:5672" -ForegroundColor White
+    Write-Host "  RabbitMQ UI:    http://localhost:15672 (guest/guest)" -ForegroundColor White
     Write-Host "  Consul:         http://localhost:8500" -ForegroundColor White
     Write-Host "  Zipkin:         http://localhost:9411" -ForegroundColor White
     Write-Host "  Prometheus:     http://localhost:9090" -ForegroundColor White
