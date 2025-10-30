@@ -34,14 +34,15 @@ builder.Services.AddScoped<IAIMessageRepository, AIMessageRepository>();
 // 注册 gRPC 客户端 (通过 Dapr Service Invocation)
 builder.Services.AddScoped<IUserGrpcClient, UserGrpcClient>();
 
-// 配置 Semantic Kernel - 使用 DeepSeek 模型
+// 配置 Semantic Kernel - 使用 Qwen 模型
 try
 {
-    var deepseekApiKey = builder.Configuration["DeepSeek:ApiKey"] ?? "test-key";
-    var deepseekBaseUrl = builder.Configuration["DeepSeek:BaseUrl"] ?? "https://api.deepseek.com";
+    var qwenApiKey = builder.Configuration["Qwen:ApiKey"] ?? "test-key";
+    var qwenBaseUrl = builder.Configuration["Qwen:BaseUrl"] ?? "https://dashscope.aliyuncs.com/compatible-mode/v1";
+    var defaultModelId = builder.Configuration["SemanticKernel:DefaultModel"] ?? "qwen-plus";
 
-    // 配置 HttpClient 用于 DeepSeek API 调用，增加超时时间
-    builder.Services.AddHttpClient("DeepSeekClient", client =>
+    // 配置 HttpClient 用于 Qwen API 调用，增加超时时间
+    builder.Services.AddHttpClient("QwenClient", client =>
     {
         client.Timeout = TimeSpan.FromMinutes(3); // 增加超时到 3 分钟（AI 生成可能需要较长时间）
         client.DefaultRequestHeaders.Add("User-Agent", "GoNomads-AIService/1.0");
@@ -50,24 +51,31 @@ try
 #pragma warning disable SKEXP0010
     var kernelBuilder = Kernel.CreateBuilder();
     
-    // 创建配置了超时的 HttpClient
-    var httpClient = new HttpClient
+    // 创建配置了超时和连接设置的 HttpClient for Qwen API
+    var handler = new HttpClientHandler
+    {
+        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+        MaxConnectionsPerServer = 10
+    };
+    
+    var httpClient = new HttpClient(handler)
     {
         Timeout = TimeSpan.FromMinutes(3) // 3 分钟超时
     };
     httpClient.DefaultRequestHeaders.Add("User-Agent", "GoNomads-AIService/1.0");
+    httpClient.DefaultRequestHeaders.ConnectionClose = false; // 保持连接
     
     kernelBuilder.AddOpenAIChatCompletion(
-        modelId: "deepseek-chat",
-        apiKey: deepseekApiKey,
-        endpoint: new Uri(deepseekBaseUrl),
+        modelId: defaultModelId,
+        apiKey: qwenApiKey,
+        endpoint: new Uri(qwenBaseUrl),
         httpClient: httpClient);
 
     var kernel = kernelBuilder.Build();
     builder.Services.AddSingleton(kernel);
 #pragma warning restore SKEXP0010
 
-    Log.Information("✅ DeepSeek AI 模型配置成功（超时: 3分钟）");
+    Log.Information("✅ Qwen AI 模型配置成功（超时: 3分钟）");
 }
 catch (Exception ex)
 {
@@ -141,7 +149,7 @@ builder.Services.AddOpenApi(options =>
         
         // 添加 API 信息
         document.Info.Title = "AI Service API";
-        document.Info.Description = "Go Nomads AI 聊天服务 - 基于 DeepSeek 大模型和 Semantic Kernel";
+        document.Info.Description = "Go Nomads AI 聊天服务 - 基于 Qwen 大模型和 Semantic Kernel";
         document.Info.Version = "v1.0";
         
         return Task.CompletedTask;
@@ -189,6 +197,7 @@ app.MapHub<NotificationHub>("/hubs/notifications");
 // Add health check endpoint
 app.MapGet("/health", () => 
 {
+    var defaultModel = builder.Configuration["SemanticKernel:DefaultModel"] ?? "qwen-plus";
     return Results.Ok(new 
     { 
         status = "healthy", 
@@ -196,20 +205,21 @@ app.MapGet("/health", () =>
         timestamp = DateTime.UtcNow,
         version = "1.0.0",
         semantic_kernel = "enabled",
-        ai_model = "deepseek-chat",
-        provider = "DeepSeek"
+        ai_model = defaultModel,
+        provider = "Qwen"
     });
 });
 
 // AI 服务专用健康检查
 app.MapGet("/health/ai", () =>
 {
+    var defaultModel = builder.Configuration["SemanticKernel:DefaultModel"] ?? "qwen-plus";
     return Results.Ok(new 
     { 
         status = "healthy", 
         ai_service = "connected",
-        model = "deepseek-chat",
-        provider = "DeepSeek",
+        model = defaultModel,
+        provider = "Qwen",
         max_tokens = 32000,
         timestamp = DateTime.UtcNow 
     });

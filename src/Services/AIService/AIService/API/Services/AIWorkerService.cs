@@ -72,15 +72,15 @@ public class AIWorkerService : BackgroundService
 #pragma warning disable SKEXP0010 // ResponseFormat is experimental
             var chatService = kernel.GetRequiredService<IChatCompletionService>();
             var chatHistory = new ChatHistory();
-            chatHistory.AddSystemMessage("你是一个专业的旅行规划助手，擅长根据用户需求制定详细的旅行计划。请以 JSON 格式返回旅行计划。");
+            chatHistory.AddSystemMessage("你是一个专业的旅行规划助手,擅长根据用户需求制定详细的旅行计划。你必须以有效的 JSON 格式返回旅行计划,不要包含任何其他文本。");
             chatHistory.AddUserMessage(prompt);
 
-            // 配置 AI 执行参数 (与同步 API 保持一致)
+            // 配置 AI 执行参数 - Qwen 支持 response_format
             var executionSettings = new OpenAIPromptExecutionSettings
             {
                 Temperature = 0.7,
                 MaxTokens = 4000,
-                ResponseFormat = "json_object" // 强制返回 JSON
+                ResponseFormat = "json_object" // Qwen 兼容 OpenAI 的 JSON 模式
             };
 
             var result = await chatService.GetChatMessageContentAsync(

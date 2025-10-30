@@ -233,7 +233,7 @@ public class AIChatApplicationService : IAIChatService
                 ModelId = request.ModelName ?? conversation.ModelName
             };
 
-            // 调用 DeepSeek 大模型
+            // 调用 Qwen 大模型
             var response = await _chatCompletionService.GetChatMessageContentAsync(
                 chatHistory, 
                 executionSettings, 
@@ -393,7 +393,7 @@ public class AIChatApplicationService : IAIChatService
     {
         try
         {
-            // 测试 DeepSeek API 连接
+            // 测试 Qwen API 连接
             var testMessage = new ChatHistory();
             testMessage.AddUserMessage("Hello");
 
@@ -485,15 +485,15 @@ public class AIChatApplicationService : IAIChatService
 
             // 创建聊天历史
             var chatHistory = new ChatHistory();
-            chatHistory.AddSystemMessage("你是一个专业的旅行规划助手，擅长根据用户需求制定详细的旅行计划。请以 JSON 格式返回旅行计划。");
+            chatHistory.AddSystemMessage("你是一个专业的旅行规划助手,擅长根据用户需求制定详细的旅行计划。你必须以有效的 JSON 格式返回旅行计划,不要包含任何其他文本。");
             chatHistory.AddUserMessage(prompt);
 
-            // 设置执行参数
+            // 设置执行参数 - Qwen 支持 response_format
             var executionSettings = new OpenAIPromptExecutionSettings
             {
                 Temperature = 0.7,
                 MaxTokens = 4000,
-                ResponseFormat = "json_object"
+                ResponseFormat = "json_object" // Qwen 兼容 OpenAI 的 JSON 模式
             };
 
             var stopwatch = Stopwatch.StartNew();
