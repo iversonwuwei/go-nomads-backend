@@ -3,12 +3,12 @@ using CityService.Application.Services;
 using CityService.Domain.Repositories;
 using CityService.Infrastructure.Repositories;
 using CityService.Infrastructure.Integrations.Weather;
-using CityService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Serilog;
 using Shared.Extensions;
+using GoNomads.Shared.Extensions;
 using Dapr.Client;
 using Scalar.AspNetCore;
 
@@ -85,15 +85,18 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Register Services
+// Register Services - Domain Repositories
 builder.Services.AddScoped<ICityRepository, SupabaseCityRepository>();
 builder.Services.AddScoped<ICountryRepository, SupabaseCountryRepository>();
 builder.Services.AddScoped<IProvinceRepository, SupabaseProvinceRepository>();
-builder.Services.AddScoped<ICityService, CityApplicationService>();
-builder.Services.AddScoped<GeographyDataSeeder>();
+builder.Services.AddScoped<IUserCityPhotoRepository, SupabaseUserCityPhotoRepository>();
+builder.Services.AddScoped<IUserCityExpenseRepository, SupabaseUserCityExpenseRepository>();
+builder.Services.AddScoped<IUserCityReviewRepository, SupabaseUserCityReviewRepository>();
 
-// 注册用户城市内容服务
-builder.Services.AddScoped<IUserCityContentService, UserCityContentService>();
+// Register Application Services
+builder.Services.AddScoped<ICityService, CityApplicationService>();
+builder.Services.AddScoped<IUserCityContentService, UserCityContentApplicationService>();
+builder.Services.AddScoped<GeographyDataSeeder>();
 
 // 添加内存缓存
 builder.Services.AddMemoryCache();
@@ -117,6 +120,9 @@ app.MapScalarApiReference(options =>
 app.UseSerilogRequestLogging();
 
 app.UseCors("AllowAll");
+
+// 使用用户上下文中间件 - 从 Gateway 传递的请求头中提取用户信息
+app.UseUserContext();
 
 app.UseAuthentication();
 app.UseAuthorization();
