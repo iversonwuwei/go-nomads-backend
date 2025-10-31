@@ -70,5 +70,8 @@ public interface IAIChatService
     /// <summary>
     /// 生成旅行计划
     /// </summary>
-    Task<TravelPlanResponse> GenerateTravelPlanAsync(GenerateTravelPlanRequest request, Guid userId);
+    Task<TravelPlanResponse> GenerateTravelPlanAsync(
+        GenerateTravelPlanRequest request, 
+        Guid userId,
+        Func<int, string, Task>? onProgress = null);
 }

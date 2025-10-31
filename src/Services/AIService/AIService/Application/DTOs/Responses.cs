@@ -124,7 +124,7 @@ public class TransportationPlanDto
     public string ArrivalMethod { get; set; } = string.Empty;
     public string ArrivalDetails { get; set; } = string.Empty;
     public double EstimatedCost { get; set; }
-    public string LocalTransport { get; set; } = string.Empty;
+    public string LocalTransport { get; set; } = string.Empty; // 存储逗号分隔的交通方式
     public string LocalTransportDetails { get; set; } = string.Empty;
     public double DailyTransportCost { get; set; }
 }

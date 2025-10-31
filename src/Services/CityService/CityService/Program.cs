@@ -3,6 +3,7 @@ using CityService.Application.Services;
 using CityService.Domain.Repositories;
 using CityService.Infrastructure.Repositories;
 using CityService.Infrastructure.Integrations.Weather;
+using CityService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -90,6 +91,9 @@ builder.Services.AddScoped<ICountryRepository, SupabaseCountryRepository>();
 builder.Services.AddScoped<IProvinceRepository, SupabaseProvinceRepository>();
 builder.Services.AddScoped<ICityService, CityApplicationService>();
 builder.Services.AddScoped<GeographyDataSeeder>();
+
+// 注册用户城市内容服务
+builder.Services.AddScoped<IUserCityContentService, UserCityContentService>();
 
 // 添加内存缓存
 builder.Services.AddMemoryCache();
