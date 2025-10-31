@@ -156,7 +156,7 @@ CREATE TRIGGER trigger_update_user_city_reviews_updated_at
 -- 4. 创建统计视图（可选）
 CREATE OR REPLACE VIEW user_city_content_stats AS
 SELECT 
-    city_id,
+    cities.city_id,
     COUNT(DISTINCT p.user_id) as photo_contributors,
     COUNT(DISTINCT e.user_id) as expense_contributors,
     COUNT(DISTINCT r.user_id) as review_contributors,
@@ -170,7 +170,7 @@ FROM (SELECT DISTINCT city_id FROM user_city_photos
 LEFT JOIN user_city_photos p ON cities.city_id = p.city_id
 LEFT JOIN user_city_expenses e ON cities.city_id = e.city_id
 LEFT JOIN user_city_reviews r ON cities.city_id = r.city_id
-GROUP BY city_id;
+GROUP BY cities.city_id;
 
 -- 注释
 COMMENT ON TABLE user_city_photos IS '用户上传的城市照片';

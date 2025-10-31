@@ -11,7 +11,7 @@ namespace CityService.API;
 /// </summary>
 [Authorize]
 [ApiController]
-[Route("api/cities/{cityId}/user-content")]
+[Route("api/v1/cities/{cityId}/user-content")]
 public class UserCityContentController : ControllerBase
 {
     private readonly IUserCityContentService _contentService;
@@ -319,7 +319,7 @@ public class UserCityContentController : ControllerBase
 /// </summary>
 [Authorize]
 [ApiController]
-[Route("api/user/city-content")]
+[Route("api/v1/user/city-content")]
 public class MyContentController : ControllerBase
 {
     private readonly IUserCityContentService _contentService;
