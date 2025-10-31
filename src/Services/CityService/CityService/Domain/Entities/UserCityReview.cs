@@ -27,6 +27,28 @@ public class UserCityReview : BaseModel
     [Column("rating")]
     public int Rating { get; set; }
 
+    /// <summary>
+    /// 评论标题
+    /// </summary>
+    [Required]
+    [MaxLength(200)]
+    [Column("title")]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 评论内容
+    /// </summary>
+    [Required]
+    [MaxLength(2000)]
+    [Column("content")]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 访问日期(可选)
+    /// </summary>
+    [Column("visit_date")]
+    public DateTime? VisitDate { get; set; }
+
     [MaxLength(2000)]
     [Column("review_text")]
     public string? ReviewText { get; set; }

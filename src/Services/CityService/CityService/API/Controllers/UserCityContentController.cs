@@ -475,5 +475,36 @@ public class UserCityContentController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// 获取城市综合费用统计 - 基于用户提交的实际费用数据
+    /// GET /api/v1/cities/{cityId}/user-content/cost-summary
+    /// </summary>
+    [HttpGet("cost-summary")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<CityCostSummaryDto>>> GetCityCostSummary(string cityId)
+    {
+        try
+        {
+            var costSummary = await _contentService.GetCityCostSummaryAsync(cityId);
+
+            return Ok(new ApiResponse<CityCostSummaryDto>
+            {
+                Success = true,
+                Message = "获取费用统计成功",
+                Data = costSummary
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取城市费用统计失败: {CityId}", cityId);
+            return StatusCode(500, new ApiResponse<CityCostSummaryDto>
+            {
+                Success = false,
+                Message = "获取费用统计失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
     #endregion
 }

@@ -73,7 +73,7 @@ public class AddCityExpenseRequest
     public string Category { get; set; } = string.Empty;
 
     [Required]
-    [Range(0.01, double.MaxValue)]
+    [Range(0.01, 999999999.99)]
     public decimal Amount { get; set; }
 
     [Required]
@@ -100,6 +100,9 @@ public class UserCityReviewDto
     public Guid UserId { get; set; }
     public string CityId { get; set; } = string.Empty;
     public int Rating { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public DateTime? VisitDate { get; set; }
     public string? ReviewText { get; set; }
     public int? InternetQualityScore { get; set; }
     public int? SafetyScore { get; set; }
@@ -108,6 +111,11 @@ public class UserCityReviewDto
     public int? WeatherScore { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    
+    /// <summary>
+    /// 该用户在该城市上传的照片URL列表
+    /// </summary>
+    public List<string> PhotoUrls { get; set; } = new();
 }
 
 /// <summary>
@@ -121,6 +129,16 @@ public class UpsertCityReviewRequest
     [Required]
     [Range(1, 5)]
     public int Rating { get; set; }
+
+    [Required]
+    [MaxLength(200)]
+    public string Title { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(2000)]
+    public string Content { get; set; } = string.Empty;
+
+    public DateTime? VisitDate { get; set; }
 
     [MaxLength(2000)]
     public string? ReviewText { get; set; }
@@ -155,6 +173,72 @@ public class CityUserContentStatsDto
     public int ExpenseCount { get; set; }
     public int ReviewCount { get; set; }
     public decimal? AverageRating { get; set; }
+}
+
+/// <summary>
+/// 城市综合费用统计 - 基于用户提交的实际费用计算
+/// </summary>
+public class CityCostSummaryDto
+{
+    /// <summary>
+    /// 城市ID
+    /// </summary>
+    public string CityId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 总平均费用
+    /// </summary>
+    public decimal Total { get; set; }
+
+    /// <summary>
+    /// 住宿平均费用
+    /// </summary>
+    public decimal Accommodation { get; set; }
+
+    /// <summary>
+    /// 餐饮平均费用
+    /// </summary>
+    public decimal Food { get; set; }
+
+    /// <summary>
+    /// 交通平均费用
+    /// </summary>
+    public decimal Transportation { get; set; }
+
+    /// <summary>
+    /// 活动/娱乐平均费用
+    /// </summary>
+    public decimal Activity { get; set; }
+
+    /// <summary>
+    /// 购物平均费用
+    /// </summary>
+    public decimal Shopping { get; set; }
+
+    /// <summary>
+    /// 其他平均费用
+    /// </summary>
+    public decimal Other { get; set; }
+
+    /// <summary>
+    /// 数据来源用户数
+    /// </summary>
+    public int ContributorCount { get; set; }
+
+    /// <summary>
+    /// 总费用记录数
+    /// </summary>
+    public int TotalExpenseCount { get; set; }
+
+    /// <summary>
+    /// 货币单位（统一转换为USD）
+    /// </summary>
+    public string Currency { get; set; } = "USD";
+
+    /// <summary>
+    /// 数据更新时间
+    /// </summary>
+    public DateTime UpdatedAt { get; set; }
 }
 
 #endregion

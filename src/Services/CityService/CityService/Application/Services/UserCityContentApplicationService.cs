@@ -131,6 +131,9 @@ public class UserCityContentApplicationService : IUserCityContentService
             UserId = userId,
             CityId = request.CityId,
             Rating = request.Rating,
+            Title = request.Title,
+            Content = request.Content,
+            VisitDate = request.VisitDate,
             ReviewText = request.ReviewText,
             InternetQualityScore = request.InternetQualityScore,
             SafetyScore = request.SafetyScore,
@@ -148,13 +151,34 @@ public class UserCityContentApplicationService : IUserCityContentService
     public async Task<IEnumerable<UserCityReviewDto>> GetCityReviewsAsync(string cityId)
     {
         var reviews = await _reviewRepository.GetByCityIdAsync(cityId);
-        return reviews.Select(MapReviewToDto);
+        var result = new List<UserCityReviewDto>();
+        
+        foreach (var review in reviews)
+        {
+            var dto = MapReviewToDto(review);
+            
+            // ✅ 查询该用户在该城市的所有照片
+            var photos = await _photoRepository.GetByCityIdAndUserIdAsync(cityId, review.UserId);
+            dto.PhotoUrls = photos.Select(p => p.ImageUrl).ToList();
+            
+            result.Add(dto);
+        }
+        
+        return result;
     }
 
     public async Task<UserCityReviewDto?> GetUserReviewAsync(Guid userId, string cityId)
     {
         var review = await _reviewRepository.GetByCityIdAndUserIdAsync(cityId, userId);
-        return review == null ? null : MapReviewToDto(review);
+        if (review == null) return null;
+        
+        var dto = MapReviewToDto(review);
+        
+        // ✅ 查询该用户在该城市的所有照片
+        var photos = await _photoRepository.GetByCityIdAndUserIdAsync(cityId, userId);
+        dto.PhotoUrls = photos.Select(p => p.ImageUrl).ToList();
+        
+        return dto;
     }
 
     public async Task<bool> DeleteReviewAsync(Guid userId, string cityId)
@@ -185,6 +209,73 @@ public class UserCityContentApplicationService : IUserCityContentService
             ExpenseCount = expenses.Count(),
             ReviewCount = reviews.Count(),
             AverageRating = averageRating
+        };
+    }
+
+    /// <summary>
+    /// 获取城市综合费用统计 - 基于用户提交的实际费用数据计算
+    /// </summary>
+    public async Task<CityCostSummaryDto> GetCityCostSummaryAsync(string cityId)
+    {
+        var expenses = (await _expenseRepository.GetByCityIdAsync(cityId)).ToList();
+
+        if (!expenses.Any())
+        {
+            return new CityCostSummaryDto
+            {
+                CityId = cityId,
+                Total = 0,
+                Accommodation = 0,
+                Food = 0,
+                Transportation = 0,
+                Activity = 0,
+                Shopping = 0,
+                Other = 0,
+                ContributorCount = 0,
+                TotalExpenseCount = 0,
+                Currency = "USD",
+                UpdatedAt = DateTime.UtcNow
+            };
+        }
+
+        // 按分类计算平均费用
+        var accommodation = expenses.Where(e => e.Category.Equals(ExpenseCategory.Accommodation, StringComparison.OrdinalIgnoreCase))
+            .Select(e => e.Amount).DefaultIfEmpty(0).Average();
+
+        var food = expenses.Where(e => e.Category.Equals(ExpenseCategory.Food, StringComparison.OrdinalIgnoreCase))
+            .Select(e => e.Amount).DefaultIfEmpty(0).Average();
+
+        var transportation = expenses.Where(e => e.Category.Equals(ExpenseCategory.Transport, StringComparison.OrdinalIgnoreCase))
+            .Select(e => e.Amount).DefaultIfEmpty(0).Average();
+
+        var activity = expenses.Where(e => e.Category.Equals(ExpenseCategory.Activity, StringComparison.OrdinalIgnoreCase))
+            .Select(e => e.Amount).DefaultIfEmpty(0).Average();
+
+        var shopping = expenses.Where(e => e.Category.Equals(ExpenseCategory.Shopping, StringComparison.OrdinalIgnoreCase))
+            .Select(e => e.Amount).DefaultIfEmpty(0).Average();
+
+        var other = expenses.Where(e => e.Category.Equals(ExpenseCategory.Other, StringComparison.OrdinalIgnoreCase))
+            .Select(e => e.Amount).DefaultIfEmpty(0).Average();
+
+        var total = accommodation + food + transportation + activity + shopping + other;
+
+        // 统计贡献用户数
+        var contributorCount = expenses.Select(e => e.UserId).Distinct().Count();
+
+        return new CityCostSummaryDto
+        {
+            CityId = cityId,
+            Total = total,
+            Accommodation = accommodation,
+            Food = food,
+            Transportation = transportation,
+            Activity = activity,
+            Shopping = shopping,
+            Other = other,
+            ContributorCount = contributorCount,
+            TotalExpenseCount = expenses.Count,
+            Currency = "USD", // TODO: 支持多币种转换
+            UpdatedAt = DateTime.UtcNow
         };
     }
 
@@ -231,6 +322,9 @@ public class UserCityContentApplicationService : IUserCityContentService
             UserId = review.UserId,
             CityId = review.CityId,
             Rating = review.Rating,
+            Title = review.Title,
+            Content = review.Content,
+            VisitDate = review.VisitDate,
             ReviewText = review.ReviewText,
             InternetQualityScore = review.InternetQualityScore,
             SafetyScore = review.SafetyScore,
