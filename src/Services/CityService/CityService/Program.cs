@@ -3,6 +3,7 @@ using CityService.Application.Services;
 using CityService.Domain.Repositories;
 using CityService.Infrastructure.Repositories;
 using CityService.Infrastructure.Integrations.Weather;
+using CityService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -48,6 +49,9 @@ builder.Services.AddSupabase(builder.Configuration);
 
 // 配置 DaprClient
 builder.Services.AddDaprClient();
+
+// 注册 UserService 客户端
+builder.Services.AddScoped<IUserServiceClient, UserServiceClient>();
 
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -95,7 +99,7 @@ builder.Services.AddScoped<IUserCityReviewRepository, SupabaseUserCityReviewRepo
 
 // Register Application Services
 builder.Services.AddScoped<ICityService, CityApplicationService>();
-builder.Services.AddScoped<IUserCityContentService, UserCityContentApplicationService>();
+builder.Services.AddScoped<CityService.Application.Services.IUserCityContentService, UserCityContentApplicationService>();
 builder.Services.AddScoped<GeographyDataSeeder>();
 
 // 添加内存缓存

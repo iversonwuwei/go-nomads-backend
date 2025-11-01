@@ -1,6 +1,7 @@
 using CityService.Application.DTOs;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
+using CityService.Services;
 using Microsoft.Extensions.Logging;
 
 namespace CityService.Application.Services;
@@ -13,17 +14,20 @@ public class UserCityContentApplicationService : IUserCityContentService
     private readonly IUserCityPhotoRepository _photoRepository;
     private readonly IUserCityExpenseRepository _expenseRepository;
     private readonly IUserCityReviewRepository _reviewRepository;
+    private readonly IUserServiceClient _userServiceClient;
     private readonly ILogger<UserCityContentApplicationService> _logger;
 
     public UserCityContentApplicationService(
         IUserCityPhotoRepository photoRepository,
         IUserCityExpenseRepository expenseRepository,
         IUserCityReviewRepository reviewRepository,
+        IUserServiceClient userServiceClient,
         ILogger<UserCityContentApplicationService> logger)
     {
         _photoRepository = photoRepository;
         _expenseRepository = expenseRepository;
         _reviewRepository = reviewRepository;
+        _userServiceClient = userServiceClient;
         _logger = logger;
     }
 
@@ -124,7 +128,7 @@ public class UserCityContentApplicationService : IUserCityContentService
 
     #region 评论相关
 
-    public async Task<UserCityReviewDto> UpsertReviewAsync(Guid userId, UpsertCityReviewRequest request)
+    public async Task<UserCityReviewDto> CreateReviewAsync(Guid userId, UpsertCityReviewRequest request)
     {
         var review = new UserCityReview
         {
@@ -142,21 +146,40 @@ public class UserCityContentApplicationService : IUserCityContentService
             WeatherScore = request.WeatherScore
         };
 
-        var upserted = await _reviewRepository.UpsertAsync(review);
-        _logger.LogInformation("用户 {UserId} 更新了城市 {CityId} 的评论", userId, request.CityId);
+        var created = await _reviewRepository.CreateAsync(review); // ✅ 改为 CreateAsync,每次都新增记录
+        _logger.LogInformation("用户 {UserId} 为城市 {CityId} 添加了新评论 {ReviewId}", userId, request.CityId, created.Id);
 
-        return MapReviewToDto(upserted);
+        return MapReviewToDto(created);
     }
 
     public async Task<IEnumerable<UserCityReviewDto>> GetCityReviewsAsync(string cityId)
     {
         var reviews = await _reviewRepository.GetByCityIdAsync(cityId);
         var result = new List<UserCityReviewDto>();
-        
+
+        // ✅ 收集所有唯一的 userId
+        var userIds = reviews.Select(r => r.UserId.ToString()).Distinct().ToList();
+
+        // ✅ 通过 Dapr 批量获取用户信息
+        var usersInfo = await _userServiceClient.GetUsersInfoAsync(userIds);
+
         foreach (var review in reviews)
         {
             var dto = MapReviewToDto(review);
-            
+
+            // ✅ 从 UserService 获取的用户信息填充到 DTO
+            if (usersInfo.TryGetValue(review.UserId.ToString(), out var userInfo))
+            {
+                dto.Username = userInfo.Username; // Username 属性会返回 Name 或 Email 前缀
+                dto.UserAvatar = null; // UserService 当前不返回头像
+            }
+            else
+            {
+                // 如果获取失败,使用默认值
+                dto.Username = $"User {review.UserId.ToString().Substring(0, 8)}";
+                dto.UserAvatar = null;
+            }
+
             // ✅ 查询该用户在该城市的所有照片
             var photos = await _photoRepository.GetByCityIdAndUserIdAsync(cityId, review.UserId);
             dto.PhotoUrls = photos.Select(p => p.ImageUrl).ToList();
@@ -167,26 +190,31 @@ public class UserCityContentApplicationService : IUserCityContentService
         return result;
     }
 
-    public async Task<UserCityReviewDto?> GetUserReviewAsync(Guid userId, string cityId)
+    public async Task<IEnumerable<UserCityReviewDto>> GetUserReviewsAsync(Guid userId, string cityId)
     {
-        var review = await _reviewRepository.GetByCityIdAndUserIdAsync(cityId, userId);
-        if (review == null) return null;
-        
-        var dto = MapReviewToDto(review);
-        
-        // ✅ 查询该用户在该城市的所有照片
-        var photos = await _photoRepository.GetByCityIdAndUserIdAsync(cityId, userId);
-        dto.PhotoUrls = photos.Select(p => p.ImageUrl).ToList();
-        
-        return dto;
+        var reviews = await _reviewRepository.GetByCityIdAndUserIdAsync(cityId, userId);
+        var dtos = new List<UserCityReviewDto>();
+
+        foreach (var review in reviews)
+        {
+            var dto = MapReviewToDto(review);
+
+            // ✅ 查询该用户在该城市的所有照片
+            var photos = await _photoRepository.GetByCityIdAndUserIdAsync(cityId, userId);
+            dto.PhotoUrls = photos.Select(p => p.ImageUrl).ToList();
+
+            dtos.Add(dto);
+        }
+
+        return dtos;
     }
 
-    public async Task<bool> DeleteReviewAsync(Guid userId, string cityId)
+    public async Task<bool> DeleteReviewAsync(Guid userId, Guid reviewId)
     {
-        var deleted = await _reviewRepository.DeleteAsync(cityId, userId);
+        var deleted = await _reviewRepository.DeleteAsync(reviewId, userId);
         if (deleted)
         {
-            _logger.LogInformation("用户 {UserId} 删除了城市 {CityId} 的评论", userId, cityId);
+            _logger.LogInformation("用户 {UserId} 删除了评论 {ReviewId}", userId, reviewId);
         }
         return deleted;
     }

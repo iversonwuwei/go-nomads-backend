@@ -27,10 +27,10 @@ public interface IUserCityContentService
 
     #region 评论相关
 
-    Task<UserCityReviewDto> UpsertReviewAsync(Guid userId, UpsertCityReviewRequest request);
+    Task<UserCityReviewDto> CreateReviewAsync(Guid userId, UpsertCityReviewRequest request);
     Task<IEnumerable<UserCityReviewDto>> GetCityReviewsAsync(string cityId);
-    Task<UserCityReviewDto?> GetUserReviewAsync(Guid userId, string cityId);
-    Task<bool> DeleteReviewAsync(Guid userId, string cityId);
+    Task<IEnumerable<UserCityReviewDto>> GetUserReviewsAsync(Guid userId, string cityId); // 获取某用户对某城市的所有评论
+    Task<bool> DeleteReviewAsync(Guid userId, Guid reviewId); // 改为通过 reviewId 删除
 
     #endregion
 

@@ -1,8 +1,4 @@
-using System.ComponentModel.DataAnnotations;
-
-namespace CityService.Application.DTOs;
-
-#region 照片相关 DTOs
+namespace CityService.DTOs;
 
 /// <summary>
 /// 用户城市照片 DTO
@@ -24,25 +20,12 @@ public class UserCityPhotoDto
 /// </summary>
 public class AddCityPhotoRequest
 {
-    [Required]
     public string CityId { get; set; } = string.Empty;
-
-    [Required]
-    [MaxLength(500)]
     public string ImageUrl { get; set; } = string.Empty;
-
-    [MaxLength(500)]
     public string? Caption { get; set; }
-
-    [MaxLength(200)]
     public string? Location { get; set; }
-
     public DateTime? TakenAt { get; set; }
 }
-
-#endregion
-
-#region 费用相关 DTOs
 
 /// <summary>
 /// 用户城市费用 DTO
@@ -52,7 +35,7 @@ public class UserCityExpenseDto
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
     public string CityId { get; set; } = string.Empty;
-    public string Category { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty; // food, transport, accommodation, activity, shopping, other
     public decimal Amount { get; set; }
     public string Currency { get; set; } = "USD";
     public string? Description { get; set; }
@@ -65,31 +48,13 @@ public class UserCityExpenseDto
 /// </summary>
 public class AddCityExpenseRequest
 {
-    [Required]
     public string CityId { get; set; } = string.Empty;
-
-    [Required]
-    [MaxLength(50)]
     public string Category { get; set; } = string.Empty;
-
-    [Required]
-    [Range(0.01, 999999999.99)]
     public decimal Amount { get; set; }
-
-    [Required]
-    [MaxLength(10)]
     public string Currency { get; set; } = "USD";
-
-    [MaxLength(500)]
     public string? Description { get; set; }
-
-    [Required]
     public DateTime Date { get; set; }
 }
-
-#endregion
-
-#region 评论相关 DTOs
 
 /// <summary>
 /// 用户城市评论 DTO
@@ -101,23 +66,12 @@ public class UserCityReviewDto
     public string Username { get; set; } = string.Empty; // ✅ 新增：从 UserService 获取的用户名
     public string? UserAvatar { get; set; } // ✅ 新增：用户头像 URL（可选）
     public string CityId { get; set; } = string.Empty;
-    public int Rating { get; set; }
+    public int Rating { get; set; } // 1-5
     public string Title { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
     public DateTime? VisitDate { get; set; }
-    public string? ReviewText { get; set; }
-    public int? InternetQualityScore { get; set; }
-    public int? SafetyScore { get; set; }
-    public int? CostScore { get; set; }
-    public int? CommunityScore { get; set; }
-    public int? WeatherScore { get; set; }
     public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
-    
-    /// <summary>
-    /// 该用户在该城市上传的照片URL列表
-    /// </summary>
-    public List<string> PhotoUrls { get; set; } = new();
+    public DateTime UpdatedAt { get; set; }
 }
 
 /// <summary>
@@ -125,45 +79,12 @@ public class UserCityReviewDto
 /// </summary>
 public class UpsertCityReviewRequest
 {
-    [Required]
     public string CityId { get; set; } = string.Empty;
-
-    [Required]
-    [Range(1, 5)]
     public int Rating { get; set; }
-
-    [Required]
-    [MaxLength(200)]
     public string Title { get; set; } = string.Empty;
-
-    [Required]
-    [MaxLength(2000)]
     public string Content { get; set; } = string.Empty;
-
     public DateTime? VisitDate { get; set; }
-
-    [MaxLength(2000)]
-    public string? ReviewText { get; set; }
-
-    [Range(1, 5)]
-    public int? InternetQualityScore { get; set; }
-
-    [Range(1, 5)]
-    public int? SafetyScore { get; set; }
-
-    [Range(1, 5)]
-    public int? CostScore { get; set; }
-
-    [Range(1, 5)]
-    public int? CommunityScore { get; set; }
-
-    [Range(1, 5)]
-    public int? WeatherScore { get; set; }
 }
-
-#endregion
-
-#region 统计相关 DTOs
 
 /// <summary>
 /// 城市用户内容统计
@@ -174,81 +95,14 @@ public class CityUserContentStatsDto
     public int PhotoCount { get; set; }
     public int ExpenseCount { get; set; }
     public int ReviewCount { get; set; }
-    public decimal? AverageRating { get; set; }
+    public double AverageRating { get; set; }
+    public int PhotoContributors { get; set; }
+    public int ExpenseContributors { get; set; }
+    public int ReviewContributors { get; set; }
 }
 
 /// <summary>
-/// 城市综合费用统计 - 基于用户提交的实际费用计算
-/// </summary>
-public class CityCostSummaryDto
-{
-    /// <summary>
-    /// 城市ID
-    /// </summary>
-    public string CityId { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 总平均费用
-    /// </summary>
-    public decimal Total { get; set; }
-
-    /// <summary>
-    /// 住宿平均费用
-    /// </summary>
-    public decimal Accommodation { get; set; }
-
-    /// <summary>
-    /// 餐饮平均费用
-    /// </summary>
-    public decimal Food { get; set; }
-
-    /// <summary>
-    /// 交通平均费用
-    /// </summary>
-    public decimal Transportation { get; set; }
-
-    /// <summary>
-    /// 活动/娱乐平均费用
-    /// </summary>
-    public decimal Activity { get; set; }
-
-    /// <summary>
-    /// 购物平均费用
-    /// </summary>
-    public decimal Shopping { get; set; }
-
-    /// <summary>
-    /// 其他平均费用
-    /// </summary>
-    public decimal Other { get; set; }
-
-    /// <summary>
-    /// 数据来源用户数
-    /// </summary>
-    public int ContributorCount { get; set; }
-
-    /// <summary>
-    /// 总费用记录数
-    /// </summary>
-    public int TotalExpenseCount { get; set; }
-
-    /// <summary>
-    /// 货币单位（统一转换为USD）
-    /// </summary>
-    public string Currency { get; set; } = "USD";
-
-    /// <summary>
-    /// 数据更新时间
-    /// </summary>
-    public DateTime UpdatedAt { get; set; }
-}
-
-#endregion
-
-#region 常量
-
-/// <summary>
-/// 费用分类常量
+/// 费用分类枚举
 /// </summary>
 public static class ExpenseCategory
 {
@@ -261,5 +115,3 @@ public static class ExpenseCategory
 
     public static readonly string[] All = { Food, Transport, Accommodation, Activity, Shopping, Other };
 }
-
-#endregion

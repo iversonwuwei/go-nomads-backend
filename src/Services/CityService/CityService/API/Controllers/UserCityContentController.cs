@@ -318,29 +318,29 @@ public class UserCityContentController : ControllerBase
     #region 评论 API
 
     /// <summary>
-    /// 创建或更新评论
+    /// 创建评论 (每次都新增一条记录)
     /// POST /api/v1/cities/{cityId}/user-content/reviews
     /// </summary>
     [HttpPost("reviews")]
-    public async Task<ActionResult<ApiResponse<UserCityReviewDto>>> UpsertReview(string cityId, [FromBody] UpsertCityReviewRequest request)
+    public async Task<ActionResult<ApiResponse<UserCityReviewDto>>> CreateReview(string cityId, [FromBody] UpsertCityReviewRequest request)
     {
         try
         {
             var userId = GetUserId();
             request.CityId = cityId;
 
-            var review = await _contentService.UpsertReviewAsync(userId, request);
+            var review = await _contentService.CreateReviewAsync(userId, request);
 
             return Ok(new ApiResponse<UserCityReviewDto>
             {
                 Success = true,
-                Message = "评论保存成功",
+                Message = "评论提交成功",
                 Data = review
             });
         }
         catch (UnauthorizedAccessException ex)
         {
-            _logger.LogWarning(ex, "未授权保存评论");
+            _logger.LogWarning(ex, "未授权提交评论");
             return Unauthorized(new ApiResponse<UserCityReviewDto>
             {
                 Success = false,
@@ -350,11 +350,11 @@ public class UserCityContentController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "保存评论失败: {CityId}", cityId);
+            _logger.LogError(ex, "提交评论失败: {CityId}", cityId);
             return StatusCode(500, new ApiResponse<UserCityReviewDto>
             {
                 Success = false,
-                Message = "保存评论失败",
+                Message = "提交评论失败",
                 Errors = new List<string> { ex.Message }
             });
         }
@@ -393,15 +393,15 @@ public class UserCityContentController : ControllerBase
 
     /// <summary>
     /// 删除评论
-    /// DELETE /api/v1/cities/{cityId}/user-content/reviews
+    /// DELETE /api/v1/cities/{cityId}/user-content/reviews/{reviewId}
     /// </summary>
-    [HttpDelete("reviews")]
-    public async Task<ActionResult<ApiResponse<object>>> DeleteReview(string cityId)
+    [HttpDelete("reviews/{reviewId}")]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteReview(string cityId, [FromRoute] Guid reviewId)
     {
         try
         {
             var userId = GetUserId();
-            var deleted = await _contentService.DeleteReviewAsync(userId, cityId);
+            var deleted = await _contentService.DeleteReviewAsync(userId, reviewId);
 
             if (!deleted)
             {

@@ -16,40 +16,24 @@ public class SupabaseUserCityReviewRepository : SupabaseRepositoryBase<UserCityR
     {
     }
 
-    public async Task<UserCityReview> UpsertAsync(UserCityReview review)
+    /// <summary>
+    /// 创建新评论(每次都插入新记录,允许同一用户对同一城市多次评论)
+    /// </summary>
+    public async Task<UserCityReview> CreateAsync(UserCityReview review)
     {
         try
         {
-            // 尝试获取现有评论
-            var existing = await GetByCityIdAndUserIdAsync(review.CityId, review.UserId);
+            // ✅ 每次都创建新记录,不检查是否已存在
+            review.CreatedAt = DateTime.UtcNow;
+            var response = await SupabaseClient
+                .From<UserCityReview>()
+                .Insert(review);
 
-            if (existing != null)
-            {
-                // 更新现有评论
-                review.Id = existing.Id;
-                review.CreatedAt = existing.CreatedAt;
-                review.UpdatedAt = DateTime.UtcNow;
-
-                var response = await SupabaseClient
-                    .From<UserCityReview>()
-                    .Update(review);
-
-                return response.Models.First();
-            }
-            else
-            {
-                // 创建新评论
-                review.CreatedAt = DateTime.UtcNow;
-                var response = await SupabaseClient
-                    .From<UserCityReview>()
-                    .Insert(review);
-
-                return response.Models.First();
-            }
+            return response.Models.First();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Upsert评论失败: {CityId}, {UserId}", review.CityId, review.UserId);
+            Logger.LogError(ex, "创建评论失败: {CityId}, {UserId}", review.CityId, review.UserId);
             throw;
         }
     }
@@ -65,37 +49,45 @@ public class SupabaseUserCityReviewRepository : SupabaseRepositoryBase<UserCityR
         return response.Models;
     }
 
-    public async Task<UserCityReview?> GetByCityIdAndUserIdAsync(string cityId, Guid userId)
+    /// <summary>
+    /// 获取用户对某个城市的所有评论(可能有多条)
+    /// </summary>
+    public async Task<IEnumerable<UserCityReview>> GetByCityIdAndUserIdAsync(string cityId, Guid userId)
     {
         try
         {
             var response = await SupabaseClient
                 .From<UserCityReview>()
                 .Where(x => x.CityId == cityId && x.UserId == userId)
-                .Single();
+                .Order(x => x.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                .Get();
 
-            return response;
+            return response.Models;
         }
-        catch
+        catch (Exception ex)
         {
-            return null;
+            Logger.LogError(ex, "获取用户城市评论失败: {CityId}, {UserId}", cityId, userId);
+            return Enumerable.Empty<UserCityReview>();
         }
     }
 
-    public async Task<bool> DeleteAsync(string cityId, Guid userId)
+    /// <summary>
+    /// 删除评论(根据 reviewId 删除)
+    /// </summary>
+    public async Task<bool> DeleteAsync(Guid reviewId, Guid userId)
     {
         try
         {
             await SupabaseClient
                 .From<UserCityReview>()
-                .Where(x => x.CityId == cityId && x.UserId == userId)
+                .Where(x => x.Id == reviewId && x.UserId == userId)
                 .Delete();
 
             return true;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "删除评论失败: {CityId}, {UserId}", cityId, userId);
+            Logger.LogError(ex, "删除评论失败: {ReviewId}, {UserId}", reviewId, userId);
             return false;
         }
     }

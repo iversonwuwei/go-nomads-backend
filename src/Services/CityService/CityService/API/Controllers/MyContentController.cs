@@ -125,33 +125,24 @@ public class MyContentController : ControllerBase
     /// GET /api/v1/user/city-content/reviews/{cityId}
     /// </summary>
     [HttpGet("reviews/{cityId}")]
-    public async Task<ActionResult<ApiResponse<UserCityReviewDto>>> GetMyReview(string cityId)
+    public async Task<ActionResult<ApiResponse<IEnumerable<UserCityReviewDto>>>> GetMyReviews(string cityId)
     {
         try
         {
             var userId = GetUserId();
-            var review = await _contentService.GetUserReviewAsync(userId, cityId);
+            var reviews = await _contentService.GetUserReviewsAsync(userId, cityId);
 
-            if (review == null)
-            {
-                return NotFound(new ApiResponse<UserCityReviewDto>
-                {
-                    Success = false,
-                    Message = "评论不存在"
-                });
-            }
-
-            return Ok(new ApiResponse<UserCityReviewDto>
+            return Ok(new ApiResponse<IEnumerable<UserCityReviewDto>>
             {
                 Success = true,
                 Message = "获取评论成功",
-                Data = review
+                Data = reviews
             });
         }
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning(ex, "未授权访问评论");
-            return Unauthorized(new ApiResponse<UserCityReviewDto>
+            return Unauthorized(new ApiResponse<IEnumerable<UserCityReviewDto>>
             {
                 Success = false,
                 Message = "未授权",
@@ -161,7 +152,7 @@ public class MyContentController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "获取用户评论失败: {CityId}", cityId);
-            return StatusCode(500, new ApiResponse<UserCityReviewDto>
+            return StatusCode(500, new ApiResponse<IEnumerable<UserCityReviewDto>>
             {
                 Success = false,
                 Message = "获取评论失败",
