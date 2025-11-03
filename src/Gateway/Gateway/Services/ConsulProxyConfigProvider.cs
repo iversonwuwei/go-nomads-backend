@@ -161,109 +161,24 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                 _logger.LogInformation("Discovered {InstanceCount} healthy instance(s) for service: {ServiceName}", 
                     healthyInstances.Count, serviceName);
 
-                var apiPath = GetApiPath(serviceName);
-                
-                // Create route config (match /api/products or /api/products/*)
-                var route = new YarpRouteConfig
+                // Get the service-specific API path mapping
+                var servicePathMappings = GetServicePathMappings(serviceName);
+
+                // Create routes for each path mapping
+                foreach (var (pathPattern, order) in servicePathMappings)
                 {
-                    RouteId = $"{serviceName}-route",
-                    ClusterId = $"{serviceName}-cluster",
-                    Match = new YarpRouteMatch
+                    var route = new YarpRouteConfig
                     {
-                        Path = $"/api/{apiPath}/{{**remainder}}"
-                    }
-                };
-                routes.Add(route);
-                
-                // Create route for exact match without trailing path
-                var exactRoute = new YarpRouteConfig
-                {
-                    RouteId = $"{serviceName}-exact-route",
-                    ClusterId = $"{serviceName}-cluster",
-                    Match = new YarpRouteMatch
-                    {
-                        Path = $"/api/{apiPath}"
-                    }
-                };
-                routes.Add(exactRoute);
-
-                // Special handling: user-service also handles /api/v1/auth endpoints
-                if (serviceName == "user-service")
-                {
-                    // v1 API auth routes
-                    var authRoute = new YarpRouteConfig
-                    {
-                        RouteId = $"{serviceName}-auth-v1-route",
+                        RouteId = $"{serviceName}-{pathPattern.Replace("/", "-").Replace("{", "").Replace("}", "").Replace("*", "")}-route",
                         ClusterId = $"{serviceName}-cluster",
                         Match = new YarpRouteMatch
                         {
-                            Path = "/api/v1/auth/{**remainder}"
-                        }
+                            Path = pathPattern
+                        },
+                        Order = order // Higher priority routes should have lower order numbers
                     };
-                    routes.Add(authRoute);
-
-                    var authExactRoute = new YarpRouteConfig
-                    {
-                        RouteId = $"{serviceName}-auth-v1-exact-route",
-                        ClusterId = $"{serviceName}-cluster",
-                        Match = new YarpRouteMatch
-                        {
-                            Path = "/api/v1/auth"
-                        }
-                    };
-                    routes.Add(authExactRoute);
-
-                    _logger.LogInformation("Added /api/v1/auth routes for user-service");
-
-                    // v1 API skills routes
-                    var skillsRoute = new YarpRouteConfig
-                    {
-                        RouteId = $"{serviceName}-skills-v1-route",
-                        ClusterId = $"{serviceName}-cluster",
-                        Match = new YarpRouteMatch
-                        {
-                            Path = "/api/v1/skills/{**remainder}"
-                        }
-                    };
-                    routes.Add(skillsRoute);
-
-                    var skillsExactRoute = new YarpRouteConfig
-                    {
-                        RouteId = $"{serviceName}-skills-v1-exact-route",
-                        ClusterId = $"{serviceName}-cluster",
-                        Match = new YarpRouteMatch
-                        {
-                            Path = "/api/v1/skills"
-                        }
-                    };
-                    routes.Add(skillsExactRoute);
-
-                    _logger.LogInformation("Added /api/v1/skills routes for user-service");
-
-                    // v1 API interests routes
-                    var interestsRoute = new YarpRouteConfig
-                    {
-                        RouteId = $"{serviceName}-interests-v1-route",
-                        ClusterId = $"{serviceName}-cluster",
-                        Match = new YarpRouteMatch
-                        {
-                            Path = "/api/v1/interests/{**remainder}"
-                        }
-                    };
-                    routes.Add(interestsRoute);
-
-                    var interestsExactRoute = new YarpRouteConfig
-                    {
-                        RouteId = $"{serviceName}-interests-v1-exact-route",
-                        ClusterId = $"{serviceName}-cluster",
-                        Match = new YarpRouteMatch
-                        {
-                            Path = "/api/v1/interests"
-                        }
-                    };
-                    routes.Add(interestsExactRoute);
-
-                    _logger.LogInformation("Added /api/v1/interests routes for user-service");
+                    routes.Add(route);
+                    _logger.LogInformation("Added route {RouteId}: {Path} (order: {Order})", route.RouteId, pathPattern, order);
                 }
 
                 // Create cluster config with all healthy instances
@@ -364,6 +279,55 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             "ai-service" => "v1/ai",
             "gateway" => "gateway",
             _ => serviceName
+        };
+    }
+
+    /// <summary>
+    /// Get route path mappings for each service
+    /// Returns list of (pathPattern, order) tuples
+    /// Lower order = higher priority
+    /// </summary>
+    private List<(string PathPattern, int Order)> GetServicePathMappings(string serviceName)
+    {
+        return serviceName switch
+        {
+            "city-service" => new List<(string, int)>
+            {
+                // Specific paths first (higher priority, lower order number)
+                ("/api/v1/user-favorite-cities/{**catch-all}", 1),
+                ("/api/v1/cities/{cityId}/user-content/{**catch-all}", 2),
+                ("/api/v1/cities/{**catch-all}", 3),
+                ("/api/v1/countries/{**catch-all}", 4),
+                ("/api/v1/provinces/{**catch-all}", 5)
+            },
+            "user-service" => new List<(string, int)>
+            {
+                ("/api/v1/auth/{**catch-all}", 1),
+                ("/api/v1/users/{**catch-all}", 2),
+                ("/api/v1/skills/{**catch-all}", 3),
+                ("/api/v1/interests/{**catch-all}", 4)
+            },
+            "event-service" => new List<(string, int)>
+            {
+                ("/api/v1/events/{**catch-all}", 1)
+            },
+            "ai-service" => new List<(string, int)>
+            {
+                ("/api/v1/ai/{**catch-all}", 1)
+            },
+            "coworking-service" => new List<(string, int)>
+            {
+                ("/api/v1/coworking/{**catch-all}", 1)
+            },
+            "product-service" => new List<(string, int)>
+            {
+                ("/api/v1/products/{**catch-all}", 1)
+            },
+            _ => new List<(string, int)>
+            {
+                // Default catch-all for unknown services
+                ($"/api/v1/{serviceName}/{{**catch-all}}", 100)
+            }
         };
     }
 

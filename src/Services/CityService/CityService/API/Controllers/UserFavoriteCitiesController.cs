@@ -1,8 +1,7 @@
 using CityService.Application.Services;
 using CityService.DTOs;
-using Microsoft.AspNetCore.Authorization;
+using GoNomads.Shared.Middleware;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace CityService.API.Controllers;
 
@@ -11,7 +10,6 @@ namespace CityService.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/user-favorite-cities")]
-[Authorize]
 public class UserFavoriteCitiesController : ControllerBase
 {
     private readonly IUserFavoriteCityService _favoriteCityService;
@@ -190,23 +188,16 @@ public class UserFavoriteCitiesController : ControllerBase
     }
 
     /// <summary>
-    /// 获取当前用户ID
+    /// 获取当前用户ID（从 UserContext 中获取）
     /// </summary>
     private Guid GetCurrentUserId()
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                          ?? User.FindFirst("sub")?.Value;
-
-        if (string.IsNullOrEmpty(userIdClaim))
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
         {
-            throw new UnauthorizedAccessException("无法获取用户ID");
+            throw new UnauthorizedAccessException("用户未认证");
         }
 
-        if (!Guid.TryParse(userIdClaim, out var userId))
-        {
-            throw new UnauthorizedAccessException("用户ID格式无效");
-        }
-
-        return userId;
+        return Guid.Parse(userContext.UserId);
     }
 }
