@@ -117,6 +117,8 @@ public class GenerateTravelPlanRequest
 
     public string? DepartureLocation { get; set; }
 
+    public DateTime? DepartureDate { get; set; }
+
     public string? CustomBudget { get; set; }
 
     public string? Currency { get; set; } = "USD";

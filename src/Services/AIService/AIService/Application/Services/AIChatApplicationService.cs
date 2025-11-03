@@ -824,12 +824,28 @@ public class AIChatApplicationService : IAIChatService
     /// </summary>
     private async Task<(TransportationPlanDto, AccommodationPlanDto)> GenerateBasicInfoAsync(GenerateTravelPlanRequest request)
     {
+        // 构建出发地点和日期信息
+        var departureDateInfo = request.DepartureDate.HasValue
+            ? $"出发日期：{request.DepartureDate.Value:yyyy年MM月dd日}"
+            : "";
+
         var prompt = $@"请为{request.CityName}的旅行规划交通和住宿方案。
 
 旅行信息：
 - 目的地：{request.CityName}
 - 旅行天数：{request.Duration}天
 - 预算：{GetBudgetDescription(request.Budget)}
+{(string.IsNullOrEmpty(request.DepartureLocation) ? "" : $"- 出发地：{request.DepartureLocation}")}
+{(string.IsNullOrEmpty(departureDateInfo) ? "" : $"- {departureDateInfo}")}
+
+交通规划要求：
+1. 如果提供了出发地点，请推荐3-5个航班选择，包括：
+   - 航空公司
+   - 航班号
+   - 大致时间（早班/午班/晚班）
+   - 估计价格区间
+   - 飞行时长
+2. 如果没有出发地点，提供一般性的到达建议
 
 请以 JSON 格式返回，包含两个部分：
 
@@ -837,6 +853,16 @@ public class AIChatApplicationService : IAIChatService
   ""transportation"": {{
     ""arrivalMethod"": ""到达方式（飞机/火车/汽车）"",
     ""arrivalDetails"": ""到达详情"",
+    ""flightRecommendations"": [
+      {{
+        ""airline"": ""航空公司"",
+        ""flightNumber"": ""航班号（如：CA1234）"",
+        ""timeSlot"": ""时间段（早班/午班/晚班）"",
+        ""priceRange"": ""价格区间（如：500-800美元）"",
+        ""duration"": ""飞行时长（如：2小时30分钟）"",
+        ""notes"": ""备注信息""
+      }}
+    ],
     ""estimatedCost"": 费用数字,
     ""localTransport"": ""当地交通方式（用逗号分隔，如：地铁,公交,出租车）"",
     ""localTransportDetails"": ""详情"",
@@ -852,11 +878,21 @@ public class AIChatApplicationService : IAIChatService
   }}
 }}
 
-注意：所有数字字段必须是数字类型，不要用字符串。localTransport 必须是字符串，用逗号分隔多个交通方式。";
+注意：
+1. 所有数字字段必须是数字类型，不要用字符串
+2. localTransport 必须是字符串，用逗号分隔多个交通方式
+3. flightRecommendations 数组在没有出发地时可以为空数组
+4. 如果有出发地和日期，请提供符合该时间段的实际航班建议（基于常见航线）";
 
-        var response = await CallAIAsync(prompt, 1500); // 增加到 1500
+        _logger.LogInformation($"📝 发送给 AI 的 prompt (前500字符): {prompt.Substring(0, Math.Min(500, prompt.Length))}...");
+        _logger.LogInformation($"📍 出发地: {request.DepartureLocation ?? "未提供"}, 出发日期: {(request.DepartureDate.HasValue ? request.DepartureDate.Value.ToString("yyyy-MM-dd") : "未提供")}");
+
+        var response = await CallAIAsync(prompt, 2000); // 增加token以容纳航班信息
         var json = ExtractJsonFromAIResponse(response);
-        
+
+        // 调试日志：打印 AI 返回的 JSON
+        _logger.LogInformation($"🔍 AI 返回的交通住宿 JSON: {json.Substring(0, Math.Min(500, json.Length))}...");
+
         // 验证 JSON 是否完整
         ValidateJsonComplete(json, "步骤1-交通住宿");
         
@@ -871,6 +907,43 @@ public class AIChatApplicationService : IAIChatService
         {
             transportation.ArrivalMethod = trans.TryGetProperty("arrivalMethod", out var am) ? am.GetString() ?? "" : "";
             transportation.ArrivalDetails = trans.TryGetProperty("arrivalDetails", out var ad) ? ad.GetString() ?? "" : "";
+
+            // 处理航班推荐
+            if (trans.TryGetProperty("flightRecommendations", out var flights) && flights.ValueKind == JsonValueKind.Array)
+            {
+                _logger.LogInformation($"✈️ 找到航班推荐数组，数量: {flights.GetArrayLength()}");
+                var flightsList = new List<string>();
+                foreach (var flight in flights.EnumerateArray())
+                {
+                    var airline = flight.TryGetProperty("airline", out var al) ? al.GetString() ?? "" : "";
+                    var flightNum = flight.TryGetProperty("flightNumber", out var fn) ? fn.GetString() ?? "" : "";
+                    var timeSlot = flight.TryGetProperty("timeSlot", out var ts) ? ts.GetString() ?? "" : "";
+                    var priceRange = flight.TryGetProperty("priceRange", out var pr) ? pr.GetString() ?? "" : "";
+                    var duration = flight.TryGetProperty("duration", out var dur) ? dur.GetString() ?? "" : "";
+                    var notes = flight.TryGetProperty("notes", out var nt) ? nt.GetString() ?? "" : "";
+
+                    var flightInfo = $"{airline} {flightNum} ({timeSlot}) - {priceRange}, {duration}";
+                    if (!string.IsNullOrEmpty(notes))
+                    {
+                        flightInfo += $" - {notes}";
+                    }
+                    flightsList.Add(flightInfo);
+                    _logger.LogInformation($"✈️ 解析航班: {flightInfo}");
+                }
+
+                if (flightsList.Any())
+                {
+                    // 将航班信息添加到 arrivalDetails 中
+                    var flightInfo = string.Join("\n", flightsList);
+                    transportation.ArrivalDetails += $"\n\n航班推荐：\n{flightInfo}";
+                    _logger.LogInformation($"✅ 已添加 {flightsList.Count} 个航班推荐到 arrivalDetails");
+                }
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ JSON 中未找到 flightRecommendations 数组或格式不正确");
+            }
+
             transportation.EstimatedCost = trans.TryGetProperty("estimatedCost", out var ec) ? ec.GetDouble() : 0;
             
             // 处理 localTransport - 可能是字符串或数组
