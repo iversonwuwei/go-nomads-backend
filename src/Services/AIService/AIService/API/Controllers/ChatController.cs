@@ -1184,5 +1184,221 @@ public class ChatController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// 生成数字游民旅游指南
+    /// </summary>
+    [HttpPost("travel-guide")]
+    public async Task<ActionResult<ApiResponse<TravelGuideResponse>>> GenerateTravelGuide([FromBody] GenerateTravelGuideRequest request)
+    {
+        try
+        {
+            // 获取当前用户ID(可选,AIService 不强制要求认证)
+            var userId = this.GetUserId();
+            
+            // 如果没有用户上下文,使用匿名用户ID
+            if (userId == Guid.Empty)
+            {
+                userId = Guid.Parse("00000000-0000-0000-0000-000000000001"); // 匿名用户
+                _logger.LogInformation("ℹ️ 匿名用户生成旅游指南");
+            }
+
+            _logger.LogInformation("📖 开始生成数字游民旅游指南 - 城市: {CityName}, 用户: {UserId}", 
+                request.CityName, userId);
+
+            // 调用AI服务生成旅游指南
+            var result = await _aiChatService.GenerateTravelGuideAsync(request, userId);
+            
+            _logger.LogInformation("✅ 旅游指南生成成功 - 城市: {CityName}", request.CityName);
+            
+            return Ok(new ApiResponse<TravelGuideResponse>
+            {
+                Success = true,
+                Message = "旅游指南生成成功",
+                Data = result
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 生成旅游指南参数错误: {Message}", ex.Message);
+            return BadRequest(new ApiResponse<TravelGuideResponse>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(ex, "❌ AI响应解析失败: {Message}", ex.Message);
+            return StatusCode(500, new ApiResponse<TravelGuideResponse>
+            {
+                Success = false,
+                Message = "AI服务返回格式错误,请稍后重试"
+            });
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            _logger.LogError(ex, "❌ JSON解析失败: {Message}", ex.Message);
+            return StatusCode(500, new ApiResponse<TravelGuideResponse>
+            {
+                Success = false,
+                Message = "数据解析失败,请稍后重试"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 生成旅游指南失败");
+            return StatusCode(500, new ApiResponse<TravelGuideResponse>
+            {
+                Success = false,
+                Message = "生成旅游指南失败,请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
+    /// 流式生成数字游民旅游指南 - 带进度条
+    /// </summary>
+    [HttpPost("travel-guide/stream")]
+    public async Task GenerateTravelGuideStream([FromBody] GenerateTravelGuideRequest request)
+    {
+        Response.Headers.Append("Content-Type", "text/event-stream");
+        Response.Headers.Append("Cache-Control", "no-cache");
+        Response.Headers.Append("Connection", "keep-alive");
+
+        try
+        {
+            // 获取当前用户ID
+            var userId = this.GetUserId();
+            if (userId == Guid.Empty)
+            {
+                userId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+            }
+
+            _logger.LogInformation("📖 [流式] 开始生成数字游民旅游指南 - 城市: {CityName}", request.CityName);
+
+            // 发送开始事件
+            await SendProgressEvent("start", new { message = "开始生成旅游指南...", progress = 0 });
+            await Response.Body.FlushAsync();
+
+            // 调用 AI 服务,传入进度回调
+            var result = await _aiChatService.GenerateTravelGuideAsync(
+                request, 
+                userId,
+                async (progress, message) =>
+                {
+                    await SendProgressEvent("progress", new { message, progress });
+                    await Response.Body.FlushAsync();
+                });
+
+            // 发送成功事件
+            await SendProgressEvent("success", new 
+            { 
+                message = "旅游指南生成成功!", 
+                progress = 100,
+                data = result 
+            });
+            await Response.Body.FlushAsync();
+
+            _logger.LogInformation("✅ [流式] 旅游指南生成成功 - 城市: {CityName}", request.CityName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [流式] 生成旅游指南失败");
+            await SendProgressEvent("error", new { message = $"生成失败: {ex.Message}", progress = 0 });
+            await Response.Body.FlushAsync();
+        }
+    }
+
+    /// <summary>
+    /// 创建数字游民指南生成任务(异步)
+    /// </summary>
+    [HttpPost("guide/async")]
+    [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<CreateTaskResponse>>> CreateDigitalNomadGuideTaskAsync(
+        [FromBody] GenerateTravelGuideRequest request,
+        [FromServices] IMessageBus messageBus,
+        [FromServices] IRedisCache cache)
+    {
+        try
+        {
+            _logger.LogInformation("📥 收到异步数字游民指南请求: CityId={CityId}, CityName={CityName}",
+                request.CityId, request.CityName);
+
+            if (!ModelState.IsValid)
+            {
+                var errors = string.Join("; ", ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage));
+                _logger.LogWarning("⚠️ 请求验证失败: {Errors}", errors);
+                return BadRequest(new ApiResponse<CreateTaskResponse>
+                {
+                    Success = false,
+                    Message = $"请求验证失败: {errors}"
+                });
+            }
+
+            var userId = this.GetUserId();
+            if (userId == Guid.Empty)
+            {
+                userId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+                _logger.LogWarning("⚠️ 用户未认证,使用测试用户ID: {UserId}", userId);
+            }
+
+            // 生成任务ID
+            var taskId = Guid.NewGuid().ToString("N");
+
+            // 创建任务消息
+            var taskMessage = new DigitalNomadGuideTaskMessage
+            {
+                TaskId = taskId,
+                UserId = userId,
+                Request = request,
+                ConnectionId = Request.Headers["X-SignalR-ConnectionId"].FirstOrDefault(),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            // 初始化任务状态
+            var taskStatus = new Models.TaskStatus
+            {
+                TaskId = taskId,
+                Status = "queued",
+                Progress = 0,
+                ProgressMessage = "指南任务已创建,等待处理...",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            // 保存到 Redis (24小时过期)
+            await cache.SetAsync($"task:{taskId}", taskStatus, TimeSpan.FromHours(24));
+
+            // 发布到消息队列
+            await messageBus.PublishAsync("digital-nomad-guide-tasks", taskMessage);
+
+            _logger.LogInformation("✅ 指南任务已创建: {TaskId}, UserId: {UserId}", taskId, userId);
+
+            return Ok(new ApiResponse<CreateTaskResponse>
+            {
+                Success = true,
+                Message = "任务创建成功",
+                Data = new CreateTaskResponse
+                {
+                    TaskId = taskId,
+                    Status = "queued",
+                    EstimatedTimeSeconds = 120, // 预计2分钟
+                    Message = "数字游民指南生成任务已创建,请等待处理"
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 创建指南任务失败");
+            return StatusCode(500, new ApiResponse<CreateTaskResponse>
+            {
+                Success = false,
+                Message = $"创建任务失败: {ex.Message}"
+            });
+        }
+    }
+
     #endregion
 }

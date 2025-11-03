@@ -54,6 +54,16 @@ public class TaskStatus
     public string? PlanId { get; set; }
 
     /// <summary>
+    /// 生成的数字游民指南ID (状态为completed时)
+    /// </summary>
+    public string? GuideId { get; set; }
+
+    /// <summary>
+    /// 任务结果数据 (JSON格式)
+    /// </summary>
+    public object? Result { get; set; }
+
+    /// <summary>
     /// 错误信息 (状态为failed时)
     /// </summary>
     public string? Error { get; set; }

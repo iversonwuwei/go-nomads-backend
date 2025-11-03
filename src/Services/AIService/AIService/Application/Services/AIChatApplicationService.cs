@@ -1330,4 +1330,226 @@ JSON 格式（描述简洁）：
 
         return content;
     }
+
+    /// <summary>
+    /// 生成数字游民旅游指南
+    /// </summary>
+    public async Task<TravelGuideResponse> GenerateTravelGuideAsync(
+        GenerateTravelGuideRequest request, 
+        Guid userId,
+        Func<int, string, Task>? onProgress = null)
+    {
+        try
+        {
+            _logger.LogInformation("📖 开始生成数字游民旅游指南 - 城市: {CityName}, 用户ID: {UserId}", 
+                request.CityName, userId);
+
+            // 步骤 1: 准备和分析 - 20%
+            if (onProgress != null) await onProgress(10, "正在分析城市信息...");
+
+            // 构建 Prompt
+            var prompt = BuildTravelGuidePrompt(request);
+            
+            // 步骤 2: 调用 AI 服务 - 30%
+            if (onProgress != null) await onProgress(30, "AI 正在生成旅游指南...");
+            
+            _logger.LogInformation("🤖 调用 Qwen AI 生成旅游指南...");
+            var aiResponse = await CallAIAsync(prompt, 2000); // 2000 tokens 应该足够
+            
+            // 步骤 3: 接收响应 - 60%
+            if (onProgress != null) await onProgress(60, "正在处理 AI 响应...");
+            _logger.LogInformation("✅ AI 响应接收完成，长度: {Length}", aiResponse.Length);
+
+            // 步骤 4: 解析 AI 响应 - 80%
+            if (onProgress != null) await onProgress(80, "正在解析指南内容...");
+            var guide = ParseTravelGuideFromAI(aiResponse, request);
+            
+            // 步骤 5: 完成 - 100%
+            if (onProgress != null) await onProgress(100, "旅游指南生成完成!");
+            
+            _logger.LogInformation("✅ 数字游民旅游指南生成成功 - 城市: {CityName}", request.CityName);
+            return guide;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 生成数字游民旅游指南失败，城市: {CityName}", request.CityName);
+            throw;
+        }
+    }
+
+    private string BuildTravelGuidePrompt(GenerateTravelGuideRequest request)
+    {
+        return $@"请为 {request.CityName} 生成一份详细的数字游民旅游指南。
+
+请以 JSON 格式返回以下信息：
+
+{{
+  ""overview"": ""城市概述（适合数字游民的整体评价，包括工作环境、生活成本、社区氛围等，200-300字）"",
+  ""visaInfo"": {{
+    ""type"": ""签证类型（如：旅游签证、数字游民签证、落地签等）"",
+    ""duration"": 签证有效天数（数字），
+    ""requirements"": ""签证申请要求（详细说明所需材料和条件）"",
+    ""cost"": 签证费用（数字，美元），
+    ""process"": ""申请流程（详细步骤说明）""
+  }},
+  ""bestAreas"": [
+    {{
+      ""name"": ""区域名称1"",
+      ""description"": ""区域整体描述（100-150字）"",
+      ""entertainmentScore"": 娱乐评分（1-5的数字），
+      ""entertainmentDescription"": ""娱乐设施说明（酒吧、餐厅、夜生活等）"",
+      ""tourismScore"": 旅游评分（1-5的数字），
+      ""tourismDescription"": ""旅游景点说明（附近景点、文化地标等）"",
+      ""economyScore"": 经济评分（1-5的数字，1最便宜，5最贵），
+      ""economyDescription"": ""生活成本说明（住宿、餐饮、日常开销等）"",
+      ""cultureScore"": 文化评分（1-5的数字），
+      ""cultureDescription"": ""文化特色说明（当地文化、艺术氛围、历史底蕴等）""
+    }},
+    {{
+      ""name"": ""区域名称2"",
+      ""description"": ""区域整体描述"",
+      ""entertainmentScore"": 娱乐评分（1-5），
+      ""entertainmentDescription"": ""娱乐设施说明"",
+      ""tourismScore"": 旅游评分（1-5），
+      ""tourismDescription"": ""旅游景点说明"",
+      ""economyScore"": 经济评分（1-5），
+      ""economyDescription"": ""生活成本说明"",
+      ""cultureScore"": 文化评分（1-5），
+      ""cultureDescription"": ""文化特色说明""
+    }},
+    {{
+      ""name"": ""区域名称3"",
+      ""description"": ""区域整体描述"",
+      ""entertainmentScore"": 娱乐评分（1-5），
+      ""entertainmentDescription"": ""娱乐设施说明"",
+      ""tourismScore"": 旅游评分（1-5），
+      ""tourismDescription"": ""旅游景点说明"",
+      ""economyScore"": 经济评分（1-5），
+      ""economyDescription"": ""生活成本说明"",
+      ""cultureScore"": 文化评分（1-5），
+      ""cultureDescription"": ""文化特色说明""
+    }}
+  ],
+  ""workspaceRecommendations"": [
+    ""共享办公空间推荐1（包括名称、地址、价格范围、特色）"",
+    ""共享办公空间推荐2"",
+    ""咖啡馆推荐（适合工作的咖啡馆）""
+  ],
+  ""tips"": [
+    ""实用建议1（关于生活、工作、社交等方面）"",
+    ""实用建议2"",
+    ""实用建议3"",
+    ""实用建议4"",
+    ""实用建议5""
+  ],
+  ""essentialInfo"": {{
+    ""SIM卡"": ""当地 SIM 卡购买和使用建议"",
+    ""银行开户"": ""银行账户开设建议"",
+    ""交通"": ""当地交通方式和建议"",
+    ""医疗"": ""医疗保险和就医建议"",
+    ""网络"": ""互联网质量和推荐供应商"",
+    ""语言"": ""当地语言和英语使用情况"",
+    ""安全"": ""安全注意事项"",
+    ""社区"": ""数字游民社区和活动信息""
+  }}
+}}
+
+要求：
+1. 所有信息要准确、实用、最新
+2. 特别关注数字游民的工作和生活需求
+3. 提供具体的地点、价格、网站等信息
+4. tips 要具体可操作
+5. bestAreas 必须包含3个推荐区域，每个区域从娱乐、旅游、经济、文化四个维度评分和描述
+6. 必须返回严格的 JSON 格式，不要添加任何额外的文字说明
+7. 所有文本使用中文
+8. 所有评分必须是数字(1-5),不要使用字符串";
+    }
+
+    private TravelGuideResponse ParseTravelGuideFromAI(string aiContent, GenerateTravelGuideRequest request)
+    {
+        try
+        {
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+
+            // 提取 JSON 内容
+            var jsonContent = ExtractJsonFromAIResponse(aiContent);
+            _logger.LogInformation("🔍 提取的 JSON 内容: {JsonContent}", jsonContent);
+
+            var jsonDoc = JsonDocument.Parse(jsonContent);
+            var root = jsonDoc.RootElement;
+
+            return new TravelGuideResponse
+            {
+                CityId = request.CityId,
+                CityName = request.CityName,
+                Overview = root.TryGetProperty("overview", out var overview) ? overview.GetString() ?? "" : "",
+                VisaInfo = root.TryGetProperty("visaInfo", out var visaInfo) ? ParseVisaInfo(visaInfo) : new VisaInfoDto(),
+                BestAreas = root.TryGetProperty("bestAreas", out var areas) ? ParseBestAreas(areas) : new List<BestAreaDto>(),
+                WorkspaceRecommendations = root.TryGetProperty("workspaceRecommendations", out var workspaces) ? ParseStringArray(workspaces) : new List<string>(),
+                Tips = root.TryGetProperty("tips", out var tips) ? ParseStringArray(tips) : new List<string>(),
+                EssentialInfo = root.TryGetProperty("essentialInfo", out var essentialInfo) ? ParseEssentialInfo(essentialInfo) : new Dictionary<string, string>()
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 解析旅游指南 JSON 失败: {Content}", aiContent);
+            throw new JsonException("无法解析 AI 生成的旅游指南", ex);
+        }
+    }
+
+    private List<BestAreaDto> ParseBestAreas(JsonElement element)
+    {
+        var areas = new List<BestAreaDto>();
+        
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.Object)
+                {
+                    areas.Add(new BestAreaDto
+                    {
+                        Name = item.TryGetProperty("name", out var name) ? name.GetString() ?? "" : "",
+                        Description = item.TryGetProperty("description", out var desc) ? desc.GetString() ?? "" : "",
+                        EntertainmentScore = item.TryGetProperty("entertainmentScore", out var entScore) ? entScore.GetDouble() : 0,
+                        EntertainmentDescription = item.TryGetProperty("entertainmentDescription", out var entDesc) ? entDesc.GetString() ?? "" : "",
+                        TourismScore = item.TryGetProperty("tourismScore", out var tourScore) ? tourScore.GetDouble() : 0,
+                        TourismDescription = item.TryGetProperty("tourismDescription", out var tourDesc) ? tourDesc.GetString() ?? "" : "",
+                        EconomyScore = item.TryGetProperty("economyScore", out var ecoScore) ? ecoScore.GetDouble() : 0,
+                        EconomyDescription = item.TryGetProperty("economyDescription", out var ecoDesc) ? ecoDesc.GetString() ?? "" : "",
+                        CultureScore = item.TryGetProperty("cultureScore", out var culScore) ? culScore.GetDouble() : 0,
+                        CultureDescription = item.TryGetProperty("cultureDescription", out var culDesc) ? culDesc.GetString() ?? "" : ""
+                    });
+                }
+            }
+        }
+        
+        return areas;
+    }
+
+    private VisaInfoDto ParseVisaInfo(JsonElement element)
+    {
+        return new VisaInfoDto
+        {
+            Type = element.TryGetProperty("type", out var type) ? type.GetString() ?? "" : "",
+            Duration = element.TryGetProperty("duration", out var duration) ? duration.GetInt32() : 0,
+            Requirements = element.TryGetProperty("requirements", out var requirements) ? requirements.GetString() ?? "" : "",
+            Cost = element.TryGetProperty("cost", out var cost) ? cost.GetDouble() : 0,
+            Process = element.TryGetProperty("process", out var process) ? process.GetString() ?? "" : ""
+        };
+    }
+
+    private Dictionary<string, string> ParseEssentialInfo(JsonElement element)
+    {
+        var dict = new Dictionary<string, string>();
+        foreach (var property in element.EnumerateObject())
+        {
+            dict[property.Name] = property.Value.GetString() ?? "";
+        }
+        return dict;
+    }
 }

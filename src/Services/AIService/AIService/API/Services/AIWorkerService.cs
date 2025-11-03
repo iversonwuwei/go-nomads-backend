@@ -30,16 +30,24 @@ public class AIWorkerService : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var messageBus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
+        // 订阅旅行计划任务
         await messageBus.SubscribeAsync<TravelPlanTaskMessage>(
             queueName: "travel-plan-tasks",
-            handler: async (message) => await ProcessTaskAsync(message, stoppingToken),
+            handler: async (message) => await ProcessTravelPlanTaskAsync(message, stoppingToken),
+            cancellationToken: stoppingToken
+        );
+
+        // 订阅数字游民指南任务
+        await messageBus.SubscribeAsync<DigitalNomadGuideTaskMessage>(
+            queueName: "digital-nomad-guide-tasks",
+            handler: async (message) => await ProcessGuideTaskAsync(message, stoppingToken),
             cancellationToken: stoppingToken
         );
 
         _logger.LogInformation("⏳ AI Worker Service 正在等待任务...");
     }
 
-    private async Task ProcessTaskAsync(TravelPlanTaskMessage taskMessage, CancellationToken cancellationToken)
+    private async Task ProcessTravelPlanTaskAsync(TravelPlanTaskMessage taskMessage, CancellationToken cancellationToken)
     {
         using var scope = _serviceProvider.CreateScope();
         var cache = scope.ServiceProvider.GetRequiredService<IRedisCache>();
@@ -100,6 +108,66 @@ public class AIWorkerService : BackgroundService
         }
     }
 
+    private async Task ProcessGuideTaskAsync(DigitalNomadGuideTaskMessage taskMessage, CancellationToken cancellationToken)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var cache = scope.ServiceProvider.GetRequiredService<IRedisCache>();
+        var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
+        var chatService = scope.ServiceProvider.GetRequiredService<IAIChatService>();
+
+        var taskId = taskMessage.TaskId;
+
+        try
+        {
+            _logger.LogInformation("📖 开始处理数字游民指南任务: {TaskId}", taskId);
+
+            // 更新状态为处理中
+            await UpdateTaskStatusAsync(cache, taskId, "processing", 10, "正在生成数字游民指南...");
+            await notificationService.SendTaskProgressAsync(taskId, 10, "正在生成数字游民指南...");
+
+            // 调用 AI 服务生成指南，传递进度回调
+            var guide = await chatService.GenerateTravelGuideAsync(
+                taskMessage.Request, 
+                taskMessage.UserId,
+                async (progress, message) =>
+                {
+                    // 将内部进度映射到 10-90% 范围
+                    var mappedProgress = 10 + (int)((progress - 15) / 70.0 * 80);
+                    mappedProgress = Math.Max(10, Math.Min(90, mappedProgress));
+                    
+                    _logger.LogInformation("📊 指南任务进度: {Progress}% - {Message}", mappedProgress, message);
+                    await UpdateTaskStatusAsync(cache, taskId, "processing", mappedProgress, message);
+                    await notificationService.SendTaskProgressAsync(taskId, mappedProgress, message);
+                });
+            
+            _logger.LogInformation("✅ 数字游民指南生成成功");
+
+            await UpdateTaskStatusAsync(cache, taskId, "processing", 90, "正在保存结果...");
+            await notificationService.SendTaskProgressAsync(taskId, 90, "正在保存结果...");
+
+            // 将指南数据保存到 Redis
+            var guideJson = System.Text.Json.JsonSerializer.Serialize(guide);
+            var guideId = $"guide_{taskMessage.Request.CityId}_{Guid.NewGuid():N}";
+            await cache.SetStringAsync($"guide:{guideId}", guideJson, TimeSpan.FromHours(24));
+            
+            _logger.LogInformation("💾 数字游民指南已保存到 Redis: guide:{GuideId}, Size: {Size} bytes", guideId, guideJson.Length);
+
+            // 更新为完成状态，同时保存 Result 数据
+            await UpdateTaskStatusAsync(cache, taskId, "completed", 100, "生成完成!", guideId: guideId, result: guide);
+            await notificationService.SendTaskCompletedAsync(taskId, guideId);
+
+            _logger.LogInformation("✅ 指南任务处理完成: {TaskId} - GuideId: {GuideId}", taskId, guideId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 指南任务处理失败: {TaskId}", taskId);
+
+            // 更新为失败状态
+            await UpdateTaskStatusAsync(cache, taskId, "failed", 0, error: ex.Message);
+            await notificationService.SendTaskFailedAsync(taskId, ex.Message);
+        }
+    }
+
     private async Task UpdateTaskStatusAsync(
         IRedisCache cache,
         string taskId,
@@ -107,6 +175,8 @@ public class AIWorkerService : BackgroundService
         int progress,
         string? progressMessage = null,
         string? planId = null,
+        string? guideId = null,
+        object? result = null,
         string? error = null)
     {
         var taskStatus = new Models.TaskStatus
@@ -116,6 +186,8 @@ public class AIWorkerService : BackgroundService
             Progress = progress,
             ProgressMessage = progressMessage,
             PlanId = planId,
+            GuideId = guideId,
+            Result = result,
             Error = error,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,

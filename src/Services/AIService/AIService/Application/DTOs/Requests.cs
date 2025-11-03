@@ -123,3 +123,15 @@ public class GenerateTravelPlanRequest
 
     public List<string>? SelectedAttractions { get; set; }
 }
+
+/// <summary>
+/// 生成数字游民旅游指南请求
+/// </summary>
+public class GenerateTravelGuideRequest
+{
+    [Required(ErrorMessage = "城市ID不能为空")]
+    public string CityId { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "城市名称不能为空")]
+    public string CityName { get; set; } = string.Empty;
+}

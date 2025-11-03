@@ -191,3 +191,80 @@ public class BudgetBreakdownDto
     public double Total { get; set; }
     public string Currency { get; set; } = "USD";
 }
+
+/// <summary>
+/// 数字游民旅游指南响应
+/// </summary>
+public class TravelGuideResponse
+{
+    public string CityId { get; set; } = string.Empty;
+    public string CityName { get; set; } = string.Empty;
+    public string Overview { get; set; } = string.Empty;
+    public VisaInfoDto VisaInfo { get; set; } = new();
+    public List<BestAreaDto> BestAreas { get; set; } = new();
+    public List<string> WorkspaceRecommendations { get; set; } = new();
+    public List<string> Tips { get; set; } = new();
+    public Dictionary<string, string> EssentialInfo { get; set; } = new();
+}
+
+public class BestAreaDto
+{
+    /// <summary>
+    /// 区域名称
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// 区域描述
+    /// </summary>
+    public string Description { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// 娱乐评分 (1-5)
+    /// </summary>
+    public double EntertainmentScore { get; set; }
+    
+    /// <summary>
+    /// 娱乐设施说明
+    /// </summary>
+    public string EntertainmentDescription { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// 旅游评分 (1-5)
+    /// </summary>
+    public double TourismScore { get; set; }
+    
+    /// <summary>
+    /// 旅游景点说明
+    /// </summary>
+    public string TourismDescription { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// 经济评分 (1-5,越低越便宜)
+    /// </summary>
+    public double EconomyScore { get; set; }
+    
+    /// <summary>
+    /// 经济情况说明(生活成本)
+    /// </summary>
+    public string EconomyDescription { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// 文化评分 (1-5)
+    /// </summary>
+    public double CultureScore { get; set; }
+    
+    /// <summary>
+    /// 文化特色说明
+    /// </summary>
+    public string CultureDescription { get; set; } = string.Empty;
+}
+
+public class VisaInfoDto
+{
+    public string Type { get; set; } = string.Empty;
+    public int Duration { get; set; }
+    public string Requirements { get; set; } = string.Empty;
+    public double Cost { get; set; }
+    public string Process { get; set; } = string.Empty;
+}

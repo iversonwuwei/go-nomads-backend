@@ -74,4 +74,12 @@ public interface IAIChatService
         GenerateTravelPlanRequest request, 
         Guid userId,
         Func<int, string, Task>? onProgress = null);
+
+    /// <summary>
+    /// 生成数字游民旅游指南
+    /// </summary>
+    Task<TravelGuideResponse> GenerateTravelGuideAsync(
+        GenerateTravelGuideRequest request, 
+        Guid userId,
+        Func<int, string, Task>? onProgress = null);
 }
