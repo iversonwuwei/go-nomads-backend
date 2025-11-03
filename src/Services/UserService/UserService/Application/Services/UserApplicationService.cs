@@ -11,15 +11,21 @@ public class UserApplicationService : IUserService
 {
     private readonly IUserRepository _userRepository;
     private readonly IRoleRepository _roleRepository;
+    private readonly ISkillService _skillService;
+    private readonly IInterestService _interestService;
     private readonly ILogger<UserApplicationService> _logger;
 
     public UserApplicationService(
         IUserRepository userRepository,
         IRoleRepository roleRepository,
+        ISkillService skillService,
+        IInterestService interestService,
         ILogger<UserApplicationService> logger)
     {
         _userRepository = userRepository;
         _roleRepository = roleRepository;
+        _skillService = skillService;
+        _interestService = interestService;
         _logger = logger;
     }
 
@@ -40,7 +46,28 @@ public class UserApplicationService : IUserService
     public async Task<UserDto?> GetUserByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         var user = await _userRepository.GetByIdAsync(id, cancellationToken);
-        return user == null ? null : MapToDto(user);
+        if (user == null)
+        {
+            return null;
+        }
+
+        var userDto = MapToDto(user);
+
+        // 加载用户的技能和兴趣
+        try
+        {
+            userDto.Skills = await _skillService.GetUserSkillsAsync(id, cancellationToken);
+            userDto.Interests = await _interestService.GetUserInterestsAsync(id, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 加载用户技能/兴趣失败: UserId={UserId}", id);
+            // 即使加载失败也返回用户基本信息
+            userDto.Skills = new List<UserSkillDto>();
+            userDto.Interests = new List<UserInterestDto>();
+        }
+
+        return userDto;
     }
 
     public async Task<List<UserDto>> GetUsersByIdsAsync(List<string> ids, CancellationToken cancellationToken = default)

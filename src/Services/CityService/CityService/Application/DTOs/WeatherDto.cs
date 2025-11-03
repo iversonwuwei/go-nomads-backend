@@ -9,6 +9,8 @@ public class WeatherDto
     public decimal FeelsLike { get; set; }
     public decimal? TempMin { get; set; }
     public decimal? TempMax { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
     public string Weather { get; set; } = string.Empty;
     public string WeatherDescription { get; set; } = string.Empty;
     public string WeatherIcon { get; set; } = string.Empty;
@@ -34,4 +36,5 @@ public class WeatherDto
     public string? DataSource { get; set; }
     public DateTime UpdatedAt { get; set; }
     public DateTime Timestamp { get; set; }
+    public WeatherForecastDto? Forecast { get; set; }
 }

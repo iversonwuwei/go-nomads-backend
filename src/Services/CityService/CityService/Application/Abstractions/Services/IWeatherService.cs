@@ -11,4 +11,6 @@ public interface IWeatherService
     Task<WeatherDto?> GetWeatherByCityNameAsync(string cityName, string? countryCode = null);
     Task<WeatherDto?> GetWeatherByCoordinatesAsync(double latitude, double longitude);
     Task<Dictionary<string, WeatherDto?>> GetWeatherForCitiesAsync(List<string> cityNames);
+    Task<WeatherForecastDto?> GetDailyForecastAsync(double latitude, double longitude, int days);
+    Task<WeatherForecastDto?> GetDailyForecastByCityNameAsync(string cityName, int days);
 }

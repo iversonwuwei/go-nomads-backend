@@ -214,6 +214,56 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                     routes.Add(authExactRoute);
 
                     _logger.LogInformation("Added /api/v1/auth routes for user-service");
+
+                    // v1 API skills routes
+                    var skillsRoute = new YarpRouteConfig
+                    {
+                        RouteId = $"{serviceName}-skills-v1-route",
+                        ClusterId = $"{serviceName}-cluster",
+                        Match = new YarpRouteMatch
+                        {
+                            Path = "/api/v1/skills/{**remainder}"
+                        }
+                    };
+                    routes.Add(skillsRoute);
+
+                    var skillsExactRoute = new YarpRouteConfig
+                    {
+                        RouteId = $"{serviceName}-skills-v1-exact-route",
+                        ClusterId = $"{serviceName}-cluster",
+                        Match = new YarpRouteMatch
+                        {
+                            Path = "/api/v1/skills"
+                        }
+                    };
+                    routes.Add(skillsExactRoute);
+
+                    _logger.LogInformation("Added /api/v1/skills routes for user-service");
+
+                    // v1 API interests routes
+                    var interestsRoute = new YarpRouteConfig
+                    {
+                        RouteId = $"{serviceName}-interests-v1-route",
+                        ClusterId = $"{serviceName}-cluster",
+                        Match = new YarpRouteMatch
+                        {
+                            Path = "/api/v1/interests/{**remainder}"
+                        }
+                    };
+                    routes.Add(interestsRoute);
+
+                    var interestsExactRoute = new YarpRouteConfig
+                    {
+                        RouteId = $"{serviceName}-interests-v1-exact-route",
+                        ClusterId = $"{serviceName}-cluster",
+                        Match = new YarpRouteMatch
+                        {
+                            Path = "/api/v1/interests"
+                        }
+                    };
+                    routes.Add(interestsExactRoute);
+
+                    _logger.LogInformation("Added /api/v1/interests routes for user-service");
                 }
 
                 // Create cluster config with all healthy instances

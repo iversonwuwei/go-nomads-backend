@@ -258,6 +258,63 @@ public class CityApplicationService : ICityService
         }
     }
 
+    public async Task<WeatherDto?> GetCityWeatherAsync(Guid id, bool includeForecast = false, int days = 7)
+    {
+        var city = await _cityRepository.GetByIdAsync(id);
+        if (city == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            // 免费 API 最多支持 5 天预报
+            var normalizedDays = Math.Clamp(days, 1, 5);
+            if (city.Latitude.HasValue && city.Longitude.HasValue)
+            {
+                var weather = await _weatherService.GetWeatherByCoordinatesAsync(
+                    city.Latitude.Value,
+                    city.Longitude.Value);
+
+                if (weather != null && includeForecast)
+                {
+                    weather.Forecast = await _weatherService.GetDailyForecastAsync(
+                        city.Latitude.Value,
+                        city.Longitude.Value,
+                        normalizedDays);
+                }
+
+                return weather;
+            }
+
+            var cityWeather = await _weatherService.GetWeatherByCityNameAsync(city.Name);
+
+            if (cityWeather != null && includeForecast)
+            {
+                if (cityWeather.Latitude.HasValue && cityWeather.Longitude.HasValue)
+                {
+                    cityWeather.Forecast = await _weatherService.GetDailyForecastAsync(
+                        cityWeather.Latitude.Value,
+                        cityWeather.Longitude.Value,
+                        normalizedDays);
+                }
+                else
+                {
+                    cityWeather.Forecast = await _weatherService.GetDailyForecastByCityNameAsync(
+                        city.Name,
+                        normalizedDays);
+                }
+            }
+
+            return cityWeather;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "获取城市天气失败: {CityName}", city.Name);
+            return null;
+        }
+    }
+
     private static CityDto MapToDto(City city)
     {
         return new CityDto

@@ -294,6 +294,50 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
+    /// Get current weather for a city
+    /// GET /api/v1/cities/{id}/weather
+    /// </summary>
+    [HttpGet("{id:guid}/weather")]
+    public async Task<ActionResult<ApiResponse<WeatherDto>>> GetCityWeather(
+        Guid id,
+        [FromQuery] bool includeForecast = false,
+        [FromQuery] int days = 7)
+    {
+        try
+        {
+            var weather = await _cityService.GetCityWeatherAsync(id, includeForecast, days);
+            if (weather == null)
+            {
+                return NotFound(new ApiResponse<WeatherDto>
+                {
+                    Success = false,
+                    Message = "Weather data is not available for this city",
+                    Errors = new List<string> { "Weather data not available" }
+                });
+            }
+
+            return Ok(new ApiResponse<WeatherDto>
+            {
+                Success = true,
+                Message = includeForecast
+                    ? "Weather with forecast retrieved successfully"
+                    : "Weather retrieved successfully",
+                Data = weather
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting weather for city {CityId}", id);
+            return StatusCode(500, new ApiResponse<WeatherDto>
+            {
+                Success = false,
+                Message = "An error occurred while retrieving city weather",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
     /// Create a new city (Admin only)
     /// </summary>
     [HttpPost]

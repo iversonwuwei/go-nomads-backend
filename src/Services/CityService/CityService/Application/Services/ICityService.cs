@@ -21,4 +21,5 @@ public interface ICityService
     Task<IEnumerable<CountryCitiesDto>> GetCitiesGroupedByCountryAsync();
     Task<IEnumerable<CitySummaryDto>> GetCitiesByCountryIdAsync(Guid countryId);
     Task<IEnumerable<CountryDto>> GetAllCountriesAsync();
+    Task<WeatherDto?> GetCityWeatherAsync(Guid id, bool includeForecast = false, int days = 7);
 }

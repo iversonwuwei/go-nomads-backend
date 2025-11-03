@@ -8,4 +8,8 @@ public class UserDto
     public string? Phone { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    // 技能和兴趣列表
+    public List<UserSkillDto>? Skills { get; set; }
+    public List<UserInterestDto>? Interests { get; set; }
 }
