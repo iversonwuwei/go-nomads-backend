@@ -14,6 +14,7 @@ public class UserCityContentApplicationService : IUserCityContentService
     private readonly IUserCityPhotoRepository _photoRepository;
     private readonly IUserCityExpenseRepository _expenseRepository;
     private readonly IUserCityReviewRepository _reviewRepository;
+    private readonly IUserCityProsConsRepository _prosConsRepository;
     private readonly IUserServiceClient _userServiceClient;
     private readonly ILogger<UserCityContentApplicationService> _logger;
 
@@ -21,12 +22,14 @@ public class UserCityContentApplicationService : IUserCityContentService
         IUserCityPhotoRepository photoRepository,
         IUserCityExpenseRepository expenseRepository,
         IUserCityReviewRepository reviewRepository,
+        IUserCityProsConsRepository prosConsRepository,
         IUserServiceClient userServiceClient,
         ILogger<UserCityContentApplicationService> logger)
     {
         _photoRepository = photoRepository;
         _expenseRepository = expenseRepository;
         _reviewRepository = reviewRepository;
+        _prosConsRepository = prosConsRepository;
         _userServiceClient = userServiceClient;
         _logger = logger;
     }
@@ -361,6 +364,74 @@ public class UserCityContentApplicationService : IUserCityContentService
             WeatherScore = review.WeatherScore,
             CreatedAt = review.CreatedAt,
             UpdatedAt = review.UpdatedAt
+        };
+    }
+
+    #endregion
+
+    #region Pros & Cons 相关
+
+    public async Task<CityProsConsDto> AddProsConsAsync(Guid userId, AddCityProsConsRequest request)
+    {
+        var prosCons = new CityProsCons
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            CityId = request.CityId,
+            Text = request.Text,
+            IsPro = request.IsPro,
+            Upvotes = 0,
+            Downvotes = 0
+        };
+
+        var created = await _prosConsRepository.AddAsync(prosCons);
+        return MapProsConsToDto(created);
+    }
+
+    public async Task<List<CityProsConsDto>> GetCityProsConsAsync(string cityId, bool? isPro = null)
+    {
+        var prosConsList = await _prosConsRepository.GetByCityIdAsync(cityId, isPro);
+        return prosConsList.Select(MapProsConsToDto).ToList();
+    }
+
+    public async Task<CityProsConsDto> UpdateProsConsAsync(Guid userId, Guid id, UpdateCityProsConsRequest request)
+    {
+        var existing = await _prosConsRepository.GetByIdAsync(id);
+        if (existing == null)
+        {
+            throw new Exception($"Pros & Cons with id {id} not found");
+        }
+
+        if (existing.UserId != userId)
+        {
+            throw new UnauthorizedAccessException("You can only update your own Pros & Cons");
+        }
+
+        existing.Text = request.Text;
+        existing.IsPro = request.IsPro;
+
+        var updated = await _prosConsRepository.UpdateAsync(existing);
+        return MapProsConsToDto(updated);
+    }
+
+    public async Task<bool> DeleteProsConsAsync(Guid userId, Guid id)
+    {
+        return await _prosConsRepository.DeleteAsync(id, userId);
+    }
+
+    private static CityProsConsDto MapProsConsToDto(CityProsCons prosCons)
+    {
+        return new CityProsConsDto
+        {
+            Id = prosCons.Id,
+            UserId = prosCons.UserId,
+            CityId = prosCons.CityId,
+            Text = prosCons.Text,
+            IsPro = prosCons.IsPro,
+            Upvotes = prosCons.Upvotes,
+            Downvotes = prosCons.Downvotes,
+            CreatedAt = prosCons.CreatedAt,
+            UpdatedAt = prosCons.UpdatedAt
         };
     }
 

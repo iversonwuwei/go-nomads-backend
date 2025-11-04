@@ -34,6 +34,15 @@ public interface IUserCityContentService
 
     #endregion
 
+    #region Pros & Cons 相关
+
+    Task<CityProsConsDto> AddProsConsAsync(Guid userId, AddCityProsConsRequest request);
+    Task<List<CityProsConsDto>> GetCityProsConsAsync(string cityId, bool? isPro = null);
+    Task<CityProsConsDto> UpdateProsConsAsync(Guid userId, Guid prosConsId, UpdateCityProsConsRequest request);
+    Task<bool> DeleteProsConsAsync(Guid userId, Guid prosConsId);
+
+    #endregion
+
     #region 统计相关
 
     Task<CityUserContentStatsDto> GetCityStatsAsync(string cityId);

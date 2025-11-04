@@ -263,3 +263,54 @@ public static class ExpenseCategory
 }
 
 #endregion
+
+#region Pros & Cons 相关 DTOs
+
+/// <summary>
+/// 城市 Pros & Cons DTO
+/// </summary>
+public class CityProsConsDto
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public string CityId { get; set; } = string.Empty;
+    public string Text { get; set; } = string.Empty;
+    public bool IsPro { get; set; } // true = 优点, false = 挑战
+    public int Upvotes { get; set; }
+    public int Downvotes { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+/// <summary>
+/// 添加 Pros & Cons 请求
+/// </summary>
+public class AddCityProsConsRequest
+{
+    [Required]
+    public string CityId { get; set; } = string.Empty;
+
+    [Required]
+    [MinLength(1)]
+    [MaxLength(500)]
+    public string Text { get; set; } = string.Empty;
+
+    [Required]
+    public bool IsPro { get; set; } // true = 优点, false = 挑战
+}
+
+/// <summary>
+/// 更新 Pros & Cons 请求
+/// </summary>
+public class UpdateCityProsConsRequest
+{
+    [Required]
+    [MinLength(1)]
+    [MaxLength(500)]
+    public string Text { get; set; } = string.Empty;
+
+    [Required]
+    public bool IsPro { get; set; } // true = 优点, false = 挑战
+}
+
+#endregion

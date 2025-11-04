@@ -507,4 +507,184 @@ public class UserCityContentController : ControllerBase
     }
 
     #endregion
+
+    #region Pros & Cons API
+
+    /// <summary>
+    /// 添加 Pros & Cons
+    /// POST /api/v1/cities/{cityId}/user-content/pros-cons
+    /// </summary>
+    [HttpPost("pros-cons")]
+    public async Task<ActionResult<ApiResponse<CityProsConsDto>>> AddProsCons(
+        string cityId, 
+        [FromBody] AddCityProsConsRequest request)
+    {
+        try
+        {
+            var userId = GetUserId();
+            request.CityId = cityId;
+
+            var prosCons = await _contentService.AddProsConsAsync(userId, request);
+
+            return CreatedAtAction(
+                nameof(GetCityProsCons),
+                new { cityId },
+                new ApiResponse<CityProsConsDto>
+                {
+                    Success = true,
+                    Message = request.IsPro ? "优点添加成功" : "挑战添加成功",
+                    Data = prosCons
+                });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "未授权添加 Pros & Cons");
+            return Unauthorized(new ApiResponse<CityProsConsDto>
+            {
+                Success = false,
+                Message = "未授权",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "添加 Pros & Cons 失败: {CityId}", cityId);
+            return StatusCode(500, new ApiResponse<CityProsConsDto>
+            {
+                Success = false,
+                Message = "添加失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    /// 获取城市的 Pros & Cons
+    /// GET /api/v1/cities/{cityId}/user-content/pros-cons?isPro=true
+    /// </summary>
+    [HttpGet("pros-cons")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<List<CityProsConsDto>>>> GetCityProsCons(
+        string cityId,
+        [FromQuery] bool? isPro = null)
+    {
+        try
+        {
+            var prosConsList = await _contentService.GetCityProsConsAsync(cityId, isPro);
+
+            return Ok(new ApiResponse<List<CityProsConsDto>>
+            {
+                Success = true,
+                Message = "获取成功",
+                Data = prosConsList
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取 Pros & Cons 失败: {CityId}", cityId);
+            return StatusCode(500, new ApiResponse<List<CityProsConsDto>>
+            {
+                Success = false,
+                Message = "获取失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    /// 更新 Pros & Cons
+    /// PUT /api/v1/cities/{cityId}/user-content/pros-cons/{id}
+    /// </summary>
+    [HttpPut("pros-cons/{id}")]
+    public async Task<ActionResult<ApiResponse<CityProsConsDto>>> UpdateProsCons(
+        string cityId,
+        Guid id,
+        [FromBody] UpdateCityProsConsRequest request)
+    {
+        try
+        {
+            var userId = GetUserId();
+            var updated = await _contentService.UpdateProsConsAsync(userId, id, request);
+
+            return Ok(new ApiResponse<CityProsConsDto>
+            {
+                Success = true,
+                Message = "更新成功",
+                Data = updated
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "未授权更新 Pros & Cons: {Id}", id);
+            return Unauthorized(new ApiResponse<CityProsConsDto>
+            {
+                Success = false,
+                Message = "未授权",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "更新 Pros & Cons 失败: {Id}", id);
+            return StatusCode(500, new ApiResponse<CityProsConsDto>
+            {
+                Success = false,
+                Message = "更新失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    /// 删除 Pros & Cons
+    /// DELETE /api/v1/cities/{cityId}/user-content/pros-cons/{id}
+    /// </summary>
+    [HttpDelete("pros-cons/{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteProsCons(string cityId, Guid id)
+    {
+        try
+        {
+            var userId = GetUserId();
+            var success = await _contentService.DeleteProsConsAsync(userId, id);
+
+            if (!success)
+            {
+                return NotFound(new ApiResponse<bool>
+                {
+                    Success = false,
+                    Message = "记录不存在或您没有权限删除",
+                    Data = false
+                });
+            }
+
+            return Ok(new ApiResponse<bool>
+            {
+                Success = true,
+                Message = "删除成功",
+                Data = true
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "未授权删除 Pros & Cons: {Id}", id);
+            return Unauthorized(new ApiResponse<bool>
+            {
+                Success = false,
+                Message = "未授权",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "删除 Pros & Cons 失败: {Id}", id);
+            return StatusCode(500, new ApiResponse<bool>
+            {
+                Success = false,
+                Message = "删除失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    #endregion
 }

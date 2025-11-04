@@ -96,6 +96,7 @@ builder.Services.AddScoped<IProvinceRepository, SupabaseProvinceRepository>();
 builder.Services.AddScoped<IUserCityPhotoRepository, SupabaseUserCityPhotoRepository>();
 builder.Services.AddScoped<IUserCityExpenseRepository, SupabaseUserCityExpenseRepository>();
 builder.Services.AddScoped<IUserCityReviewRepository, SupabaseUserCityReviewRepository>();
+builder.Services.AddScoped<IUserCityProsConsRepository, SupabaseUserCityProsConsRepository>();
 builder.Services.AddScoped<IUserFavoriteCityRepository, SupabaseUserFavoriteCityRepository>();
 
 // Register Application Services
