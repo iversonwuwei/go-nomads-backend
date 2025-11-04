@@ -18,29 +18,64 @@ public class RabbitMQMessageBus : IMessageBus, IDisposable
     {
         _logger = logger;
         
+        var hostName = configuration["RabbitMQ:HostName"] ?? "localhost";
+        var port = int.Parse(configuration["RabbitMQ:Port"] ?? "5672");
+        
         var factory = new ConnectionFactory
         {
-            HostName = configuration["RabbitMQ:HostName"] ?? "localhost",
-            Port = int.Parse(configuration["RabbitMQ:Port"] ?? "5672"),
+            HostName = hostName,
+            Port = port,
             UserName = configuration["RabbitMQ:UserName"] ?? "guest",
             Password = configuration["RabbitMQ:Password"] ?? "guest",
             VirtualHost = configuration["RabbitMQ:VirtualHost"] ?? "/",
             AutomaticRecoveryEnabled = true,
-            NetworkRecoveryInterval = TimeSpan.FromSeconds(10)
+            NetworkRecoveryInterval = TimeSpan.FromSeconds(10),
+            RequestedConnectionTimeout = TimeSpan.FromSeconds(30),
+            SocketReadTimeout = TimeSpan.FromSeconds(30),
+            SocketWriteTimeout = TimeSpan.FromSeconds(30)
         };
 
-        try
+        // 重试连接逻辑 - 最多重试5次,每次间隔5秒
+        const int maxRetries = 5;
+        var retryCount = 0;
+        Exception? lastException = null;
+
+        while (retryCount < maxRetries)
         {
-            _connection = factory.CreateConnection();
-            _channel = _connection.CreateModel();
-            
-            _logger.LogInformation("✅ RabbitMQ 连接成功: {HostName}:{Port}", factory.HostName, factory.Port);
+            try
+            {
+                _logger.LogInformation("🔌 正在连接到 RabbitMQ: {HostName}:{Port} (尝试 {Retry}/{MaxRetries})", 
+                    hostName, port, retryCount + 1, maxRetries);
+                
+                _connection = factory.CreateConnection();
+                _channel = _connection.CreateModel();
+                
+                _logger.LogInformation("✅ RabbitMQ 连接成功: {HostName}:{Port}", hostName, port);
+                return; // 连接成功,退出
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                retryCount++;
+                
+                if (retryCount < maxRetries)
+                {
+                    var delaySeconds = 5;
+                    _logger.LogWarning(ex, 
+                        "⚠️ RabbitMQ 连接失败 (尝试 {Retry}/{MaxRetries}),{Delay}秒后重试... 错误: {Error}", 
+                        retryCount, maxRetries, delaySeconds, ex.Message);
+                    Thread.Sleep(TimeSpan.FromSeconds(delaySeconds));
+                }
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ RabbitMQ 连接失败");
-            throw;
-        }
+
+        // 所有重试都失败
+        _logger.LogError(lastException, 
+            "❌ RabbitMQ 连接失败: 已重试 {MaxRetries} 次仍无法连接到 {HostName}:{Port}", 
+            maxRetries, hostName, port);
+        throw new InvalidOperationException(
+            $"无法连接到 RabbitMQ ({hostName}:{port}),已重试 {maxRetries} 次", 
+            lastException);
     }
 
     public Task PublishAsync<T>(string queueName, T message, CancellationToken cancellationToken = default) where T : class
