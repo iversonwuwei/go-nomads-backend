@@ -62,7 +62,9 @@ public class CityApplicationService : ICityService
         };
 
         var cities = await _cityRepository.SearchAsync(criteria);
-        return cities.Select(MapToDto);
+        var cityDtos = cities.Select(MapToDto).ToList();
+        await EnrichCitiesWithWeatherAsync(cityDtos);
+        return cityDtos;
     }
 
     public async Task<CityDto> CreateCityAsync(CreateCityDto createCityDto, Guid userId)
