@@ -1501,6 +1501,30 @@ JSON 格式（描述简洁）：
       ""economyDescription"": ""生活成本说明"",
       ""cultureScore"": 文化评分（1-5），
       ""cultureDescription"": ""文化特色说明""
+    }},
+    {{
+      ""name"": ""区域名称4"",
+      ""description"": ""区域整体描述"",
+      ""entertainmentScore"": 娱乐评分（1-5），
+      ""entertainmentDescription"": ""娱乐设施说明"",
+      ""tourismScore"": 旅游评分（1-5），
+      ""tourismDescription"": ""旅游景点说明"",
+      ""economyScore"": 经济评分（1-5），
+      ""economyDescription"": ""生活成本说明"",
+      ""cultureScore"": 文化评分（1-5），
+      ""cultureDescription"": ""文化特色说明""
+    }},
+    {{
+      ""name"": ""区域名称5"",
+      ""description"": ""区域整体描述"",
+      ""entertainmentScore"": 娱乐评分（1-5），
+      ""entertainmentDescription"": ""娱乐设施说明"",
+      ""tourismScore"": 旅游评分（1-5），
+      ""tourismDescription"": ""旅游景点说明"",
+      ""economyScore"": 经济评分（1-5），
+      ""economyDescription"": ""生活成本说明"",
+      ""cultureScore"": 文化评分（1-5），
+      ""cultureDescription"": ""文化特色说明""
     }}
   ],
   ""workspaceRecommendations"": [
@@ -1532,7 +1556,7 @@ JSON 格式（描述简洁）：
 2. 特别关注数字游民的工作和生活需求
 3. 提供具体的地点、价格、网站等信息
 4. tips 要具体可操作
-5. bestAreas 必须包含3个推荐区域，每个区域从娱乐、旅游、经济、文化四个维度评分和描述
+5. bestAreas 必须包含至少5个推荐区域，每个区域从娱乐、旅游、经济、文化四个维度评分和描述
 6. 必须返回严格的 JSON 格式，不要添加任何额外的文字说明
 7. 所有文本使用中文
 8. 所有评分必须是数字(1-5),不要使用字符串";
