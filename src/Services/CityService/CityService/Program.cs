@@ -98,11 +98,13 @@ builder.Services.AddScoped<IUserCityExpenseRepository, SupabaseUserCityExpenseRe
 builder.Services.AddScoped<IUserCityReviewRepository, SupabaseUserCityReviewRepository>();
 builder.Services.AddScoped<IUserCityProsConsRepository, SupabaseUserCityProsConsRepository>();
 builder.Services.AddScoped<IUserFavoriteCityRepository, SupabaseUserFavoriteCityRepository>();
+builder.Services.AddScoped<IGeoNamesCityRepository, SupabaseGeoNamesCityRepository>();
 
 // Register Application Services
 builder.Services.AddScoped<ICityService, CityApplicationService>();
 builder.Services.AddScoped<CityService.Application.Services.IUserCityContentService, UserCityContentApplicationService>();
 builder.Services.AddScoped<IUserFavoriteCityService, UserFavoriteCityService>();
+builder.Services.AddScoped<IGeoNamesImportService, GeoNamesImportService>();
 builder.Services.AddScoped<GeographyDataSeeder>();
 
 // 添加内存缓存

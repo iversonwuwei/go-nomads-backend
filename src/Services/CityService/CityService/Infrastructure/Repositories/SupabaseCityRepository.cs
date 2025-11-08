@@ -63,7 +63,11 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
 
         if (!string.IsNullOrWhiteSpace(criteria.Name))
         {
-            cities = cities.Where(c => c.Name.Contains(criteria.Name, StringComparison.OrdinalIgnoreCase));
+            // 支持中英文搜索: 在 name 或 name_en 字段中搜索
+            cities = cities.Where(c => 
+                c.Name.Contains(criteria.Name, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(c.NameEn) && c.NameEn.Contains(criteria.Name, StringComparison.OrdinalIgnoreCase))
+            );
         }
 
         if (!string.IsNullOrWhiteSpace(criteria.Country))

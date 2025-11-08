@@ -18,35 +18,55 @@ public class CityApplicationService : ICityService
     private readonly ICityRepository _cityRepository;
     private readonly ICountryRepository _countryRepository;
     private readonly IWeatherService _weatherService;
+    private readonly IUserFavoriteCityService _favoriteCityService;
     private readonly ILogger<CityApplicationService> _logger;
 
     public CityApplicationService(
         ICityRepository cityRepository,
         ICountryRepository countryRepository,
         IWeatherService weatherService,
+        IUserFavoriteCityService favoriteCityService,
         ILogger<CityApplicationService> logger)
     {
         _cityRepository = cityRepository;
         _countryRepository = countryRepository;
         _weatherService = weatherService;
+        _favoriteCityService = favoriteCityService;
         _logger = logger;
     }
 
-    public async Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize)
+    public async Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize, Guid? userId = null)
     {
         var cities = await _cityRepository.GetAllAsync(pageNumber, pageSize);
         var cityDtos = cities.Select(MapToDto).ToList();
         await EnrichCitiesWithWeatherAsync(cityDtos);
+        
+        // 填充收藏状态
+        if (userId.HasValue)
+        {
+            await EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value);
+        }
+        
         return cityDtos;
     }
 
-    public async Task<CityDto?> GetCityByIdAsync(Guid id)
+    public async Task<CityDto?> GetCityByIdAsync(Guid id, Guid? userId = null)
     {
         var city = await _cityRepository.GetByIdAsync(id);
-        return city == null ? null : MapToDto(city);
+        if (city == null) return null;
+        
+        var cityDto = MapToDto(city);
+        
+        // 填充收藏状态
+        if (userId.HasValue)
+        {
+            cityDto.IsFavorite = await _favoriteCityService.IsCityFavoritedAsync(userId.Value, id.ToString());
+        }
+        
+        return cityDto;
     }
 
-    public async Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto)
+    public async Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null)
     {
         var criteria = new CitySearchCriteria
         {
@@ -64,6 +84,13 @@ public class CityApplicationService : ICityService
         var cities = await _cityRepository.SearchAsync(criteria);
         var cityDtos = cities.Select(MapToDto).ToList();
         await EnrichCitiesWithWeatherAsync(cityDtos);
+        
+        // 填充收藏状态
+        if (userId.HasValue)
+        {
+            await EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value);
+        }
+        
         return cityDtos;
     }
 
@@ -157,10 +184,18 @@ public class CityApplicationService : ICityService
         return _cityRepository.GetTotalCountAsync();
     }
 
-    public async Task<IEnumerable<CityDto>> GetRecommendedCitiesAsync(int count)
+    public async Task<IEnumerable<CityDto>> GetRecommendedCitiesAsync(int count, Guid? userId = null)
     {
         var cities = await _cityRepository.GetRecommendedAsync(count);
-        return cities.Select(MapToDto);
+        var cityDtos = cities.Select(MapToDto).ToList();
+        
+        // 填充收藏状态
+        if (userId.HasValue)
+        {
+            await EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value);
+        }
+        
+        return cityDtos;
     }
 
     public async Task<CityStatisticsDto?> GetCityStatisticsAsync(Guid id)
@@ -289,7 +324,9 @@ public class CityApplicationService : ICityService
                 return weather;
             }
 
-            var cityWeather = await _weatherService.GetWeatherByCityNameAsync(city.Name);
+            // 优先使用英文名称获取天气,如果没有英文名则使用中文名
+            var cityName = !string.IsNullOrWhiteSpace(city.NameEn) ? city.NameEn : city.Name;
+            var cityWeather = await _weatherService.GetWeatherByCityNameAsync(cityName);
 
             if (cityWeather != null && includeForecast)
             {
@@ -303,7 +340,7 @@ public class CityApplicationService : ICityService
                 else
                 {
                     cityWeather.Forecast = await _weatherService.GetDailyForecastByCityNameAsync(
-                        city.Name,
+                        cityName,
                         normalizedDays);
                 }
             }
@@ -323,6 +360,7 @@ public class CityApplicationService : ICityService
         {
             Id = city.Id,
             Name = city.Name,
+            NameEn = city.NameEn,
             Country = city.Country,
             Region = city.Region,
             Description = city.Description,
@@ -377,7 +415,9 @@ public class CityApplicationService : ICityService
                     }
                     else
                     {
-                        city.Weather = await _weatherService.GetWeatherByCityNameAsync(city.Name);
+                        // 优先使用英文名称获取天气,如果没有英文名则使用中文名
+                        var cityName = !string.IsNullOrWhiteSpace(city.NameEn) ? city.NameEn : city.Name;
+                        city.Weather = await _weatherService.GetWeatherByCityNameAsync(cityName);
                     }
                 }
                 catch (Exception ex)
@@ -392,6 +432,36 @@ public class CityApplicationService : ICityService
         catch (Exception ex)
         {
             _logger.LogError(ex, "批量获取天气数据失败");
+        }
+    }
+
+    /// <summary>
+    /// 批量填充城市的收藏状态
+    /// </summary>
+    private async Task EnrichCitiesWithFavoriteStatusAsync(List<CityDto> cities, Guid userId)
+    {
+        try
+        {
+            // 获取用户收藏的所有城市ID列表
+            var favoriteCityIds = await _favoriteCityService.GetUserFavoriteCityIdsAsync(userId);
+            var favoriteSet = new HashSet<string>(favoriteCityIds);
+            
+            // 填充每个城市的收藏状态
+            foreach (var city in cities)
+            {
+                city.IsFavorite = favoriteSet.Contains(city.Id.ToString());
+            }
+            
+            _logger.LogDebug("已为 {Count} 个城市填充收藏状态 (用户: {UserId})", cities.Count, userId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "填充城市收藏状态失败 (用户: {UserId})", userId);
+            // 失败时默认所有城市都未收藏
+            foreach (var city in cities)
+            {
+                city.IsFavorite = false;
+            }
         }
     }
 }

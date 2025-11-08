@@ -16,6 +16,11 @@ public class CityDto
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
+    /// 城市英文名称
+    /// </summary>
+    public string? NameEn { get; set; }
+
+    /// <summary>
     /// 国家
     /// </summary>
     public string Country { get; set; } = string.Empty;

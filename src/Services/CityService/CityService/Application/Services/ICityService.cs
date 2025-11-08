@@ -9,14 +9,14 @@ namespace CityService.Application.Services;
 /// </summary>
 public interface ICityService
 {
-    Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize);
-    Task<CityDto?> GetCityByIdAsync(Guid id);
-    Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto);
+    Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize, Guid? userId = null);
+    Task<CityDto?> GetCityByIdAsync(Guid id, Guid? userId = null);
+    Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null);
     Task<CityDto> CreateCityAsync(CreateCityDto createCityDto, Guid userId);
     Task<CityDto?> UpdateCityAsync(Guid id, UpdateCityDto updateCityDto, Guid userId);
     Task<bool> DeleteCityAsync(Guid id);
     Task<int> GetTotalCountAsync();
-    Task<IEnumerable<CityDto>> GetRecommendedCitiesAsync(int count);
+    Task<IEnumerable<CityDto>> GetRecommendedCitiesAsync(int count, Guid? userId = null);
     Task<CityStatisticsDto?> GetCityStatisticsAsync(Guid id);
     Task<IEnumerable<CountryCitiesDto>> GetCitiesGroupedByCountryAsync();
     Task<IEnumerable<CitySummaryDto>> GetCitiesByCountryIdAsync(Guid countryId);

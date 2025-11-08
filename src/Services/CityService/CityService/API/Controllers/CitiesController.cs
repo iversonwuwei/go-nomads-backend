@@ -1,6 +1,7 @@
 using CityService.Application.DTOs;
 using CityService.Application.Services;
 using GoNomads.Shared.Models;
+using GoNomads.Shared.Middleware;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -31,17 +32,38 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Get all cities with pagination
+    /// Get all cities with pagination and optional search
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PaginatedResponse<CityDto>>>> GetCities(
         [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 10)
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null)
     {
         try
         {
-            var cities = await _cityService.GetAllCitiesAsync(pageNumber, pageSize);
-            var totalCount = await _cityService.GetTotalCountAsync();
+            var userId = TryGetCurrentUserId();
+            
+            IEnumerable<CityDto> cities;
+            int totalCount;
+            
+            // 如果有搜索参数,使用搜索接口(支持中英文搜索)
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchDto = new CitySearchDto
+                {
+                    Name = search,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                };
+                cities = await _cityService.SearchCitiesAsync(searchDto, userId);
+                totalCount = cities.Count(); // 搜索结果的总数
+            }
+            else
+            {
+                cities = await _cityService.GetAllCitiesAsync(pageNumber, pageSize, userId);
+                totalCount = await _cityService.GetTotalCountAsync();
+            }
 
             Response.Headers.Append("X-Total-Count", totalCount.ToString());
             Response.Headers.Append("X-Page-Number", pageNumber.ToString());
@@ -81,7 +103,8 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            var cities = await _cityService.GetRecommendedCitiesAsync(count);
+            var userId = TryGetCurrentUserId();
+            var cities = await _cityService.GetRecommendedCitiesAsync(count, userId);
             return Ok(new ApiResponse<IEnumerable<CityDto>>
             {
                 Success = true,
@@ -197,7 +220,8 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            var cities = await _cityService.SearchCitiesAsync(searchDto);
+            var userId = TryGetCurrentUserId();
+            var cities = await _cityService.SearchCitiesAsync(searchDto, userId);
             return Ok(new ApiResponse<IEnumerable<CityDto>>
             {
                 Success = true,
@@ -225,7 +249,8 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            var city = await _cityService.GetCityByIdAsync(id);
+            var userId = TryGetCurrentUserId();
+            var city = await _cityService.GetCityByIdAsync(id, userId);
             if (city == null)
             {
                 return NotFound(new ApiResponse<CityDto>
@@ -567,5 +592,30 @@ public class CitiesController : ControllerBase
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(userIdClaim, out var userId) ? userId : Guid.Empty;
+    }
+
+    /// <summary>
+    /// 尝试获取当前用户ID（从 UserContext 中获取）
+    /// 如果用户未认证，返回 null
+    /// </summary>
+    private Guid? TryGetCurrentUserId()
+    {
+        try
+        {
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            if (userContext?.IsAuthenticated == true && !string.IsNullOrEmpty(userContext.UserId))
+            {
+                if (Guid.TryParse(userContext.UserId, out var userId))
+                {
+                    return userId;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "获取当前用户ID失败，将返回 null");
+        }
+
+        return null;
     }
 }

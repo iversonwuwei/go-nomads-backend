@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using Postgrest.Attributes;
 using Postgrest.Models;
 
@@ -14,6 +15,13 @@ public class City : BaseModel
     [MaxLength(100)]
     [Column("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 城市英文名称
+    /// </summary>
+    [MaxLength(100)]
+    [Column("name_en")]
+    public string? NameEn { get; set; }
 
     [Required]
     [MaxLength(100)]
@@ -71,6 +79,7 @@ public class City : BaseModel
     [Column("image_url")]
     public string? ImageUrl { get; set; }
 
+    [JsonIgnore]
     [Column("average_cost_of_living")]
     public decimal? AverageCostOfLiving { get; set; }
 

@@ -6,6 +6,7 @@ public class CityDto
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? NameEn { get; set; }
     public string Country { get; set; } = string.Empty;
     public string? Region { get; set; }
     public string? Description { get; set; }
@@ -30,6 +31,12 @@ public class CityDto
     public WeatherDto? Weather { get; set; }
     public int MeetupCount { get; set; }
     public int CoworkingCount { get; set; }
+    
+    /// <summary>
+    /// 当前用户是否已收藏该城市
+    /// 注意: 此字段需要在查询时根据当前用户动态填充
+    /// </summary>
+    public bool IsFavorite { get; set; }
 }
 
 public class CreateCityDto
@@ -37,6 +44,9 @@ public class CreateCityDto
     [Required]
     [MaxLength(100)]
     public string Name { get; set; } = string.Empty;
+
+    [MaxLength(100)]
+    public string? NameEn { get; set; }
 
     [Required]
     [MaxLength(100)]
@@ -72,6 +82,9 @@ public class UpdateCityDto
 {
     [MaxLength(100)]
     public string? Name { get; set; }
+
+    [MaxLength(100)]
+    public string? NameEn { get; set; }
 
     [MaxLength(100)]
     public string? Country { get; set; }
