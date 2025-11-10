@@ -150,9 +150,25 @@ public class EventsController : ControllerBase
             var userContext = UserContextMiddleware.GetUserContext(HttpContext);
             Guid? userId = null;
 
+            _logger.LogInformation("🔍 GetEvents - UserContext 详情:");
+            _logger.LogInformation("   userContext == null: {IsNull}", userContext == null);
+            if (userContext != null)
+            {
+                _logger.LogInformation("   IsAuthenticated: {IsAuth}", userContext.IsAuthenticated);
+                _logger.LogInformation("   UserId: {UserId}", userContext.UserId);
+                _logger.LogInformation("   Email: {Email}", userContext.Email);
+                _logger.LogInformation("   Role: {Role}", userContext.Role);
+            }
+
             if (userContext?.IsAuthenticated == true && !string.IsNullOrEmpty(userContext.UserId))
             {
                 userId = Guid.Parse(userContext.UserId);
+                _logger.LogInformation("✅ GetEvents: 已认证用户 ID = {UserId}", userId);
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ GetEvents: 未认证用户或 UserId 为空。IsAuthenticated={IsAuth}, UserId={UserId}", 
+                    userContext?.IsAuthenticated, userContext?.UserId);
             }
 
             var (events, total) = await _eventService.GetEventsAsync(cityId, category, status, page, pageSize, userId);
@@ -241,6 +257,80 @@ public class EventsController : ControllerBase
             {
                 Success = false,
                 Message = "更新 Event 失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    /// 取消活动
+    /// </summary>
+    [HttpPost("{id}/cancel")]
+    [ProducesResponseType(typeof(ApiResponse<EventResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<EventResponse>>> CancelEvent(Guid id)
+    {
+        try
+        {
+            // 从 UserContext 获取当前用户信息
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+            {
+                return Unauthorized(new ApiResponse<EventResponse>
+                {
+                    Success = false,
+                    Message = "用户未认证",
+                    Errors = new List<string> { "用户未认证" }
+                });
+            }
+
+            var userId = Guid.Parse(userContext.UserId);
+            var response = await _eventService.CancelEventAsync(id, userId);
+            
+            _logger.LogInformation("✅ 用户 {UserId} 成功取消活动 {EventId}", userId, id);
+            return Ok(new ApiResponse<EventResponse>
+            {
+                Success = true,
+                Message = "活动已取消",
+                Data = response
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<EventResponse>
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new ApiResponse<EventResponse>
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<EventResponse>
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "取消活动失败");
+            return StatusCode(500, new ApiResponse<EventResponse>
+            {
+                Success = false,
+                Message = "取消活动失败",
                 Errors = new List<string> { ex.Message }
             });
         }

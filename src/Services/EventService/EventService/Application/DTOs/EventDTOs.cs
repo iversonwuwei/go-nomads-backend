@@ -131,6 +131,7 @@ public class EventResponse
     // 扩展字段
     public bool IsFollowing { get; set; }
     public bool IsParticipant { get; set; }
+    public bool IsOrganizer { get; set; }
     public int FollowerCount { get; set; }
 
     // 从其他服务获取的关联数据

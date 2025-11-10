@@ -73,12 +73,18 @@ public class EventApplicationService : IEventService
 
         var response = MapToResponse(@event);
 
-        // 如果提供了 userId，检查参与状态
+        // 如果提供了 userId，检查参与状态和组织者身份
         if (userId.HasValue)
         {
             // 暂时不使用 follower 功能,只检查参与状态
             response.IsFollowing = false;
             response.IsParticipant = await _participantRepository.IsParticipantAsync(id, userId.Value);
+            
+            // 判断当前用户是否是活动组织者
+            response.IsOrganizer = response.OrganizerId == userId.Value;
+            
+            _logger.LogInformation("👥 用户 {UserId} 是否参与了活动 {EventId}: {IsParticipant}", userId.Value, id, response.IsParticipant);
+            _logger.LogInformation("👥 用户 {UserId} 是否是活动 {EventId} 的组织者: {IsOrganizer}", userId.Value, id, response.IsOrganizer);
         }
 
         // 暂时将关注者数量设为 0
@@ -155,6 +161,33 @@ public class EventApplicationService : IEventService
             tags: request.Tags?.ToArray());
 
         var updatedEvent = await _eventRepository.UpdateAsync(@event);
+
+        return MapToResponse(updatedEvent);
+    }
+
+    /// <summary>
+    /// 取消活动
+    /// </summary>
+    public async Task<EventResponse> CancelEventAsync(Guid id, Guid userId)
+    {
+        var @event = await _eventRepository.GetByIdAsync(id);
+        if (@event == null)
+        {
+            throw new KeyNotFoundException($"Event {id} 不存在");
+        }
+
+        // 验证权限：只有组织者可以取消
+        if (@event.OrganizerId != userId)
+        {
+            throw new UnauthorizedAccessException("只有组织者可以取消活动");
+        }
+
+        // 使用领域方法取消
+        @event.Cancel(userId);
+
+        var updatedEvent = await _eventRepository.UpdateAsync(@event);
+
+        _logger.LogInformation("✅ 活动 {EventId} 已被用户 {UserId} 取消", id, userId);
 
         return MapToResponse(updatedEvent);
     }
@@ -273,15 +306,19 @@ public class EventApplicationService : IEventService
 
         try
         {
-            // 批量检查用户是否参与了这些活动
+            // 批量检查用户是否参与了这些活动和是否是组织者
             foreach (var response in responses)
             {
                 response.IsParticipant = await _participantRepository.IsParticipantAsync(response.Id, userId);
+                response.IsOrganizer = response.OrganizerId == userId;
+                _logger.LogInformation("👥 用户 {UserId} 是否参与了活动 {EventId}: {IsParticipant}", userId, response.Id, response.IsParticipant);
+                _logger.LogInformation("👥 用户 {UserId} 是否是活动 {EventId} 的组织者: {IsOrganizer}", userId, response.Id, response.IsOrganizer);
             }
 
             var participatedCount = responses.Count(r => r.IsParticipant);
-            _logger.LogInformation("✅ 用户参与了 {ParticipatedCount}/{TotalCount} 个活动",
-                participatedCount, responses.Count);
+            var organizerCount = responses.Count(r => r.IsOrganizer);
+            _logger.LogInformation("✅ 用户参与了 {ParticipatedCount}/{TotalCount} 个活动，组织了 {OrganizerCount} 个活动",
+                participatedCount, responses.Count, organizerCount);
         }
         catch (Exception ex)
         {

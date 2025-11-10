@@ -202,6 +202,94 @@ public class Event : BaseModel
     }
 
     /// <summary>
+    /// 取消活动 - 领域逻辑
+    /// </summary>
+    public void Cancel(Guid userId)
+    {
+        if (Status == Enums.EventStatus.Cancelled)
+        {
+            throw new InvalidOperationException("活动已经被取消");
+        }
+
+        if (Status == Enums.EventStatus.Completed)
+        {
+            throw new InvalidOperationException("已结束的活动不能取消");
+        }
+
+        Status = Enums.EventStatus.Cancelled;
+        UpdatedBy = userId;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// 标记活动为进行中
+    /// </summary>
+    public void MarkAsOngoing()
+    {
+        if (Status != Enums.EventStatus.Upcoming)
+        {
+            throw new InvalidOperationException($"只有即将开始的活动可以标记为进行中，当前状态: {Status}");
+        }
+
+        Status = Enums.EventStatus.Ongoing;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// 标记活动为已结束
+    /// </summary>
+    public void MarkAsCompleted()
+    {
+        if (Status == Enums.EventStatus.Cancelled)
+        {
+            throw new InvalidOperationException("已取消的活动不能标记为已结束");
+        }
+
+        Status = Enums.EventStatus.Completed;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// 根据时间自动更新状态
+    /// </summary>
+    public void UpdateStatusByTime()
+    {
+        var now = DateTime.UtcNow;
+
+        // 已取消的活动不自动更新状态
+        if (Status == Enums.EventStatus.Cancelled)
+        {
+            return;
+        }
+
+        // 如果活动已经开始但还未结束，标记为进行中
+        if (now >= StartTime && EndTime.HasValue && now < EndTime.Value)
+        {
+            if (Status != Enums.EventStatus.Ongoing)
+            {
+                Status = Enums.EventStatus.Ongoing;
+                UpdatedAt = DateTime.UtcNow;
+            }
+        }
+        // 如果活动已经结束，标记为已结束
+        else if ((EndTime.HasValue && now >= EndTime.Value) || 
+                 (!EndTime.HasValue && now >= StartTime.AddHours(3))) // 没有结束时间的活动默认3小时后结束
+        {
+            if (Status != Enums.EventStatus.Completed)
+            {
+                Status = Enums.EventStatus.Completed;
+                UpdatedAt = DateTime.UtcNow;
+            }
+        }
+        // 活动还未开始，保持 Upcoming
+        else if (now < StartTime && Status != Enums.EventStatus.Upcoming)
+        {
+            Status = Enums.EventStatus.Upcoming;
+            UpdatedAt = DateTime.UtcNow;
+        }
+    }
+
+    /// <summary>
     /// 增加参与者 - 领域逻辑
     /// </summary>
     public void AddParticipant()
@@ -238,7 +326,7 @@ public class Event : BaseModel
     /// </summary>
     public bool CanJoin()
     {
-        if (Status != "upcoming")
+        if (Status != Enums.EventStatus.Upcoming && Status != Enums.EventStatus.Ongoing)
         {
             return false;
         }

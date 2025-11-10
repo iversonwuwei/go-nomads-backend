@@ -33,13 +33,17 @@ public class JwtAuthenticationInterceptor
     {
         var path = context.Request.Path.Value ?? string.Empty;
 
+        _logger.LogInformation("🔍 JWT Interceptor - Path: {Path}", path);
+
         // 检查是否是公开路径
         if (IsPublicPath(path))
         {
-            _logger.LogDebug("⚪ Public path: {Path} - Skipping authentication", path);
+            _logger.LogInformation("⚪ Public path: {Path} - Skipping authentication", path);
             await _next(context);
             return;
         }
+
+        _logger.LogInformation("🔒 Protected path: {Path} - Validating JWT", path);
 
         // 检查是否有 Authorization header
         if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader))
@@ -71,6 +75,8 @@ public class JwtAuthenticationInterceptor
             return;
         }
 
+        _logger.LogInformation("🔑 Found Authorization header, validating token...");
+
         // 移除 "Bearer " 前缀
         if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {
@@ -98,6 +104,8 @@ public class JwtAuthenticationInterceptor
             return;
         }
 
+        _logger.LogInformation("✅ JWT validation succeeded");
+
         // Token 验证成功,提取用户信息并添加到请求头
         var userId = authenticateResult.Principal?.FindFirst("sub")?.Value;
         var email = authenticateResult.Principal?.FindFirst("email")?.Value;
@@ -106,14 +114,17 @@ public class JwtAuthenticationInterceptor
         if (!string.IsNullOrEmpty(userId))
         {
             context.Request.Headers["X-User-Id"] = userId;
+            _logger.LogInformation("   Added X-User-Id: {UserId}", userId);
         }
         if (!string.IsNullOrEmpty(email))
         {
             context.Request.Headers["X-User-Email"] = email;
+            _logger.LogInformation("   Added X-User-Email: {Email}", email);
         }
         if (!string.IsNullOrEmpty(role))
         {
             context.Request.Headers["X-User-Role"] = role;
+            _logger.LogInformation("   Added X-User-Role: {Role}", role);
         }
 
         _logger.LogInformation("✅ JWT validated - UserId: {UserId}, Email: {Email}, Role: {Role}, Path: {Path}", 

@@ -33,6 +33,9 @@ public class JwtAuthenticationTransform : ITransformProvider
         {
             var httpContext = transformContext.HttpContext;
             
+            _logger.LogInformation("🔍 JwtAuthenticationTransform - 请求路径: {Path}", httpContext.Request.Path);
+            _logger.LogInformation("   User.Identity?.IsAuthenticated: {IsAuth}", httpContext.User.Identity?.IsAuthenticated);
+            
             // 检查用户是否已认证
             if (httpContext.User.Identity?.IsAuthenticated == true)
             {
@@ -43,6 +46,8 @@ public class JwtAuthenticationTransform : ITransformProvider
                          ?? httpContext.User.FindFirst(ClaimTypes.Email)?.Value;
                 var role = httpContext.User.FindFirst("role")?.Value 
                         ?? httpContext.User.FindFirst(ClaimTypes.Role)?.Value;
+                
+                _logger.LogInformation("   提取到的用户信息: UserId={UserId}, Email={Email}, Role={Role}", userId, email, role);
 
                 // 添加自定义请求头，传递给下游服务
                 // 先移除可能存在的旧头，避免重复
@@ -50,18 +55,25 @@ public class JwtAuthenticationTransform : ITransformProvider
                 {
                     transformContext.ProxyRequest.Headers.Remove("X-User-Id");
                     transformContext.ProxyRequest.Headers.Add("X-User-Id", userId);
+                    _logger.LogInformation("   ✅ 添加 X-User-Id: {UserId}", userId);
+                }
+                else
+                {
+                    _logger.LogWarning("   ⚠️ UserId 为空，未添加 X-User-Id header");
                 }
                 
                 if (!string.IsNullOrEmpty(email))
                 {
                     transformContext.ProxyRequest.Headers.Remove("X-User-Email");
                     transformContext.ProxyRequest.Headers.Add("X-User-Email", email);
+                    _logger.LogInformation("   ✅ 添加 X-User-Email: {Email}", email);
                 }
                 
                 if (!string.IsNullOrEmpty(role))
                 {
                     transformContext.ProxyRequest.Headers.Remove("X-User-Role");
                     transformContext.ProxyRequest.Headers.Add("X-User-Role", role);
+                    _logger.LogInformation("   ✅ 添加 X-User-Role: {Role}", role);
                 }
 
                 // 传递原始的 Authorization 头
@@ -76,7 +88,7 @@ public class JwtAuthenticationTransform : ITransformProvider
             }
             else
             {
-                _logger.LogDebug("JWT Authentication - Request is not authenticated");
+                _logger.LogWarning("⚠️ JWT Authentication - Request is not authenticated. Path: {Path}", httpContext.Request.Path);
             }
 
             await Task.CompletedTask;

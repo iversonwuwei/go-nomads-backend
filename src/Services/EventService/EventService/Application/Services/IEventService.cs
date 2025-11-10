@@ -23,6 +23,11 @@ public interface IEventService
     Task<EventResponse> UpdateEventAsync(Guid id, UpdateEventRequest request, Guid userId);
 
     /// <summary>
+    /// 取消活动
+    /// </summary>
+    Task<EventResponse> CancelEventAsync(Guid id, Guid userId);
+
+    /// <summary>
     /// 获取 Event 列表
     /// </summary>
     Task<(List<EventResponse> Events, int Total)> GetEventsAsync(
