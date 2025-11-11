@@ -153,40 +153,41 @@ public class AIWorkerService : BackgroundService
                 
                 _logger.LogInformation("📤 通过Dapr调用CityService保存指南: cityId={CityId}", taskMessage.Request.CityId);
 
+                // 使用大驼峰命名匹配 CityService 的 SaveDigitalNomadGuideRequest
                 var saveRequest = new
                 {
-                    cityId = taskMessage.Request.CityId,
-                    cityName = taskMessage.Request.CityName,
-                    overview = guide.Overview,
-                    visaInfo = new
+                    CityId = taskMessage.Request.CityId,
+                    CityName = taskMessage.Request.CityName,
+                    Overview = guide.Overview,
+                    VisaInfo = new
                     {
-                        type = guide.VisaInfo.Type,
-                        duration = guide.VisaInfo.Duration,
-                        requirements = guide.VisaInfo.Requirements,
-                        cost = guide.VisaInfo.Cost,
-                        process = guide.VisaInfo.Process
+                        Type = guide.VisaInfo.Type,
+                        Duration = guide.VisaInfo.Duration,
+                        Requirements = guide.VisaInfo.Requirements,
+                        Cost = guide.VisaInfo.Cost,
+                        Process = guide.VisaInfo.Process
                     },
-                    bestAreas = guide.BestAreas.Select(a => new
+                    BestAreas = guide.BestAreas.Select(a => new
                     {
-                        name = a.Name,
-                        description = a.Description,
-                        entertainmentScore = a.EntertainmentScore,
-                        entertainmentDescription = a.EntertainmentDescription,
-                        tourismScore = a.TourismScore,
-                        tourismDescription = a.TourismDescription,
-                        economyScore = a.EconomyScore,
-                        economyDescription = a.EconomyDescription,
-                        cultureScore = a.CultureScore,
-                        cultureDescription = a.CultureDescription
+                        Name = a.Name,
+                        Description = a.Description,
+                        EntertainmentScore = a.EntertainmentScore,
+                        EntertainmentDescription = a.EntertainmentDescription,
+                        TourismScore = a.TourismScore,
+                        TourismDescription = a.TourismDescription,
+                        EconomyScore = a.EconomyScore,
+                        EconomyDescription = a.EconomyDescription,
+                        CultureScore = a.CultureScore,
+                        CultureDescription = a.CultureDescription
                     }).ToList(),
-                    workspaceRecommendations = guide.WorkspaceRecommendations,
-                    tips = guide.Tips,
-                    essentialInfo = guide.EssentialInfo
+                    WorkspaceRecommendations = guide.WorkspaceRecommendations,
+                    Tips = guide.Tips,
+                    EssentialInfo = guide.EssentialInfo
                 };
 
                 var response = await daprClient.InvokeMethodAsync<object, object>(
                     HttpMethod.Post,
-                    "cityservice",
+                    "city-service",
                     $"api/v1/cities/{taskMessage.Request.CityId}/guide",
                     saveRequest);
 
