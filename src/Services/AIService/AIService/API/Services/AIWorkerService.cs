@@ -4,6 +4,7 @@ using AIService.Application.DTOs;
 using AIService.Application.Services;
 using AIService.Infrastructure.Cache;
 using AIService.Infrastructure.MessageBus;
+using Dapr.Client;
 
 namespace AIService.API.Services;
 
@@ -145,7 +146,58 @@ public class AIWorkerService : BackgroundService
             await UpdateTaskStatusAsync(cache, taskId, "processing", 90, "正在保存结果...");
             await notificationService.SendTaskProgressAsync(taskId, 90, "正在保存结果...");
 
-            // 将指南数据保存到 Redis
+            // 通过Dapr调用CityService保存到Supabase
+            try
+            {
+                var daprClient = scope.ServiceProvider.GetRequiredService<DaprClient>();
+                
+                _logger.LogInformation("📤 通过Dapr调用CityService保存指南: cityId={CityId}", taskMessage.Request.CityId);
+
+                var saveRequest = new
+                {
+                    cityId = taskMessage.Request.CityId,
+                    cityName = taskMessage.Request.CityName,
+                    overview = guide.Overview,
+                    visaInfo = new
+                    {
+                        type = guide.VisaInfo.Type,
+                        duration = guide.VisaInfo.Duration,
+                        requirements = guide.VisaInfo.Requirements,
+                        cost = guide.VisaInfo.Cost,
+                        process = guide.VisaInfo.Process
+                    },
+                    bestAreas = guide.BestAreas.Select(a => new
+                    {
+                        name = a.Name,
+                        description = a.Description,
+                        entertainmentScore = a.EntertainmentScore,
+                        entertainmentDescription = a.EntertainmentDescription,
+                        tourismScore = a.TourismScore,
+                        tourismDescription = a.TourismDescription,
+                        economyScore = a.EconomyScore,
+                        economyDescription = a.EconomyDescription,
+                        cultureScore = a.CultureScore,
+                        cultureDescription = a.CultureDescription
+                    }).ToList(),
+                    workspaceRecommendations = guide.WorkspaceRecommendations,
+                    tips = guide.Tips,
+                    essentialInfo = guide.EssentialInfo
+                };
+
+                var response = await daprClient.InvokeMethodAsync<object, object>(
+                    HttpMethod.Post,
+                    "cityservice",
+                    $"api/v1/cities/{taskMessage.Request.CityId}/guide",
+                    saveRequest);
+
+                _logger.LogInformation("✅ 指南已通过Dapr保存到CityService: cityId={CityId}", taskMessage.Request.CityId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "⚠️ Dapr调用CityService保存失败,但不影响任务完成: cityId={CityId}", taskMessage.Request.CityId);
+            }
+
+            // 将指南数据保存到 Redis (作为缓存)
             var guideJson = System.Text.Json.JsonSerializer.Serialize(guide);
             var guideId = $"guide_{taskMessage.Request.CityId}_{Guid.NewGuid():N}";
             await cache.SetStringAsync($"guide:{guideId}", guideJson, TimeSpan.FromHours(24));

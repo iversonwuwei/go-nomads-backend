@@ -1,5 +1,6 @@
 using CityService.Application.DTOs;
 using CityService.Application.Services;
+using CityService.Domain.Entities;
 using GoNomads.Shared.Models;
 using GoNomads.Shared.Middleware;
 using Microsoft.AspNetCore.Authorization;
@@ -18,15 +19,18 @@ namespace CityService.API.Controllers;
 public class CitiesController : ControllerBase
 {
     private readonly ICityService _cityService;
+    private readonly IDigitalNomadGuideService _guideService;
     private readonly DaprClient _daprClient;
     private readonly ILogger<CitiesController> _logger;
 
     public CitiesController(
         ICityService cityService,
+        IDigitalNomadGuideService guideService,
         DaprClient daprClient,
         ILogger<CitiesController> logger)
     {
         _cityService = cityService;
+        _guideService = guideService;
         _daprClient = daprClient;
         _logger = logger;
     }
@@ -618,4 +622,186 @@ public class CitiesController : ControllerBase
 
         return null;
     }
+
+    #region Digital Nomad Guide APIs
+
+    /// <summary>
+    /// Get digital nomad guide for a city
+    /// </summary>
+    /// <param name="cityId">City ID</param>
+    /// <returns>Digital nomad guide or 404 if not found</returns>
+    [HttpGet("{cityId}/guide")]
+    [ProducesResponseType(typeof(ApiResponse<DigitalNomadGuideDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ApiResponse<DigitalNomadGuideDto>>> GetDigitalNomadGuide(string cityId)
+    {
+        try
+        {
+            _logger.LogInformation("📖 获取数字游民指南: cityId={CityId}", cityId);
+
+            var guide = await _guideService.GetByCityIdAsync(cityId);
+
+            if (guide == null)
+            {
+                _logger.LogInformation("📭 未找到指南: cityId={CityId}", cityId);
+                return NotFound(new ApiResponse<DigitalNomadGuideDto>
+                {
+                    Success = false,
+                    Message = "Guide not found for this city",
+                    Data = null
+                });
+            }
+
+            var guideDto = MapToDto(guide);
+
+            _logger.LogInformation("✅ 返回指南: guideId={GuideId}, cityName={CityName}", guide.Id, guide.CityName);
+
+            return Ok(new ApiResponse<DigitalNomadGuideDto>
+            {
+                Success = true,
+                Message = "Guide retrieved successfully",
+                Data = guideDto
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取指南失败: cityId={CityId}", cityId);
+            return StatusCode(500, new ApiResponse<DigitalNomadGuideDto>
+            {
+                Success = false,
+                Message = $"Failed to retrieve guide: {ex.Message}",
+                Data = null
+            });
+        }
+    }
+
+    /// <summary>
+    /// Save or update digital nomad guide for a city
+    /// </summary>
+    /// <param name="cityId">City ID</param>
+    /// <param name="request">Guide data</param>
+    /// <returns>Saved guide</returns>
+    [HttpPost("{cityId}/guide")]
+    [ProducesResponseType(typeof(ApiResponse<DigitalNomadGuideDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ApiResponse<DigitalNomadGuideDto>>> SaveDigitalNomadGuide(
+        string cityId,
+        [FromBody] SaveDigitalNomadGuideRequest request)
+    {
+        try
+        {
+            _logger.LogInformation("💾 保存数字游民指南: cityId={CityId}, cityName={CityName}", 
+                cityId, request.CityName);
+
+            // 验证cityId匹配
+            if (request.CityId != cityId)
+            {
+                return BadRequest(new ApiResponse<DigitalNomadGuideDto>
+                {
+                    Success = false,
+                    Message = "City ID in URL does not match request body",
+                    Data = null
+                });
+            }
+
+            // 映射到实体
+            var guide = new DigitalNomadGuide
+            {
+                CityId = request.CityId,
+                CityName = request.CityName,
+                Overview = request.Overview,
+                VisaInfo = new VisaInfo
+                {
+                    Type = request.VisaInfo.Type,
+                    Duration = request.VisaInfo.Duration,
+                    Requirements = request.VisaInfo.Requirements,
+                    Cost = request.VisaInfo.Cost,
+                    Process = request.VisaInfo.Process
+                },
+                BestAreas = request.BestAreas.Select(a => new BestArea
+                {
+                    Name = a.Name,
+                    Description = a.Description,
+                    EntertainmentScore = a.EntertainmentScore,
+                    EntertainmentDescription = a.EntertainmentDescription,
+                    TourismScore = a.TourismScore,
+                    TourismDescription = a.TourismDescription,
+                    EconomyScore = a.EconomyScore,
+                    EconomyDescription = a.EconomyDescription,
+                    CultureScore = a.CultureScore,
+                    CultureDescription = a.CultureDescription
+                }).ToList(),
+                WorkspaceRecommendations = request.WorkspaceRecommendations,
+                Tips = request.Tips,
+                EssentialInfo = request.EssentialInfo
+            };
+
+            // 保存到数据库
+            var savedGuide = await _guideService.SaveAsync(guide);
+            var guideDto = MapToDto(savedGuide);
+
+            _logger.LogInformation("✅ 指南保存成功: guideId={GuideId}", savedGuide.Id);
+
+            return Ok(new ApiResponse<DigitalNomadGuideDto>
+            {
+                Success = true,
+                Message = "Guide saved successfully",
+                Data = guideDto
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 保存指南失败: cityId={CityId}", cityId);
+            return StatusCode(500, new ApiResponse<DigitalNomadGuideDto>
+            {
+                Success = false,
+                Message = $"Failed to save guide: {ex.Message}",
+                Data = null
+            });
+        }
+    }
+
+    /// <summary>
+    /// Map entity to DTO
+    /// </summary>
+    private DigitalNomadGuideDto MapToDto(DigitalNomadGuide guide)
+    {
+        return new DigitalNomadGuideDto
+        {
+            Id = guide.Id,
+            CityId = guide.CityId,
+            CityName = guide.CityName,
+            Overview = guide.Overview,
+            VisaInfo = new VisaInfoDto
+            {
+                Type = guide.VisaInfo.Type,
+                Duration = guide.VisaInfo.Duration,
+                Requirements = guide.VisaInfo.Requirements,
+                Cost = guide.VisaInfo.Cost,
+                Process = guide.VisaInfo.Process
+            },
+            BestAreas = guide.BestAreas.Select(a => new BestAreaDto
+            {
+                Name = a.Name,
+                Description = a.Description,
+                EntertainmentScore = a.EntertainmentScore,
+                EntertainmentDescription = a.EntertainmentDescription,
+                TourismScore = a.TourismScore,
+                TourismDescription = a.TourismDescription,
+                EconomyScore = a.EconomyScore,
+                EconomyDescription = a.EconomyDescription,
+                CultureScore = a.CultureScore,
+                CultureDescription = a.CultureDescription
+            }).ToList(),
+            WorkspaceRecommendations = guide.WorkspaceRecommendations,
+            Tips = guide.Tips,
+            EssentialInfo = guide.EssentialInfo,
+            CreatedAt = guide.CreatedAt,
+            UpdatedAt = guide.UpdatedAt
+        };
+    }
+
+    #endregion
 }
