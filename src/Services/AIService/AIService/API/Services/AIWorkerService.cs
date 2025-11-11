@@ -93,10 +93,10 @@ public class AIWorkerService : BackgroundService
             _logger.LogInformation("💾 旅行计划已保存到 Redis: plan:{PlanId}, Size: {Size} bytes", planId, planJson.Length);
 
             // 更新为完成状态
-            await UpdateTaskStatusAsync(cache, taskId, "completed", 100, "生成完成!", planId);
-            await notificationService.SendTaskCompletedAsync(taskId, planId);
+            await UpdateTaskStatusAsync(cache, taskId, "completed", 100, "生成完成!", planId: planId, result: travelPlan);
+            await notificationService.SendTaskCompletedAsync(taskId, planId: planId, result: travelPlan);
 
-            _logger.LogInformation("✅ 任务处理完成: {TaskId} - PlanId: {PlanId}", taskId, planId);
+            _logger.LogInformation("✅ 旅行计划任务处理完成: {TaskId} - PlanId: {PlanId}", taskId, planId);
         }
         catch (Exception ex)
         {
@@ -154,7 +154,7 @@ public class AIWorkerService : BackgroundService
 
             // 更新为完成状态，同时保存 Result 数据
             await UpdateTaskStatusAsync(cache, taskId, "completed", 100, "生成完成!", guideId: guideId, result: guide);
-            await notificationService.SendTaskCompletedAsync(taskId, guideId);
+            await notificationService.SendTaskCompletedAsync(taskId, guideId: guideId, result: guide);
 
             _logger.LogInformation("✅ 指南任务处理完成: {TaskId} - GuideId: {GuideId}", taskId, guideId);
         }

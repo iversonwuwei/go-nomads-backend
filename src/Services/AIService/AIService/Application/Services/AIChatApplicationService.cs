@@ -1213,10 +1213,18 @@ JSON 格式（描述简洁）：
                 var apiKey = _configuration["Qwen:ApiKey"] ?? throw new InvalidOperationException("Qwen API Key 未配置");
                 var baseUrl = _configuration["Qwen:BaseUrl"] ?? "https://dashscope.aliyuncs.com/compatible-mode/v1";
                 var model = _configuration["SemanticKernel:DefaultModel"] ?? "qwen-plus";
-                
-                using var httpClient = new HttpClient();
-                httpClient.Timeout = TimeSpan.FromMinutes(5); // 增加到 5 分钟
-                
+
+                // 创建 HttpClient 时配置更长的超时和缓冲区
+                using var httpClient = new HttpClient(new SocketsHttpHandler
+                {
+                    PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+                    PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
+                    MaxConnectionsPerServer = 10,
+                    ResponseDrainTimeout = TimeSpan.FromMinutes(5)
+                });
+
+                httpClient.Timeout = TimeSpan.FromMinutes(10); // 增加到 10 分钟
+
                 var requestBody = new
                 {
                     model = model,
@@ -1237,12 +1245,14 @@ JSON 格式（描述简洁）：
                 request.Headers.Add("Authorization", $"Bearer {apiKey}");
                 request.Headers.Add("Accept", "application/json");
                 request.Content = content;
-                
-                _logger.LogInformation("📤 发送 AI 请求到: {Url}", $"{baseUrl}/chat/completions");
-                
-                var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead);
+
+                _logger.LogInformation("📤 发送 AI 请求到: {Url}, MaxTokens: {MaxTokens}", $"{baseUrl}/chat/completions", maxTokens);
+
+                // 使用 ResponseHeadersRead 模式，避免缓冲整个响应
+                var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
                 response.EnsureSuccessStatusCode();
-                
+
+                // 流式读取响应内容
                 var responseBody = await response.Content.ReadAsStringAsync();
                 stopwatch.Stop();
                 
@@ -1268,12 +1278,13 @@ JSON 格式（描述简洁）：
             catch (HttpRequestException ex)
             {
                 lastException = ex;
-                _logger.LogWarning(ex, "⚠️ AI HTTP 请求失败 (尝试 {Attempt}/{MaxRetries}), 正在重试...", 
-                    attempt, maxRetries);
-                
+                _logger.LogWarning(ex, "⚠️ AI HTTP 请求失败 (尝试 {Attempt}/{MaxRetries}), 错误: {Message}, 正在重试...",
+                    attempt, maxRetries, ex.Message);
+
                 if (attempt < maxRetries)
                 {
-                    var delaySeconds = attempt * 2; // 2秒、4秒、6秒
+                    var delaySeconds = attempt * 3; // 增加重试间隔：3秒、6秒、9秒
+                    _logger.LogInformation("⏳ 等待 {DelaySeconds} 秒后重试...", delaySeconds);
                     await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
                 }
             }
@@ -1285,7 +1296,8 @@ JSON 格式（描述简洁）：
                 
                 if (attempt < maxRetries)
                 {
-                    var delaySeconds = attempt * 2;
+                    var delaySeconds = attempt * 3; // 增加重试间隔
+                    _logger.LogInformation("⏳ 等待 {DelaySeconds} 秒后重试...", delaySeconds);
                     await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
                 }
             }
@@ -1405,7 +1417,7 @@ JSON 格式（描述简洁）：
     }
 
     /// <summary>
-    /// 生成数字游民旅游指南
+    /// 生成数字游民旅游指南（拆分为多个小请求）
     /// </summary>
     public async Task<TravelGuideResponse> GenerateTravelGuideAsync(
         GenerateTravelGuideRequest request, 
@@ -1414,30 +1426,28 @@ JSON 格式（描述简洁）：
     {
         try
         {
-            _logger.LogInformation("📖 开始生成数字游民旅游指南 - 城市: {CityName}, 用户ID: {UserId}", 
+            _logger.LogInformation("📖 开始生成数字游民旅游指南（拆分请求模式）- 城市: {CityName}, 用户ID: {UserId}",
                 request.CityName, userId);
 
-            // 步骤 1: 准备和分析 - 20%
-            if (onProgress != null) await onProgress(10, "正在分析城市信息...");
+            // 初始化结果对象
+            var guide = new TravelGuideResponse
+            {
+                CityId = request.CityId,
+                CityName = request.CityName
+            };
 
-            // 构建 Prompt
-            var prompt = BuildTravelGuidePrompt(request);
-            
-            // 步骤 2: 调用 AI 服务 - 30%
-            if (onProgress != null) await onProgress(30, "AI 正在生成旅游指南...");
-            
-            _logger.LogInformation("🤖 调用 Qwen AI 生成旅游指南...");
-            var aiResponse = await CallAIAsync(prompt, 2000); // 2000 tokens 应该足够
-            
-            // 步骤 3: 接收响应 - 60%
-            if (onProgress != null) await onProgress(60, "正在处理 AI 响应...");
-            _logger.LogInformation("✅ AI 响应接收完成，长度: {Length}", aiResponse.Length);
+            // 第 1 部分: 概述 + 签证信息 (15% - 40%)
+            if (onProgress != null) await onProgress(15, "正在生成城市概述和签证信息...");
+            await GenerateBasicInfoAsync(request, guide, onProgress);
 
-            // 步骤 4: 解析 AI 响应 - 80%
-            if (onProgress != null) await onProgress(80, "正在解析指南内容...");
-            var guide = ParseTravelGuideFromAI(aiResponse, request);
-            
-            // 步骤 5: 完成 - 100%
+            // 第 2 部分: 推荐区域 (40% - 70%)
+            if (onProgress != null) await onProgress(40, "正在分析推荐区域...");
+            await GenerateBestAreasAsync(request, guide, onProgress);
+
+            // 第 3 部分: 工作空间 + 实用建议 + 基本信息 (70% - 100%)
+            if (onProgress != null) await onProgress(70, "正在整理工作空间和实用建议...");
+            await GeneratePracticalInfoAsync(request, guide, onProgress);
+
             if (onProgress != null) await onProgress(100, "旅游指南生成完成!");
             
             _logger.LogInformation("✅ 数字游民旅游指南生成成功 - 城市: {CityName}", request.CityName);
@@ -1450,11 +1460,17 @@ JSON 格式（描述简洁）：
         }
     }
 
-    private string BuildTravelGuidePrompt(GenerateTravelGuideRequest request)
+    /// <summary>
+    /// 第 1 部分：生成基本信息（概述 + 签证）
+    /// </summary>
+    private async Task GenerateBasicInfoAsync(
+        GenerateTravelGuideRequest request,
+        TravelGuideResponse guide,
+        Func<int, string, Task>? onProgress)
     {
-        return $@"请为 {request.CityName} 生成一份详细的数字游民旅游指南。
+        var prompt = $@"请为 {request.CityName} 生成数字游民指南的基本信息部分。
 
-请以 JSON 格式返回以下信息：
+请以 JSON 格式返回：
 
 {{
   ""overview"": ""城市概述（适合数字游民的整体评价，包括工作环境、生活成本、社区氛围等，200-300字）"",
@@ -1464,7 +1480,39 @@ JSON 格式（描述简洁）：
     ""requirements"": ""签证申请要求（详细说明所需材料和条件）"",
     ""cost"": 签证费用（数字，美元），
     ""process"": ""申请流程（详细步骤说明）""
-  }},
+  }}
+}}
+
+要求：信息要准确、实用、最新，使用中文，必须返回严格的 JSON 格式。";
+
+        _logger.LogInformation("🤖 [1/3] 调用 AI 生成基本信息...");
+        var aiResponse = await CallAIAsync(prompt, 800, maxRetries: 3);
+
+        if (onProgress != null) await onProgress(35, "正在解析基本信息...");
+
+        var jsonContent = ExtractJsonFromAIResponse(aiResponse);
+        var jsonDoc = JsonDocument.Parse(jsonContent);
+        var root = jsonDoc.RootElement;
+
+        guide.Overview = root.TryGetProperty("overview", out var overview) ? overview.GetString() ?? "" : "";
+        guide.VisaInfo = root.TryGetProperty("visaInfo", out var visaInfo) ? ParseVisaInfo(visaInfo) : new VisaInfoDto();
+
+        _logger.LogInformation("✅ [1/3] 基本信息生成完成");
+    }
+
+    /// <summary>
+    /// 第 2 部分：生成推荐区域
+    /// </summary>
+    private async Task GenerateBestAreasAsync(
+        GenerateTravelGuideRequest request,
+        TravelGuideResponse guide,
+        Func<int, string, Task>? onProgress)
+    {
+        var prompt = $@"请为 {request.CityName} 推荐5个最适合数字游民居住和工作的区域。
+
+请以 JSON 格式返回：
+
+{{
   ""bestAreas"": [
     {{
       ""name"": ""区域名称1"",
@@ -1526,11 +1574,44 @@ JSON 格式（描述简洁）：
       ""cultureScore"": 文化评分（1-5），
       ""cultureDescription"": ""文化特色说明""
     }}
-  ],
+  ]
+}}
+
+要求：必须包含5个区域，从娱乐、旅游、经济、文化四个维度评分(1-5数字)，使用中文，返回严格 JSON 格式。";
+
+        _logger.LogInformation("🤖 [2/3] 调用 AI 生成推荐区域...");
+        var aiResponse = await CallAIAsync(prompt, 1200, maxRetries: 3);
+
+        if (onProgress != null) await onProgress(65, "正在解析推荐区域...");
+
+        var jsonContent = ExtractJsonFromAIResponse(aiResponse);
+        var jsonDoc = JsonDocument.Parse(jsonContent);
+        var root = jsonDoc.RootElement;
+
+        guide.BestAreas = root.TryGetProperty("bestAreas", out var areas) ? ParseBestAreas(areas) : new List<BestAreaDto>();
+
+        _logger.LogInformation("✅ [2/3] 推荐区域生成完成，共 {Count} 个区域", guide.BestAreas.Count);
+    }
+
+    /// <summary>
+    /// 第 3 部分：生成实用信息（工作空间 + 建议 + 基本信息）
+    /// </summary>
+    private async Task GeneratePracticalInfoAsync(
+        GenerateTravelGuideRequest request,
+        TravelGuideResponse guide,
+        Func<int, string, Task>? onProgress)
+    {
+        var prompt = $@"请为 {request.CityName} 的数字游民提供实用的工作和生活建议。
+
+请以 JSON 格式返回：
+
+{{
   ""workspaceRecommendations"": [
     ""共享办公空间推荐1（包括名称、地址、价格范围、特色）"",
     ""共享办公空间推荐2"",
-    ""咖啡馆推荐（适合工作的咖啡馆）""
+    ""共享办公空间推荐3"",
+    ""适合工作的咖啡馆推荐1"",
+    ""适合工作的咖啡馆推荐2""
   ],
   ""tips"": [
     ""实用建议1（关于生活、工作、社交等方面）"",
@@ -1551,51 +1632,22 @@ JSON 格式（描述简洁）：
   }}
 }}
 
-要求：
-1. 所有信息要准确、实用、最新
-2. 特别关注数字游民的工作和生活需求
-3. 提供具体的地点、价格、网站等信息
-4. tips 要具体可操作
-5. bestAreas 必须包含至少5个推荐区域，每个区域从娱乐、旅游、经济、文化四个维度评分和描述
-6. 必须返回严格的 JSON 格式，不要添加任何额外的文字说明
-7. 所有文本使用中文
-8. 所有评分必须是数字(1-5),不要使用字符串";
-    }
+要求：信息要具体可操作，使用中文，返回严格 JSON 格式。";
 
-    private TravelGuideResponse ParseTravelGuideFromAI(string aiContent, GenerateTravelGuideRequest request)
-    {
-        try
-        {
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            };
+        _logger.LogInformation("🤖 [3/3] 调用 AI 生成实用信息...");
+        var aiResponse = await CallAIAsync(prompt, 1000, maxRetries: 3);
 
-            // 提取 JSON 内容
-            var jsonContent = ExtractJsonFromAIResponse(aiContent);
-            _logger.LogInformation("🔍 提取的 JSON 内容: {JsonContent}", jsonContent);
+        if (onProgress != null) await onProgress(95, "正在解析实用信息...");
 
-            var jsonDoc = JsonDocument.Parse(jsonContent);
-            var root = jsonDoc.RootElement;
+        var jsonContent = ExtractJsonFromAIResponse(aiResponse);
+        var jsonDoc = JsonDocument.Parse(jsonContent);
+        var root = jsonDoc.RootElement;
 
-            return new TravelGuideResponse
-            {
-                CityId = request.CityId,
-                CityName = request.CityName,
-                Overview = root.TryGetProperty("overview", out var overview) ? overview.GetString() ?? "" : "",
-                VisaInfo = root.TryGetProperty("visaInfo", out var visaInfo) ? ParseVisaInfo(visaInfo) : new VisaInfoDto(),
-                BestAreas = root.TryGetProperty("bestAreas", out var areas) ? ParseBestAreas(areas) : new List<BestAreaDto>(),
-                WorkspaceRecommendations = root.TryGetProperty("workspaceRecommendations", out var workspaces) ? ParseStringArray(workspaces) : new List<string>(),
-                Tips = root.TryGetProperty("tips", out var tips) ? ParseStringArray(tips) : new List<string>(),
-                EssentialInfo = root.TryGetProperty("essentialInfo", out var essentialInfo) ? ParseEssentialInfo(essentialInfo) : new Dictionary<string, string>()
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ 解析旅游指南 JSON 失败: {Content}", aiContent);
-            throw new JsonException("无法解析 AI 生成的旅游指南", ex);
-        }
+        guide.WorkspaceRecommendations = root.TryGetProperty("workspaceRecommendations", out var workspaces) ? ParseStringArray(workspaces) : new List<string>();
+        guide.Tips = root.TryGetProperty("tips", out var tips) ? ParseStringArray(tips) : new List<string>();
+        guide.EssentialInfo = root.TryGetProperty("essentialInfo", out var essentialInfo) ? ParseEssentialInfo(essentialInfo) : new Dictionary<string, string>();
+
+        _logger.LogInformation("✅ [3/3] 实用信息生成完成");
     }
 
     private List<BestAreaDto> ParseBestAreas(JsonElement element)

@@ -69,7 +69,7 @@ public interface INotificationService
     /// <summary>
     /// 发送任务完成通知
     /// </summary>
-    Task SendTaskCompletedAsync(string taskId, string planId);
+    Task SendTaskCompletedAsync(string taskId, string? planId = null, string? guideId = null, object? result = null);
 
     /// <summary>
     /// 发送任务失败通知
@@ -96,36 +96,61 @@ public class NotificationService : INotificationService
     public async Task SendTaskProgressAsync(string taskId, int progress, string? message = null)
     {
         var groupName = $"task_{taskId}";
+        var now = DateTime.UtcNow;
         await _hubContext.Clients.Group(groupName).SendAsync("TaskProgress", new
         {
-            TaskId = taskId,
-            Progress = progress,
-            Message = message,
-            Timestamp = DateTime.UtcNow
+            taskId = taskId,
+            status = "processing",
+            progress = progress,
+            progressMessage = message,
+            createdAt = now.ToString("o"),
+            updatedAt = now.ToString("o")
         });
         _logger.LogInformation("📊 任务进度通知已发送: {TaskId} - {Progress}%", taskId, progress);
     }
 
-    public async Task SendTaskCompletedAsync(string taskId, string planId)
+    public async Task SendTaskCompletedAsync(string taskId, string? planId = null, string? guideId = null, object? result = null)
     {
         var groupName = $"task_{taskId}";
-        await _hubContext.Clients.Group(groupName).SendAsync("TaskCompleted", new
+        var now = DateTime.UtcNow;
+
+        var payload = new Dictionary<string, object?>
         {
-            TaskId = taskId,
-            PlanId = planId,
-            Timestamp = DateTime.UtcNow
-        });
-        _logger.LogInformation("✅ 任务完成通知已发送: {TaskId} - PlanId: {PlanId}", taskId, planId);
+            ["taskId"] = taskId,
+            ["status"] = "completed",
+            ["planId"] = planId,
+            ["guideId"] = guideId,
+            ["progress"] = 100,
+            ["progressMessage"] = "任务已完成",
+            ["createdAt"] = now.ToString("o"),
+            ["updatedAt"] = now.ToString("o"),
+            ["completedAt"] = now.ToString("o")
+        };
+
+        // 如果有 result 数据，添加到 payload 中
+        if (result != null)
+        {
+            payload["result"] = result;
+        }
+
+        await _hubContext.Clients.Group(groupName).SendAsync("TaskCompleted", payload);
+        _logger.LogInformation("✅ 任务完成通知已发送: {TaskId} - PlanId: {PlanId}, GuideId: {GuideId}", taskId, planId, guideId);
     }
 
     public async Task SendTaskFailedAsync(string taskId, string error)
     {
         var groupName = $"task_{taskId}";
+        var now = DateTime.UtcNow;
         await _hubContext.Clients.Group(groupName).SendAsync("TaskFailed", new
         {
-            TaskId = taskId,
-            Error = error,
-            Timestamp = DateTime.UtcNow
+            taskId = taskId,
+            status = "failed",
+            error = error,
+            progress = 0,
+            progressMessage = "任务失败",
+            createdAt = now.ToString("o"),
+            updatedAt = now.ToString("o"),
+            completedAt = now.ToString("o")
         });
         _logger.LogError("❌ 任务失败通知已发送: {TaskId} - Error: {Error}", taskId, error);
     }
