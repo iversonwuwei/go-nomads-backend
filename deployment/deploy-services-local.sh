@@ -407,6 +407,16 @@ main() {
         "ai-service"
     echo ""
     
+    # 部署 MessageService
+    deploy_service_local \
+        "messageservice" \
+        "src/Services/MessageService/MessageService" \
+        "5005" \
+        "MessageService.dll" \
+        "3510" \
+        "messageservice"
+    echo ""
+    
     # 显示部署摘要
     show_header "部署摘要"
     
@@ -421,6 +431,8 @@ main() {
     echo -e "  ${GREEN}Event Service:    http://localhost:8005${NC}"
     echo -e "  ${GREEN}Coworking Service: http://localhost:8006${NC}"
     echo -e "  ${GREEN}AI Service:       http://localhost:8009${NC}"
+    echo -e "  ${GREEN}Message Service:  http://localhost:5005${NC}"
+    echo -e "  ${GREEN}Message Swagger:  http://localhost:5005/swagger${NC}"
     echo ""
     echo -e "${BLUE}Dapr 配置:${NC}"
     echo -e "  ${GREEN}模式:             Container Sidecar (共享网络命名空间)${NC}"

@@ -229,6 +229,16 @@ main() {
         "50000"
     echo ""
     
+    # 部署 MessageService
+    deploy_service \
+        "messageservice" \
+        "src/Services/MessageService/API" \
+        "src/Services/MessageService/API/Dockerfile" \
+        "5005" \
+        "3005" \
+        "50005"
+    echo ""
+    
     # 显示部署摘要
     show_header "部署摘要"
     
@@ -240,9 +250,12 @@ main() {
     echo -e "  ${GREEN}Product Service:  http://localhost:5002${NC}"
     echo -e "  ${GREEN}Document Service: http://localhost:5003${NC}"
     echo -e "  ${GREEN}Document API:     http://localhost:5003/scalar/v1${NC}"
+    echo -e "  ${GREEN}Message Service:  http://localhost:5005${NC}"
+    echo -e "  ${GREEN}Message Swagger:  http://localhost:5005/swagger${NC}"
     echo ""
     echo -e "${BLUE}基础设施:${NC}"
     echo -e "  ${GREEN}Consul UI:        http://localhost:8500${NC}"
+    echo -e "  ${GREEN}RabbitMQ UI:      http://localhost:15672 (guest/guest)${NC}"
     echo -e "  ${GREEN}Zipkin:           http://localhost:9411${NC}"
     echo -e "  ${GREEN}Prometheus:       http://localhost:9090${NC}"
     echo -e "  ${GREEN}Grafana:          http://localhost:3000${NC}"

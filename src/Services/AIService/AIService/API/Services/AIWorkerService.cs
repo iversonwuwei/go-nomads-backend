@@ -3,7 +3,6 @@ using AIService.API.Models;
 using AIService.Application.DTOs;
 using AIService.Application.Services;
 using AIService.Infrastructure.Cache;
-using AIService.Infrastructure.MessageBus;
 using Dapr.Client;
 
 namespace AIService.API.Services;

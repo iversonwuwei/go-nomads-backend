@@ -9,10 +9,9 @@ using Prometheus;
 using Scalar.AspNetCore;
 using Serilog;
 using Shared.Extensions;
-using AIService.Infrastructure.MessageBus;
 using AIService.Infrastructure.Cache;
 using AIService.API.Hubs;
-using AIService.API.Services;
+using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,9 +22,6 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 builder.Host.UseSerilog();
-
-// 添加 Supabase 客户端
-builder.Services.AddSupabase(builder.Configuration);
 
 // 注册仓储 (Infrastructure Layer)
 builder.Services.AddScoped<IAIConversationRepository, AIConversationRepository>();
@@ -86,18 +82,32 @@ catch (Exception ex)
 // 注册应用服务 (Application Layer)
 builder.Services.AddScoped<IAIChatService, AIChatApplicationService>();
 
-// 注册消息队列和缓存服务 (Infrastructure Layer)
-builder.Services.AddSingleton<IMessageBus, RabbitMQMessageBus>();
+// 配置 MassTransit + RabbitMQ
+var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
+builder.Services.AddMassTransit(x =>
+{
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        cfg.Host(rabbitMqConfig["HostName"] ?? "localhost", "/", h =>
+        {
+            h.Username(rabbitMqConfig["UserName"] ?? "guest");
+            h.Password(rabbitMqConfig["Password"] ?? "guest");
+        });
+
+        cfg.ConfigureEndpoints(context);
+    });
+});
+
+// 注册缓存服务 (Infrastructure Layer)
 builder.Services.AddSingleton<IRedisCache, RedisCache>();
 
 // 注册 SignalR 通知服务
 builder.Services.AddSignalR();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 
-// 注册后台任务处理服务
-builder.Services.AddHostedService<AIWorkerService>();
+// AIWorkerService 已废弃: 现在使用 Controller 中的 Task.Run() 直接处理 AI 生成任务
 
-Log.Information("✅ 消息队列、缓存和后台服务已注册");
+Log.Information("✅ MassTransit、缓存服务已注册");
 
 // 配置 DaprClient 使用 gRPC 协议（性能更好）
 builder.Services.AddDaprClient(daprClientBuilder =>

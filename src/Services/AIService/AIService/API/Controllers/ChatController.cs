@@ -6,8 +6,10 @@ using GoNomads.Shared.Middleware;
 using GoNomads.Shared.DTOs;
 using System.Text.Json;
 using AIService.API.Models;
-using AIService.Infrastructure.MessageBus;
 using AIService.Infrastructure.Cache;
+using MassTransit;
+using Shared.Messages;
+using Dapr.Client;
 
 namespace AIService.API.Controllers;
 
@@ -984,8 +986,9 @@ public class ChatController : ControllerBase
     [Microsoft.AspNetCore.Authorization.AllowAnonymous] // 测试用,生产环境应移除
     public async Task<ActionResult<ApiResponse<CreateTaskResponse>>> CreateTravelPlanTaskAsync(
         [FromBody] GenerateTravelPlanRequest request,
-        [FromServices] IMessageBus messageBus,
-        [FromServices] IRedisCache cache)
+        [FromServices] IPublishEndpoint publishEndpoint,
+        [FromServices] IRedisCache cache,
+        [FromServices] IAIChatService chatService)
     {
         try
         {
@@ -1015,16 +1018,7 @@ public class ChatController : ControllerBase
 
             // 生成任务ID
             var taskId = Guid.NewGuid().ToString("N");
-
-            // 创建任务消息
-            var taskMessage = new TravelPlanTaskMessage
-            {
-                TaskId = taskId,
-                UserId = userId,
-                Request = request,
-                ConnectionId = Request.Headers["X-SignalR-ConnectionId"].FirstOrDefault(),
-                CreatedAt = DateTime.UtcNow
-            };
+            var startTime = DateTime.UtcNow;
 
             // 初始化任务状态
             var taskStatus = new Models.TaskStatus
@@ -1032,16 +1026,92 @@ public class ChatController : ControllerBase
                 TaskId = taskId,
                 Status = "queued",
                 Progress = 0,
-                ProgressMessage = "任务已创建,等待处理...",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                ProgressMessage = "任务已创建,正在开始处理...",
+                CreatedAt = startTime,
+                UpdatedAt = startTime
             };
 
             // 保存到 Redis (24小时过期)
             await cache.SetAsync($"task:{taskId}", taskStatus, TimeSpan.FromHours(24));
 
-            // 发布到消息队列
-            await messageBus.PublishAsync("travel-plan-tasks", taskMessage);
+            // 在后台线程中处理任务
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    _logger.LogInformation("🚀 开始处理旅行计划任务: TaskId={TaskId}", taskId);
+
+                    // 调用 AI 生成服务，传递进度回调
+                    var travelPlan = await chatService.GenerateTravelPlanAsync(
+                        request,
+                        userId,
+                        async (progress, message) =>
+                        {
+                            // 发送进度消息到 MessageService
+                            await publishEndpoint.Publish(new Shared.Messages.AIProgressMessage
+                            {
+                                TaskId = taskId,
+                                UserId = userId.ToString(),
+                                Progress = progress,
+                                Message = message,
+                                TaskType = "travel-plan",
+                                CurrentStage = message,
+                                Timestamp = DateTime.UtcNow
+                            });
+
+                            _logger.LogInformation("📊 进度: {Progress}% - {Message}", progress, message);
+                        });
+
+                    // 保存结果到 Redis
+                    var planId = travelPlan.Id;
+                    var planJson = System.Text.Json.JsonSerializer.Serialize(travelPlan);
+                    await cache.SetStringAsync($"plan:{planId}", planJson, TimeSpan.FromHours(24));
+
+                    // 更新任务状态
+                    taskStatus.Status = "completed";
+                    taskStatus.Progress = 100;
+                    taskStatus.PlanId = planId;
+                    taskStatus.Result = travelPlan;
+                    taskStatus.CompletedAt = DateTime.UtcNow;
+                    await cache.SetAsync($"task:{taskId}", taskStatus, TimeSpan.FromHours(24));
+
+                    // 发送完成消息到 MessageService
+                    await publishEndpoint.Publish(new Shared.Messages.AITaskCompletedMessage
+                    {
+                        TaskId = taskId,
+                        UserId = userId.ToString(),
+                        TaskType = "travel-plan",
+                        ResultId = planId,
+                        Result = travelPlan,
+                        CompletedAt = DateTime.UtcNow,
+                        DurationSeconds = (int)(DateTime.UtcNow - startTime).TotalSeconds
+                    });
+
+                    _logger.LogInformation("✅ 旅行计划生成完成: TaskId={TaskId}, PlanId={PlanId}", taskId, planId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ 处理旅行计划任务失败: TaskId={TaskId}", taskId);
+
+                    // 更新任务状态为失败
+                    taskStatus.Status = "failed";
+                    taskStatus.Error = ex.Message;
+                    taskStatus.CompletedAt = DateTime.UtcNow;
+                    await cache.SetAsync($"task:{taskId}", taskStatus, TimeSpan.FromHours(24));
+
+                    // 发送失败消息到 MessageService
+                    await publishEndpoint.Publish(new Shared.Messages.AITaskFailedMessage
+                    {
+                        TaskId = taskId,
+                        UserId = userId.ToString(),
+                        TaskType = "travel-plan",
+                        ErrorMessage = ex.Message,
+                        ErrorCode = "GENERATION_FAILED",
+                        StackTrace = ex.StackTrace,
+                        FailedAt = DateTime.UtcNow
+                    });
+                }
+            });
 
             _logger.LogInformation("✅ 任务已创建: {TaskId}, UserId: {UserId}", taskId, userId);
 
@@ -1054,7 +1124,7 @@ public class ChatController : ControllerBase
                     TaskId = taskId,
                     Status = "queued",
                     EstimatedTimeSeconds = 120,
-                    Message = "任务已创建,正在队列中等待处理。预计2分钟内完成。"
+                    Message = "任务已创建,正在处理中。请通过 SignalR 连接 MessageService 接收实时进度。"
                 }
             });
         }
@@ -1316,8 +1386,10 @@ public class ChatController : ControllerBase
     [Microsoft.AspNetCore.Authorization.AllowAnonymous]
     public async Task<ActionResult<ApiResponse<CreateTaskResponse>>> CreateDigitalNomadGuideTaskAsync(
         [FromBody] GenerateTravelGuideRequest request,
-        [FromServices] IMessageBus messageBus,
-        [FromServices] IRedisCache cache)
+        [FromServices] IPublishEndpoint publishEndpoint,
+        [FromServices] IRedisCache cache,
+        [FromServices] IAIChatService chatService,
+        [FromServices] DaprClient daprClient)
     {
         try
         {
@@ -1346,16 +1418,7 @@ public class ChatController : ControllerBase
 
             // 生成任务ID
             var taskId = Guid.NewGuid().ToString("N");
-
-            // 创建任务消息
-            var taskMessage = new DigitalNomadGuideTaskMessage
-            {
-                TaskId = taskId,
-                UserId = userId,
-                Request = request,
-                ConnectionId = Request.Headers["X-SignalR-ConnectionId"].FirstOrDefault(),
-                CreatedAt = DateTime.UtcNow
-            };
+            var startTime = DateTime.UtcNow;
 
             // 初始化任务状态
             var taskStatus = new Models.TaskStatus
@@ -1363,16 +1426,139 @@ public class ChatController : ControllerBase
                 TaskId = taskId,
                 Status = "queued",
                 Progress = 0,
-                ProgressMessage = "指南任务已创建,等待处理...",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                ProgressMessage = "指南任务已创建,正在开始处理...",
+                CreatedAt = startTime,
+                UpdatedAt = startTime
             };
 
             // 保存到 Redis (24小时过期)
             await cache.SetAsync($"task:{taskId}", taskStatus, TimeSpan.FromHours(24));
 
-            // 发布到消息队列
-            await messageBus.PublishAsync("digital-nomad-guide-tasks", taskMessage);
+            // 在后台线程中处理任务
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    _logger.LogInformation("🚀 开始处理数字游民指南任务: TaskId={TaskId}", taskId);
+
+                    // 调用 AI 生成服务，传递进度回调
+                    var guide = await chatService.GenerateTravelGuideAsync(
+                        request,
+                        userId,
+                        async (progress, message) =>
+                        {
+                            // 发送进度消息到 MessageService
+                            await publishEndpoint.Publish(new Shared.Messages.AIProgressMessage
+                            {
+                                TaskId = taskId,
+                                UserId = userId.ToString(),
+                                Progress = progress,
+                                Message = message,
+                                TaskType = "digital-nomad-guide",
+                                CurrentStage = message,
+                                Timestamp = DateTime.UtcNow
+                            });
+
+                            _logger.LogInformation("📊 指南进度: {Progress}% - {Message}", progress, message);
+                        });
+
+                    // 保存结果到 CityService（通过 Dapr）
+                    try
+                    {
+                        var saveRequest = new
+                        {
+                            CityId = request.CityId,
+                            CityName = request.CityName,
+                            Overview = guide.Overview,
+                            VisaInfo = new
+                            {
+                                Type = guide.VisaInfo.Type,
+                                Duration = guide.VisaInfo.Duration,
+                                Requirements = guide.VisaInfo.Requirements,
+                                Cost = guide.VisaInfo.Cost,
+                                Process = guide.VisaInfo.Process
+                            },
+                            BestAreas = guide.BestAreas.Select(a => new
+                            {
+                                Name = a.Name,
+                                Description = a.Description,
+                                EntertainmentScore = a.EntertainmentScore,
+                                EntertainmentDescription = a.EntertainmentDescription,
+                                TourismScore = a.TourismScore,
+                                TourismDescription = a.TourismDescription,
+                                EconomyScore = a.EconomyScore,
+                                EconomyDescription = a.EconomyDescription,
+                                CultureScore = a.CultureScore,
+                                CultureDescription = a.CultureDescription
+                            }).ToList(),
+                            WorkspaceRecommendations = guide.WorkspaceRecommendations,
+                            Tips = guide.Tips,
+                            EssentialInfo = guide.EssentialInfo
+                        };
+
+                        await daprClient.InvokeMethodAsync<object, object>(
+                            HttpMethod.Post,
+                            "city-service",
+                            $"api/v1/cities/{request.CityId}/guide",
+                            saveRequest);
+
+                        _logger.LogInformation("✅ 指南已保存到 CityService: CityId={CityId}", request.CityId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "⚠️ 保存指南到 CityService 失败,但不影响任务完成");
+                    }
+
+                    // 保存结果到 Redis
+                    var guideId = $"guide_{request.CityId}_{Guid.NewGuid():N}";
+                    var guideJson = System.Text.Json.JsonSerializer.Serialize(guide);
+                    await cache.SetStringAsync($"guide:{guideId}", guideJson, TimeSpan.FromHours(24));
+
+                    // 更新任务状态
+                    taskStatus.Status = "completed";
+                    taskStatus.Progress = 100;
+                    taskStatus.GuideId = guideId;
+                    taskStatus.Result = guide;
+                    taskStatus.CompletedAt = DateTime.UtcNow;
+                    await cache.SetAsync($"task:{taskId}", taskStatus, TimeSpan.FromHours(24));
+
+                    // 发送完成消息到 MessageService
+                    await publishEndpoint.Publish(new Shared.Messages.AITaskCompletedMessage
+                    {
+                        TaskId = taskId,
+                        UserId = userId.ToString(),
+                        TaskType = "digital-nomad-guide",
+                        ResultId = guideId,
+                        Result = guide,
+                        CompletedAt = DateTime.UtcNow,
+                        DurationSeconds = (int)(DateTime.UtcNow - startTime).TotalSeconds
+                    });
+
+                    _logger.LogInformation("✅ 数字游民指南生成完成: TaskId={TaskId}, GuideId={GuideId}", taskId, guideId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ 处理数字游民指南任务失败: TaskId={TaskId}", taskId);
+
+                    // 更新任务状态为失败
+                    taskStatus.Status = "failed";
+                    taskStatus.Error = ex.Message;
+                    taskStatus.CompletedAt = DateTime.UtcNow;
+                    await cache.SetAsync($"task:{taskId}", taskStatus, TimeSpan.FromHours(24));
+
+                    // 发送失败消息到 MessageService
+                    await publishEndpoint.Publish(new Shared.Messages.AITaskFailedMessage
+                    {
+                        TaskId = taskId,
+                        UserId = userId.ToString(),
+                        TaskType = "digital-nomad-guide",
+                        ErrorMessage = ex.Message,
+                        ErrorCode = "GENERATION_FAILED",
+                        StackTrace = ex.StackTrace,
+                        FailedAt = DateTime.UtcNow
+                    });
+                }
+            });
 
             _logger.LogInformation("✅ 指南任务已创建: {TaskId}, UserId: {UserId}", taskId, userId);
 
@@ -1384,8 +1570,8 @@ public class ChatController : ControllerBase
                 {
                     TaskId = taskId,
                     Status = "queued",
-                    EstimatedTimeSeconds = 120, // 预计2分钟
-                    Message = "数字游民指南生成任务已创建,请等待处理"
+                    EstimatedTimeSeconds = 120,
+                    Message = "数字游民指南生成任务已创建,正在处理中。请通过 SignalR 连接 MessageService 接收实时进度。"
                 }
             });
         }

@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # Redis (SignalR Backplane)
+  redis:
+    image: redis:7-alpine
+    container_name: go-nomads-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - gonomads-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # RabbitMQ (消息队列)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: go-nomads-rabbitmq
+    ports:
+      - "5672:5672"    # AMQP 协议端口
+      - "15672:15672"  # 管理界面
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - gonomads-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # MessageService (消息服务)
+  messageservice:
+    build:
+      context: .
+      dockerfile: src/Services/MessageService/API/Dockerfile
+    container_name: go-nomads-messageservice
+    ports:
+      - "5005:5005"
+    depends_on:
+      - redis
+      - rabbitmq
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5005
+      - ConnectionStrings__Redis=redis:6379
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
+    networks:
+      - gonomads-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "service.name=messageservice"
+      - "service.version=1.0.0"
+
+networks:
+  gonomads-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  rabbitmq_data:

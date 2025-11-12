@@ -363,6 +363,31 @@ deploy_grafana() {
     fi
 }
 
+# Deploy RabbitMQ
+deploy_rabbitmq() {
+    show_header "Deploying RabbitMQ"
+    
+    remove_container_if_exists "go-nomads-rabbitmq"
+    
+    echo -e "${YELLOW}  Starting RabbitMQ container...${NC}"
+    $CONTAINER_RUNTIME run -d \
+        --name go-nomads-rabbitmq \
+        --network "$NETWORK_NAME" \
+        -p 5672:5672 \
+        -p 15672:15672 \
+        -e RABBITMQ_DEFAULT_USER=guest \
+        -e RABBITMQ_DEFAULT_PASS=guest \
+        rabbitmq:3-management-alpine > /dev/null
+    
+    if container_running "go-nomads-rabbitmq"; then
+        echo -e "${GREEN}  RabbitMQ deployed successfully!${NC}"
+        wait_for_service "RabbitMQ" "http://localhost:15672" 30 || true
+    else
+        echo -e "${RED}  [ERROR] Failed to start RabbitMQ${NC}"
+        exit 1
+    fi
+}
+
 # Deploy PostgreSQL
 deploy_postgres() {
     show_header "Deploying PostgreSQL"
@@ -466,6 +491,7 @@ show_status() {
     echo -e "${CYAN}  - Prometheus:     http://localhost:9090${NC}"
     echo -e "${CYAN}  - Grafana:        http://localhost:3000 (admin/admin)${NC}"
     echo -e "${CYAN}  - Zipkin:         http://localhost:9411${NC}"
+    echo -e "${CYAN}  - RabbitMQ UI:    http://localhost:15672 (guest/guest)${NC}"
     echo -e "${CYAN}  - PostgreSQL:     localhost:5432 (postgres/postgres)${NC}"
     echo -e "${CYAN}  - Elasticsearch:  http://localhost:9200${NC}"
     echo ""
@@ -481,6 +507,7 @@ stop_infrastructure() {
         "go-nomads-prometheus"
         "go-nomads-zipkin"
         "go-nomads-consul"
+        "go-nomads-rabbitmq"
         "go-nomads-redis"
         "go-nomads-postgres"
         "go-nomads-elasticsearch"
@@ -506,6 +533,7 @@ clean_infrastructure() {
         "go-nomads-prometheus"
         "go-nomads-zipkin"
         "go-nomads-consul"
+        "go-nomads-rabbitmq"
         "go-nomads-redis"
         "go-nomads-postgres"
         "go-nomads-elasticsearch"
@@ -547,6 +575,7 @@ show_help() {
     echo -e "${WHITE}  - Zipkin (Distributed Tracing)${NC}"
     echo -e "${WHITE}  - Prometheus (Metrics Collection)${NC}"
     echo -e "${WHITE}  - Grafana (Metrics Visualization)${NC}"
+    echo -e "${WHITE}  - RabbitMQ (Message Queue)${NC}"
     echo -e "${WHITE}  - PostgreSQL (Relational Database)${NC}"
     echo -e "${WHITE}  - Elasticsearch (Search Engine)${NC}"
     echo -e "${WHITE}  - Nginx (Reverse Proxy)${NC}"
@@ -561,6 +590,7 @@ case "$ACTION" in
         show_header "Go-Nomads Infrastructure Deployment"
         initialize_network
         deploy_redis
+        deploy_rabbitmq
         deploy_consul
         deploy_zipkin
         deploy_prometheus

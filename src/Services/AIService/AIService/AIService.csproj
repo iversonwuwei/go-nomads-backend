@@ -9,6 +9,7 @@
   <ItemGroup>
     <!-- Dapr 集成 -->
     <PackageReference Include="Dapr.AspNetCore" Version="1.16.0" />
+    <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.5" />
     
     <!-- Semantic Kernel 核心包 -->
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.25.0" />
@@ -24,7 +25,6 @@
     <PackageReference Include="StackExchange.Redis" Version="2.7.33" />
     
     <!-- 消息队列 -->
-    <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
     
     <!-- 监控和日志 -->
     <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />
