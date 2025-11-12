@@ -381,7 +381,8 @@ public class CityApplicationService : ICityService
             Tags = city.Tags,
             IsActive = city.IsActive,
             CreatedAt = city.CreatedAt,
-            UpdatedAt = city.UpdatedAt
+            UpdatedAt = city.UpdatedAt,
+            ModeratorId = city.ModeratorId
         };
     }
 
@@ -462,6 +463,76 @@ public class CityApplicationService : ICityService
             {
                 city.IsFavorite = false;
             }
+        }
+    }
+
+    /// <summary>
+    /// 申请成为城市版主 (普通用户)
+    /// </summary>
+    public async Task<bool> ApplyModeratorAsync(Guid userId, ApplyModeratorDto dto)
+    {
+        try
+        {
+            var city = await _cityRepository.GetByIdAsync(dto.CityId);
+            if (city == null)
+            {
+                _logger.LogWarning("城市不存在: {CityId}", dto.CityId);
+                return false;
+            }
+
+            if (city.ModeratorId.HasValue)
+            {
+                _logger.LogWarning("城市已有版主: {CityId}, ModeratorId: {ModeratorId}", dto.CityId, city.ModeratorId);
+                return false;
+            }
+
+            // TODO: 这里可以添加申请记录到数据库，等待管理员审核
+            // 目前简化流程：直接设置为版主
+            city.ModeratorId = userId;
+            city.UpdatedAt = DateTime.UtcNow;
+            city.UpdatedById = userId;
+
+            await _cityRepository.UpdateAsync(city.Id, city);
+
+            _logger.LogInformation("用户 {UserId} 申请成为城市 {CityId} 的版主成功", userId, dto.CityId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "申请城市版主失败: UserId={UserId}, CityId={CityId}", userId, dto.CityId);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 指定城市版主 (仅管理员)
+    /// </summary>
+    public async Task<bool> AssignModeratorAsync(AssignModeratorDto dto)
+    {
+        try
+        {
+            var city = await _cityRepository.GetByIdAsync(dto.CityId);
+            if (city == null)
+            {
+                _logger.LogWarning("城市不存在: {CityId}", dto.CityId);
+                return false;
+            }
+
+            // TODO: 验证目标用户是否存在且角色为 moderator
+            // 这里需要调用 UserService 验证
+
+            city.ModeratorId = dto.UserId;
+            city.UpdatedAt = DateTime.UtcNow;
+
+            await _cityRepository.UpdateAsync(city.Id, city);
+
+            _logger.LogInformation("城市 {CityId} 的版主已设置为 {UserId}", dto.CityId, dto.UserId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "指定城市版主失败: CityId={CityId}, UserId={UserId}", dto.CityId, dto.UserId);
+            throw;
         }
     }
 }

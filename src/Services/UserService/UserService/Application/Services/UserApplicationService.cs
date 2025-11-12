@@ -38,7 +38,11 @@ public class UserApplicationService : IUserService
 
         var (users, total) = await _userRepository.GetListAsync(page, pageSize, cancellationToken);
 
-        var userDtos = users.Select(MapToDto).ToList();
+        var userDtos = new List<UserDto>();
+        foreach (var user in users)
+        {
+            userDtos.Add(await MapToDtoAsync(user, cancellationToken));
+        }
 
         return (userDtos, total);
     }
@@ -51,7 +55,7 @@ public class UserApplicationService : IUserService
             return null;
         }
 
-        var userDto = MapToDto(user);
+        var userDto = await MapToDtoAsync(user, cancellationToken);
 
         // 加载用户的技能和兴趣
         try
@@ -87,7 +91,7 @@ public class UserApplicationService : IUserService
             var user = await _userRepository.GetByIdAsync(id, cancellationToken);
             if (user != null)
             {
-                users.Add(MapToDto(user));
+                users.Add(await MapToDtoAsync(user, cancellationToken));
             }
         }
 
@@ -98,7 +102,7 @@ public class UserApplicationService : IUserService
     public async Task<UserDto?> GetUserByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
         var user = await _userRepository.GetByEmailAsync(email, cancellationToken);
-        return user == null ? null : MapToDto(user);
+        return user == null ? null : await MapToDtoAsync(user, cancellationToken);
     }
 
     public async Task<UserDto> CreateUserAsync(
@@ -131,7 +135,7 @@ public class UserApplicationService : IUserService
         var createdUser = await _userRepository.CreateAsync(user, cancellationToken);
 
         _logger.LogInformation("✅ 成功创建用户: {UserId}", createdUser.Id);
-        return MapToDto(createdUser);
+        return await MapToDtoAsync(createdUser, cancellationToken);
     }
 
     public async Task<UserDto> CreateUserWithPasswordAsync(
@@ -165,7 +169,7 @@ public class UserApplicationService : IUserService
         var createdUser = await _userRepository.CreateAsync(user, cancellationToken);
 
         _logger.LogInformation("✅ 成功创建用户: {UserId}", createdUser.Id);
-        return MapToDto(createdUser);
+        return await MapToDtoAsync(createdUser, cancellationToken);
     }
 
     public async Task<UserDto> UpdateUserAsync(
@@ -201,7 +205,7 @@ public class UserApplicationService : IUserService
         var updatedUser = await _userRepository.UpdateAsync(user, cancellationToken);
 
         _logger.LogInformation("✅ 成功更新用户: {UserId}", updatedUser.Id);
-        return MapToDto(updatedUser);
+        return await MapToDtoAsync(updatedUser, cancellationToken);
     }
 
     public async Task<bool> DeleteUserAsync(string id, CancellationToken cancellationToken = default)
@@ -225,14 +229,19 @@ public class UserApplicationService : IUserService
 
     #region 私有映射方法
 
-    private static UserDto MapToDto(User user)
+    private async Task<UserDto> MapToDtoAsync(User user, CancellationToken cancellationToken = default)
     {
+        // 获取用户角色名称
+        var role = await _roleRepository.GetByIdAsync(user.RoleId, cancellationToken);
+        var roleName = role?.Name ?? "user"; // 默认为 user
+
         return new UserDto
         {
             Id = user.Id,
             Name = user.Name,
             Email = user.Email,
             Phone = user.Phone,
+            Role = roleName,
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdatedAt
         };

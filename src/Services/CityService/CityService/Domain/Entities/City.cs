@@ -119,6 +119,12 @@ public class City : BaseModel
     [Column("updated_by_id")]
     public Guid? UpdatedById { get; set; }
 
+    /// <summary>
+    /// 城市版主ID - 管理该城市内容的版主
+    /// </summary>
+    [Column("moderator_id")]
+    public Guid? ModeratorId { get; set; }
+
     [Reference(typeof(Country), ReferenceAttribute.JoinType.Inner, false)]
     public Country? CountryDetails { get; set; }
 

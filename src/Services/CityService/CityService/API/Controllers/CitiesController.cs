@@ -592,6 +592,8 @@ public class CitiesController : ControllerBase
         }
     }
 
+    #region Helper Methods
+
     private Guid GetUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -622,6 +624,18 @@ public class CitiesController : ControllerBase
 
         return null;
     }
+
+    private Guid GetCurrentUserId()
+    {
+        var userId = TryGetCurrentUserId();
+        if (!userId.HasValue)
+        {
+            throw new UnauthorizedAccessException("用户未登录");
+        }
+        return userId.Value;
+    }
+
+    #endregion
 
     #region Digital Nomad Guide APIs
 
@@ -801,6 +815,93 @@ public class CitiesController : ControllerBase
             CreatedAt = guide.CreatedAt,
             UpdatedAt = guide.UpdatedAt
         };
+    }
+
+    #endregion
+
+    #region 版主管理
+
+    /// <summary>
+    /// 申请成为城市版主 (需要登录)
+    /// </summary>
+    [HttpPost("moderator/apply")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<bool>>> ApplyModerator([FromBody] ApplyModeratorDto dto)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var result = await _cityService.ApplyModeratorAsync(userId, dto);
+
+            if (result)
+            {
+                return Ok(new ApiResponse<bool>
+                {
+                    Success = true,
+                    Message = "申请成功！您已成为该城市的版主",
+                    Data = true
+                });
+            }
+
+            return BadRequest(new ApiResponse<bool>
+            {
+                Success = false,
+                Message = "申请失败，该城市已有版主",
+                Data = false
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "申请城市版主失败: UserId={UserId}, CityId={CityId}",
+                GetCurrentUserId(), dto.CityId);
+            return StatusCode(500, new ApiResponse<bool>
+            {
+                Success = false,
+                Message = $"申请失败: {ex.Message}",
+                Data = false
+            });
+        }
+    }
+
+    /// <summary>
+    /// 指定城市版主 (仅管理员)
+    /// </summary>
+    [HttpPost("moderator/assign")]
+    [Authorize(Roles = "admin")]
+    public async Task<ActionResult<ApiResponse<bool>>> AssignModerator([FromBody] AssignModeratorDto dto)
+    {
+        try
+        {
+            var result = await _cityService.AssignModeratorAsync(dto);
+
+            if (result)
+            {
+                return Ok(new ApiResponse<bool>
+                {
+                    Success = true,
+                    Message = "版主指定成功",
+                    Data = true
+                });
+            }
+
+            return BadRequest(new ApiResponse<bool>
+            {
+                Success = false,
+                Message = "指定失败，城市不存在",
+                Data = false
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "指定城市版主失败: CityId={CityId}, UserId={UserId}",
+                dto.CityId, dto.UserId);
+            return StatusCode(500, new ApiResponse<bool>
+            {
+                Success = false,
+                Message = $"指定失败: {ex.Message}",
+                Data = false
+            });
+        }
     }
 
     #endregion

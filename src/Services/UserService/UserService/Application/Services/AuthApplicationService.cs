@@ -76,7 +76,7 @@ public class AuthApplicationService : IAuthService
                 RefreshToken = refreshToken,
                 TokenType = "Bearer",
                 ExpiresIn = 3600,
-                User = MapToUserDto(createdUser)
+                User = await MapToUserDtoAsync(createdUser, cancellationToken)
             };
         }
         catch (InvalidOperationException)
@@ -127,7 +127,7 @@ public class AuthApplicationService : IAuthService
                 RefreshToken = refreshToken,
                 TokenType = "Bearer",
                 ExpiresIn = 3600,
-                User = MapToUserDto(user)
+                User = await MapToUserDtoAsync(user, cancellationToken)
             };
         }
         catch (UnauthorizedAccessException)
@@ -192,7 +192,7 @@ public class AuthApplicationService : IAuthService
                 RefreshToken = newRefreshToken,
                 TokenType = "Bearer",
                 ExpiresIn = 3600,
-                User = MapToUserDto(user)
+                User = await MapToUserDtoAsync(user, cancellationToken)
             };
         }
         catch (UnauthorizedAccessException)
@@ -264,14 +264,19 @@ public class AuthApplicationService : IAuthService
 
     #region 私有映射方法
 
-    private static UserDto MapToUserDto(User user)
+    private async Task<UserDto> MapToUserDtoAsync(User user, CancellationToken cancellationToken = default)
     {
+        // 获取用户角色名称
+        var role = await _roleRepository.GetByIdAsync(user.RoleId, cancellationToken);
+        var roleName = role?.Name ?? "user"; // 默认为 user
+
         return new UserDto
         {
             Id = user.Id,
             Name = user.Name,
             Email = user.Email,
             Phone = user.Phone,
+            Role = roleName,
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdatedAt
         };

@@ -22,4 +22,14 @@ public interface ICityService
     Task<IEnumerable<CitySummaryDto>> GetCitiesByCountryIdAsync(Guid countryId);
     Task<IEnumerable<CountryDto>> GetAllCountriesAsync();
     Task<WeatherDto?> GetCityWeatherAsync(Guid id, bool includeForecast = false, int days = 7);
+
+    /// <summary>
+    /// 申请成为城市版主
+    /// </summary>
+    Task<bool> ApplyModeratorAsync(Guid userId, ApplyModeratorDto dto);
+
+    /// <summary>
+    /// 指定城市版主 (仅管理员)
+    /// </summary>
+    Task<bool> AssignModeratorAsync(AssignModeratorDto dto);
 }

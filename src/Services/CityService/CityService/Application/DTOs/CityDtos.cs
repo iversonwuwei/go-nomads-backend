@@ -37,6 +37,51 @@ public class CityDto
     /// 注意: 此字段需要在查询时根据当前用户动态填充
     /// </summary>
     public bool IsFavorite { get; set; }
+
+    /// <summary>
+    /// 城市版主ID
+    /// </summary>
+    public Guid? ModeratorId { get; set; }
+
+    /// <summary>
+    /// 城市版主信息
+    /// </summary>
+    public ModeratorDto? Moderator { get; set; }
+}
+
+/// <summary>
+/// 版主信息DTO
+/// </summary>
+public class ModeratorDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? Avatar { get; set; }
+}
+
+/// <summary>
+/// 申请成为城市版主DTO
+/// </summary>
+public class ApplyModeratorDto
+{
+    [Required]
+    public Guid CityId { get; set; }
+
+    [MaxLength(500)]
+    public string? Reason { get; set; }
+}
+
+/// <summary>
+/// 指定城市版主DTO (仅管理员)
+/// </summary>
+public class AssignModeratorDto
+{
+    [Required]
+    public Guid CityId { get; set; }
+
+    [Required]
+    public Guid UserId { get; set; }
 }
 
 public class CreateCityDto
@@ -114,6 +159,11 @@ public class UpdateCityDto
     public decimal? AverageCostOfLiving { get; set; }
     public List<string>? Tags { get; set; }
     public bool? IsActive { get; set; }
+
+    /// <summary>
+    /// 城市版主ID - 仅管理员可设置
+    /// </summary>
+    public Guid? ModeratorId { get; set; }
 }
 
 public class CitySearchDto
