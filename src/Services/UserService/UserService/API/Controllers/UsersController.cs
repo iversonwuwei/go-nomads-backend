@@ -510,6 +510,69 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    /// 更改用户角色（仅管理员）
+    /// </summary>
+    [HttpPatch("{id}/role")]
+    public async Task<ActionResult<ApiResponse<UserDto>>> ChangeUserRole(
+        string id,
+        [FromBody] ChangeUserRoleRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // 验证用户是否为管理员
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.Role != "admin")
+        {
+            return StatusCode(403, new ApiResponse<UserDto>
+            {
+                Success = false,
+                Message = "只有管理员可以更改用户角色"
+            });
+        }
+
+        _logger.LogInformation("🔄 更改用户角色: UserId={UserId}, RoleId={RoleId}", id, request.RoleId);
+
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<UserDto>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        try
+        {
+            var user = await _userService.ChangeUserRoleAsync(id, request.RoleId, cancellationToken);
+
+            return Ok(new ApiResponse<UserDto>
+            {
+                Success = true,
+                Message = "User role changed successfully",
+                Data = user
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<UserDto>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 更改用户角色失败: UserId={UserId}", id);
+            return StatusCode(500, new ApiResponse<UserDto>
+            {
+                Success = false,
+                Message = "更改用户角色失败"
+            });
+        }
+    }
+
+    /// <summary>
     /// 健康检查端点
     /// </summary>
     [HttpGet("health")]
@@ -683,6 +746,15 @@ public class BatchUserIdsRequest
 {
     [Required(ErrorMessage = "用户ID列表不能为空")]
     public List<string> UserIds { get; set; } = new();
+}
+
+/// <summary>
+/// 更改用户角色请求 DTO
+/// </summary>
+public class ChangeUserRoleRequest
+{
+    [Required(ErrorMessage = "角色ID不能为空")]
+    public string RoleId { get; set; } = string.Empty;
 }
 
 #endregion

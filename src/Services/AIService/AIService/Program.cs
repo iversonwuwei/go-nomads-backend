@@ -23,6 +23,9 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
+// 注册 Supabase 客户端
+builder.Services.AddSupabase(builder.Configuration);
+
 // 注册仓储 (Infrastructure Layer)
 builder.Services.AddScoped<IAIConversationRepository, AIConversationRepository>();
 builder.Services.AddScoped<IAIMessageRepository, AIMessageRepository>();

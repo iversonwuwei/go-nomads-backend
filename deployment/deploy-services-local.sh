@@ -409,12 +409,12 @@ main() {
     
     # 部署 MessageService
     deploy_service_local \
-        "messageservice" \
-        "src/Services/MessageService/MessageService" \
+        "message-service" \
+        "src/Services/MessageService/MessageService/API" \
         "5005" \
         "MessageService.dll" \
         "3510" \
-        "messageservice"
+        "message-service"
     echo ""
     
     # 显示部署摘要

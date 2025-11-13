@@ -108,9 +108,9 @@ function Start-Consul {
         ui_config = @{ enabled = $true }
         log_level = "INFO"
         ports = @{
-            http = 8500
-            grpc = 8502
-            dns = 8600
+            http = 7500
+            grpc = 7502
+            dns = 7600
         }
         addresses = @{
             http = "0.0.0.0"
@@ -127,13 +127,13 @@ function Start-Consul {
     & $RUNTIME run -d `
         --name go-nomads-consul `
         --network $NETWORK_NAME `
-        -p 8500:8500 `
-        -p 8502:8502 `
-        -p 8600:8600/udp `
+        -p 7500:7500 `
+        -p 7502:7502 `
+        -p 7600:7600/udp `
         -v "${consulConfigPath}:/consul/config/consul.json:ro" `
         hashicorp/consul:latest agent -config-file /consul/config/consul.json | Out-Null
     
-    Write-Host "Consul UI available at: http://localhost:8500" -ForegroundColor Green
+    Write-Host "Consul UI available at: http://localhost:7500" -ForegroundColor Green
 }
 
 function Start-Zipkin {
@@ -143,10 +143,10 @@ function Start-Zipkin {
     & $RUNTIME run -d `
         --name go-nomads-zipkin `
         --network $NETWORK_NAME `
-        -p 9411:9411 `
+        -p 9811:9411 `
         openzipkin/zipkin:latest | Out-Null
     
-    Write-Host "Zipkin UI available at: http://localhost:9411" -ForegroundColor Green
+    Write-Host "Zipkin UI available at: http://localhost:9811" -ForegroundColor Green
 }
 
 function Start-Prometheus {
@@ -170,7 +170,7 @@ function Start-Prometheus {
         '  - job_name: ''consul-services''',
         '    metrics_path: /metrics',
         '    consul_sd_configs:',
-        '      - server: ''go-nomads-consul:8500''',
+        '      - server: ''go-nomads-consul:7500''',
         '        # Auto discover all services without specifying names',
         '    relabel_configs:',
         '      # Only scrape services with metrics_path metadata',
@@ -242,14 +242,14 @@ function Start-Elasticsearch {
     & $RUNTIME run -d `
         --name go-nomads-elasticsearch `
         --network $NETWORK_NAME `
-        -p 9200:9200 `
-        -p 9300:9300 `
+        -p 10200:9200 `
+        -p 10300:9300 `
         -e "discovery.type=single-node" `
         -e "xpack.security.enabled=false" `
         -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" `
         docker.elastic.co/elasticsearch/elasticsearch:8.11.0 | Out-Null
     
-    Write-Host "Elasticsearch available at: http://localhost:9200" -ForegroundColor Green
+    Write-Host "Elasticsearch available at: http://localhost:10200" -ForegroundColor Green
 }
 
 function Start-RabbitMQ {
@@ -303,11 +303,11 @@ function Start-Infrastructure {
     Write-Host "  Redis:          redis://localhost:6379" -ForegroundColor White
     Write-Host "  RabbitMQ:       amqp://localhost:5672" -ForegroundColor White
     Write-Host "  RabbitMQ UI:    http://localhost:15672 (guest/guest)" -ForegroundColor White
-    Write-Host "  Consul:         http://localhost:8500" -ForegroundColor White
-    Write-Host "  Zipkin:         http://localhost:9411" -ForegroundColor White
+    Write-Host "  Consul:         http://localhost:7500" -ForegroundColor White
+    Write-Host "  Zipkin:         http://localhost:9811" -ForegroundColor White
     Write-Host "  Prometheus:     http://localhost:9090" -ForegroundColor White
     Write-Host "  Grafana:        http://localhost:3000 (admin/admin)" -ForegroundColor White
-    Write-Host "  Elasticsearch:  http://localhost:9200" -ForegroundColor White
+    Write-Host "  Elasticsearch:  http://localhost:10200" -ForegroundColor White
 }
 
 function Stop-Infrastructure {
@@ -386,11 +386,15 @@ function Show-Status {
     & $RUNTIME ps --filter "name=go-nomads" --format 'table {{.Names}}`t{{.Status}}`t{{.Ports}}'
     
     Write-Host "`nAccess URLs:" -ForegroundColor Cyan
-    Write-Host "  Redis:       redis://localhost:6379" -ForegroundColor White
-    Write-Host "  Consul:      http://localhost:8500" -ForegroundColor White
-    Write-Host "  Zipkin:      http://localhost:9411" -ForegroundColor White
-    Write-Host "  Prometheus:  http://localhost:9090" -ForegroundColor White
-    Write-Host "  Grafana:     http://localhost:3000 (admin/admin)" -ForegroundColor White
+    Write-Host "  Nginx:          http://localhost" -ForegroundColor White
+    Write-Host "  Redis:          redis://localhost:6379" -ForegroundColor White
+    Write-Host "  RabbitMQ:       amqp://localhost:5672" -ForegroundColor White
+    Write-Host "  RabbitMQ UI:    http://localhost:15672 (guest/guest)" -ForegroundColor White
+    Write-Host "  Consul:         http://localhost:7500" -ForegroundColor White
+    Write-Host "  Zipkin:         http://localhost:9811" -ForegroundColor White
+    Write-Host "  Prometheus:     http://localhost:9090" -ForegroundColor White
+    Write-Host "  Grafana:        http://localhost:3000 (admin/admin)" -ForegroundColor White
+    Write-Host "  Elasticsearch:  http://localhost:10200" -ForegroundColor White
 }
 
 function Show-Help {

@@ -64,4 +64,48 @@ public interface IUserService
     /// 检查用户是否存在
     /// </summary>
     Task<bool> UserExistsAsync(string id, CancellationToken cancellationToken = default);
+
+    // ============================================================================
+    // 角色管理相关方法
+    // ============================================================================
+
+    /// <summary>
+    /// 获取所有角色
+    /// </summary>
+    Task<List<RoleDto>> GetAllRolesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 根据 ID 获取角色
+    /// </summary>
+    Task<RoleDto?> GetRoleByIdAsync(string id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 根据名称获取角色
+    /// </summary>
+    Task<RoleDto?> GetRoleByNameAsync(string name, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 创建角色
+    /// </summary>
+    Task<RoleDto> CreateRoleAsync(string name, string? description = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 更新角色
+    /// </summary>
+    Task<RoleDto> UpdateRoleAsync(string id, string name, string? description = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 删除角色
+    /// </summary>
+    Task<bool> DeleteRoleAsync(string id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 更改用户角色
+    /// </summary>
+    Task<UserDto> ChangeUserRoleAsync(string userId, string roleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取指定角色的所有用户
+    /// </summary>
+    Task<List<UserDto>> GetUsersByRoleAsync(string roleId, CancellationToken cancellationToken = default);
 }

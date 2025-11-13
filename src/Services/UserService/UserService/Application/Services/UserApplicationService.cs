@@ -227,6 +227,167 @@ public class UserApplicationService : IUserService
         return await _userRepository.ExistsAsync(id, cancellationToken);
     }
 
+    // ============================================================================
+    // 角色管理相关方法
+    // ============================================================================
+
+    public async Task<List<RoleDto>> GetAllRolesAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📋 获取所有角色");
+
+        var roles = await _roleRepository.GetAllAsync(cancellationToken);
+        return roles.Select(MapRoleToDto).ToList();
+    }
+
+    public async Task<RoleDto?> GetRoleByIdAsync(string id, CancellationToken cancellationToken = default)
+    {
+        var role = await _roleRepository.GetByIdAsync(id, cancellationToken);
+        return role == null ? null : MapRoleToDto(role);
+    }
+
+    public async Task<RoleDto?> GetRoleByNameAsync(string name, CancellationToken cancellationToken = default)
+    {
+        var role = await _roleRepository.GetByNameAsync(name, cancellationToken);
+        return role == null ? null : MapRoleToDto(role);
+    }
+
+    public async Task<RoleDto> CreateRoleAsync(
+        string name,
+        string? description = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📝 创建角色: {RoleName}", name);
+
+        // 检查角色名称是否已存在
+        var existingRole = await _roleRepository.GetByNameAsync(name, cancellationToken);
+        if (existingRole != null)
+        {
+            throw new InvalidOperationException($"角色名称 '{name}' 已存在");
+        }
+
+        // 使用领域工厂方法创建角色
+        var role = Role.Create(name, description);
+
+        // 持久化
+        var createdRole = await _roleRepository.CreateAsync(role, cancellationToken);
+
+        _logger.LogInformation("✅ 成功创建角色: {RoleId}", createdRole.Id);
+        return MapRoleToDto(createdRole);
+    }
+
+    public async Task<RoleDto> UpdateRoleAsync(
+        string id,
+        string name,
+        string? description = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📝 更新角色: {RoleId}", id);
+
+        // 获取角色
+        var role = await _roleRepository.GetByIdAsync(id, cancellationToken);
+        if (role == null)
+        {
+            throw new KeyNotFoundException($"角色不存在: {id}");
+        }
+
+        // 检查角色名称是否被其他角色使用
+        if (role.Name != name)
+        {
+            var existingRole = await _roleRepository.GetByNameAsync(name, cancellationToken);
+            if (existingRole != null && existingRole.Id != id)
+            {
+                throw new InvalidOperationException($"角色名称 '{name}' 已被其他角色使用");
+            }
+        }
+
+        // 使用领域方法更新
+        role.Update(name, description);
+
+        // 持久化
+        var updatedRole = await _roleRepository.UpdateAsync(role, cancellationToken);
+
+        _logger.LogInformation("✅ 成功更新角色: {RoleId}", updatedRole.Id);
+        return MapRoleToDto(updatedRole);
+    }
+
+    public async Task<bool> DeleteRoleAsync(string id, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🗑️ 删除角色: {RoleId}", id);
+
+        // 检查是否有用户在使用此角色
+        var usersWithRole = await GetUsersByRoleAsync(id, cancellationToken);
+        if (usersWithRole.Any())
+        {
+            throw new InvalidOperationException($"无法删除角色: 仍有 {usersWithRole.Count} 个用户使用此角色");
+        }
+
+        var result = await _roleRepository.DeleteAsync(id, cancellationToken);
+
+        if (result)
+        {
+            _logger.LogInformation("✅ 成功删除角色: {RoleId}", id);
+        }
+
+        return result;
+    }
+
+    public async Task<UserDto> ChangeUserRoleAsync(
+        string userId,
+        string roleId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔄 更改用户角色: UserId={UserId}, RoleId={RoleId}", userId, roleId);
+
+        // 获取用户
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+        if (user == null)
+        {
+            throw new KeyNotFoundException($"用户不存在: {userId}");
+        }
+
+        // 验证角色是否存在
+        var role = await _roleRepository.GetByIdAsync(roleId, cancellationToken);
+        if (role == null)
+        {
+            throw new KeyNotFoundException($"角色不存在: {roleId}");
+        }
+
+        // 更改用户角色
+        user.ChangeRole(roleId);
+
+        // 持久化
+        var updatedUser = await _userRepository.UpdateAsync(user, cancellationToken);
+
+        _logger.LogInformation("✅ 成功更改用户角色: UserId={UserId}, NewRole={RoleName}", userId, role.Name);
+        return await MapToDtoAsync(updatedUser, cancellationToken);
+    }
+
+    public async Task<List<UserDto>> GetUsersByRoleAsync(string roleId, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📋 获取角色用户: RoleId={RoleId}", roleId);
+
+        // 验证角色是否存在
+        var role = await _roleRepository.GetByIdAsync(roleId, cancellationToken);
+        if (role == null)
+        {
+            throw new KeyNotFoundException($"角色不存在: {roleId}");
+        }
+
+        // 这里需要在 IUserRepository 中添加 GetByRoleIdAsync 方法
+        // 暂时使用获取所有用户然后过滤的方式（性能较低，仅用于演示）
+        var (allUsers, _) = await _userRepository.GetListAsync(1, 10000, cancellationToken);
+        var usersWithRole = allUsers.Where(u => u.RoleId == roleId).ToList();
+
+        var userDtos = new List<UserDto>();
+        foreach (var user in usersWithRole)
+        {
+            userDtos.Add(await MapToDtoAsync(user, cancellationToken));
+        }
+
+        _logger.LogInformation("✅ 找到 {Count} 个用户使用角色 {RoleName}", userDtos.Count, role.Name);
+        return userDtos;
+    }
+
     #region 私有映射方法
 
     private async Task<UserDto> MapToDtoAsync(User user, CancellationToken cancellationToken = default)
@@ -244,6 +405,18 @@ public class UserApplicationService : IUserService
             Role = roleName,
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdatedAt
+        };
+    }
+
+    private RoleDto MapRoleToDto(Role role)
+    {
+        return new RoleDto
+        {
+            Id = role.Id,
+            Name = role.Name,
+            Description = role.Description,
+            CreatedAt = role.CreatedAt,
+            UpdatedAt = role.UpdatedAt
         };
     }
 

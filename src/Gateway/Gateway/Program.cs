@@ -16,7 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add Consul client
 builder.Services.AddSingleton<IConsulClient>(sp =>
 {
-    var consulAddress = builder.Configuration["Consul:Address"] ?? "http://go-nomads-consul:8500";
+    var consulAddress = builder.Configuration["Consul:Address"] ?? "http://go-nomads-consul:7500";
     return new ConsulClient(config => config.Address = new Uri(consulAddress));
 });
 

@@ -38,7 +38,7 @@ builder.Services.AddOpenApi(options =>
 // 注册 Consul 客户端
 builder.Services.AddSingleton<IConsulClient, ConsulClient>(p => new ConsulClient(consulConfig =>
 {
-    var address = builder.Configuration["Consul:Address"] ?? "http://localhost:8500";
+    var address = builder.Configuration["Consul:Address"] ?? "http://localhost:7500";
     consulConfig.Address = new Uri(address);
 }));
 

@@ -146,10 +146,12 @@ docker-compose logs -f
 - Ecommerce Service: <http://localhost:8008/swagger>
 
 **基础设施**:
+- Consul UI: <http://localhost:7500>
 - RabbitMQ 管理: <http://localhost:15672> (admin/admin)
 - Grafana 监控: <http://localhost:3000> (admin/admin)
 - Prometheus: <http://localhost:9090>
-- Zipkin 追踪: <http://localhost:9411>
+- Zipkin 追踪: <http://localhost:9811>
+- Elasticsearch: <http://localhost:10200>
 
 ### 4. 测试 API
 

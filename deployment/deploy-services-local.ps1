@@ -28,7 +28,7 @@ if ($Help) {
 }
 
 Write-Host "`nChecking prerequisites..." -ForegroundColor Cyan
-$required = @("go-nomads-redis", "go-nomads-consul")
+$required = @("go-nomads-redis", "go-nomads-consul", "go-nomads-rabbitmq")
 foreach ($svc in $required) {
     $running = & $RUNTIME ps --filter "name=$svc" --filter "status=running" --format '{{.Names}}' 2>$null
     if ($running -ne $svc) {
@@ -40,13 +40,14 @@ foreach ($svc in $required) {
 
 $services = @(
     @{Name="gateway"; Port=5000; DaprPort=3500; AppId="gateway"; Path="src/Gateway/Gateway"; Dll="Gateway.dll"; Container="go-nomads-gateway"},
-    @{Name="user-service"; Port=5001; DaprPort=3502; AppId="user-service"; Path="src/Services/UserService/UserService"; Dll="UserService.dll"; Container="go-nomads-user-service"},
     @{Name="product-service"; Port=5002; DaprPort=3501; AppId="product-service"; Path="src/Services/ProductService/ProductService"; Dll="ProductService.dll"; Container="go-nomads-product-service"},
+    @{Name="user-service"; Port=5001; DaprPort=3502; AppId="user-service"; Path="src/Services/UserService/UserService"; Dll="UserService.dll"; Container="go-nomads-user-service"},
     @{Name="document-service"; Port=5003; DaprPort=3503; AppId="document-service"; Path="src/Services/DocumentService/DocumentService"; Dll="DocumentService.dll"; Container="go-nomads-document-service"},
     @{Name="city-service"; Port=8002; DaprPort=3504; AppId="city-service"; Path="src/Services/CityService/CityService"; Dll="CityService.dll"; Container="go-nomads-city-service"},
     @{Name="event-service"; Port=8005; DaprPort=3505; AppId="event-service"; Path="src/Services/EventService/EventService"; Dll="EventService.dll"; Container="go-nomads-event-service"},
     @{Name="coworking-service"; Port=8006; DaprPort=3506; AppId="coworking-service"; Path="src/Services/CoworkingService/CoworkingService"; Dll="CoworkingService.dll"; Container="go-nomads-coworking-service"},
-    @{Name="ai-service"; Port=8009; DaprPort=3509; AppId="ai-service"; Path="src/Services/AIService/AIService"; Dll="AIService.dll"; Container="go-nomads-ai-service"}
+    @{Name="ai-service"; Port=8009; DaprPort=3509; AppId="ai-service"; Path="src/Services/AIService/AIService"; Dll="AIService.dll"; Container="go-nomads-ai-service"},
+    @{Name="message-service"; Port=5005; DaprPort=3510; AppId="message-service"; Path="src/Services/MessageService/MessageService/API"; Dll="MessageService.dll"; Container="go-nomads-message-service"}
 )
 
 if (-not $SkipBuild) {
@@ -66,7 +67,7 @@ Write-Host "\nDeploying services..." -ForegroundColor Cyan
 
 # 停止并删除旧容器（如果存在）
 Write-Host "\nCleaning up old containers and images..." -ForegroundColor Yellow
-$oldContainers = @("go-nomads-gateway", "go-nomads-user-service", "go-nomads-product-service", "go-nomads-document-service", "go-nomads-city-service", "go-nomads-event-service", "go-nomads-coworking-service", "go-nomads-ai-service")
+$oldContainers = @("go-nomads-gateway", "go-nomads-user-service", "go-nomads-product-service", "go-nomads-document-service", "go-nomads-city-service", "go-nomads-event-service", "go-nomads-coworking-service", "go-nomads-ai-service", "go-nomads-message-service")
 foreach ($oldName in $oldContainers) {
     $exists = & $RUNTIME ps -a --filter "name=^${oldName}$" --format '{{.Names}}' 2>$null
     if ($exists) {
@@ -143,7 +144,7 @@ foreach ($svc in $services) {
         "-e", "ASPNETCORE_ENVIRONMENT=$aspnetEnv",
         "-e", "DAPR_GRPC_PORT=50001",
         "-e", "DAPR_HTTP_PORT=$($svc.DaprPort)",
-        "-e", "Consul__Address=http://go-nomads-consul:8500",
+        "-e", "Consul__Address=http://go-nomads-consul:7500",
         "-e", "Consul__ServicePort=8080",
         "-e", "HTTP_PROXY=",
         "-e", "HTTPS_PROXY=",
@@ -184,14 +185,16 @@ Write-Host "  City Service:      http://localhost:8002" -ForegroundColor Green
 Write-Host "  Event Service:     http://localhost:8005" -ForegroundColor Green
 Write-Host "  Coworking Service: http://localhost:8006" -ForegroundColor Green
 Write-Host "  AI Service:        http://localhost:8009" -ForegroundColor Green
+Write-Host "  Message Service:   http://localhost:5005" -ForegroundColor Green
+Write-Host "  Message Swagger:   http://localhost:5005/swagger" -ForegroundColor Green
 
 Write-Host "\nDapr Configuration:" -ForegroundColor Cyan
 Write-Host "  Mode:              Container Sidecar (shared network namespace)" -ForegroundColor White
 Write-Host "  gRPC Port:         50001 (via DAPR_GRPC_PORT env)" -ForegroundColor White
-Write-Host "  HTTP Ports:        3500-3506 (per service)" -ForegroundColor White
+Write-Host "  HTTP Ports:        3500-3510 (per service)" -ForegroundColor White
 
 Write-Host "\nInfrastructure:" -ForegroundColor Cyan
-Write-Host "  Consul UI:         http://localhost:8500" -ForegroundColor White
+Write-Host "  Consul UI:         http://localhost:7500" -ForegroundColor White
 
 Write-Host "\nCommon Commands:" -ForegroundColor Cyan
 Write-Host "  View containers:   $RUNTIME ps" -ForegroundColor Yellow
