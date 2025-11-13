@@ -50,7 +50,7 @@ builder.Services.AddSignalR()
     .AddStackExchangeRedis(builder.Configuration.GetConnectionString("Redis") 
         ?? "localhost:6379", options =>
     {
-        options.Configuration.ChannelPrefix = "MessageService";
+        options.Configuration.ChannelPrefix = StackExchange.Redis.RedisChannel.Literal("MessageService");
     });
 
 // 配置 MassTransit + RabbitMQ
@@ -167,9 +167,9 @@ app.MapHub<NotificationHub>("/hubs/notifications");
 var consulClient = app.Services.GetRequiredService<IConsulClient>();
 var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
 
-var serviceId = $"messageservice-{Guid.NewGuid()}";
-var serviceName = "messageservice";
-var serviceAddress = builder.Configuration["ServiceAddress"] ?? "go-nomads-messageservice";
+var serviceId = $"message-service-{Guid.NewGuid()}";
+var serviceName = "message-service";
+var serviceAddress = builder.Configuration["ServiceAddress"] ?? "go-nomads-message-service";
 var servicePort = 8080;
 
 var registration = new AgentServiceRegistration
@@ -178,7 +178,7 @@ var registration = new AgentServiceRegistration
     Name = serviceName,
     Address = serviceAddress,
     Port = servicePort,
-    Tags = new[] { "messageservice", "signalr", "rabbitmq", "api" },
+    Tags = new[] { "message-service", "signalr", "rabbitmq", "api" },
     Meta = new Dictionary<string, string>
     {
         { "version", "1.0.0" },

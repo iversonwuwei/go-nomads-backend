@@ -170,7 +170,7 @@ function Start-Prometheus {
         '  - job_name: ''consul-services''',
         '    metrics_path: /metrics',
         '    consul_sd_configs:',
-        '      - server: ''go-nomads-consul:7500''',
+        '      - server: ''go-nomads-consul:8500''',
         '        # Auto discover all services without specifying names',
         '    relabel_configs:',
         '      # Only scrape services with metrics_path metadata',
@@ -297,17 +297,17 @@ function Start-Infrastructure {
     Start-Elasticsearch
     Start-Nginx
     
-    Write-Host "`nAll infrastructure containers started!" -ForegroundColor Green
+    Write-Host "All infrastructure containers started!" -ForegroundColor Green
     Write-Host "`nAccess URLs:" -ForegroundColor Cyan
     Write-Host "  Nginx:          http://localhost" -ForegroundColor White
     Write-Host "  Redis:          redis://localhost:6379" -ForegroundColor White
     Write-Host "  RabbitMQ:       amqp://localhost:5672" -ForegroundColor White
     Write-Host "  RabbitMQ UI:    http://localhost:15672 (guest/guest)" -ForegroundColor White
-    Write-Host "  Consul:         http://localhost:7500" -ForegroundColor White
-    Write-Host "  Zipkin:         http://localhost:9811" -ForegroundColor White
+    Write-Host "  Consul:         http://localhost:8500" -ForegroundColor White
+    Write-Host "  Zipkin:         http://localhost:9411" -ForegroundColor White
     Write-Host "  Prometheus:     http://localhost:9090" -ForegroundColor White
     Write-Host "  Grafana:        http://localhost:3000 (admin/admin)" -ForegroundColor White
-    Write-Host "  Elasticsearch:  http://localhost:10200" -ForegroundColor White
+    Write-Host "  Elasticsearch:  http://localhost:9200" -ForegroundColor White
 }
 
 function Stop-Infrastructure {

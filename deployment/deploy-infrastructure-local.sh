@@ -78,9 +78,9 @@ start_consul() {
   "ui_config": { "enabled": true },
   "log_level": "INFO",
   "ports": {
-    "http": 8500,
-    "grpc": 8502,
-    "dns": 8600
+    "http": 7500,
+    "grpc": 7502,
+    "dns": 7600
   },
   "addresses": {
     "http": "0.0.0.0",
@@ -92,12 +92,12 @@ EOF
     docker run -d \
         --name go-nomads-consul \
         --network "${NETWORK_NAME}" \
-        -p 8500:8500 \
-        -p 8502:8502 \
-        -p 8600:8600/udp \
+        -p 7500:7500 \
+        -p 7502:7502 \
+        -p 7600:7600/udp \
         -v "${consul_dir}/consul-local.json:/consul/config/consul.json:ro" \
         hashicorp/consul:latest agent -config-file=/consul/config/consul.json >/dev/null
-    echo "Consul UI available at http://localhost:8500"
+    echo "Consul UI available at http://localhost:7500"
 }
 
 start_zipkin() {
@@ -106,9 +106,9 @@ start_zipkin() {
     docker run -d \
         --name go-nomads-zipkin \
         --network "${NETWORK_NAME}" \
-        -p 9411:9411 \
+        -p 9811:9411 \
         openzipkin/zipkin:latest >/dev/null
-    echo "Zipkin UI available at http://localhost:9411"
+    echo "Zipkin UI available at http://localhost:9811"
 }
 
 start_prometheus() {
@@ -129,7 +129,7 @@ scrape_configs:
   - job_name: 'consul-services'
     metrics_path: /metrics
     consul_sd_configs:
-      - server: 'go-nomads-consul:8500'
+      - server: 'go-nomads-consul:7500'
         # 不指定 services，自动发现所有已注册的服务
     relabel_configs:
       # 只抓取有 metrics_path 元数据的服务
@@ -189,13 +189,13 @@ start_elasticsearch() {
     docker run -d \
         --name go-nomads-elasticsearch \
         --network "${NETWORK_NAME}" \
-        -p 9200:9200 \
-        -p 9300:9300 \
+        -p 10200:9200 \
+        -p 10300:9300 \
         -e "discovery.type=single-node" \
         -e "xpack.security.enabled=false" \
         -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" \
         docker.elastic.co/elasticsearch/elasticsearch:8.11.0 >/dev/null
-    echo "Elasticsearch available at http://localhost:9200"
+    echo "Elasticsearch available at http://localhost:10200"
 }
 
 start_rabbitmq() {
@@ -294,11 +294,11 @@ status_all() {
     echo "Access URLs:"
     echo "  Nginx:          http://localhost"
     echo "  Redis:          redis://localhost:6379"
-    echo "  Consul:         http://localhost:8500"
-    echo "  Zipkin:         http://localhost:9411"
+    echo "  Consul:         http://localhost:7500"
+    echo "  Zipkin:         http://localhost:9811"
     echo "  Prometheus:     http://localhost:9090"
     echo "  Grafana:        http://localhost:3000 (admin/admin)"
-    echo "  Elasticsearch:  http://localhost:9200"
+    echo "  Elasticsearch:  http://localhost:10200"
 }
 
 show_help() {

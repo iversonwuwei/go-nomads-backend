@@ -276,37 +276,39 @@ scrape_configs:
         labels:
           service: 'prometheus'
 
-  - job_name: 'dapr-services'
-    metrics_path: '/metrics'
+  # 完全依赖 Consul 自动服务发现 - 无需手动配置服务列表
+  - job_name: 'consul-services'
+    metrics_path: /metrics
     consul_sd_configs:
       - server: 'go-nomads-consul:8500'
-        services: ['product-service', 'user-service', 'gateway']
-        tags: ['dapr']
+        # 不指定 services，自动发现所有已注册的服务
     relabel_configs:
-      - source_labels: [__address__]
-        regex: '([^:]+):.*'
-        replacement: '$${1}:9090'
-        target_label: __address__
+      # 只抓取有 metrics_path 元数据的服务
+      - source_labels: [__meta_consul_service_metadata_metrics_path]
+        action: keep
+        regex: /.+
+      
+      # 使用自定义 metrics 路径（如果有）
+      - source_labels: [__meta_consul_service_metadata_metrics_path]
+        target_label: __metrics_path__
+        regex: (.+)
+        replacement: `$1
+      
+      # 服务名称标签
       - source_labels: [__meta_consul_service]
-        target_label: app_id
-      - replacement: 'dapr'
-        target_label: service_type
-
-  - job_name: 'app-services'
-    metrics_path: '/metrics'
-    consul_sd_configs:
-      - server: 'go-nomads-consul:8500'
-        services: ['product-service', 'user-service', 'gateway']
-        tags: ['dapr']
-    relabel_configs:
+        target_label: service
+      
+      # 版本标签
+      - source_labels: [__meta_consul_service_metadata_version]
+        target_label: version
+      
+      # 协议标签
+      - source_labels: [__meta_consul_service_metadata_protocol]
+        target_label: protocol
+      
+      # 实例标签
       - source_labels: [__address__]
-        regex: '([^:]+):.*'
-        replacement: '$${1}:8080'
-        target_label: __address__
-      - source_labels: [__meta_consul_service]
-        target_label: app
-      - replacement: 'application'
-        target_label: service_type
+        target_label: instance
 
   - job_name: 'redis'
     static_configs:
@@ -357,6 +359,82 @@ function Deploy-Grafana {
         Write-Host "  Grafana deployed successfully!" -ForegroundColor Green
     } else {
         Write-Host "  [ERROR] Failed to start Grafana" -ForegroundColor Red
+        exit 1
+    }
+}
+
+# Deploy RabbitMQ
+function Deploy-RabbitMQ {
+    Show-Header "Deploying RabbitMQ"
+    
+    Remove-ContainerIfExists "go-nomads-rabbitmq"
+    
+    Write-Host "  Starting RabbitMQ container..." -ForegroundColor Yellow
+    & $CONTAINER_RUNTIME run -d `
+        --name go-nomads-rabbitmq `
+        --network $NETWORK_NAME `
+        -p 5672:5672 `
+        -p 15672:15672 `
+        -e RABBITMQ_DEFAULT_USER=guest `
+        -e RABBITMQ_DEFAULT_PASS=guest `
+        rabbitmq:3-management-alpine | Out-Null
+    
+    if (Test-ContainerRunning "go-nomads-rabbitmq") {
+        Write-Host "  RabbitMQ deployed successfully!" -ForegroundColor Green
+        Wait-ForService "RabbitMQ" "http://localhost:15672" 30 | Out-Null
+    } else {
+        Write-Host "  [ERROR] Failed to start RabbitMQ" -ForegroundColor Red
+        exit 1
+    }
+}
+
+# Deploy PostgreSQL
+function Deploy-PostgreSQL {
+    Show-Header "Deploying PostgreSQL"
+    
+    Remove-ContainerIfExists "go-nomads-postgres"
+    
+    Write-Host "  Starting PostgreSQL container..." -ForegroundColor Yellow
+    & $CONTAINER_RUNTIME run -d `
+        --name go-nomads-postgres `
+        --network $NETWORK_NAME `
+        -p 5432:5432 `
+        -e POSTGRES_USER=postgres `
+        -e POSTGRES_PASSWORD=postgres `
+        -e POSTGRES_DB=gonomads `
+        postgres:16-alpine | Out-Null
+    
+    if (Test-ContainerRunning "go-nomads-postgres") {
+        Write-Host "  PostgreSQL deployed successfully!" -ForegroundColor Green
+        Start-Sleep -Seconds 3
+    } else {
+        Write-Host "  [ERROR] Failed to start PostgreSQL" -ForegroundColor Red
+        exit 1
+    }
+}
+
+# Deploy Elasticsearch
+function Deploy-Elasticsearch {
+    Show-Header "Deploying Elasticsearch"
+    
+    Remove-ContainerIfExists "go-nomads-elasticsearch"
+    
+    Write-Host "  Starting Elasticsearch container..." -ForegroundColor Yellow
+    & $CONTAINER_RUNTIME run -d `
+        --name go-nomads-elasticsearch `
+        --network $NETWORK_NAME `
+        -p 9200:9200 `
+        -p 9300:9300 `
+        -e "discovery.type=single-node" `
+        -e "xpack.security.enabled=false" `
+        -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" `
+        elasticsearch:8.11.0 | Out-Null
+    
+    if (Test-ContainerRunning "go-nomads-elasticsearch") {
+        Write-Host "  Elasticsearch deployed successfully!" -ForegroundColor Green
+        Wait-ForService "Elasticsearch" "http://localhost:9200" 30 | Out-Null
+    } else {
+        Write-Host "  [ERROR] Failed to start Elasticsearch" -ForegroundColor Red
         exit 1
     }
 }
@@ -413,6 +491,9 @@ function Show-Status {
     Write-Host "  - Prometheus:   http://localhost:9090" -ForegroundColor Cyan
     Write-Host "  - Grafana:      http://localhost:3000 (admin/admin)" -ForegroundColor Cyan
     Write-Host "  - Zipkin:       http://localhost:9411" -ForegroundColor Cyan
+    Write-Host "  - RabbitMQ UI:  http://localhost:15672 (guest/guest)" -ForegroundColor Cyan
+    Write-Host "  - PostgreSQL:   localhost:5432 (postgres/postgres)" -ForegroundColor Cyan
+    Write-Host "  - Elasticsearch: http://localhost:9200" -ForegroundColor Cyan
     Write-Host ""
 }
 
@@ -421,11 +502,15 @@ function Stop-Infrastructure {
     Show-Header "Stopping Infrastructure"
     
     $containers = @(
+        "go-nomads-nginx",
         "go-nomads-grafana",
         "go-nomads-prometheus",
         "go-nomads-zipkin",
         "go-nomads-consul",
-        "go-nomads-redis"
+        "go-nomads-rabbitmq",
+        "go-nomads-redis",
+        "go-nomads-postgres",
+        "go-nomads-elasticsearch"
     )
     
     foreach ($container in $containers) {
@@ -444,11 +529,15 @@ function Clean-Infrastructure {
     Show-Header "Cleaning Infrastructure"
     
     $containers = @(
+        "go-nomads-nginx",
         "go-nomads-grafana",
         "go-nomads-prometheus",
         "go-nomads-zipkin",
         "go-nomads-consul",
-        "go-nomads-redis"
+        "go-nomads-rabbitmq",
+        "go-nomads-redis",
+        "go-nomads-postgres",
+        "go-nomads-elasticsearch"
     )
     
     foreach ($container in $containers) {
@@ -495,6 +584,10 @@ function Show-Help {
     Write-Host "  - Zipkin (Distributed Tracing)" -ForegroundColor White
     Write-Host "  - Prometheus (Metrics Collection)" -ForegroundColor White
     Write-Host "  - Grafana (Metrics Visualization)" -ForegroundColor White
+    Write-Host "  - RabbitMQ (Message Queue)" -ForegroundColor White
+    Write-Host "  - PostgreSQL (Relational Database)" -ForegroundColor White
+    Write-Host "  - Elasticsearch (Search Engine)" -ForegroundColor White
+    Write-Host "  - Nginx (Reverse Proxy)" -ForegroundColor White
     Write-Host ""
 }
 
@@ -504,10 +597,13 @@ switch ($Action) {
         Show-Header "Go-Nomads Infrastructure Deployment"
         Initialize-Network
         Deploy-Redis
+        Deploy-RabbitMQ
         Deploy-Consul
         Deploy-Zipkin
         Deploy-Prometheus
         Deploy-Grafana
+        Deploy-PostgreSQL
+        Deploy-Elasticsearch
         Deploy-Nginx
         Show-Status
         

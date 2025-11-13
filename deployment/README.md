@@ -75,11 +75,13 @@ chmod +x deploy-infrastructure.sh
 
 | 组件 | 地址 | 说明 |
 |------|------|------|
-| Consul | http://localhost:7500 | 服务注册中心 Web UI |
+| Consul | http://localhost:8500 | 服务注册中心 Web UI |
 | Prometheus | http://localhost:9090 | 指标查询与监控 |
 | Grafana | http://localhost:3000 | 可视化仪表盘 (admin/admin) |
-| Zipkin | http://localhost:9811 | 分布式追踪 UI |
-| Elasticsearch | http://localhost:10200 | 日志聚合和搜索 |
+| Zipkin | http://localhost:9411 | 分布式追踪 UI |
+| Elasticsearch | http://localhost:9200 | 日志聚合和搜索 |
+| RabbitMQ | http://localhost:15672 | 消息队列管理界面 (guest/guest) |
+| PostgreSQL | localhost:5432 | 关系数据库 (postgres/postgres) |
 
 ## 配置说明
 
@@ -128,10 +130,10 @@ chmod +x deploy-infrastructure.sh
 1. 检查端口占用:
    ```powershell
    # Windows
-   netstat -ano | findstr "7500|9090|3000|9811|6379|10200"
+   netstat -ano | findstr "8500|9090|3000|9411|6379|9200|15672|5432"
    
    # Linux
-   netstat -tuln | grep -E "7500|9090|3000|9811|6379|10200"
+   netstat -tuln | grep -E "8500|9090|3000|9411|6379|9200|15672|5432"
    ```
 
 2. 检查容器日志:

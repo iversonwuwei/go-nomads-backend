@@ -1,0 +1,23 @@
+{
+  "MsBuild": {
+    "UseLegacySdkResolver": false,
+    "LoadProjectsOnDemand": false
+  },
+  "FormattingOptions": {
+    "EnableEditorConfigSupport": true,
+    "OrganizeImports": true
+  },
+  "RoslynExtensionsOptions": {
+    "EnableAnalyzersSupport": true,
+    "EnableImportCompletion": true,
+    "EnableDecompilationSupport": true
+  },
+  "FileOptions": {
+    "SystemExcludeSearchPatterns": [
+      "**/bin/**",
+      "**/obj/**",
+      "**/.vs/**",
+      "**/node_modules/**"
+    ]
+  }
+}

@@ -226,7 +226,7 @@ deploy_service_local() {
         -e ASPNETCORE_URLS="http://+:8080" \
         -e DAPR_GRPC_PORT="50001" \
         -e DAPR_HTTP_PORT="$dapr_http_port" \
-        -e Consul__Address="http://go-nomads-consul:8500" \
+        -e Consul__Address="http://go-nomads-consul:7500" \
         -e HTTP_PROXY= \
         -e HTTPS_PROXY= \
         -e NO_PROXY= \
