@@ -3,7 +3,9 @@ using MessageService.API.Hubs;
 using MessageService.API.Services;
 using MessageService.Application.DTOs;
 using MessageService.Application.Services;
+using MessageService.Domain.Repositories;
 using MessageService.Infrastructure.Consumers;
+using MessageService.Infrastructure.Repositories;
 using Serilog;
 using Consul;
 using Scalar.AspNetCore;
@@ -44,6 +46,10 @@ builder.Services.AddSingleton<IConsulClient, ConsulClient>(p => new ConsulClient
 
 // 注册 SignalRNotifier 接口实现
 builder.Services.AddSingleton<ISignalRNotifier, SignalRNotifierImpl>();
+
+// 注册通知服务
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<INotificationService, NotificationApplicationService>();
 
 // 配置 SignalR + Redis Backplane
 builder.Services.AddSignalR()

@@ -20,6 +20,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Application\MessageService.Application.csproj" />
     <ProjectReference Include="..\Infrastructure\MessageService.Infrastructure.csproj" />
+<ProjectReference Include="..\..\..\..\Shared\Shared\Shared.csproj" />
+
   </ItemGroup>
 
 </Project>

@@ -2,6 +2,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Domain\MessageService.Domain.csproj" />
+<ProjectReference Include="..\..\..\..\Shared\Shared\Shared.csproj" />
+
   </ItemGroup>
 
   <PropertyGroup>
