@@ -9,6 +9,7 @@ using MessageService.Infrastructure.Repositories;
 using Serilog;
 using Consul;
 using Scalar.AspNetCore;
+using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +37,9 @@ builder.Services.AddOpenApi(options =>
         return Task.CompletedTask;
     });
 });
+
+// 注册 Supabase 客户端
+builder.Services.AddSupabase(builder.Configuration);
 
 // 注册 Consul 客户端
 builder.Services.AddSingleton<IConsulClient, ConsulClient>(p => new ConsulClient(consulConfig =>
