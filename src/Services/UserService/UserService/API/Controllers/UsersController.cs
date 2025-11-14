@@ -81,6 +81,58 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    /// 搜索用户（按名称或邮箱，可筛选角色）
+    /// </summary>
+    [HttpGet("search")]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<UserDto>>>> SearchUsers(
+        [FromQuery] string? q = null,
+        [FromQuery] string? role = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        // 获取用户上下文
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated == true)
+        {
+            _logger.LogInformation(
+                "🔍 SearchUsers 请求 - 认证用户: UserId={UserId}, Role={Role}, Query={Query}, FilterRole={FilterRole}",
+                userContext.UserId, userContext.Role, q, role);
+        }
+
+        // 验证并规范化分页参数
+        page = Math.Max(1, page);
+        pageSize = Math.Max(1, Math.Min(100, pageSize));
+
+        try
+        {
+            var (users, total) = await _userService.SearchUsersAsync(q, role, page, pageSize, cancellationToken);
+
+            return Ok(new ApiResponse<PaginatedResponse<UserDto>>
+            {
+                Success = true,
+                Message = "Users searched successfully",
+                Data = new PaginatedResponse<UserDto>
+                {
+                    Items = users,
+                    TotalCount = total,
+                    Page = page,
+                    PageSize = pageSize
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 搜索用户失败 - Query: {Query}", q);
+            return StatusCode(500, new ApiResponse<PaginatedResponse<UserDto>>
+            {
+                Success = false,
+                Message = "搜索用户失败"
+            });
+        }
+    }
+
+    /// <summary>
     /// 根据 ID 获取用户
     /// </summary>
     [HttpGet("{id}")]

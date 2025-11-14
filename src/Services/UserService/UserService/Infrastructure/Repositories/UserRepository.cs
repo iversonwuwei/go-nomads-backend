@@ -169,4 +169,80 @@ public class UserRepository : IUserRepository
             throw;
         }
     }
+
+    public async Task<(List<User> Users, int Total)> SearchAsync(
+        string? searchTerm = null,
+        string? role = null,
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 搜索用户 - SearchTerm: {SearchTerm}, Role: {Role}, Page: {Page}, PageSize: {PageSize}",
+            searchTerm, role, page, pageSize);
+
+        try
+        {
+            var from = (page - 1) * pageSize;
+            var to = from + pageSize - 1;
+
+            // 根据不同条件组合进行查询
+            if (!string.IsNullOrWhiteSpace(searchTerm) && !string.IsNullOrWhiteSpace(role))
+            {
+                // 同时有搜索词和角色筛选
+                var response = await _supabaseClient
+                    .From<User>()
+                    .Filter("name", Postgrest.Constants.Operator.ILike, $"%{searchTerm}%")
+                    .Filter("role", Postgrest.Constants.Operator.Equals, role)
+                    .Order(u => u.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                    .Range(from, to)
+                    .Get(cancellationToken);
+
+                _logger.LogInformation("✅ 搜索到 {Count} 个用户", response.Models.Count);
+                return (response.Models.ToList(), response.Models.Count);
+            }
+            else if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                // 只有搜索词（搜索名称）
+                var response = await _supabaseClient
+                    .From<User>()
+                    .Filter("name", Postgrest.Constants.Operator.ILike, $"%{searchTerm}%")
+                    .Order(u => u.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                    .Range(from, to)
+                    .Get(cancellationToken);
+
+                _logger.LogInformation("✅ 搜索到 {Count} 个用户", response.Models.Count);
+                return (response.Models.ToList(), response.Models.Count);
+            }
+            else if (!string.IsNullOrWhiteSpace(role))
+            {
+                // 只有角色筛选
+                var response = await _supabaseClient
+                    .From<User>()
+                    .Filter("role", Postgrest.Constants.Operator.Equals, role)
+                    .Order(u => u.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                    .Range(from, to)
+                    .Get(cancellationToken);
+
+                _logger.LogInformation("✅ 搜索到 {Count} 个用户", response.Models.Count);
+                return (response.Models.ToList(), response.Models.Count);
+            }
+            else
+            {
+                // 无筛选条件，返回所有用户
+                var response = await _supabaseClient
+                    .From<User>()
+                    .Order(u => u.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                    .Range(from, to)
+                    .Get(cancellationToken);
+
+                _logger.LogInformation("✅ 搜索到 {Count} 个用户", response.Models.Count);
+                return (response.Models.ToList(), response.Models.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 搜索用户失败 - SearchTerm: {SearchTerm}", searchTerm);
+            throw;
+        }
+    }
 }

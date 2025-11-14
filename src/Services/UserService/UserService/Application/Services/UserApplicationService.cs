@@ -47,6 +47,28 @@ public class UserApplicationService : IUserService
         return (userDtos, total);
     }
 
+    public async Task<(List<UserDto> Users, int Total)> SearchUsersAsync(
+        string? searchTerm = null,
+        string? role = null,
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 搜索用户 - SearchTerm: {SearchTerm}, Role: {Role}, Page: {Page}, PageSize: {PageSize}",
+            searchTerm, role, page, pageSize);
+
+        var (users, total) = await _userRepository.SearchAsync(searchTerm, role, page, pageSize, cancellationToken);
+
+        var userDtos = new List<UserDto>();
+        foreach (var user in users)
+        {
+            userDtos.Add(await MapToDtoAsync(user, cancellationToken));
+        }
+
+        _logger.LogInformation("✅ 搜索结果: {Count}/{Total} 个用户", userDtos.Count, total);
+        return (userDtos, total);
+    }
+
     public async Task<UserDto?> GetUserByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         var user = await _userRepository.GetByIdAsync(id, cancellationToken);

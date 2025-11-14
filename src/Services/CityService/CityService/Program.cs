@@ -100,8 +100,9 @@ builder.Services.AddScoped<IUserCityProsConsRepository, SupabaseUserCityProsCons
 builder.Services.AddScoped<IUserFavoriteCityRepository, SupabaseUserFavoriteCityRepository>();
 builder.Services.AddScoped<IGeoNamesCityRepository, SupabaseGeoNamesCityRepository>();
 builder.Services.AddScoped<IDigitalNomadGuideRepository, SupabaseDigitalNomadGuideRepository>();
+builder.Services.AddScoped<ICityModeratorRepository, CityModeratorRepository>();
 
-// Register Application Services
+// Application Services
 builder.Services.AddScoped<ICityService, CityApplicationService>();
 builder.Services.AddScoped<CityService.Application.Services.IUserCityContentService, UserCityContentApplicationService>();
 builder.Services.AddScoped<IUserFavoriteCityService, UserFavoriteCityService>();

@@ -16,6 +16,16 @@ public interface IUserService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 搜索用户（按名称或邮箱，分页）
+    /// </summary>
+    Task<(List<UserDto> Users, int Total)> SearchUsersAsync(
+        string? searchTerm = null,
+        string? role = null,
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 根据 ID 获取用户
     /// </summary>
     Task<UserDto?> GetUserByIdAsync(string id, CancellationToken cancellationToken = default);

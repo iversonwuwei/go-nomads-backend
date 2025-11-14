@@ -32,7 +32,8 @@ public class SupabaseUserCityProsConsRepository : SupabaseRepositoryBase<CityPro
     {
         var query = SupabaseClient
             .From<CityProsCons>()
-            .Where(x => x.CityId == cityId);
+            .Where(x => x.CityId == cityId)
+            .Where(x => x.IsDeleted == false);
 
         if (isPro.HasValue)
         {
@@ -79,10 +80,20 @@ public class SupabaseUserCityProsConsRepository : SupabaseRepositoryBase<CityPro
     {
         try
         {
+            // 逻辑删除：设置 IsDeleted = true
+            var prosCons = await GetByIdAsync(id);
+            if (prosCons == null || prosCons.UserId != userId)
+            {
+                return false;
+            }
+
+            prosCons.IsDeleted = true;
+            prosCons.UpdatedAt = DateTime.UtcNow;
+
             await SupabaseClient
                 .From<CityProsCons>()
-                .Where(x => x.Id == id && x.UserId == userId)
-                .Delete();
+                .Where(x => x.Id == id)
+                .Update(prosCons);
 
             return true;
         }

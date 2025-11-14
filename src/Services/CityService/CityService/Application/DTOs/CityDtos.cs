@@ -189,3 +189,97 @@ public class CityStatisticsDto
     public int TotalNomads { get; set; }
     public decimal AverageRating { get; set; }
 }
+
+/// <summary>
+/// 城市版主详细信息DTO（支持多版主）
+/// </summary>
+public class CityModeratorDto
+{
+    public Guid Id { get; set; }
+    public Guid CityId { get; set; }
+    public Guid UserId { get; set; }
+
+    /// <summary>
+    /// 用户信息
+    /// </summary>
+    public ModeratorUserDto User { get; set; } = null!;
+
+    /// <summary>
+    /// 权限设置
+    /// </summary>
+    public bool CanEditCity { get; set; }
+    public bool CanManageCoworks { get; set; }
+    public bool CanManageCosts { get; set; }
+    public bool CanManageVisas { get; set; }
+    public bool CanModerateChats { get; set; }
+
+    /// <summary>
+    /// 指定信息
+    /// </summary>
+    public Guid? AssignedBy { get; set; }
+    public DateTime AssignedAt { get; set; }
+
+    /// <summary>
+    /// 状态
+    /// </summary>
+    public bool IsActive { get; set; }
+    public string? Notes { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+/// <summary>
+/// 版主用户信息DTO
+/// </summary>
+public class ModeratorUserDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? Avatar { get; set; }
+    public string Role { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// 添加城市版主请求DTO
+/// </summary>
+public class AddCityModeratorDto
+{
+    [Required]
+    public Guid CityId { get; set; }
+
+    [Required]
+    public Guid UserId { get; set; }
+
+    /// <summary>
+    /// 权限设置（可选，默认全部为 true）
+    /// </summary>
+    public bool CanEditCity { get; set; } = true;
+    public bool CanManageCoworks { get; set; } = true;
+    public bool CanManageCosts { get; set; } = true;
+    public bool CanManageVisas { get; set; } = true;
+    public bool CanModerateChats { get; set; } = true;
+
+    /// <summary>
+    /// 备注信息
+    /// </summary>
+    [MaxLength(500)]
+    public string? Notes { get; set; }
+}
+
+/// <summary>
+/// 更新城市版主权限请求DTO
+/// </summary>
+public class UpdateCityModeratorDto
+{
+    public bool? CanEditCity { get; set; }
+    public bool? CanManageCoworks { get; set; }
+    public bool? CanManageCosts { get; set; }
+    public bool? CanManageVisas { get; set; }
+    public bool? CanModerateChats { get; set; }
+    public bool? IsActive { get; set; }
+
+    [MaxLength(500)]
+    public string? Notes { get; set; }
+}

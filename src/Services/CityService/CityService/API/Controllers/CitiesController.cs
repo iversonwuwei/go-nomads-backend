@@ -1,6 +1,7 @@
 using CityService.Application.DTOs;
 using CityService.Application.Services;
 using CityService.Domain.Entities;
+using CityService.Domain.Repositories;
 using GoNomads.Shared.Models;
 using GoNomads.Shared.Middleware;
 using Microsoft.AspNetCore.Authorization;
@@ -20,17 +21,20 @@ public class CitiesController : ControllerBase
 {
     private readonly ICityService _cityService;
     private readonly IDigitalNomadGuideService _guideService;
+    private readonly ICityModeratorRepository _moderatorRepository;
     private readonly DaprClient _daprClient;
     private readonly ILogger<CitiesController> _logger;
 
     public CitiesController(
         ICityService cityService,
         IDigitalNomadGuideService guideService,
+        ICityModeratorRepository moderatorRepository,
         DaprClient daprClient,
         ILogger<CitiesController> logger)
     {
         _cityService = cityService;
         _guideService = guideService;
+        _moderatorRepository = moderatorRepository;
         _daprClient = daprClient;
         _logger = logger;
     }
@@ -900,6 +904,277 @@ public class CitiesController : ControllerBase
                 Success = false,
                 Message = $"指定失败: {ex.Message}",
                 Data = false
+            });
+        }
+    }
+
+    #endregion
+
+    #region 城市版主管理（多版主支持）
+
+    /// <summary>
+    /// 获取城市的所有版主列表
+    /// </summary>
+    [HttpGet("{id}/moderators")]
+    public async Task<ActionResult<ApiResponse<List<CityModeratorDto>>>> GetCityModerators(Guid id)
+    {
+        try
+        {
+            _logger.LogInformation("📋 获取城市版主列表 - CityId: {CityId}", id);
+
+            var moderators = await _moderatorRepository.GetByCityIdAsync(id);
+
+            // 获取版主的用户信息
+            var moderatorDtos = new List<CityModeratorDto>();
+            foreach (var moderator in moderators)
+            {
+                // TODO: 通过 Dapr 调用 UserService 获取用户详细信息
+                // 目前先返回基本信息
+                moderatorDtos.Add(new CityModeratorDto
+                {
+                    Id = moderator.Id,
+                    CityId = moderator.CityId,
+                    UserId = moderator.UserId,
+                    User = new ModeratorUserDto
+                    {
+                        Id = moderator.UserId,
+                        Name = "Loading...", // 后续通过 Dapr 获取
+                        Email = "",
+                        Role = "moderator"
+                    },
+                    CanEditCity = moderator.CanEditCity,
+                    CanManageCoworks = moderator.CanManageCoworks,
+                    CanManageCosts = moderator.CanManageCosts,
+                    CanManageVisas = moderator.CanManageVisas,
+                    CanModerateChats = moderator.CanModerateChats,
+                    AssignedBy = moderator.AssignedBy,
+                    AssignedAt = moderator.AssignedAt,
+                    IsActive = moderator.IsActive,
+                    Notes = moderator.Notes,
+                    CreatedAt = moderator.CreatedAt,
+                    UpdatedAt = moderator.UpdatedAt
+                });
+            }
+
+            return Ok(new ApiResponse<List<CityModeratorDto>>
+            {
+                Success = true,
+                Message = "版主列表获取成功",
+                Data = moderatorDtos
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取城市版主列表失败 - CityId: {CityId}", id);
+            return StatusCode(500, new ApiResponse<List<CityModeratorDto>>
+            {
+                Success = false,
+                Message = "获取版主列表失败"
+            });
+        }
+    }
+
+    /// <summary>
+    /// 添加城市版主（仅管理员）
+    /// </summary>
+    [HttpPost("{id}/moderators")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<CityModeratorDto>>> AddCityModerator(
+        Guid id,
+        [FromBody] AddCityModeratorDto dto)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+
+        if (userContext?.Role != "admin")
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            _logger.LogInformation("➕ 添加城市版主 - CityId: {CityId}, UserId: {UserId}, AdminId: {AdminId}",
+                id, dto.UserId, userContext.UserId);
+
+            // 检查城市是否存在
+            var city = await _cityService.GetCityByIdAsync(id);
+            if (city == null)
+            {
+                return NotFound(new ApiResponse<CityModeratorDto>
+                {
+                    Success = false,
+                    Message = "城市不存在"
+                });
+            }
+
+            // 检查用户是否已经是版主
+            var isExisting = await _moderatorRepository.IsModeratorAsync(id, dto.UserId);
+            if (isExisting)
+            {
+                return BadRequest(new ApiResponse<CityModeratorDto>
+                {
+                    Success = false,
+                    Message = "该用户已经是此城市的版主"
+                });
+            }
+
+            // 创建版主记录
+            var moderator = new CityModerator
+            {
+                CityId = id,
+                UserId = dto.UserId,
+                CanEditCity = dto.CanEditCity,
+                CanManageCoworks = dto.CanManageCoworks,
+                CanManageCosts = dto.CanManageCosts,
+                CanManageVisas = dto.CanManageVisas,
+                CanModerateChats = dto.CanModerateChats,
+                AssignedBy = Guid.TryParse(userContext.UserId, out var assignedById) ? assignedById : null,
+                AssignedAt = DateTime.UtcNow,
+                IsActive = true,
+                Notes = dto.Notes
+            };
+
+            var added = await _moderatorRepository.AddAsync(moderator);
+
+            return Ok(new ApiResponse<CityModeratorDto>
+            {
+                Success = true,
+                Message = "版主添加成功",
+                Data = new CityModeratorDto
+                {
+                    Id = added.Id,
+                    CityId = added.CityId,
+                    UserId = added.UserId,
+                    User = new ModeratorUserDto { Id = added.UserId, Name = "", Email = "", Role = "moderator" },
+                    CanEditCity = added.CanEditCity,
+                    CanManageCoworks = added.CanManageCoworks,
+                    CanManageCosts = added.CanManageCosts,
+                    CanManageVisas = added.CanManageVisas,
+                    CanModerateChats = added.CanModerateChats,
+                    AssignedBy = added.AssignedBy,
+                    AssignedAt = added.AssignedAt,
+                    IsActive = added.IsActive,
+                    Notes = added.Notes,
+                    CreatedAt = added.CreatedAt,
+                    UpdatedAt = added.UpdatedAt
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 添加城市版主失败");
+            return StatusCode(500, new ApiResponse<CityModeratorDto>
+            {
+                Success = false,
+                Message = $"添加版主失败: {ex.Message}"
+            });
+        }
+    }
+
+    /// <summary>
+    /// 删除城市版主（仅管理员）
+    /// </summary>
+    [HttpDelete("{cityId}/moderators/{userId}")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<bool>>> RemoveCityModerator(Guid cityId, Guid userId)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+
+        if (userContext?.Role != "admin")
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            _logger.LogInformation("🗑️ 删除城市版主 - CityId: {CityId}, UserId: {UserId}, AdminId: {AdminId}",
+                cityId, userId, userContext.UserId);
+
+            var result = await _moderatorRepository.RemoveAsync(cityId, userId);
+
+            if (!result)
+            {
+                return NotFound(new ApiResponse<bool>
+                {
+                    Success = false,
+                    Message = "版主记录不存在"
+                });
+            }
+
+            return Ok(new ApiResponse<bool>
+            {
+                Success = true,
+                Message = "版主已移除",
+                Data = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 删除城市版主失败");
+            return StatusCode(500, new ApiResponse<bool>
+            {
+                Success = false,
+                Message = $"删除版主失败: {ex.Message}"
+            });
+        }
+    }
+
+    /// <summary>
+    /// 更新城市版主权限（仅管理员）
+    /// </summary>
+    [HttpPatch("{cityId}/moderators/{moderatorId}")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<bool>>> UpdateCityModerator(
+        Guid cityId,
+        Guid moderatorId,
+        [FromBody] UpdateCityModeratorDto dto)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+
+        if (userContext?.Role != "admin")
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            _logger.LogInformation("✏️ 更新城市版主权限 - ModeratorId: {ModeratorId}, AdminId: {AdminId}",
+                moderatorId, userContext.UserId);
+
+            var moderator = await _moderatorRepository.GetByIdAsync(moderatorId);
+            if (moderator == null || moderator.CityId != cityId)
+            {
+                return NotFound(new ApiResponse<bool>
+                {
+                    Success = false,
+                    Message = "版主记录不存在"
+                });
+            }
+
+            // 更新权限
+            if (dto.CanEditCity.HasValue) moderator.CanEditCity = dto.CanEditCity.Value;
+            if (dto.CanManageCoworks.HasValue) moderator.CanManageCoworks = dto.CanManageCoworks.Value;
+            if (dto.CanManageCosts.HasValue) moderator.CanManageCosts = dto.CanManageCosts.Value;
+            if (dto.CanManageVisas.HasValue) moderator.CanManageVisas = dto.CanManageVisas.Value;
+            if (dto.CanModerateChats.HasValue) moderator.CanModerateChats = dto.CanModerateChats.Value;
+            if (dto.IsActive.HasValue) moderator.IsActive = dto.IsActive.Value;
+            if (dto.Notes != null) moderator.Notes = dto.Notes;
+
+            var result = await _moderatorRepository.UpdateAsync(moderator);
+
+            return Ok(new ApiResponse<bool>
+            {
+                Success = result,
+                Message = result ? "版主权限更新成功" : "更新失败",
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 更新城市版主权限失败");
+            return StatusCode(500, new ApiResponse<bool>
+            {
+                Success = false,
+                Message = $"更新失败: {ex.Message}"
             });
         }
     }

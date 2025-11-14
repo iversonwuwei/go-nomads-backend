@@ -44,4 +44,14 @@ public interface IUserRepository
         int page = 1,
         int pageSize = 20,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 搜索用户（按名称或邮箱，可筛选角色）
+    /// </summary>
+    Task<(List<User> Users, int Total)> SearchAsync(
+        string? searchTerm = null,
+        string? role = null,
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default);
 }
