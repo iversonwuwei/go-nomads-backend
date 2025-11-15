@@ -28,9 +28,10 @@ public class SignalRNotifierImpl : ISignalRNotifier
     {
         try
         {
+            // 发送到用户组
             await _aiProgressHub.Clients
                 .Group($"user-{userId}")
-                .SendAsync("ReceiveProgress", progress);
+                .SendAsync("TaskProgress", progress); // 修改为 TaskProgress
 
             _logger.LogInformation("推送 AI 进度到用户 {UserId}: TaskId={TaskId}, Progress={Progress}%",
                 userId, progress.TaskId, progress.Progress);
@@ -47,15 +48,62 @@ public class SignalRNotifierImpl : ISignalRNotifier
     {
         try
         {
+            // 发送到任务组
             await _aiProgressHub.Clients
                 .Group($"task-{taskId}")
-                .SendAsync("ReceiveTaskUpdate", update);
+                .SendAsync("TaskProgress", update); // 修改为 TaskProgress
 
             _logger.LogInformation("推送任务更新: TaskId={TaskId}", taskId);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "推送任务更新失败: TaskId={TaskId}", taskId);
+            throw;
+        }
+    }
+
+    public async Task SendTaskCompletedAsync(string taskId, string userId, object result)
+    {
+        try
+        {
+            // 发送到任务组和用户组
+            await _aiProgressHub.Clients
+                .Group($"task-{taskId}")
+                .SendAsync("TaskCompleted", result);
+
+            await _aiProgressHub.Clients
+                .Group($"user-{userId}")
+                .SendAsync("TaskCompleted", result);
+
+            _logger.LogInformation("推送任务完成事件: TaskId={TaskId}, UserId={UserId}", taskId, userId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "推送任务完成事件失败: TaskId={TaskId}", taskId);
+            throw;
+        }
+    }
+
+    public async Task SendTaskFailedAsync(string taskId, string userId, string error)
+    {
+        try
+        {
+            var failureData = new { TaskId = taskId, Error = error, Timestamp = DateTime.UtcNow };
+
+            // 发送到任务组和用户组
+            await _aiProgressHub.Clients
+                .Group($"task-{taskId}")
+                .SendAsync("TaskFailed", failureData);
+
+            await _aiProgressHub.Clients
+                .Group($"user-{userId}")
+                .SendAsync("TaskFailed", failureData);
+
+            _logger.LogInformation("推送任务失败事件: TaskId={TaskId}, UserId={UserId}", taskId, userId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "推送任务失败事件失败: TaskId={TaskId}", taskId);
             throw;
         }
     }

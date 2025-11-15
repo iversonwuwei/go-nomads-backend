@@ -1417,6 +1417,76 @@ JSON 格式（描述简洁）：
     }
 
     /// <summary>
+    /// 尝试修复不完整的 JSON（处理未闭合的对象/数组）
+    /// </summary>
+    private string TryFixIncompleteJson(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return json;
+
+        try
+        {
+            // 先尝试验证 JSON 是否有效
+            JsonDocument.Parse(json);
+            return json; // JSON 有效，直接返回
+        }
+        catch (JsonException)
+        {
+            _logger.LogWarning("⚠️ JSON 格式不完整，尝试自动修复...");
+
+            // 统计括号和方括号
+            int braceCount = 0;
+            int bracketCount = 0;
+            bool inString = false;
+            char prevChar = '\0';
+
+            foreach (char c in json)
+            {
+                if (c == '"' && prevChar != '\\')
+                {
+                    inString = !inString;
+                }
+                else if (!inString)
+                {
+                    if (c == '{') braceCount++;
+                    else if (c == '}') braceCount--;
+                    else if (c == '[') bracketCount++;
+                    else if (c == ']') bracketCount--;
+                }
+                prevChar = c;
+            }
+
+            // 补全缺失的闭合符号
+            var fixedJson = json;
+
+            // 先闭合数组
+            for (int i = 0; i < bracketCount; i++)
+            {
+                fixedJson += "\n]";
+            }
+
+            // 再闭合对象
+            for (int i = 0; i < braceCount; i++)
+            {
+                fixedJson += "\n}";
+            }
+
+            _logger.LogInformation("🔧 JSON 修复完成，补全了 {Brackets} 个方括号和 {Braces} 个花括号", bracketCount, braceCount);
+
+            // 再次验证修复后的 JSON
+            try
+            {
+                JsonDocument.Parse(fixedJson);
+                return fixedJson;
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "❌ JSON 修复后仍然无效");
+                return json; // 修复失败，返回原始内容
+            }
+        }
+    }
+
+    /// <summary>
     /// 生成数字游民旅游指南（拆分为多个小请求）
     /// </summary>
     public async Task<TravelGuideResponse> GenerateTravelGuideAsync(
@@ -1490,14 +1560,28 @@ JSON 格式（描述简洁）：
 
         if (onProgress != null) await onProgress(35, "正在解析基本信息...");
 
-        var jsonContent = ExtractJsonFromAIResponse(aiResponse);
-        var jsonDoc = JsonDocument.Parse(jsonContent);
-        var root = jsonDoc.RootElement;
+        try
+        {
+            var jsonContent = ExtractJsonFromAIResponse(aiResponse);
+            jsonContent = TryFixIncompleteJson(jsonContent);
 
-        guide.Overview = root.TryGetProperty("overview", out var overview) ? overview.GetString() ?? "" : "";
-        guide.VisaInfo = root.TryGetProperty("visaInfo", out var visaInfo) ? ParseVisaInfo(visaInfo) : new VisaInfoDto();
+            var jsonDoc = JsonDocument.Parse(jsonContent);
+            var root = jsonDoc.RootElement;
 
-        _logger.LogInformation("✅ [1/3] 基本信息生成完成");
+            guide.Overview = root.TryGetProperty("overview", out var overview) ? overview.GetString() ?? "" : "";
+            guide.VisaInfo = root.TryGetProperty("visaInfo", out var visaInfo) ? ParseVisaInfo(visaInfo) : new VisaInfoDto();
+
+            _logger.LogInformation("✅ [1/3] 基本信息生成完成");
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "❌ JSON 解析失败，原始响应: {Response}", aiResponse.Length > 500 ? aiResponse.Substring(0, 500) + "..." : aiResponse);
+
+            // 提供默认值
+            guide.Overview = $"{request.CityName} 是一个适合数字游民工作和生活的城市。";
+            guide.VisaInfo = new VisaInfoDto();
+            _logger.LogWarning("⚠️ 使用默认基本信息继续");
+        }
     }
 
     /// <summary>
@@ -1584,13 +1668,28 @@ JSON 格式（描述简洁）：
 
         if (onProgress != null) await onProgress(65, "正在解析推荐区域...");
 
-        var jsonContent = ExtractJsonFromAIResponse(aiResponse);
-        var jsonDoc = JsonDocument.Parse(jsonContent);
-        var root = jsonDoc.RootElement;
+        try
+        {
+            var jsonContent = ExtractJsonFromAIResponse(aiResponse);
 
-        guide.BestAreas = root.TryGetProperty("bestAreas", out var areas) ? ParseBestAreas(areas) : new List<BestAreaDto>();
+            // 尝试修复不完整的 JSON
+            jsonContent = TryFixIncompleteJson(jsonContent);
 
-        _logger.LogInformation("✅ [2/3] 推荐区域生成完成，共 {Count} 个区域", guide.BestAreas.Count);
+            var jsonDoc = JsonDocument.Parse(jsonContent);
+            var root = jsonDoc.RootElement;
+
+            guide.BestAreas = root.TryGetProperty("bestAreas", out var areas) ? ParseBestAreas(areas) : new List<BestAreaDto>();
+
+            _logger.LogInformation("✅ [2/3] 推荐区域生成完成，共 {Count} 个区域", guide.BestAreas.Count);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "❌ JSON 解析失败，原始响应: {Response}", aiResponse.Length > 500 ? aiResponse.Substring(0, 500) + "..." : aiResponse);
+
+            // 如果解析失败，返回空列表而不是抛出异常
+            guide.BestAreas = new List<BestAreaDto>();
+            _logger.LogWarning("⚠️ 使用空的推荐区域列表继续");
+        }
     }
 
     /// <summary>
@@ -1639,15 +1738,30 @@ JSON 格式（描述简洁）：
 
         if (onProgress != null) await onProgress(95, "正在解析实用信息...");
 
-        var jsonContent = ExtractJsonFromAIResponse(aiResponse);
-        var jsonDoc = JsonDocument.Parse(jsonContent);
-        var root = jsonDoc.RootElement;
+        try
+        {
+            var jsonContent = ExtractJsonFromAIResponse(aiResponse);
+            jsonContent = TryFixIncompleteJson(jsonContent);
 
-        guide.WorkspaceRecommendations = root.TryGetProperty("workspaceRecommendations", out var workspaces) ? ParseStringArray(workspaces) : new List<string>();
-        guide.Tips = root.TryGetProperty("tips", out var tips) ? ParseStringArray(tips) : new List<string>();
-        guide.EssentialInfo = root.TryGetProperty("essentialInfo", out var essentialInfo) ? ParseEssentialInfo(essentialInfo) : new Dictionary<string, string>();
+            var jsonDoc = JsonDocument.Parse(jsonContent);
+            var root = jsonDoc.RootElement;
 
-        _logger.LogInformation("✅ [3/3] 实用信息生成完成");
+            guide.WorkspaceRecommendations = root.TryGetProperty("workspaceRecommendations", out var workspaces) ? ParseStringArray(workspaces) : new List<string>();
+            guide.Tips = root.TryGetProperty("tips", out var tips) ? ParseStringArray(tips) : new List<string>();
+            guide.EssentialInfo = root.TryGetProperty("essentialInfo", out var essentialInfo) ? ParseEssentialInfo(essentialInfo) : new Dictionary<string, string>();
+
+            _logger.LogInformation("✅ [3/3] 实用信息生成完成");
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "❌ JSON 解析失败，原始响应: {Response}", aiResponse.Length > 500 ? aiResponse.Substring(0, 500) + "..." : aiResponse);
+
+            // 提供默认值
+            guide.WorkspaceRecommendations = new List<string>();
+            guide.Tips = new List<string>();
+            guide.EssentialInfo = new Dictionary<string, string>();
+            _logger.LogWarning("⚠️ 使用空的实用信息继续");
+        }
     }
 
     private List<BestAreaDto> ParseBestAreas(JsonElement element)

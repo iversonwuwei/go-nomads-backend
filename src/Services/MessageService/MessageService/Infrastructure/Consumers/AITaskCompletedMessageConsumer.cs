@@ -43,6 +43,9 @@ public class AITaskCompletedMessageConsumer : IConsumer<AITaskCompletedMessage>
                 ["DurationSeconds"] = message.DurationSeconds
             };
 
+            // 发送 TaskCompleted 事件（Flutter 端监听的事件）
+            await _notifier.SendTaskCompletedAsync(message.TaskId, message.UserId, notificationData);
+
             // 发送进度消息（100%完成）
             var progressMessage = new Application.DTOs.AIProgressMessage
             {

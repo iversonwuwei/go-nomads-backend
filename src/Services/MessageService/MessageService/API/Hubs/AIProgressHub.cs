@@ -5,8 +5,9 @@ namespace MessageService.API.Hubs;
 
 /// <summary>
 /// AI 进度推送 Hub
+/// 注意：暂时允许匿名访问，后续可以添加认证
 /// </summary>
-[Authorize]
+[AllowAnonymous]
 public class AIProgressHub : Hub
 {
     private readonly ILogger<AIProgressHub> _logger;

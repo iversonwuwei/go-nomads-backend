@@ -42,6 +42,9 @@ public class AITaskFailedMessageConsumer : IConsumer<AITaskFailedMessage>
                 ["FailedAt"] = message.FailedAt
             };
 
+            // 发送 TaskFailed 事件（Flutter 端监听的事件）
+            await _notifier.SendTaskFailedAsync(message.TaskId, message.UserId, message.ErrorMessage);
+
             // 发送进度消息（失败状态）
             var progressMessage = new Application.DTOs.AIProgressMessage
             {

@@ -91,10 +91,11 @@ builder.Services.AddMassTransit(x =>
         cfg.Message<NotificationMessage>(x => x.SetEntityName("notifications.exchange"));
         cfg.Message<AITaskMessage>(x => x.SetEntityName("ai.tasks.exchange"));
         
-        // 配置新的 AI 消息 Exchange
-        cfg.Message<Shared.Messages.AIProgressMessage>(x => x.SetEntityName("ai.realtime.progress.exchange"));
-        cfg.Message<Shared.Messages.AITaskCompletedMessage>(x => x.SetEntityName("ai.task.completed.exchange"));
-        cfg.Message<Shared.Messages.AITaskFailedMessage>(x => x.SetEntityName("ai.task.failed.exchange"));
+        // ⚠️ 不要自定义 Exchange 名称，使用 MassTransit 默认命名：Shared.Messages:AIProgressMessage
+        // 这样才能与 AIService 的发布匹配
+        // cfg.Message<Shared.Messages.AIProgressMessage>(x => x.SetEntityName("ai.realtime.progress.exchange"));
+        // cfg.Message<Shared.Messages.AITaskCompletedMessage>(x => x.SetEntityName("ai.task.completed.exchange"));
+        // cfg.Message<Shared.Messages.AITaskFailedMessage>(x => x.SetEntityName("ai.task.failed.exchange"));
 
         // 配置消费者端点
         cfg.ReceiveEndpoint("ai-progress-queue", e =>
