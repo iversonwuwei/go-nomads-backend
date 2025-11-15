@@ -304,8 +304,9 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             {
                 ("/api/v1/auth/{**catch-all}", 1),
                 ("/api/v1/users/{**catch-all}", 2),
-                ("/api/v1/skills/{**catch-all}", 3),
-                ("/api/v1/interests/{**catch-all}", 4)
+                ("/api/v1/roles/{**catch-all}", 3),
+                ("/api/v1/skills/{**catch-all}", 4),
+                ("/api/v1/interests/{**catch-all}", 5)
             },
             "event-service" => new List<(string, int)>
             {

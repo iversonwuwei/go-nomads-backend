@@ -625,6 +625,118 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    /// 批量更改用户角色（仅管理员）
+    /// </summary>
+    [HttpPatch("batch/role")]
+    public async Task<ActionResult<ApiResponse<BatchChangeRoleResult>>> BatchChangeUserRole(
+        [FromBody] BatchChangeUserRoleRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // 验证用户是否为管理员
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.Role != "admin")
+        {
+            return StatusCode(403, new ApiResponse<BatchChangeRoleResult>
+            {
+                Success = false,
+                Message = "只有管理员可以批量更改用户角色"
+            });
+        }
+
+        _logger.LogInformation("🔄 批量更改用户角色: UserCount={Count}, RoleId={RoleId}",
+            request.UserIds?.Count ?? 0, request.RoleId);
+
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<BatchChangeRoleResult>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        if (request.UserIds == null || request.UserIds.Count == 0)
+        {
+            return BadRequest(new ApiResponse<BatchChangeRoleResult>
+            {
+                Success = false,
+                Message = "用户ID列表不能为空"
+            });
+        }
+
+        // 限制批量操作数量
+        if (request.UserIds.Count > 100)
+        {
+            return BadRequest(new ApiResponse<BatchChangeRoleResult>
+            {
+                Success = false,
+                Message = "单次最多批量更改100个用户角色"
+            });
+        }
+
+        try
+        {
+            var successCount = 0;
+            var failedCount = 0;
+            var updatedUsers = new List<UserDto>();
+            var errors = new List<string>();
+
+            foreach (var userId in request.UserIds)
+            {
+                try
+                {
+                    var user = await _userService.ChangeUserRoleAsync(userId, request.RoleId, cancellationToken);
+                    updatedUsers.Add(user);
+                    successCount++;
+                }
+                catch (Exception ex)
+                {
+                    failedCount++;
+                    errors.Add($"用户 {userId}: {ex.Message}");
+                    _logger.LogWarning(ex, "⚠️ 更改用户 {UserId} 角色失败", userId);
+                }
+            }
+
+            var result = new BatchChangeRoleResult
+            {
+                SuccessCount = successCount,
+                FailedCount = failedCount,
+                UpdatedUsers = updatedUsers,
+                Errors = errors
+            };
+
+            if (failedCount > 0)
+            {
+                return Ok(new ApiResponse<BatchChangeRoleResult>
+                {
+                    Success = false,
+                    Message = $"批量更改完成，成功: {successCount}，失败: {failedCount}",
+                    Data = result,
+                    Errors = errors
+                });
+            }
+
+            return Ok(new ApiResponse<BatchChangeRoleResult>
+            {
+                Success = true,
+                Message = $"成功更改 {successCount} 个用户的角色",
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量更改用户角色失败");
+            return StatusCode(500, new ApiResponse<BatchChangeRoleResult>
+            {
+                Success = false,
+                Message = "批量更改用户角色失败"
+            });
+        }
+    }
+
+    /// <summary>
     /// 健康检查端点
     /// </summary>
     [HttpGet("health")]
@@ -807,6 +919,29 @@ public class ChangeUserRoleRequest
 {
     [Required(ErrorMessage = "角色ID不能为空")]
     public string RoleId { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// 批量更改用户角色请求 DTO
+/// </summary>
+public class BatchChangeUserRoleRequest
+{
+    [Required(ErrorMessage = "用户ID列表不能为空")]
+    public List<string> UserIds { get; set; } = new();
+
+    [Required(ErrorMessage = "角色ID不能为空")]
+    public string RoleId { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// 批量更改用户角色结果 DTO
+/// </summary>
+public class BatchChangeRoleResult
+{
+    public int SuccessCount { get; set; }
+    public int FailedCount { get; set; }
+    public List<UserDto> UpdatedUsers { get; set; } = new();
+    public List<string> Errors { get; set; } = new();
 }
 
 #endregion
