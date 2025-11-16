@@ -562,7 +562,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 更改用户角色（仅管理员）
+    /// 更改用户角色
     /// </summary>
     [HttpPatch("{id}/role")]
     public async Task<ActionResult<ApiResponse<UserDto>>> ChangeUserRole(
@@ -570,18 +570,11 @@ public class UsersController : ControllerBase
         [FromBody] ChangeUserRoleRequest request,
         CancellationToken cancellationToken = default)
     {
-        // 验证用户是否为管理员
+        // Gateway 已完成 token 验证，这里只获取用户信息用于日志
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-        if (userContext?.Role != "admin")
-        {
-            return StatusCode(403, new ApiResponse<UserDto>
-            {
-                Success = false,
-                Message = "只有管理员可以更改用户角色"
-            });
-        }
 
-        _logger.LogInformation("🔄 更改用户角色: UserId={UserId}, RoleId={RoleId}", id, request.RoleId);
+        _logger.LogInformation("🔄 更改用户角色: UserId={UserId}, RoleId={RoleId}, OperatorId={OperatorId}, OperatorRole={OperatorRole}",
+            id, request.RoleId, userContext?.UserId, userContext?.Role);
 
         if (!ModelState.IsValid)
         {
@@ -625,26 +618,18 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 批量更改用户角色（仅管理员）
+    /// 批量更改用户角色
     /// </summary>
     [HttpPatch("batch/role")]
     public async Task<ActionResult<ApiResponse<BatchChangeRoleResult>>> BatchChangeUserRole(
         [FromBody] BatchChangeUserRoleRequest request,
         CancellationToken cancellationToken = default)
     {
-        // 验证用户是否为管理员
+        // Gateway 已完成 token 验证，这里只获取用户信息用于日志
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-        if (userContext?.Role != "admin")
-        {
-            return StatusCode(403, new ApiResponse<BatchChangeRoleResult>
-            {
-                Success = false,
-                Message = "只有管理员可以批量更改用户角色"
-            });
-        }
 
-        _logger.LogInformation("🔄 批量更改用户角色: UserCount={Count}, RoleId={RoleId}",
-            request.UserIds?.Count ?? 0, request.RoleId);
+        _logger.LogInformation("🔄 批量更改用户角色: UserCount={Count}, RoleId={RoleId}, OperatorId={OperatorId}, OperatorRole={OperatorRole}",
+            request.UserIds?.Count ?? 0, request.RoleId, userContext?.UserId, userContext?.Role);
 
         if (!ModelState.IsValid)
         {

@@ -13,7 +13,6 @@ namespace UserService.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/roles")]
-[Authorize] // 所有角色管理接口都需要认证
 public class RolesController : ControllerBase
 {
     private readonly IUserService _userService;

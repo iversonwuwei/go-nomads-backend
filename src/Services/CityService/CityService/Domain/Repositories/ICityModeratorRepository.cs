@@ -13,6 +13,11 @@ public interface ICityModeratorRepository
     Task<List<CityModerator>> GetByCityIdAsync(Guid cityId, bool activeOnly = true);
 
     /// <summary>
+    /// 批量获取多个城市的版主（优化 N+1 查询）
+    /// </summary>
+    Task<List<CityModerator>> GetByCityIdsAsync(List<Guid> cityIds, bool activeOnly = true);
+
+    /// <summary>
     /// 获取用户管理的所有城市版主记录
     /// </summary>
     Task<List<CityModerator>> GetByUserIdAsync(Guid userId, bool activeOnly = true);

@@ -51,7 +51,8 @@ public class CitiesController : ControllerBase
         try
         {
             var userId = TryGetCurrentUserId();
-            
+            var userRole = TryGetCurrentUserRole();
+
             IEnumerable<CityDto> cities;
             int totalCount;
             
@@ -64,12 +65,12 @@ public class CitiesController : ControllerBase
                     PageNumber = pageNumber,
                     PageSize = pageSize
                 };
-                cities = await _cityService.SearchCitiesAsync(searchDto, userId);
+                cities = await _cityService.SearchCitiesAsync(searchDto, userId, userRole);
                 totalCount = cities.Count(); // 搜索结果的总数
             }
             else
             {
-                cities = await _cityService.GetAllCitiesAsync(pageNumber, pageSize, userId);
+                cities = await _cityService.GetAllCitiesAsync(pageNumber, pageSize, userId, userRole);
                 totalCount = await _cityService.GetTotalCountAsync();
             }
 
@@ -229,7 +230,8 @@ public class CitiesController : ControllerBase
         try
         {
             var userId = TryGetCurrentUserId();
-            var cities = await _cityService.SearchCitiesAsync(searchDto, userId);
+            var userRole = TryGetCurrentUserRole();
+            var cities = await _cityService.SearchCitiesAsync(searchDto, userId, userRole);
             return Ok(new ApiResponse<IEnumerable<CityDto>>
             {
                 Success = true,
@@ -258,7 +260,8 @@ public class CitiesController : ControllerBase
         try
         {
             var userId = TryGetCurrentUserId();
-            var city = await _cityService.GetCityByIdAsync(id, userId);
+            var userRole = TryGetCurrentUserRole();
+            var city = await _cityService.GetCityByIdAsync(id, userId, userRole);
             if (city == null)
             {
                 return NotFound(new ApiResponse<CityDto>
@@ -494,7 +497,9 @@ public class CitiesController : ControllerBase
         try
         {
             // 获取城市列表
-            var cities = await _cityService.GetAllCitiesAsync(page, pageSize);
+            var userId = TryGetCurrentUserId();
+            var userRole = TryGetCurrentUserRole();
+            var cities = await _cityService.GetAllCitiesAsync(page, pageSize, userId, userRole);
             var totalCount = await _cityService.GetTotalCountAsync();
             var cityList = cities.ToList();
 
@@ -627,6 +632,20 @@ public class CitiesController : ControllerBase
         }
 
         return null;
+    }
+
+    private string? TryGetCurrentUserRole()
+    {
+        try
+        {
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            return userContext?.Role;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "获取当前用户角色失败，将返回 null");
+            return null;
+        }
     }
 
     private Guid GetCurrentUserId()
@@ -976,18 +995,23 @@ public class CitiesController : ControllerBase
 
     /// <summary>
     /// 添加城市版主（仅管理员）
+    /// 自动为用户分配 moderator 角色
     /// </summary>
     [HttpPost("{id}/moderators")]
-    [Authorize]
     public async Task<ActionResult<ApiResponse<CityModeratorDto>>> AddCityModerator(
         Guid id,
         [FromBody] AddCityModeratorDto dto)
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
 
+        // Gateway 已完成 token 验证，这里只验证角色权限
         if (userContext?.Role != "admin")
         {
-            return Forbid();
+            return StatusCode(403, new ApiResponse<CityModeratorDto>
+            {
+                Success = false,
+                Message = "需要管理员权限"
+            });
         }
 
         try
@@ -1017,7 +1041,51 @@ public class CitiesController : ControllerBase
                 });
             }
 
-            // 创建版主记录
+            // 步骤 1: 通过 Dapr 获取 moderator 角色
+            _logger.LogInformation("🔍 通过 UserService API 获取 moderator 角色");
+            var roleResponse = await _daprClient.InvokeMethodAsync<ApiResponse<SimpleRoleDto>>(
+                HttpMethod.Get,
+                "user-service",
+                "api/v1/roles/by-name/moderator");
+
+            if (roleResponse?.Success != true || roleResponse.Data == null)
+            {
+                _logger.LogError("❌ 获取 moderator 角色失败: {Message}",
+                    roleResponse?.Message ?? "响应为空");
+                return StatusCode(500, new ApiResponse<CityModeratorDto>
+                {
+                    Success = false,
+                    Message = "系统配置错误: moderator 角色不存在，请联系管理员"
+                });
+            }
+
+            var moderatorRoleId = roleResponse.Data.Id;
+            _logger.LogInformation("✅ 成功获取 moderator 角色 - RoleId: {RoleId}, RoleName: {RoleName}",
+                moderatorRoleId, roleResponse.Data.Name);
+
+            // 步骤 2: 通过 Dapr 为用户分配 moderator 角色
+            _logger.LogInformation("🔄 通过 UserService API 为用户分配 moderator 角色");
+            var changeRoleRequest = new { roleId = moderatorRoleId };
+            var changeRoleResponse = await _daprClient.InvokeMethodAsync<object, ApiResponse<SimpleUserDto>>(
+                HttpMethod.Patch,
+                "user-service",
+                $"api/v1/users/{dto.UserId}/role",
+                changeRoleRequest);
+
+            if (changeRoleResponse?.Success != true)
+            {
+                _logger.LogError("❌ 为用户分配 moderator 角色失败: {Message}",
+                    changeRoleResponse?.Message ?? "响应为空");
+                return StatusCode(500, new ApiResponse<CityModeratorDto>
+                {
+                    Success = false,
+                    Message = "为用户分配版主角色失败，请稍后重试"
+                });
+            }
+
+            _logger.LogInformation("✅ 成功为用户分配 moderator 角色 - UserId: {UserId}", dto.UserId);
+
+            // 步骤 3: 创建城市版主记录
             var moderator = new CityModerator
             {
                 CityId = id,
@@ -1034,17 +1102,24 @@ public class CitiesController : ControllerBase
             };
 
             var added = await _moderatorRepository.AddAsync(moderator);
+            _logger.LogInformation("✅ 成功创建城市版主记录 - ModeratorId: {ModeratorId}", added.Id);
 
             return Ok(new ApiResponse<CityModeratorDto>
             {
                 Success = true,
-                Message = "版主添加成功",
+                Message = "版主添加成功，已自动分配版主角色",
                 Data = new CityModeratorDto
                 {
                     Id = added.Id,
                     CityId = added.CityId,
                     UserId = added.UserId,
-                    User = new ModeratorUserDto { Id = added.UserId, Name = "", Email = "", Role = "moderator" },
+                    User = new ModeratorUserDto
+                    {
+                        Id = added.UserId,
+                        Name = changeRoleResponse.Data?.Name ?? "",
+                        Email = changeRoleResponse.Data?.Email ?? "",
+                        Role = "moderator"
+                    },
                     CanEditCity = added.CanEditCity,
                     CanManageCoworks = added.CanManageCoworks,
                     CanManageCosts = added.CanManageCosts,
@@ -1180,4 +1255,27 @@ public class CitiesController : ControllerBase
     }
 
     #endregion
+}
+
+/// <summary>
+/// 简单的用户 DTO - 用于 Dapr 服务间调用
+/// 映射自 UserService.Application.DTOs.UserDto
+/// </summary>
+public class SimpleUserDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// 简单的角色 DTO - 用于 Dapr 服务间调用
+/// 映射自 UserService.Application.DTOs.RoleDto
+/// </summary>
+public class SimpleRoleDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
 }

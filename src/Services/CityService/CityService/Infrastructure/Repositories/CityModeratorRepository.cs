@@ -50,6 +50,54 @@ public class CityModeratorRepository : ICityModeratorRepository
         }
     }
 
+    /// <summary>
+    /// 批量获取多个城市的版主（优化 N+1 查询）
+    /// </summary>
+    public async Task<List<CityModerator>> GetByCityIdsAsync(List<Guid> cityIds, bool activeOnly = true)
+    {
+        if (cityIds == null || cityIds.Count == 0)
+        {
+            return new List<CityModerator>();
+        }
+
+        _logger.LogDebug("📋 批量查询城市版主 - CityIds: {Count} 个, ActiveOnly: {ActiveOnly}",
+            cityIds.Count, activeOnly);
+
+        try
+        {
+            // 由于 Supabase 的限制，使用简化方法：分批查询
+            // 对于大量数据，分批处理
+            const int batchSize = 50; // 每批最多 50 个
+            var allModerators = new List<CityModerator>();
+
+            var batches = cityIds
+                .Select((id, index) => new { id, index })
+                .GroupBy(x => x.index / batchSize)
+                .Select(g => g.Select(x => x.id).ToList())
+                .ToList();
+
+            foreach (var batch in batches)
+            {
+                // 对每个批次逐个查询（这里还是需要优化，但比之前好）
+                var batchTasks = batch.Select(cityId => GetByCityIdAsync(cityId, activeOnly));
+                var batchResults = await Task.WhenAll(batchTasks);
+
+                foreach (var result in batchResults)
+                {
+                    allModerators.AddRange(result);
+                }
+            }
+
+            _logger.LogInformation("✅ 批量查询完成: 找到 {Count} 个版主", allModerators.Count);
+            return allModerators;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量查询城市版主失败");
+            throw;
+        }
+    }
+
     public async Task<List<CityModerator>> GetByUserIdAsync(Guid userId, bool activeOnly = true)
     {
         _logger.LogInformation("📋 查询用户管理的城市 - UserId: {UserId}, ActiveOnly: {ActiveOnly}", userId, activeOnly);

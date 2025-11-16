@@ -7,6 +7,9 @@ using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
 using CityService.Domain.ValueObjects;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Memory;
+using Dapr.Client;
+using GoNomads.Shared.Models;
 
 namespace CityService.Application.Services;
 
@@ -19,6 +22,9 @@ public class CityApplicationService : ICityService
     private readonly ICountryRepository _countryRepository;
     private readonly IWeatherService _weatherService;
     private readonly IUserFavoriteCityService _favoriteCityService;
+    private readonly ICityModeratorRepository _moderatorRepository;
+    private readonly DaprClient _daprClient;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<CityApplicationService> _logger;
 
     public CityApplicationService(
@@ -26,47 +32,78 @@ public class CityApplicationService : ICityService
         ICountryRepository countryRepository,
         IWeatherService weatherService,
         IUserFavoriteCityService favoriteCityService,
+        ICityModeratorRepository moderatorRepository,
+        DaprClient daprClient,
+        IMemoryCache cache,
         ILogger<CityApplicationService> logger)
     {
         _cityRepository = cityRepository;
         _countryRepository = countryRepository;
         _weatherService = weatherService;
         _favoriteCityService = favoriteCityService;
+        _moderatorRepository = moderatorRepository;
+        _daprClient = daprClient;
+        _cache = cache;
         _logger = logger;
     }
 
-    public async Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize, Guid? userId = null)
+    public async Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize, Guid? userId = null, string? userRole = null)
     {
         var cities = await _cityRepository.GetAllAsync(pageNumber, pageSize);
         var cityDtos = cities.Select(MapToDto).ToList();
-        await EnrichCitiesWithWeatherAsync(cityDtos);
-        
-        // 填充收藏状态
-        if (userId.HasValue)
+
+        // 并行填充数据
+        var weatherTask = EnrichCitiesWithWeatherAsync(cityDtos);
+        var moderatorTask = EnrichCitiesWithModeratorInfoAsync(cityDtos);
+        var favoriteTask = userId.HasValue
+            ? EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value)
+            : Task.CompletedTask;
+
+        await Task.WhenAll(weatherTask, moderatorTask, favoriteTask);
+
+        // 设置用户上下文
+        foreach (var cityDto in cityDtos)
         {
-            await EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value);
+            cityDto.SetUserContext(userId, userRole);
         }
         
         return cityDtos;
     }
 
-    public async Task<CityDto?> GetCityByIdAsync(Guid id, Guid? userId = null)
+    public async Task<CityDto?> GetCityByIdAsync(Guid id, Guid? userId = null, string? userRole = null)
     {
         var city = await _cityRepository.GetByIdAsync(id);
         if (city == null) return null;
         
         var cityDto = MapToDto(city);
-        
-        // 填充收藏状态
+
+        // 并行填充数据
+        var favoriteTask = userId.HasValue
+            ? _favoriteCityService.IsCityFavoritedAsync(userId.Value, id.ToString())
+            : Task.FromResult(false);
+        var moderatorTask = EnrichCityWithModeratorInfoAsync(cityDto);
+
+        await Task.WhenAll(favoriteTask, moderatorTask);
+
         if (userId.HasValue)
         {
-            cityDto.IsFavorite = await _favoriteCityService.IsCityFavoritedAsync(userId.Value, id.ToString());
+            cityDto.IsFavorite = await favoriteTask;
         }
-        
+
+        // 调试日志（Debug 级别）
+        _logger.LogDebug("🔍 [GetCityById] CityId: {CityId}, CurrentUserId: {UserId}, UserRole: {UserRole}, ModeratorId: {ModeratorId}",
+            id, userId, userRole, cityDto.ModeratorId);
+
+        // 设置用户上下文（包括是否为管理员和是否为该城市版主）
+        cityDto.SetUserContext(userId, userRole);
+
+        _logger.LogDebug("✅ [GetCityById] IsCurrentUserAdmin: {IsAdmin}, IsCurrentUserModerator: {IsModerator}",
+            cityDto.IsCurrentUserAdmin, cityDto.IsCurrentUserModerator);
+
         return cityDto;
     }
 
-    public async Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null)
+    public async Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null, string? userRole = null)
     {
         var criteria = new CitySearchCriteria
         {
@@ -83,12 +120,20 @@ public class CityApplicationService : ICityService
 
         var cities = await _cityRepository.SearchAsync(criteria);
         var cityDtos = cities.Select(MapToDto).ToList();
-        await EnrichCitiesWithWeatherAsync(cityDtos);
-        
-        // 填充收藏状态
-        if (userId.HasValue)
+
+        // 并行填充数据
+        var weatherTask = EnrichCitiesWithWeatherAsync(cityDtos);
+        var moderatorTask = EnrichCitiesWithModeratorInfoAsync(cityDtos);
+        var favoriteTask = userId.HasValue
+            ? EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value)
+            : Task.CompletedTask;
+
+        await Task.WhenAll(weatherTask, moderatorTask, favoriteTask);
+
+        // 设置用户上下文
+        foreach (var cityDto in cityDtos)
         {
-            await EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value);
+            cityDto.SetUserContext(userId, userRole);
         }
         
         return cityDtos;
@@ -404,35 +449,177 @@ public class CityApplicationService : ICityService
 
     private async Task EnrichCitiesWithWeatherAsync(List<CityDto> cities)
     {
+        if (cities.Count == 0) return;
+
         try
         {
-            var weatherTasks = cities.Select(async city =>
-            {
-                try
-                {
-                    if (city.Latitude.HasValue && city.Longitude.HasValue)
-                    {
-                        city.Weather = await _weatherService.GetWeatherByCoordinatesAsync(city.Latitude.Value, city.Longitude.Value);
-                    }
-                    else
-                    {
-                        // 优先使用英文名称获取天气,如果没有英文名则使用中文名
-                        var cityName = !string.IsNullOrWhiteSpace(city.NameEn) ? city.NameEn : city.Name;
-                        city.Weather = await _weatherService.GetWeatherByCityNameAsync(cityName);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "获取城市天气失败: {CityName}", city.Name);
-                    city.Weather = null;
-                }
-            });
+            // 优化策略：分批处理，避免并发过高
+            const int batchSize = 10; // 每批处理 10 个城市
+            var batches = cities
+                .Select((city, index) => new { city, index })
+                .GroupBy(x => x.index / batchSize)
+                .Select(g => g.Select(x => x.city).ToList())
+                .ToList();
 
-            await Task.WhenAll(weatherTasks);
+            _logger.LogDebug("🌦️ 开始批量填充天气信息: {TotalCities} 个城市, {BatchCount} 批次",
+                cities.Count, batches.Count);
+
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            foreach (var batch in batches)
+            {
+                // 每批次并发处理
+                var weatherTasks = batch.Select(async city =>
+                {
+                    try
+                    {
+                        if (city.Latitude.HasValue && city.Longitude.HasValue)
+                        {
+                            city.Weather = await _weatherService.GetWeatherByCoordinatesAsync(
+                                city.Latitude.Value,
+                                city.Longitude.Value);
+                        }
+                        else
+                        {
+                            // 优先使用英文名称获取天气
+                            var cityName = !string.IsNullOrWhiteSpace(city.NameEn) ? city.NameEn : city.Name;
+                            city.Weather = await _weatherService.GetWeatherByCityNameAsync(cityName);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "获取城市天气失败: {CityName}", city.Name);
+                        city.Weather = null; // 优雅降级
+                    }
+                });
+
+                await Task.WhenAll(weatherTasks);
+
+                // 批次间略微延迟，避免 API 频率限制
+                if (batches.IndexOf(batch) < batches.Count - 1)
+                {
+                    await Task.Delay(100); // 100ms 延迟
+                }
+            }
+
+            stopwatch.Stop();
+            var successCount = cities.Count(c => c.Weather != null);
+
+            _logger.LogInformation(
+                "✅ 天气信息填充完成: {SuccessCount}/{TotalCount} 成功, 耗时 {ElapsedMs}ms",
+                successCount, cities.Count, stopwatch.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "批量获取天气数据失败");
+            _logger.LogError(ex, "批量获取天气信息失败");
+        }
+    }
+
+    /// <summary>
+    /// 填充城市的版主信息（从 city_moderators 表查询第一个活跃的版主）
+    /// </summary>
+    private async Task EnrichCityWithModeratorInfoAsync(CityDto cityDto)
+    {
+        try
+        {
+            var moderators = await _moderatorRepository.GetByCityIdAsync(cityDto.Id);
+            var firstActiveModerator = moderators.FirstOrDefault(m => m.IsActive);
+
+            if (firstActiveModerator != null)
+            {
+                // 设置版主ID
+                cityDto.ModeratorId = firstActiveModerator.UserId;
+
+                // 通过缓存或 Dapr 获取用户信息
+                var userInfo = await GetUserInfoWithCacheAsync(firstActiveModerator.UserId);
+
+                if (userInfo != null)
+                {
+                    cityDto.Moderator = new ModeratorDto
+                    {
+                        Id = userInfo.Id,
+                        Name = userInfo.Name,
+                        Email = userInfo.Email,
+                        Avatar = userInfo.Avatar
+                    };
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "填充城市版主信息失败: CityId={CityId}", cityDto.Id);
+        }
+    }
+
+    /// <summary>
+    /// 批量填充城市的版主信息（优化 N+1 查询问题）
+    /// </summary>
+    private async Task EnrichCitiesWithModeratorInfoAsync(List<CityDto> cities)
+    {
+        if (cities.Count == 0) return;
+
+        try
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var cityIds = cities.Select(c => c.Id).ToList();
+
+            // 🚀 优化：使用批量查询接口
+            var allModerators = await _moderatorRepository.GetByCityIdsAsync(cityIds);
+
+            // 按城市分组，取每个城市的第一个活跃版主
+            var cityModeratorMap = allModerators
+                .Where(m => m.IsActive)
+                .GroupBy(m => m.CityId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderBy(m => m.CreatedAt).First()
+                );
+
+            // 收集所有需要查询的用户ID
+            var userIds = cityModeratorMap.Values
+                .Select(m => m.UserId)
+                .Distinct()
+                .ToList();
+
+            // 批量获取用户信息（使用缓存）
+            var userInfoMap = new Dictionary<Guid, SimpleUserDto>();
+            foreach (var userId in userIds)
+            {
+                var userInfo = await GetUserInfoWithCacheAsync(userId);
+                if (userInfo != null)
+                {
+                    userInfoMap[userId] = userInfo;
+                }
+            }
+
+            // 填充每个城市的版主信息
+            foreach (var city in cities)
+            {
+                if (cityModeratorMap.TryGetValue(city.Id, out var moderator))
+                {
+                    city.ModeratorId = moderator.UserId;
+
+                    if (userInfoMap.TryGetValue(moderator.UserId, out var userInfo))
+                    {
+                        city.Moderator = new ModeratorDto
+                        {
+                            Id = userInfo.Id,
+                            Name = userInfo.Name,
+                            Email = userInfo.Email,
+                            Avatar = userInfo.Avatar
+                        };
+                    }
+                }
+            }
+
+            stopwatch.Stop();
+            _logger.LogInformation(
+                "✅ 版主信息填充完成: {Count} 个城市, 耗时 {ElapsedMs}ms",
+                cities.Count, stopwatch.ElapsedMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "批量填充城市版主信息失败");
         }
     }
 
@@ -464,6 +651,66 @@ public class CityApplicationService : ICityService
                 city.IsFavorite = false;
             }
         }
+    }
+
+    /// <summary>
+    /// 通过缓存获取用户信息（带重试机制）
+    /// </summary>
+    private async Task<SimpleUserDto?> GetUserInfoWithCacheAsync(Guid userId)
+    {
+        var cacheKey = $"user_info:{userId}";
+
+        // 尝试从缓存获取
+        if (_cache.TryGetValue<SimpleUserDto>(cacheKey, out var cachedUser))
+        {
+            _logger.LogDebug("从缓存获取用户信息: UserId={UserId}", userId);
+            return cachedUser;
+        }
+
+        // 缓存未命中，调用 Dapr（带重试）
+        const int maxRetries = 2;
+        for (int attempt = 0; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                var userResponse = await _daprClient.InvokeMethodAsync<ApiResponse<SimpleUserDto>>(
+                    HttpMethod.Get,
+                    "user-service",
+                    $"api/v1/users/{userId}");
+
+                if (userResponse?.Success == true && userResponse.Data != null)
+                {
+                    // 缓存用户信息（15分钟）
+                    var cacheOptions = new MemoryCacheEntryOptions()
+                        .SetAbsoluteExpiration(TimeSpan.FromMinutes(15))
+                        .SetPriority(CacheItemPriority.Normal);
+
+                    _cache.Set(cacheKey, userResponse.Data, cacheOptions);
+
+                    _logger.LogDebug("获取并缓存用户信息: UserId={UserId}", userId);
+                    return userResponse.Data;
+                }
+
+                _logger.LogWarning("用户服务返回失败: UserId={UserId}", userId);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                if (attempt < maxRetries)
+                {
+                    _logger.LogWarning(ex, "获取用户信息失败，准备重试 ({Attempt}/{MaxRetries}): UserId={UserId}",
+                        attempt + 1, maxRetries, userId);
+                    await Task.Delay(TimeSpan.FromMilliseconds(100 * (attempt + 1))); // 指数退避
+                }
+                else
+                {
+                    _logger.LogError(ex, "获取用户信息失败（已达最大重试次数）: UserId={UserId}", userId);
+                    return null;
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -535,4 +782,14 @@ public class CityApplicationService : ICityService
             throw;
         }
     }
+}
+
+// 临时 DTO - 用于 Dapr 服务间调用
+internal class SimpleUserDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? Avatar { get; set; }
+    public string Role { get; set; } = string.Empty;
 }

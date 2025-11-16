@@ -2,7 +2,26 @@ using System.ComponentModel.DataAnnotations;
 
 namespace CityService.Application.DTOs;
 
-public class CityDto
+/// <summary>
+/// 基础 DTO - 包含当前用户上下文信息
+/// </summary>
+public abstract class BaseDtoWithUserContext
+{
+    /// <summary>
+    /// 当前登录用户是否为管理员
+    /// </summary>
+    public bool IsCurrentUserAdmin { get; set; }
+
+    /// <summary>
+    /// 设置当前用户上下文
+    /// </summary>
+    public virtual void SetUserContext(Guid? currentUserId, string? currentUserRole)
+    {
+        IsCurrentUserAdmin = currentUserRole?.ToLower() == "admin";
+    }
+}
+
+public class CityDto : BaseDtoWithUserContext
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -47,6 +66,25 @@ public class CityDto
     /// 城市版主信息
     /// </summary>
     public ModeratorDto? Moderator { get; set; }
+
+    /// <summary>
+    /// 当前登录用户是否为该城市的版主
+    /// </summary>
+    public bool IsCurrentUserModerator { get; set; }
+
+    /// <summary>
+    /// 重写基类方法，设置当前用户在此城市的权限上下文
+    /// </summary>
+    public override void SetUserContext(Guid? currentUserId, string? currentUserRole)
+    {
+        base.SetUserContext(currentUserId, currentUserRole);
+
+        // 判断当前用户是否为该城市的版主
+        if (currentUserId.HasValue && ModeratorId.HasValue)
+        {
+            IsCurrentUserModerator = currentUserId.Value == ModeratorId.Value;
+        }
+    }
 }
 
 /// <summary>

@@ -9,9 +9,9 @@ namespace CityService.Application.Services;
 /// </summary>
 public interface ICityService
 {
-    Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize, Guid? userId = null);
-    Task<CityDto?> GetCityByIdAsync(Guid id, Guid? userId = null);
-    Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null);
+    Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize, Guid? userId = null, string? userRole = null);
+    Task<CityDto?> GetCityByIdAsync(Guid id, Guid? userId = null, string? userRole = null);
+    Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null, string? userRole = null);
     Task<CityDto> CreateCityAsync(CreateCityDto createCityDto, Guid userId);
     Task<CityDto?> UpdateCityAsync(Guid id, UpdateCityDto updateCityDto, Guid userId);
     Task<bool> DeleteCityAsync(Guid id);
