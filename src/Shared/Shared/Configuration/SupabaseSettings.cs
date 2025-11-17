@@ -16,6 +16,11 @@ public class SupabaseSettings
     public string Key { get; set; } = string.Empty;
 
     /// <summary>
+    /// Supabase service_role Key (优先使用, 可为空)
+    /// </summary>
+    public string? ServiceRoleKey { get; set; }
+
+    /// <summary>
     /// 数据库 Schema，默认为 "public"
     /// </summary>
     public string Schema { get; set; } = "public";
@@ -35,7 +40,7 @@ public class SupabaseSettings
     /// </summary>
     public bool IsValid()
     {
-        return !string.IsNullOrWhiteSpace(Url) && !string.IsNullOrWhiteSpace(Key);
+        return !string.IsNullOrWhiteSpace(Url) && (!string.IsNullOrWhiteSpace(ServiceRoleKey) || !string.IsNullOrWhiteSpace(Key));
     }
 
     /// <summary>
@@ -46,9 +51,14 @@ public class SupabaseSettings
         if (string.IsNullOrWhiteSpace(Url))
             return "Supabase URL is not configured";
         
-        if (string.IsNullOrWhiteSpace(Key))
+        if (string.IsNullOrWhiteSpace(ServiceRoleKey) && string.IsNullOrWhiteSpace(Key))
             return "Supabase API Key is not configured";
         
         return string.Empty;
     }
+
+    /// <summary>
+    /// 获取当前应使用的 key, 优先 service_role
+    /// </summary>
+    public string GetActiveKey() => string.IsNullOrWhiteSpace(ServiceRoleKey) ? Key : ServiceRoleKey;
 }

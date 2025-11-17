@@ -88,6 +88,58 @@ public class UserCityContentController : ControllerBase
     }
 
     /// <summary>
+    /// 批量添加城市照片
+    /// POST /api/v1/cities/{cityId}/user-content/photos/batch
+    /// </summary>
+    [HttpPost("photos/batch")]
+    public async Task<ActionResult<ApiResponse<IEnumerable<UserCityPhotoDto>>>> SubmitPhotoBatch(string cityId, [FromBody] SubmitCityPhotoBatchRequest request)
+    {
+        try
+        {
+            var userId = GetUserId();
+            request.CityId = cityId;
+
+            var photos = await _contentService.SubmitPhotoCollectionAsync(userId, request);
+
+            return Ok(new ApiResponse<IEnumerable<UserCityPhotoDto>>
+            {
+                Success = true,
+                Message = "照片批量上传成功",
+                Data = photos
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ApiResponse<IEnumerable<UserCityPhotoDto>>
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "未授权批量上传照片");
+            return Unauthorized(new ApiResponse<IEnumerable<UserCityPhotoDto>>
+            {
+                Success = false,
+                Message = "未授权",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "批量上传城市照片失败: {CityId}", cityId);
+            return StatusCode(500, new ApiResponse<IEnumerable<UserCityPhotoDto>>
+            {
+                Success = false,
+                Message = "批量上传照片失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
     /// 获取城市的所有照片
     /// GET /api/v1/cities/{cityId}/user-content/photos?onlyMine=false
     /// </summary>

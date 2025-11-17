@@ -10,6 +10,7 @@ public interface IUserCityContentService
     #region 照片相关
 
     Task<UserCityPhotoDto> AddPhotoAsync(Guid userId, AddCityPhotoRequest request);
+    Task<IEnumerable<UserCityPhotoDto>> SubmitPhotoCollectionAsync(Guid userId, SubmitCityPhotoBatchRequest request);
     Task<IEnumerable<UserCityPhotoDto>> GetCityPhotosAsync(string cityId, Guid? userId = null);
     Task<IEnumerable<UserCityPhotoDto>> GetUserPhotosAsync(Guid userId);
     Task<bool> DeletePhotoAsync(Guid userId, Guid photoId);

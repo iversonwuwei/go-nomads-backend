@@ -13,6 +13,11 @@ public interface IUserCityPhotoRepository
     Task<UserCityPhoto> CreateAsync(UserCityPhoto photo);
 
     /// <summary>
+    /// 批量添加照片
+    /// </summary>
+    Task<IEnumerable<UserCityPhoto>> CreateBatchAsync(IEnumerable<UserCityPhoto> photos);
+
+    /// <summary>
     /// 获取城市的所有照片
     /// </summary>
     Task<IEnumerable<UserCityPhoto>> GetByCityIdAsync(string cityId);

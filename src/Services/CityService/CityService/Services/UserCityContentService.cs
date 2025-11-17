@@ -1,3 +1,4 @@
+using System;
 using CityService.DTOs;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -372,10 +373,42 @@ public class UserCityContentService : IUserCityContentService
             CityId = reader.GetString(reader.GetOrdinal("city_id")),
             ImageUrl = reader.GetString(reader.GetOrdinal("image_url")),
             Caption = reader.IsDBNull(reader.GetOrdinal("caption")) ? null : reader.GetString(reader.GetOrdinal("caption")),
+            Description = TryGetString(reader, "description"),
             Location = reader.IsDBNull(reader.GetOrdinal("location")) ? null : reader.GetString(reader.GetOrdinal("location")),
+            PlaceName = TryGetString(reader, "place_name"),
+            Address = TryGetString(reader, "address"),
+            Latitude = TryGetDouble(reader, "latitude"),
+            Longitude = TryGetDouble(reader, "longitude"),
             TakenAt = reader.IsDBNull(reader.GetOrdinal("taken_at")) ? null : reader.GetDateTime(reader.GetOrdinal("taken_at")),
             CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at"))
         };
+    }
+
+    private static string? TryGetString(IDataRecord record, string columnName)
+    {
+        return HasColumn(record, columnName) && !record.IsDBNull(record.GetOrdinal(columnName))
+            ? record.GetString(record.GetOrdinal(columnName))
+            : null;
+    }
+
+    private static double? TryGetDouble(IDataRecord record, string columnName)
+    {
+        return HasColumn(record, columnName) && !record.IsDBNull(record.GetOrdinal(columnName))
+            ? record.GetDouble(record.GetOrdinal(columnName))
+            : null;
+    }
+
+    private static bool HasColumn(IDataRecord record, string columnName)
+    {
+        for (var i = 0; i < record.FieldCount; i++)
+        {
+            if (record.GetName(i).Equals(columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private UserCityExpenseDto MapExpenseFromReader(NpgsqlDataReader reader)

@@ -2,6 +2,7 @@ using CityService.Application.Abstractions.Services;
 using CityService.Application.Services;
 using CityService.Domain.Repositories;
 using CityService.Infrastructure.Repositories;
+using CityService.Infrastructure.Integrations.Geocoding;
 using CityService.Infrastructure.Integrations.Weather;
 using CityService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -115,6 +116,7 @@ builder.Services.AddMemoryCache();
 
 // 注册天气服务
 builder.Services.AddHttpClient<IWeatherService, WeatherService>();
+builder.Services.AddHttpClient<IAmapGeocodingService, AmapGeocodingService>();
 
 var app = builder.Build();
 

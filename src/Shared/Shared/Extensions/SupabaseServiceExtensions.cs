@@ -41,8 +41,12 @@ public static class SupabaseServiceExtensions
         {
             var logger = provider.GetRequiredService<ILogger<Client>>();
             var options = provider.GetRequiredService<IOptions<SupabaseSettings>>().Value;
+            var activeKey = options.GetActiveKey();
 
-            logger.LogInformation("Initializing Supabase client with URL: {Url}", options.Url);
+            logger.LogInformation(
+                "Initializing Supabase client with URL: {Url} (key type: {KeyType})",
+                options.Url,
+                string.IsNullOrWhiteSpace(options.ServiceRoleKey) ? "anon" : "service_role");
 
             // 配置 HttpClient 以处理 SSL 和超时
             var httpHandler = new HttpClientHandler
@@ -76,7 +80,7 @@ public static class SupabaseServiceExtensions
                 }
             };
 
-            var client = new Client(options.Url, options.Key, supabaseOptions);
+            var client = new Client(options.Url, activeKey, supabaseOptions);
             
             // 初始化客户端
             try
@@ -127,7 +131,11 @@ public static class SupabaseServiceExtensions
         services.AddSingleton<Client>(provider =>
         {
             var logger = provider.GetRequiredService<ILogger<Client>>();
-            logger.LogInformation("Initializing Supabase client with URL: {Url}", settings.Url);
+            var activeKey = settings.GetActiveKey();
+            logger.LogInformation(
+                "Initializing Supabase client with URL: {Url} (key type: {KeyType})",
+                settings.Url,
+                string.IsNullOrWhiteSpace(settings.ServiceRoleKey) ? "anon" : "service_role");
 
             // 配置 HttpClient 以处理 SSL 和超时
             var httpHandler = new HttpClientHandler
@@ -157,7 +165,7 @@ public static class SupabaseServiceExtensions
                 }
             };
 
-            var client = new Client(settings.Url, settings.Key, supabaseOptions);
+            var client = new Client(settings.Url, activeKey, supabaseOptions);
             
             try
             {

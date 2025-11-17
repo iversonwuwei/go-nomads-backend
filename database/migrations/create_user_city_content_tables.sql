@@ -10,7 +10,12 @@ CREATE TABLE IF NOT EXISTS user_city_photos (
     city_id VARCHAR(100) NOT NULL,
     image_url TEXT NOT NULL,
     caption TEXT,
+    description TEXT,
     location TEXT,
+    place_name TEXT,
+    address TEXT,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
     taken_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
@@ -19,33 +24,10 @@ CREATE TABLE IF NOT EXISTS user_city_photos (
 );
 
 -- 索引优化
-CREATE INDEX idx_user_city_photos_user_id ON user_city_photos(user_id);
-CREATE INDEX idx_user_city_photos_city_id ON user_city_photos(city_id);
-CREATE INDEX idx_user_city_photos_user_city ON user_city_photos(user_id, city_id);
-CREATE INDEX idx_user_city_photos_created_at ON user_city_photos(created_at DESC);
-
--- RLS 策略
-ALTER TABLE user_city_photos ENABLE ROW LEVEL SECURITY;
-
--- 用户只能查看自己的照片
-CREATE POLICY "Users can view their own photos"
-    ON user_city_photos FOR SELECT
-    USING (auth.uid() = user_id);
-
--- 用户只能插入自己的照片
-CREATE POLICY "Users can insert their own photos"
-    ON user_city_photos FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
-
--- 用户只能更新自己的照片
-CREATE POLICY "Users can update their own photos"
-    ON user_city_photos FOR UPDATE
-    USING (auth.uid() = user_id);
-
--- 用户只能删除自己的照片
-CREATE POLICY "Users can delete their own photos"
-    ON user_city_photos FOR DELETE
-    USING (auth.uid() = user_id);
+CREATE INDEX IF NOT EXISTS idx_user_city_photos_user_id ON user_city_photos(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_city_photos_city_id ON user_city_photos(city_id);
+CREATE INDEX IF NOT EXISTS idx_user_city_photos_user_city ON user_city_photos(user_id, city_id);
+CREATE INDEX IF NOT EXISTS idx_user_city_photos_created_at ON user_city_photos(created_at DESC);
 
 
 -- 2. 用户城市费用表
@@ -65,30 +47,11 @@ CREATE TABLE IF NOT EXISTS user_city_expenses (
 );
 
 -- 索引优化
-CREATE INDEX idx_user_city_expenses_user_id ON user_city_expenses(user_id);
-CREATE INDEX idx_user_city_expenses_city_id ON user_city_expenses(city_id);
-CREATE INDEX idx_user_city_expenses_user_city ON user_city_expenses(user_id, city_id);
-CREATE INDEX idx_user_city_expenses_category ON user_city_expenses(category);
-CREATE INDEX idx_user_city_expenses_date ON user_city_expenses(date DESC);
-
--- RLS 策略
-ALTER TABLE user_city_expenses ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view their own expenses"
-    ON user_city_expenses FOR SELECT
-    USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own expenses"
-    ON user_city_expenses FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own expenses"
-    ON user_city_expenses FOR UPDATE
-    USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own expenses"
-    ON user_city_expenses FOR DELETE
-    USING (auth.uid() = user_id);
+CREATE INDEX IF NOT EXISTS idx_user_city_expenses_user_id ON user_city_expenses(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_city_expenses_city_id ON user_city_expenses(city_id);
+CREATE INDEX IF NOT EXISTS idx_user_city_expenses_user_city ON user_city_expenses(user_id, city_id);
+CREATE INDEX IF NOT EXISTS idx_user_city_expenses_category ON user_city_expenses(category);
+CREATE INDEX IF NOT EXISTS idx_user_city_expenses_date ON user_city_expenses(date DESC);
 
 
 -- 3. 用户城市评论表
@@ -110,33 +73,10 @@ CREATE TABLE IF NOT EXISTS user_city_reviews (
 );
 
 -- 索引优化
-CREATE INDEX idx_user_city_reviews_user_id ON user_city_reviews(user_id);
-CREATE INDEX idx_user_city_reviews_city_id ON user_city_reviews(city_id);
-CREATE INDEX idx_user_city_reviews_rating ON user_city_reviews(rating);
-CREATE INDEX idx_user_city_reviews_created_at ON user_city_reviews(created_at DESC);
-
--- RLS 策略
-ALTER TABLE user_city_reviews ENABLE ROW LEVEL SECURITY;
-
--- 所有人都可以查看评论（公开）
-CREATE POLICY "Anyone can view reviews"
-    ON user_city_reviews FOR SELECT
-    USING (true);
-
--- 用户只能插入自己的评论
-CREATE POLICY "Users can insert their own reviews"
-    ON user_city_reviews FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
-
--- 用户只能更新自己的评论
-CREATE POLICY "Users can update their own reviews"
-    ON user_city_reviews FOR UPDATE
-    USING (auth.uid() = user_id);
-
--- 用户只能删除自己的评论
-CREATE POLICY "Users can delete their own reviews"
-    ON user_city_reviews FOR DELETE
-    USING (auth.uid() = user_id);
+CREATE INDEX IF NOT EXISTS idx_user_city_reviews_user_id ON user_city_reviews(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_city_reviews_city_id ON user_city_reviews(city_id);
+CREATE INDEX IF NOT EXISTS idx_user_city_reviews_rating ON user_city_reviews(rating);
+CREATE INDEX IF NOT EXISTS idx_user_city_reviews_created_at ON user_city_reviews(created_at DESC);
 
 -- 自动更新 updated_at 触发器
 CREATE OR REPLACE FUNCTION update_user_city_reviews_updated_at()
@@ -147,6 +87,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_user_city_reviews_updated_at ON user_city_reviews;
 CREATE TRIGGER trigger_update_user_city_reviews_updated_at
     BEFORE UPDATE ON user_city_reviews
     FOR EACH ROW

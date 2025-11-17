@@ -1,3 +1,4 @@
+using CityService.Application.Abstractions.Services;
 using CityService.Application.DTOs;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
@@ -16,6 +17,7 @@ public class UserCityContentApplicationService : IUserCityContentService
     private readonly IUserCityReviewRepository _reviewRepository;
     private readonly IUserCityProsConsRepository _prosConsRepository;
     private readonly IUserServiceClient _userServiceClient;
+    private readonly IAmapGeocodingService _amapGeocodingService;
     private readonly ILogger<UserCityContentApplicationService> _logger;
 
     public UserCityContentApplicationService(
@@ -24,6 +26,7 @@ public class UserCityContentApplicationService : IUserCityContentService
         IUserCityReviewRepository reviewRepository,
         IUserCityProsConsRepository prosConsRepository,
         IUserServiceClient userServiceClient,
+        IAmapGeocodingService amapGeocodingService,
         ILogger<UserCityContentApplicationService> logger)
     {
         _photoRepository = photoRepository;
@@ -31,6 +34,7 @@ public class UserCityContentApplicationService : IUserCityContentService
         _reviewRepository = reviewRepository;
         _prosConsRepository = prosConsRepository;
         _userServiceClient = userServiceClient;
+        _amapGeocodingService = amapGeocodingService;
         _logger = logger;
     }
 
@@ -52,6 +56,66 @@ public class UserCityContentApplicationService : IUserCityContentService
         _logger.LogInformation("用户 {UserId} 为城市 {CityId} 添加了照片 {PhotoId}", userId, request.CityId, created.Id);
 
         return MapPhotoToDto(created);
+    }
+
+    public async Task<IEnumerable<UserCityPhotoDto>> SubmitPhotoCollectionAsync(Guid userId, SubmitCityPhotoBatchRequest request)
+    {
+        if (request.ImageUrls is null || request.ImageUrls.Count == 0)
+        {
+            throw new ArgumentException("图片列表不能为空", nameof(request.ImageUrls));
+        }
+
+        if (request.ImageUrls.Count > 10)
+        {
+            throw new ArgumentException("一次最多支持上传 10 张照片", nameof(request.ImageUrls));
+        }
+
+        _logger.LogInformation(
+            "用户 {UserId} 正在为城市 {CityId} 提交 {Count} 张照片(标题: {Title})",
+            userId,
+            request.CityId,
+            request.ImageUrls.Count,
+            string.IsNullOrWhiteSpace(request.Title) ? "(未填写)" : request.Title);
+
+        var enrichedLocation = await TryEnrichLocationAsync(request);
+        if (enrichedLocation is null)
+        {
+            _logger.LogInformation("未获取到 AMap 位置信息, 使用用户输入: {CityId}", request.CityId);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "AMap 位置增强成功: {CityId} lat={Latitude}, lng={Longitude}, place={Place}",
+                request.CityId,
+                enrichedLocation.Latitude,
+                enrichedLocation.Longitude,
+                enrichedLocation.PlaceName ?? "(未知)");
+        }
+
+        var photos = request.ImageUrls.Select(imageUrl => new UserCityPhoto
+        {
+            UserId = userId,
+            CityId = request.CityId,
+            ImageUrl = imageUrl,
+            Caption = request.Title,
+            Description = request.Description,
+            Location = request.LocationNote,
+            PlaceName = enrichedLocation?.PlaceName ?? request.Title,
+            Address = enrichedLocation?.FormattedAddress,
+            Latitude = enrichedLocation?.Latitude,
+            Longitude = enrichedLocation?.Longitude
+        }).ToList();
+
+        var created = await _photoRepository.CreateBatchAsync(photos);
+        var createdList = created.ToList();
+
+        _logger.LogInformation(
+            "用户 {UserId} 为城市 {CityId} 批量上传 {Count} 张照片",
+            userId,
+            request.CityId,
+            createdList.Count);
+
+        return createdList.Select(MapPhotoToDto);
     }
 
     public async Task<IEnumerable<UserCityPhotoDto>> GetCityPhotosAsync(string cityId, Guid? userId = null)
@@ -314,6 +378,37 @@ public class UserCityContentApplicationService : IUserCityContentService
 
     #region 映射方法
 
+    private async Task<AmapGeocodeResult?> TryEnrichLocationAsync(SubmitCityPhotoBatchRequest request)
+    {
+        try
+        {
+            var queryParts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(request.Title))
+            {
+                queryParts.Add(request.Title);
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.LocationNote))
+            {
+                queryParts.Add(request.LocationNote!);
+            }
+
+            if (queryParts.Count == 0)
+            {
+                return null;
+            }
+
+            var query = string.Join(" ", queryParts);
+            _logger.LogDebug("调用 AMap 进行地理编码: {CityId} - {Query}", request.CityId, query);
+            return await _amapGeocodingService.GeocodeAsync(query, request.CityId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "调用 AMap 地理编码失败: {CityId}", request.CityId);
+            return null;
+        }
+    }
+
     private static UserCityPhotoDto MapPhotoToDto(UserCityPhoto photo)
     {
         return new UserCityPhotoDto
@@ -323,7 +418,12 @@ public class UserCityContentApplicationService : IUserCityContentService
             CityId = photo.CityId,
             ImageUrl = photo.ImageUrl,
             Caption = photo.Caption,
+            Description = photo.Description,
             Location = photo.Location,
+            PlaceName = photo.PlaceName,
+            Address = photo.Address,
+            Latitude = photo.Latitude,
+            Longitude = photo.Longitude,
             TakenAt = photo.TakenAt,
             CreatedAt = photo.CreatedAt
         };

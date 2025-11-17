@@ -31,9 +31,24 @@ public class UserCityPhoto : BaseModel
     [Column("caption")]
     public string? Caption { get; set; }
 
+    [Column("description")]
+    public string? Description { get; set; }
+
     [MaxLength(200)]
     [Column("location")]
     public string? Location { get; set; }
+
+    [Column("place_name")]
+    public string? PlaceName { get; set; }
+
+    [Column("address")]
+    public string? Address { get; set; }
+
+    [Column("latitude")]
+    public double? Latitude { get; set; }
+
+    [Column("longitude")]
+    public double? Longitude { get; set; }
 
     [Column("taken_at")]
     public DateTime? TakenAt { get; set; }

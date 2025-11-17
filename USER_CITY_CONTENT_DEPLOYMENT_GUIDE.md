@@ -50,6 +50,19 @@
 
 ## ⚠️ 需要手动完成的步骤
 
+### 步骤 0: 配置 AMap API Key (新)
+
+批量照片上传会调用高德地图地理编码接口来补全经纬度和地址信息。在本地或测试环境中，请先在 `src/Services/CityService/CityService/appsettings.Development.json` 中设置 `Amap.ApiKey`，或通过环境变量/KeyVault 覆盖 `Amap:ApiKey`。
+
+```json
+   "Amap": {
+      "ApiKey": "9194496314986698ad76d755f6349325",
+      "GeocodeEndpoint": "https://restapi.amap.com/v3/geocode/geo"
+   }
+```
+
+> ⚠️ 生产环境请通过安全的 Secret 管理方案提供密钥，不要将真实 Key 提交到版本库中。
+
 ### 步骤 1: 执行数据库迁移 (必须!)
 
 **方式 1: Supabase SQL Editor (推荐)**

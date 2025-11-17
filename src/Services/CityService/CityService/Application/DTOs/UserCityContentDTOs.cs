@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace CityService.Application.DTOs;
 
@@ -14,7 +16,12 @@ public class UserCityPhotoDto
     public string CityId { get; set; } = string.Empty;
     public string ImageUrl { get; set; } = string.Empty;
     public string? Caption { get; set; }
+    public string? Description { get; set; }
     public string? Location { get; set; }
+    public string? PlaceName { get; set; }
+    public string? Address { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
     public DateTime? TakenAt { get; set; }
     public DateTime CreatedAt { get; set; }
 }
@@ -24,7 +31,7 @@ public class UserCityPhotoDto
 /// </summary>
 public class AddCityPhotoRequest
 {
-    [Required]
+    [JsonIgnore]
     public string CityId { get; set; } = string.Empty;
 
     [Required]
@@ -38,6 +45,30 @@ public class AddCityPhotoRequest
     public string? Location { get; set; }
 
     public DateTime? TakenAt { get; set; }
+}
+
+/// <summary>
+/// 批量提交照片请求
+/// </summary>
+public class SubmitCityPhotoBatchRequest
+{
+    [JsonIgnore]
+    public string CityId { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(200)]
+    public string Title { get; set; } = string.Empty;
+
+    [Required]
+    [MinLength(1)]
+    [MaxLength(10)]
+    public List<string> ImageUrls { get; set; } = new();
+
+    [MaxLength(1000)]
+    public string? Description { get; set; }
+
+    [MaxLength(200)]
+    public string? LocationNote { get; set; }
 }
 
 #endregion

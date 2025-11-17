@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace CityService.DTOs;
 
 /// <summary>
@@ -10,7 +12,12 @@ public class UserCityPhotoDto
     public string CityId { get; set; } = string.Empty;
     public string ImageUrl { get; set; } = string.Empty;
     public string? Caption { get; set; }
+    public string? Description { get; set; }
     public string? Location { get; set; }
+    public string? PlaceName { get; set; }
+    public string? Address { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
     public DateTime? TakenAt { get; set; }
     public DateTime CreatedAt { get; set; }
 }
@@ -25,6 +32,18 @@ public class AddCityPhotoRequest
     public string? Caption { get; set; }
     public string? Location { get; set; }
     public DateTime? TakenAt { get; set; }
+}
+
+/// <summary>
+/// 批量提交照片请求
+/// </summary>
+public class SubmitCityPhotoBatchRequest
+{
+    public string CityId { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public List<string> ImageUrls { get; set; } = new();
+    public string? Description { get; set; }
+    public string? LocationNote { get; set; }
 }
 
 /// <summary>
