@@ -93,4 +93,24 @@ public interface ICoworkingService
     ///     完成预订
     /// </summary>
     Task CompleteBookingAsync(Guid id);
+
+    /// <summary>
+    ///     创建评论
+    /// </summary>
+    Task<CoworkingCommentResponse> CreateCommentAsync(Guid coworkingId, Guid userId, CreateCoworkingCommentRequest request);
+
+    /// <summary>
+    ///     获取评论列表
+    /// </summary>
+    Task<List<CoworkingCommentResponse>> GetCommentsAsync(Guid coworkingId, int page = 1, int pageSize = 20);
+
+    /// <summary>
+    ///     获取评论数量
+    /// </summary>
+    Task<int> GetCommentCountAsync(Guid coworkingId);
+
+    /// <summary>
+    ///     删除评论
+    /// </summary>
+    Task DeleteCommentAsync(Guid id, Guid userId);
 }

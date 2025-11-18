@@ -42,6 +42,7 @@ builder.Services.AddDaprClient(daprClientBuilder =>
 builder.Services.AddScoped<ICoworkingRepository, CoworkingRepository>();
 builder.Services.AddScoped<ICoworkingBookingRepository, CoworkingBookingRepository>();
 builder.Services.AddScoped<ICoworkingVerificationRepository, CoworkingVerificationRepository>();
+builder.Services.AddScoped<ICoworkingCommentRepository, CoworkingCommentRepository>();
 
 // Application Layer - 应用服务
 builder.Services.AddScoped<ICoworkingService, CoworkingApplicationService>();

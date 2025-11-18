@@ -578,6 +578,114 @@ public class CoworkingController : ControllerBase
 
     #endregion
 
+    #region Comment Endpoints
+
+    /// <summary>
+    ///     创建评论
+    /// </summary>
+    [HttpPost("{coworkingId}/comments")]
+    [ProducesResponseType(typeof(ApiResponse<CoworkingCommentResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse<CoworkingCommentResponse>>> CreateComment(
+        Guid coworkingId,
+        [FromBody] CreateCoworkingCommentRequest request)
+    {
+        try
+        {
+            var userContext = GetUserContext();
+            var userId = TryGetUserId(userContext);
+            if (!userId.HasValue)
+                return Unauthorized(ApiResponse<object>.ErrorResponse("需要登录", new List<string> { "未检测到用户信息" }));
+
+            var result = await _coworkingService.CreateCommentAsync(coworkingId, userId.Value, request);
+
+            return CreatedAtAction(
+                nameof(GetComments),
+                new { coworkingId },
+                ApiResponse<CoworkingCommentResponse>.SuccessResponse(
+                    result,
+                    "评论创建成功"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse("未找到 Coworking", new List<string> { ex.Message }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "创建评论失败: CoworkingId={CoworkingId}", coworkingId);
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("创建评论失败", new List<string> { ex.Message }));
+        }
+    }
+
+    /// <summary>
+    ///     获取评论列表
+    /// </summary>
+    [HttpGet("{coworkingId}/comments")]
+    [ProducesResponseType(typeof(ApiResponse<List<CoworkingCommentResponse>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<List<CoworkingCommentResponse>>>> GetComments(
+        Guid coworkingId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            var comments = await _coworkingService.GetCommentsAsync(coworkingId, page, pageSize);
+            var totalCount = await _coworkingService.GetCommentCountAsync(coworkingId);
+
+            return Ok(ApiResponse<List<CoworkingCommentResponse>>.SuccessResponse(
+                comments,
+                $"成功获取 {comments.Count} 条评论，共 {totalCount} 条"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取评论列表失败: CoworkingId={CoworkingId}", coworkingId);
+            return StatusCode(500, ApiResponse<List<CoworkingCommentResponse>>.ErrorResponse(
+                "获取评论失败",
+                new List<string> { ex.Message }));
+        }
+    }
+
+    /// <summary>
+    ///     删除评论
+    /// </summary>
+    [HttpDelete("comments/{id}")]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<string>>> DeleteComment(Guid id)
+    {
+        try
+        {
+            var userContext = GetUserContext();
+            var userId = TryGetUserId(userContext);
+            if (!userId.HasValue)
+                return Unauthorized(ApiResponse<object>.ErrorResponse("需要登录", new List<string> { "未检测到用户信息" }));
+
+            await _coworkingService.DeleteCommentAsync(id, userId.Value);
+
+            return Ok(ApiResponse<string>.SuccessResponse(
+                "评论已删除",
+                "评论删除成功"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse("未找到评论", new List<string> { ex.Message }));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, ApiResponse<object>.ErrorResponse("无权限", new List<string> { ex.Message }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "删除评论失败: Id={Id}", id);
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("删除评论失败", new List<string> { ex.Message }));
+        }
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private SharedModels.UserContext? GetUserContext()

@@ -13,17 +13,20 @@ public class CoworkingApplicationService : ICoworkingService
     private readonly ICoworkingBookingRepository _bookingRepository;
     private readonly ICoworkingRepository _coworkingRepository;
     private readonly ICoworkingVerificationRepository _verificationRepository;
+    private readonly ICoworkingCommentRepository _commentRepository;
     private readonly ILogger<CoworkingApplicationService> _logger;
 
     public CoworkingApplicationService(
         ICoworkingRepository coworkingRepository,
         ICoworkingVerificationRepository verificationRepository,
         ICoworkingBookingRepository bookingRepository,
+        ICoworkingCommentRepository commentRepository,
         ILogger<CoworkingApplicationService> logger)
     {
         _coworkingRepository = coworkingRepository;
         _verificationRepository = verificationRepository;
         _bookingRepository = bookingRepository;
+        _commentRepository = commentRepository;
         _logger = logger;
     }
 
@@ -527,6 +530,96 @@ public class CoworkingApplicationService : ICoworkingService
 
         var hours = (endTime.Value - startTime.Value).TotalHours;
         return (decimal)hours * coworkingSpace.PricePerHour.Value;
+    }
+
+    #endregion
+
+    #region Comment 用例
+
+    public async Task<CoworkingCommentResponse> CreateCommentAsync(
+        Guid coworkingId,
+        Guid userId,
+        CreateCoworkingCommentRequest request)
+    {
+        _logger.LogInformation("创建评论: CoworkingId={CoworkingId}, UserId={UserId}", coworkingId, userId);
+
+        try
+        {
+            // 验证 Coworking 是否存在
+            var coworkingSpace = await _coworkingRepository.GetByIdAsync(coworkingId);
+            if (coworkingSpace == null)
+                throw new KeyNotFoundException($"未找到 ID 为 {coworkingId} 的共享办公空间");
+
+            // 创建评论
+            var comment = CoworkingComment.Create(coworkingId, userId, request.Content, request.Rating, request.Images);
+            var created = await _commentRepository.CreateAsync(comment);
+
+            _logger.LogInformation("✅ 评论创建成功: {Id}", created.Id);
+
+            return MapToCommentResponse(created);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 创建评论失败: CoworkingId={CoworkingId}", coworkingId);
+            throw;
+        }
+    }
+
+    public async Task<List<CoworkingCommentResponse>> GetCommentsAsync(
+        Guid coworkingId,
+        int page = 1,
+        int pageSize = 20)
+    {
+        _logger.LogInformation("获取评论列表: CoworkingId={CoworkingId}, Page={Page}", coworkingId, page);
+
+        var comments = await _commentRepository.GetByCoworkingIdAsync(coworkingId, page, pageSize);
+        return comments.Select(MapToCommentResponse).ToList();
+    }
+
+    public async Task<int> GetCommentCountAsync(Guid coworkingId)
+    {
+        return await _commentRepository.GetCountByCoworkingIdAsync(coworkingId);
+    }
+
+    public async Task DeleteCommentAsync(Guid id, Guid userId)
+    {
+        _logger.LogInformation("删除评论: Id={Id}, UserId={UserId}", id, userId);
+
+        try
+        {
+            var comment = await _commentRepository.GetByIdAsync(id);
+            if (comment == null)
+                throw new KeyNotFoundException($"未找到 ID 为 {id} 的评论");
+
+            // 验证用户权限（只能删除自己的评论）
+            if (comment.UserId != userId)
+                throw new UnauthorizedAccessException("无权删除此评论");
+
+            comment.SoftDelete();
+            await _commentRepository.UpdateAsync(comment);
+
+            _logger.LogInformation("✅ 评论删除成功: {Id}", id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 删除评论失败: {Id}", id);
+            throw;
+        }
+    }
+
+    private CoworkingCommentResponse MapToCommentResponse(CoworkingComment comment)
+    {
+        return new CoworkingCommentResponse
+        {
+            Id = comment.Id,
+            CoworkingId = comment.CoworkingId,
+            UserId = comment.UserId,
+            Content = comment.Content,
+            Rating = comment.Rating,
+            Images = comment.Images,
+            CreatedAt = comment.CreatedAt,
+            UpdatedAt = comment.UpdatedAt
+        };
     }
 
     #endregion

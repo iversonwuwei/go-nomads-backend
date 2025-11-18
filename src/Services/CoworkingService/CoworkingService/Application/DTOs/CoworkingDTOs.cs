@@ -227,3 +227,48 @@ public class CreateBookingRequest
 
     public string? SpecialRequests { get; set; }
 }
+
+/// <summary>
+///     Coworking 评论响应 DTO
+/// </summary>
+public class CoworkingCommentResponse
+{
+    public Guid Id { get; set; }
+    public Guid CoworkingId { get; set; }
+    public Guid UserId { get; set; }
+    public string Content { get; set; } = string.Empty;
+    public int? Rating { get; set; }
+    public List<string>? Images { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+}
+
+/// <summary>
+///     创建评论请求 DTO
+/// </summary>
+public class CreateCoworkingCommentRequest
+{
+    [Required(ErrorMessage = "评论内容不能为空")]
+    [MaxLength(1000, ErrorMessage = "评论内容不能超过1000字")]
+    public string Content { get; set; } = string.Empty;
+
+    [Range(0, 5, ErrorMessage = "评分必须在 0-5 之间")]
+    public int? Rating { get; set; }
+
+    public List<string>? Images { get; set; }
+}
+
+/// <summary>
+///     更新评论请求 DTO
+/// </summary>
+public class UpdateCoworkingCommentRequest
+{
+    [Required(ErrorMessage = "评论内容不能为空")]
+    [MaxLength(1000, ErrorMessage = "评论内容不能超过1000字")]
+    public string Content { get; set; } = string.Empty;
+
+    [Range(0, 5, ErrorMessage = "评分必须在 0-5 之间")]
+    public int? Rating { get; set; }
+
+    public List<string>? Images { get; set; }
+}
