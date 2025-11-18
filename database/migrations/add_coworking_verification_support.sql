@@ -37,11 +37,5 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_coworking_verifications_unique
 CREATE INDEX IF NOT EXISTS idx_coworking_verifications_user_id
     ON public.coworking_verifications(user_id);
 
-ALTER TABLE public.coworking_verifications ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Users manage own coworking verifications" ON public.coworking_verifications;
-CREATE POLICY "Users manage own coworking verifications"
-    ON public.coworking_verifications
-    FOR ALL
-    USING (auth.role() = 'service_role' OR auth.uid()::text = user_id::text)
-    WITH CHECK (auth.role() = 'service_role' OR auth.uid()::text = user_id::text);
+-- RLS is not required for this table
+ALTER TABLE public.coworking_verifications DISABLE ROW LEVEL SECURITY;
