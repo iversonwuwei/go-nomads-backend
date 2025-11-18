@@ -1,58 +1,48 @@
-using System.ComponentModel.DataAnnotations;
 using Postgrest.Attributes;
 using Postgrest.Models;
 
 namespace CoworkingService.Domain.Entities;
 
 /// <summary>
-/// CoworkingBooking 实体 - 共享办公空间预订
+///     CoworkingBooking 实体 - 共享办公空间预订
 /// </summary>
 [Table("coworking_bookings")]
 public class CoworkingBooking : BaseModel
 {
-    [PrimaryKey("id", false)]
-    public Guid Id { get; private set; }
+    /// <summary>
+    ///     公共无参构造函数 (ORM 需要)
+    /// </summary>
+    public CoworkingBooking()
+    {
+    }
 
-    [Column("coworking_id")]
-    public Guid CoworkingId { get; private set; }
+    [PrimaryKey("id")] public Guid Id { get; private set; }
 
-    [Column("user_id")]
-    public Guid UserId { get; private set; }
+    [Column("coworking_id")] public Guid CoworkingId { get; private set; }
 
-    [Column("booking_date")]
-    public DateTime BookingDate { get; private set; }
+    [Column("user_id")] public Guid UserId { get; private set; }
 
-    [Column("start_time")]
-    public TimeSpan? StartTime { get; private set; }
+    [Column("booking_date")] public DateTime BookingDate { get; private set; }
 
-    [Column("end_time")]
-    public TimeSpan? EndTime { get; private set; }
+    [Column("start_time")] public TimeSpan? StartTime { get; private set; }
 
-    [Column("booking_type")]
-    public string BookingType { get; private set; } = "daily"; // hourly, daily, monthly
+    [Column("end_time")] public TimeSpan? EndTime { get; private set; }
 
-    [Column("total_price")]
-    public decimal TotalPrice { get; private set; }
+    [Column("booking_type")] public string BookingType { get; private set; } = "daily"; // hourly, daily, monthly
 
-    [Column("currency")]
-    public string Currency { get; private set; } = "USD";
+    [Column("total_price")] public decimal TotalPrice { get; private set; }
+
+    [Column("currency")] public string Currency { get; private set; } = "USD";
 
     [Column("status")]
     public string Status { get; private set; } = "pending"; // pending, confirmed, cancelled, completed
 
-    [Column("special_requests")]
-    public string? SpecialRequests { get; private set; }
+    [Column("special_requests")] public string? SpecialRequests { get; private set; }
 
-    [Column("created_at")]
-    public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
+    [Column("created_at")] public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
 
     /// <summary>
-    /// 公共无参构造函数 (ORM 需要)
-    /// </summary>
-    public CoworkingBooking() { }
-
-    /// <summary>
-    /// 工厂方法 - 创建新的预订
+    ///     工厂方法 - 创建新的预订
     /// </summary>
     public static CoworkingBooking Create(
         Guid coworkingId,
@@ -106,7 +96,7 @@ public class CoworkingBooking : BaseModel
     }
 
     /// <summary>
-    /// 领域方法 - 确认预订
+    ///     领域方法 - 确认预订
     /// </summary>
     public void Confirm()
     {
@@ -117,7 +107,7 @@ public class CoworkingBooking : BaseModel
     }
 
     /// <summary>
-    /// 领域方法 - 取消预订
+    ///     领域方法 - 取消预订
     /// </summary>
     public void Cancel()
     {
@@ -131,7 +121,7 @@ public class CoworkingBooking : BaseModel
     }
 
     /// <summary>
-    /// 领域方法 - 完成预订
+    ///     领域方法 - 完成预订
     /// </summary>
     public void Complete()
     {
@@ -142,7 +132,7 @@ public class CoworkingBooking : BaseModel
     }
 
     /// <summary>
-    /// 领域方法 - 更新特殊要求
+    ///     领域方法 - 更新特殊要求
     /// </summary>
     public void UpdateSpecialRequests(string? specialRequests)
     {
@@ -153,7 +143,7 @@ public class CoworkingBooking : BaseModel
     }
 
     /// <summary>
-    /// 领域查询 - 检查是否可以取消
+    ///     领域查询 - 检查是否可以取消
     /// </summary>
     public bool CanCancel()
     {
@@ -161,7 +151,7 @@ public class CoworkingBooking : BaseModel
     }
 
     /// <summary>
-    /// 领域查询 - 检查时间冲突
+    ///     领域查询 - 检查时间冲突
     /// </summary>
     public bool HasTimeConflict(TimeSpan? otherStart, TimeSpan? otherEnd)
     {
@@ -172,7 +162,7 @@ public class CoworkingBooking : BaseModel
     }
 
     /// <summary>
-    /// 验证预订类型
+    ///     验证预订类型
     /// </summary>
     private static bool IsValidBookingType(string bookingType)
     {

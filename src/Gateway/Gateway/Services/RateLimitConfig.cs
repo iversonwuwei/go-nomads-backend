@@ -4,32 +4,32 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Gateway.Services;
 
 /// <summary>
-/// API 限流配置
+///     API 限流配置
 /// </summary>
 public static class RateLimitConfig
 {
     /// <summary>
-    /// 登录限流策略名称
+    ///     登录限流策略名称
     /// </summary>
     public const string LoginPolicy = "login";
 
     /// <summary>
-    /// 注册限流策略名称
+    ///     注册限流策略名称
     /// </summary>
     public const string RegisterPolicy = "register";
 
     /// <summary>
-    /// API 限流策略名称
+    ///     API 限流策略名称
     /// </summary>
     public const string ApiPolicy = "api";
 
     /// <summary>
-    /// 严格限流策略名称（用于敏感操作）
+    ///     严格限流策略名称（用于敏感操作）
     /// </summary>
     public const string StrictPolicy = "strict";
 
     /// <summary>
-    /// 配置速率限制策略
+    ///     配置速率限制策略
     /// </summary>
     public static void ConfigureRateLimiter(RateLimiterOptions options)
     {
@@ -82,13 +82,11 @@ public static class RateLimitConfig
             // 健康检查和监控端点不限流
             if (context.Request.Path.StartsWithSegments("/health") ||
                 context.Request.Path.StartsWithSegments("/metrics"))
-            {
                 return RateLimitPartition.GetNoLimiter("unlimited");
-            }
 
             // 其他请求按 IP 限流
             var clientIp = GetClientIpAddress(context);
-            
+
             return RateLimitPartition.GetConcurrencyLimiter(clientIp, _ =>
                 new ConcurrencyLimiterOptions
                 {
@@ -113,7 +111,7 @@ public static class RateLimitConfig
                 success = false,
                 message = "请求过于频繁，请稍后再试",
                 error = "Too Many Requests",
-                retryAfter = retryAfter,
+                retryAfter,
                 timestamp = DateTime.UtcNow
             };
 
@@ -122,7 +120,7 @@ public static class RateLimitConfig
     }
 
     /// <summary>
-    /// 获取客户端 IP 地址
+    ///     获取客户端 IP 地址
     /// </summary>
     private static string GetClientIpAddress(HttpContext context)
     {
@@ -131,18 +129,12 @@ public static class RateLimitConfig
         if (!string.IsNullOrEmpty(forwardedFor))
         {
             var ips = forwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries);
-            if (ips.Length > 0)
-            {
-                return ips[0].Trim();
-            }
+            if (ips.Length > 0) return ips[0].Trim();
         }
 
         // 其次从 X-Real-IP 头获取
         var realIp = context.Request.Headers["X-Real-IP"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(realIp))
-        {
-            return realIp;
-        }
+        if (!string.IsNullOrEmpty(realIp)) return realIp;
 
         // 最后使用连接的远程 IP
         return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";

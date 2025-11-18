@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace UserService.Application.DTOs;
 
 /// <summary>
-/// 用户注册 DTO
+///     用户注册 DTO
 /// </summary>
 public class RegisterDto
 {
@@ -19,6 +19,5 @@ public class RegisterDto
     [StringLength(100, MinimumLength = 6, ErrorMessage = "密码长度必须在6-100之间")]
     public string Password { get; set; } = string.Empty;
 
-    [Phone(ErrorMessage = "手机号格式不正确")]
-    public string? Phone { get; set; }
+    [Phone(ErrorMessage = "手机号格式不正确")] public string? Phone { get; set; }
 }

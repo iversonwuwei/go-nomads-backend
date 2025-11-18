@@ -1,16 +1,20 @@
 using EventService.Domain.Entities;
 using EventService.Domain.Repositories;
-using Supabase;
+using Postgrest;
+using Supabase.Interfaces;
+using Supabase.Realtime;
+using Client = Supabase.Client;
+using Constants = Postgrest.Constants;
 
 namespace EventService.Infrastructure.Repositories;
 
 /// <summary>
-/// Event 仓储实现 - Supabase
+///     Event 仓储实现 - Supabase
 /// </summary>
 public class EventRepository : IEventRepository
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<EventRepository> _logger;
+    private readonly Client _supabaseClient;
 
     public EventRepository(Client supabaseClient, ILogger<EventRepository> logger)
     {
@@ -25,7 +29,7 @@ public class EventRepository : IEventRepository
             // 插入数据（Supabase C# SDK 的 Insert 有时不返回数据）
             var insertResult = await _supabaseClient
                 .From<Event>()
-                .Insert(@event, new Postgrest.QueryOptions { Returning = Postgrest.QueryOptions.ReturnType.Representation });
+                .Insert(@event, new QueryOptions { Returning = QueryOptions.ReturnType.Representation });
 
             // 尝试从 insert 结果获取
             var createdEvent = insertResult.Models.FirstOrDefault();
@@ -39,17 +43,14 @@ public class EventRepository : IEventRepository
                 var queryResult = await _supabaseClient
                     .From<Event>()
                     .Where(e => e.Title == @event.Title && e.OrganizerId == @event.OrganizerId)
-                    .Order("created_at", Postgrest.Constants.Ordering.Descending)
+                    .Order("created_at", Constants.Ordering.Descending)
                     .Limit(1)
                     .Get();
 
                 createdEvent = queryResult.Models.FirstOrDefault();
             }
 
-            if (createdEvent == null)
-            {
-                throw new InvalidOperationException("创建 Event 失败 - 无法获取创建的记录");
-            }
+            if (createdEvent == null) throw new InvalidOperationException("创建 Event 失败 - 无法获取创建的记录");
 
             _logger.LogInformation("✅ Event 创建成功，ID: {EventId}, Title: {Title}", createdEvent.Id, createdEvent.Title);
             return createdEvent;
@@ -89,10 +90,7 @@ public class EventRepository : IEventRepository
                 .Update(@event);
 
             var updatedEvent = result.Models.FirstOrDefault();
-            if (updatedEvent == null)
-            {
-                throw new InvalidOperationException("更新 Event 失败");
-            }
+            if (updatedEvent == null) throw new InvalidOperationException("更新 Event 失败");
 
             _logger.LogInformation("✅ Event 更新成功，ID: {EventId}", updatedEvent.Id);
             return updatedEvent;
@@ -135,26 +133,20 @@ public class EventRepository : IEventRepository
 
             // 构建查询条件
             if (cityId.HasValue)
-            {
-                query = (Supabase.Interfaces.ISupabaseTable<Event, Supabase.Realtime.RealtimeChannel>)
+                query = (ISupabaseTable<Event, RealtimeChannel>)
                     query.Where(e => e.CityId == cityId.Value);
-            }
 
             if (!string.IsNullOrEmpty(category))
-            {
-                query = (Supabase.Interfaces.ISupabaseTable<Event, Supabase.Realtime.RealtimeChannel>)
+                query = (ISupabaseTable<Event, RealtimeChannel>)
                     query.Where(e => e.Category == category);
-            }
 
             if (!string.IsNullOrEmpty(status))
-            {
-                query = (Supabase.Interfaces.ISupabaseTable<Event, Supabase.Realtime.RealtimeChannel>)
+                query = (ISupabaseTable<Event, RealtimeChannel>)
                     query.Where(e => e.Status == status);
-            }
 
             var offset = (page - 1) * pageSize;
             var result = await query
-                .Order(e => e.StartTime, Postgrest.Constants.Ordering.Ascending)
+                .Order(e => e.StartTime, Constants.Ordering.Ascending)
                 .Range(offset, offset + pageSize - 1)
                 .Get();
 
@@ -174,7 +166,7 @@ public class EventRepository : IEventRepository
             var result = await _supabaseClient
                 .From<Event>()
                 .Where(e => e.OrganizerId == organizerId)
-                .Order(e => e.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                .Order(e => e.CreatedAt, Constants.Ordering.Descending)
                 .Get();
 
             return result.Models.ToList();

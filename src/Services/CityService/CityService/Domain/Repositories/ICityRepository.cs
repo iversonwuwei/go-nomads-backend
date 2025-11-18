@@ -4,7 +4,7 @@ using CityService.Domain.ValueObjects;
 namespace CityService.Domain.Repositories;
 
 /// <summary>
-/// 城市仓储接口
+///     城市仓储接口
 /// </summary>
 public interface ICityRepository
 {

@@ -1,20 +1,20 @@
-using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
+using GoNomads.Shared.Security;
 using UserService.Application.DTOs;
 using UserService.Domain.Entities;
 using UserService.Domain.Repositories;
-using GoNomads.Shared.Security;
 
 namespace UserService.Application.Services;
 
 /// <summary>
-/// 认证应用服务实现 - 协调用户认证相关领域逻辑
+///     认证应用服务实现 - 协调用户认证相关领域逻辑
 /// </summary>
 public class AuthApplicationService : IAuthService
 {
-    private readonly IUserRepository _userRepository;
-    private readonly IRoleRepository _roleRepository;
     private readonly JwtTokenService _jwtTokenService;
     private readonly ILogger<AuthApplicationService> _logger;
+    private readonly IRoleRepository _roleRepository;
+    private readonly IUserRepository _userRepository;
 
     public AuthApplicationService(
         IUserRepository userRepository,
@@ -141,7 +141,8 @@ public class AuthApplicationService : IAuthService
         }
     }
 
-    public async Task<AuthResponseDto> RefreshTokenAsync(RefreshTokenDto request, CancellationToken cancellationToken = default)
+    public async Task<AuthResponseDto> RefreshTokenAsync(RefreshTokenDto request,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("🔄 尝试刷新访问令牌");
 
@@ -157,8 +158,9 @@ public class AuthApplicationService : IAuthService
 
             // 提取用户 ID
             var userId = principal.FindFirst("sub")?.Value
-                ?? principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-                ?? principal.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier")?.Value;
+                         ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                         ?? principal.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier")
+                             ?.Value;
 
             if (string.IsNullOrEmpty(userId))
             {
@@ -207,12 +209,12 @@ public class AuthApplicationService : IAuthService
     }
 
     /// <summary>
-    /// 用户登出
-    /// 注意: 由于使用无状态 JWT,令牌在过期前无法真正撤销
-    /// 客户端应该:
-    /// 1. 删除本地存储的 access token 和 refresh token
-    /// 2. 清除所有用户相关的本地状态
-    /// 未来改进: 可考虑实现 token 黑名单机制 (需要 Redis 等缓存支持)
+    ///     用户登出
+    ///     注意: 由于使用无状态 JWT,令牌在过期前无法真正撤销
+    ///     客户端应该:
+    ///     1. 删除本地存储的 access token 和 refresh token
+    ///     2. 清除所有用户相关的本地状态
+    ///     未来改进: 可考虑实现 token 黑名单机制 (需要 Redis 等缓存支持)
     /// </summary>
     public async Task SignOutAsync(string userId, CancellationToken cancellationToken = default)
     {

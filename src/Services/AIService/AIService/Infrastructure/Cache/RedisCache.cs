@@ -4,25 +4,25 @@ using StackExchange.Redis;
 namespace AIService.Infrastructure.Cache;
 
 /// <summary>
-/// Redis 缓存服务实现
+///     Redis 缓存服务实现
 /// </summary>
 public class RedisCache : IRedisCache
 {
-    private readonly IConnectionMultiplexer _redis;
     private readonly IDatabase _db;
     private readonly ILogger<RedisCache> _logger;
+    private readonly IConnectionMultiplexer _redis;
 
     public RedisCache(IConfiguration configuration, ILogger<RedisCache> logger)
     {
         _logger = logger;
-        
+
         var connectionString = configuration["Redis:ConnectionString"] ?? "localhost:6379";
-        
+
         try
         {
             _redis = ConnectionMultiplexer.Connect(connectionString);
             _db = _redis.GetDatabase();
-            
+
             _logger.LogInformation("✅ Redis 连接成功: {ConnectionString}", connectionString);
         }
         catch (Exception ex)
@@ -37,10 +37,7 @@ public class RedisCache : IRedisCache
         try
         {
             var value = await _db.StringGetAsync(key);
-            if (value.IsNullOrEmpty)
-            {
-                return null;
-            }
+            if (value.IsNullOrEmpty) return null;
 
             return JsonSerializer.Deserialize<T>(value!);
         }
@@ -57,7 +54,7 @@ public class RedisCache : IRedisCache
         {
             var json = JsonSerializer.Serialize(value);
             await _db.StringSetAsync(key, json, expiry);
-            
+
             _logger.LogDebug("📝 [Redis] 设置缓存: {Key}, 过期时间: {Expiry}", key, expiry?.ToString() ?? "永久");
         }
         catch (Exception ex)

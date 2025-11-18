@@ -50,6 +50,7 @@ UserService/
 ### 1. Domain 层（领域层）
 
 **User.cs - 聚合根**
+
 - ✅ 私有 setter 保护数据完整性
 - ✅ Factory 方法: `User.Create()`, `User.CreateWithPassword()`
 - ✅ Domain 方法: `Update()`, `ChangePassword()`, `ValidatePassword()`, `ChangeRole()`
@@ -57,17 +58,20 @@ UserService/
 - ✅ 密码哈希处理（使用 `GoNomads.Shared.Security.PasswordHasher`）
 
 **Role.cs - 实体**
+
 - ✅ Factory 方法: `Role.Create()`
 - ✅ Domain 方法: `Update()`
 - ✅ 角色名称常量: `RoleNames.User`, `RoleNames.Admin`
 
 **Repository 接口**
+
 - ✅ 定义领域仓储契约（不依赖具体技术实现）
 - ✅ 返回领域实体（User, Role）而非 DTO
 
 ### 2. Infrastructure 层（基础设施层）
 
 **UserRepository.cs & RoleRepository.cs**
+
 - ✅ 实现 Domain 层仓储接口
 - ✅ 使用 Supabase Client 访问数据库
 - ✅ Emoji 日志记录: 📝, ✅, ❌, 🔍, 🗑️, 📋
@@ -77,6 +81,7 @@ UserService/
 ### 3. Application 层（应用层）
 
 **UserApplicationService.cs**
+
 - ✅ 协调领域对象和仓储
 - ✅ 调用领域工厂方法: `User.Create()`, `User.CreateWithPassword()`
 - ✅ 调用领域方法: `user.Update()`
@@ -84,6 +89,7 @@ UserService/
 - ✅ DTO 映射（Entity → DTO）
 
 **AuthApplicationService.cs**
+
 - ✅ 用户注册with JWT token 返回
 - ✅ 用户登录with密码验证: `user.ValidatePassword()`
 - ✅ Token 刷新（token rotation 最佳实践）
@@ -92,6 +98,7 @@ UserService/
 ### 4. API 层（HTTP接口）
 
 **AuthController.cs** (新建)
+
 - ✅ 薄层控制器（仅处理 HTTP 相关逻辑）
 - ✅ 路由: `/api/auth/*`
 - ✅ 端点: `POST /register`, `POST /login`, `POST /refresh`, `POST /logout`, `POST /change-password`
@@ -99,6 +106,7 @@ UserService/
 - ✅ 统一错误处理和 HTTP 状态码
 
 **UsersController.cs** (新建)
+
 - ✅ 薄层控制器
 - ✅ 路由: `/api/users/*`
 - ✅ 端点: `GET /`, `GET /{id}`, `GET /me`, `POST /`, `PUT /{id}`, `PUT /me`, `DELETE /{id}`
@@ -121,10 +129,12 @@ builder.Services.AddScoped<IAuthService, AuthApplicationService>();
 ## ✅ UserContext 模式应用
 
 **AuthController**
+
 - `POST /logout` - 从 UserContext 获取 userId
 - `POST /change-password` - 从 UserContext 获取 userId
 
 **UsersController**
+
 - `GET /me` - 获取当前用户信息
 - `PUT /me` - 更新当前用户信息
 
@@ -167,14 +177,14 @@ builder.Services.AddScoped<IAuthService, AuthApplicationService>();
 
 ### 架构改进
 
-| 维度 | 重构前 | 重构后 |
-|------|--------|--------|
-| 架构模式 | 三层混合 | DDD + 三层分离 |
-| 领域逻辑 | 分散在Service层 | 集中在Domain实体 |
-| 仓储抽象 | 具体实现依赖 | 接口契约 |
-| DTO命名空间 | UserService.DTOs | UserService.Application.DTOs |
-| 控制器职责 | 业务逻辑混杂 | 纯HTTP处理（thin） |
-| UserContext | 未使用 | `/me` 路由集成 |
+| 维度          | 重构前              | 重构后                          |
+|-------------|------------------|------------------------------|
+| 架构模式        | 三层混合             | DDD + 三层分离                   |
+| 领域逻辑        | 分散在Service层      | 集中在Domain实体                  |
+| 仓储抽象        | 具体实现依赖           | 接口契约                         |
+| DTO命名空间     | UserService.DTOs | UserService.Application.DTOs |
+| 控制器职责       | 业务逻辑混杂           | 纯HTTP处理（thin）                |
+| UserContext | 未使用              | `/me` 路由集成                   |
 
 ### 代码质量指标
 

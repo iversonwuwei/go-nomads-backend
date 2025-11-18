@@ -1,7 +1,7 @@
 namespace CityService.DTOs;
 
 /// <summary>
-/// 用户收藏城市DTO
+///     用户收藏城市DTO
 /// </summary>
 public class UserFavoriteCityDto
 {
@@ -13,7 +13,7 @@ public class UserFavoriteCityDto
 }
 
 /// <summary>
-/// 添加收藏请求DTO
+///     添加收藏请求DTO
 /// </summary>
 public class AddFavoriteCityRequest
 {
@@ -21,7 +21,7 @@ public class AddFavoriteCityRequest
 }
 
 /// <summary>
-/// 检查收藏状态响应DTO
+///     检查收藏状态响应DTO
 /// </summary>
 public class CheckFavoriteStatusResponse
 {
@@ -29,7 +29,7 @@ public class CheckFavoriteStatusResponse
 }
 
 /// <summary>
-/// 收藏城市列表响应DTO
+///     收藏城市列表响应DTO
 /// </summary>
 public class FavoriteCitiesResponse
 {

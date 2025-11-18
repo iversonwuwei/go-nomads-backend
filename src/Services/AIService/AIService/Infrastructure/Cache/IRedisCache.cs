@@ -1,7 +1,7 @@
 namespace AIService.Infrastructure.Cache;
 
 /// <summary>
-/// Redis 缓存服务接口
+///     Redis 缓存服务接口
 /// </summary>
 public interface IRedisCache
 {

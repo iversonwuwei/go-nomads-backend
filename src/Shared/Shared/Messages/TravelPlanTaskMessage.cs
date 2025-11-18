@@ -1,7 +1,7 @@
 namespace Shared.Messages;
 
 /// <summary>
-/// 旅行计划任务消息
+///     旅行计划任务消息
 /// </summary>
 public class TravelPlanTaskMessage
 {

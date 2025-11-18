@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace AIService.Application.DTOs;
 
 /// <summary>
-/// 创建对话请求
+///     创建对话请求
 /// </summary>
 public class CreateConversationRequest
 {
@@ -19,7 +19,7 @@ public class CreateConversationRequest
 }
 
 /// <summary>
-/// 发送消息请求
+///     发送消息请求
 /// </summary>
 public class SendMessageRequest
 {
@@ -31,25 +31,25 @@ public class SendMessageRequest
     public string? ModelName { get; set; }
 
     /// <summary>
-    /// 是否流式响应
+    ///     是否流式响应
     /// </summary>
     public bool Stream { get; set; } = false;
 
     /// <summary>
-    /// 温度参数 (0.0-2.0)
+    ///     温度参数 (0.0-2.0)
     /// </summary>
     [Range(0.0, 2.0, ErrorMessage = "温度参数必须在0.0-2.0之间")]
     public double Temperature { get; set; } = 0.7;
 
     /// <summary>
-    /// 最大输出token数
+    ///     最大输出token数
     /// </summary>
     [Range(1, 8000, ErrorMessage = "最大输出token数必须在1-8000之间")]
     public int MaxTokens { get; set; } = 2000;
 }
 
 /// <summary>
-/// 更新对话请求
+///     更新对话请求
 /// </summary>
 public class UpdateConversationRequest
 {
@@ -61,7 +61,7 @@ public class UpdateConversationRequest
 }
 
 /// <summary>
-/// 对话查询请求
+///     对话查询请求
 /// </summary>
 public class GetConversationsRequest
 {
@@ -75,7 +75,7 @@ public class GetConversationsRequest
 }
 
 /// <summary>
-/// 消息查询请求
+///     消息查询请求
 /// </summary>
 public class GetMessagesRequest
 {
@@ -89,15 +89,13 @@ public class GetMessagesRequest
 }
 
 /// <summary>
-/// 生成旅行计划请求
+///     生成旅行计划请求
 /// </summary>
 public class GenerateTravelPlanRequest
 {
-    [Required(ErrorMessage = "城市ID不能为空")]
-    public string CityId { get; set; } = string.Empty;
+    [Required(ErrorMessage = "城市ID不能为空")] public string CityId { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "城市名称不能为空")]
-    public string CityName { get; set; } = string.Empty;
+    [Required(ErrorMessage = "城市名称不能为空")] public string CityName { get; set; } = string.Empty;
 
     public string? CityImage { get; set; }
 
@@ -109,7 +107,7 @@ public class GenerateTravelPlanRequest
     public string Budget { get; set; } = "medium";
 
     [Required(ErrorMessage = "旅行风格不能为空")]
-    [RegularExpression("^(adventure|relaxation|culture|nightlife)$", 
+    [RegularExpression("^(adventure|relaxation|culture|nightlife)$",
         ErrorMessage = "旅行风格必须是 adventure, relaxation, culture 或 nightlife")]
     public string TravelStyle { get; set; } = "culture";
 
@@ -127,13 +125,11 @@ public class GenerateTravelPlanRequest
 }
 
 /// <summary>
-/// 生成数字游民旅游指南请求
+///     生成数字游民旅游指南请求
 /// </summary>
 public class GenerateTravelGuideRequest
 {
-    [Required(ErrorMessage = "城市ID不能为空")]
-    public string CityId { get; set; } = string.Empty;
+    [Required(ErrorMessage = "城市ID不能为空")] public string CityId { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "城市名称不能为空")]
-    public string CityName { get; set; } = string.Empty;
+    [Required(ErrorMessage = "城市名称不能为空")] public string CityName { get; set; } = string.Empty;
 }

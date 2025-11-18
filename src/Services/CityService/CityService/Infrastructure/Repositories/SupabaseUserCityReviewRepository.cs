@@ -1,13 +1,13 @@
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Microsoft.Extensions.Logging;
+using Postgrest;
 using Shared.Repositories;
-using Supabase;
+using Client = Supabase.Client;
 
 namespace CityService.Infrastructure.Repositories;
 
 /// <summary>
-/// 基于 Supabase 的用户城市评论仓储实现
+///     基于 Supabase 的用户城市评论仓储实现
 /// </summary>
 public class SupabaseUserCityReviewRepository : SupabaseRepositoryBase<UserCityReview>, IUserCityReviewRepository
 {
@@ -17,7 +17,7 @@ public class SupabaseUserCityReviewRepository : SupabaseRepositoryBase<UserCityR
     }
 
     /// <summary>
-    /// 创建新评论(每次都插入新记录,允许同一用户对同一城市多次评论)
+    ///     创建新评论(每次都插入新记录,允许同一用户对同一城市多次评论)
     /// </summary>
     public async Task<UserCityReview> CreateAsync(UserCityReview review)
     {
@@ -43,14 +43,14 @@ public class SupabaseUserCityReviewRepository : SupabaseRepositoryBase<UserCityR
         var response = await SupabaseClient
             .From<UserCityReview>()
             .Where(x => x.CityId == cityId)
-            .Order(x => x.CreatedAt, Postgrest.Constants.Ordering.Descending)
+            .Order(x => x.CreatedAt, Constants.Ordering.Descending)
             .Get();
 
         return response.Models;
     }
 
     /// <summary>
-    /// 获取用户对某个城市的所有评论(可能有多条)
+    ///     获取用户对某个城市的所有评论(可能有多条)
     /// </summary>
     public async Task<IEnumerable<UserCityReview>> GetByCityIdAndUserIdAsync(string cityId, Guid userId)
     {
@@ -59,7 +59,7 @@ public class SupabaseUserCityReviewRepository : SupabaseRepositoryBase<UserCityR
             var response = await SupabaseClient
                 .From<UserCityReview>()
                 .Where(x => x.CityId == cityId && x.UserId == userId)
-                .Order(x => x.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                .Order(x => x.CreatedAt, Constants.Ordering.Descending)
                 .Get();
 
             return response.Models;
@@ -72,7 +72,7 @@ public class SupabaseUserCityReviewRepository : SupabaseRepositoryBase<UserCityR
     }
 
     /// <summary>
-    /// 删除评论(根据 reviewId 删除)
+    ///     删除评论(根据 reviewId 删除)
     /// </summary>
     public async Task<bool> DeleteAsync(Guid reviewId, Guid userId)
     {

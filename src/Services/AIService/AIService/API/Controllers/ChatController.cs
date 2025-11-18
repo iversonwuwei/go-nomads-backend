@@ -1,20 +1,22 @@
-﻿using AIService.Application.DTOs;
-using AIService.Application.Services;
-using Microsoft.AspNetCore.Mvc;
-using Shared.Extensions;
-using GoNomads.Shared.Middleware;
-using GoNomads.Shared.DTOs;
+﻿using System.Text;
 using System.Text.Json;
 using AIService.API.Models;
+using AIService.Application.DTOs;
+using AIService.Application.Services;
 using AIService.Infrastructure.Cache;
-using MassTransit;
-using Shared.Messages;
 using Dapr.Client;
+using GoNomads.Shared.DTOs;
+using GoNomads.Shared.Middleware;
+using MassTransit;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Shared.Messages;
+using TaskStatus = AIService.API.Models.TaskStatus;
 
 namespace AIService.API.Controllers;
 
 /// <summary>
-/// AI 聊天控制器
+///     AI 聊天控制器
 /// </summary>
 [ApiController]
 [Route("api/v1/ai")]
@@ -31,22 +33,21 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 创建新对话
+    ///     创建新对话
     /// </summary>
     [HttpPost("conversations")]
-    public async Task<ActionResult<ApiResponse<ConversationResponse>>> CreateConversation([FromBody] CreateConversationRequest request)
+    public async Task<ActionResult<ApiResponse<ConversationResponse>>> CreateConversation(
+        [FromBody] CreateConversationRequest request)
     {
         try
         {
-            var userId = this.GetUserId();
+            var userId = GetUserId();
             if (userId == Guid.Empty)
-            {
                 return Unauthorized(new ApiResponse<ConversationResponse>
                 {
                     Success = false,
                     Message = "用户未认证"
                 });
-            }
 
             var result = await _aiChatService.CreateConversationAsync(request, userId);
             return Ok(new ApiResponse<ConversationResponse>
@@ -76,22 +77,21 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 获取用户的对话列表
+    ///     获取用户的对话列表
     /// </summary>
     [HttpGet("conversations")]
-    public async Task<ActionResult<ApiResponse<PagedResponse<ConversationResponse>>>> GetConversations([FromQuery] GetConversationsRequest request)
+    public async Task<ActionResult<ApiResponse<PagedResponse<ConversationResponse>>>> GetConversations(
+        [FromQuery] GetConversationsRequest request)
     {
         try
         {
-            var userId = this.GetUserId();
+            var userId = GetUserId();
             if (userId == Guid.Empty)
-            {
                 return Unauthorized(new ApiResponse<PagedResponse<ConversationResponse>>
                 {
                     Success = false,
                     Message = "用户未认证"
                 });
-            }
 
             var result = await _aiChatService.GetConversationsAsync(request, userId);
             return Ok(new ApiResponse<PagedResponse<ConversationResponse>>
@@ -113,22 +113,20 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 根据ID获取对话详情
+    ///     根据ID获取对话详情
     /// </summary>
     [HttpGet("conversations/{conversationId:guid}")]
     public async Task<ActionResult<ApiResponse<ConversationResponse>>> GetConversation(Guid conversationId)
     {
         try
         {
-            var userId = this.GetUserId();
+            var userId = GetUserId();
             if (userId == Guid.Empty)
-            {
                 return Unauthorized(new ApiResponse<ConversationResponse>
                 {
                     Success = false,
                     Message = "用户未认证"
                 });
-            }
 
             var result = await _aiChatService.GetConversationAsync(conversationId, userId);
             return Ok(new ApiResponse<ConversationResponse>
@@ -166,18 +164,17 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 更新对话
+    ///     更新对话
     /// </summary>
     [HttpPut("conversations/{conversationId:guid}")]
-    public async Task<ActionResult<ApiResponse<object>>> UpdateConversation(Guid conversationId, [FromBody] UpdateConversationRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> UpdateConversation(Guid conversationId,
+        [FromBody] UpdateConversationRequest request)
     {
         try
         {
-            var userId = this.GetUserId();
+            var userId = GetUserId();
             if (userId == Guid.Empty)
-            {
                 return Unauthorized(new ApiResponse<object> { Success = false, Message = "用户未认证" });
-            }
 
             var result = await _aiChatService.UpdateConversationAsync(conversationId, request, userId);
             return Ok(new ApiResponse<object> { Success = true, Message = "对话更新成功", Data = result });
@@ -198,18 +195,16 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 删除对话
+    ///     删除对话
     /// </summary>
     [HttpDelete("conversations/{conversationId:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteConversation(Guid conversationId)
     {
         try
         {
-            var userId = this.GetUserId();
+            var userId = GetUserId();
             if (userId == Guid.Empty)
-            {
                 return Unauthorized(new ApiResponse<object> { Success = false, Message = "用户未认证" });
-            }
 
             await _aiChatService.DeleteConversationAsync(conversationId, userId);
             return Ok(new ApiResponse<object> { Success = true, Message = "对话删除成功", Data = new { } });
@@ -230,18 +225,16 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 归档对话
+    ///     归档对话
     /// </summary>
     [HttpPost("conversations/{conversationId:guid}/archive")]
     public async Task<ActionResult<ApiResponse<object>>> ArchiveConversation(Guid conversationId)
     {
         try
         {
-            var userId = this.GetUserId();
+            var userId = GetUserId();
             if (userId == Guid.Empty)
-            {
                 return Unauthorized(new ApiResponse<object> { Success = false, Message = "用户未认证" });
-            }
 
             var result = await _aiChatService.ArchiveConversationAsync(conversationId, userId);
             return Ok(new ApiResponse<object> { Success = true, Message = "对话归档成功", Data = result });
@@ -262,18 +255,16 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 激活对话
+    ///     激活对话
     /// </summary>
     [HttpPost("conversations/{conversationId:guid}/activate")]
     public async Task<ActionResult<ApiResponse<object>>> ActivateConversation(Guid conversationId)
     {
         try
         {
-            var userId = this.GetUserId();
+            var userId = GetUserId();
             if (userId == Guid.Empty)
-            {
                 return Unauthorized(new ApiResponse<object> { Success = false, Message = "用户未认证" });
-            }
 
             var result = await _aiChatService.ActivateConversationAsync(conversationId, userId);
             return Ok(new ApiResponse<object> { Success = true, Message = "对话激活成功", Data = result });
@@ -294,18 +285,17 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 发送消息并获取AI回复
+    ///     发送消息并获取AI回复
     /// </summary>
     [HttpPost("conversations/{conversationId:guid}/messages")]
-    public async Task<ActionResult<ApiResponse<object>>> SendMessage(Guid conversationId, [FromBody] SendMessageRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> SendMessage(Guid conversationId,
+        [FromBody] SendMessageRequest request)
     {
         try
         {
-            var userId = this.GetUserId();
+            var userId = GetUserId();
             if (userId == Guid.Empty)
-            {
                 return Unauthorized(new ApiResponse<object> { Success = false, Message = "用户未认证" });
-            }
 
             var result = await _aiChatService.SendMessageAsync(conversationId, request, userId);
             return Ok(new ApiResponse<object> { Success = true, Message = "消息发送成功", Data = result });
@@ -330,12 +320,12 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 发送消息并获取流式AI回复
+    ///     发送消息并获取流式AI回复
     /// </summary>
     [HttpPost("conversations/{conversationId:guid}/messages/stream")]
     public async IAsyncEnumerable<string> SendMessageStream(Guid conversationId, [FromBody] SendMessageRequest request)
     {
-        var userId = this.GetUserId();
+        var userId = GetUserId();
         if (userId == Guid.Empty)
         {
             yield return ApiResponse<object>.ErrorResponse("用户未认证").ToString() ?? "";
@@ -343,24 +333,21 @@ public class ChatController : ControllerBase
         }
 
         await foreach (var chunk in _aiChatService.SendMessageStreamAsync(conversationId, request, userId))
-        {
-            yield return System.Text.Json.JsonSerializer.Serialize(chunk);
-        }
+            yield return JsonSerializer.Serialize(chunk);
     }
 
     /// <summary>
-    /// 获取对话的消息历史
+    ///     获取对话的消息历史
     /// </summary>
     [HttpGet("conversations/{conversationId:guid}/messages")]
-    public async Task<ActionResult<ApiResponse<object>>> GetMessages(Guid conversationId, [FromQuery] GetMessagesRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> GetMessages(Guid conversationId,
+        [FromQuery] GetMessagesRequest request)
     {
         try
         {
-            var userId = this.GetUserId();
+            var userId = GetUserId();
             if (userId == Guid.Empty)
-            {
                 return Unauthorized(new ApiResponse<object> { Success = false, Message = "用户未认证" });
-            }
 
             var result = await _aiChatService.GetMessagesAsync(conversationId, request, userId);
             return Ok(new ApiResponse<object> { Success = true, Message = "获取消息历史成功", Data = result });
@@ -381,18 +368,16 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 获取用户统计信息
+    ///     获取用户统计信息
     /// </summary>
     [HttpGet("stats")]
     public async Task<ActionResult<ApiResponse<object>>> GetUserStats()
     {
         try
         {
-            var userId = this.GetUserId();
+            var userId = GetUserId();
             if (userId == Guid.Empty)
-            {
                 return Unauthorized(new ApiResponse<object> { Success = false, Message = "用户未认证" });
-            }
 
             var result = await _aiChatService.GetUserStatsAsync(userId);
             return Ok(new ApiResponse<object> { Success = true, Message = "获取用户统计成功", Data = result });
@@ -405,7 +390,7 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// AI服务健康检查
+    ///     AI服务健康检查
     /// </summary>
     [HttpGet("health")]
     public async Task<ActionResult<ApiResponse<object>>> HealthCheck()
@@ -413,15 +398,12 @@ public class ChatController : ControllerBase
         try
         {
             var isHealthy = await _aiChatService.HealthCheckAsync();
-            
+
             if (isHealthy)
-            {
-                return Ok(ApiResponse<object>.SuccessResponse(new { status = "healthy", timestamp = DateTime.UtcNow }, "AI服务运行正常"));
-            }
-            else
-            {
-                return StatusCode(503, new ApiResponse<object> { Success = false, Message = "AI服务连接异常" });
-            }
+                return Ok(ApiResponse<object>.SuccessResponse(new { status = "healthy", timestamp = DateTime.UtcNow },
+                    "AI服务运行正常"));
+
+            return StatusCode(503, new ApiResponse<object> { Success = false, Message = "AI服务连接异常" });
         }
         catch (Exception ex)
         {
@@ -431,19 +413,20 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// <summary>
-    /// 生成AI旅行计划
-    /// </summary>
-    /// <param name="request">旅行计划生成请求</param>
-    /// <returns>包含完整行程安排的旅行计划</returns>
+    ///     <summary>
+    ///         生成AI旅行计划
+    ///     </summary>
+    ///     <param name="request">旅行计划生成请求</param>
+    ///     <returns>包含完整行程安排的旅行计划</returns>
     [HttpPost("travel-plan")]
-    public async Task<ActionResult<ApiResponse<TravelPlanResponse>>> GenerateTravelPlan([FromBody] GenerateTravelPlanRequest request)
+    public async Task<ActionResult<ApiResponse<TravelPlanResponse>>> GenerateTravelPlan(
+        [FromBody] GenerateTravelPlanRequest request)
     {
         try
         {
             // 获取当前用户ID(可选,AIService 不强制要求认证)
-            var userId = this.GetUserId();
-            
+            var userId = GetUserId();
+
             // 如果没有用户上下文,使用匿名用户ID
             if (userId == Guid.Empty)
             {
@@ -451,15 +434,16 @@ public class ChatController : ControllerBase
                 _logger.LogInformation("ℹ️ 匿名用户生成旅行计划");
             }
 
-            _logger.LogInformation("🗺️ 开始生成旅行计划 - 城市: {CityName}, 天数: {Duration}, 预算: {Budget}, 风格: {TravelStyle}, 用户: {UserId}", 
+            _logger.LogInformation(
+                "🗺️ 开始生成旅行计划 - 城市: {CityName}, 天数: {Duration}, 预算: {Budget}, 风格: {TravelStyle}, 用户: {UserId}",
                 request.CityName, request.Duration, request.Budget, request.TravelStyle, userId);
 
             // 调用AI服务生成旅行计划
             var result = await _aiChatService.GenerateTravelPlanAsync(request, userId);
-            
-            _logger.LogInformation("✅ 旅行计划生成成功 - 计划ID: {PlanId}, 包含 {DayCount} 天行程", 
+
+            _logger.LogInformation("✅ 旅行计划生成成功 - 计划ID: {PlanId}, 包含 {DayCount} 天行程",
                 result.Id, result.DailyItineraries?.Count ?? 0);
-            
+
             return Ok(new ApiResponse<TravelPlanResponse>
             {
                 Success = true,
@@ -506,7 +490,7 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 流式生成AI旅行计划 - 支持进度更新
+    ///     流式生成AI旅行计划 - 支持进度更新
     /// </summary>
     /// <param name="request">旅行计划生成请求</param>
     /// <returns>Server-Sent Events 流</returns>
@@ -520,11 +504,8 @@ public class ChatController : ControllerBase
         try
         {
             // 获取当前用户ID
-            var userId = this.GetUserId();
-            if (userId == Guid.Empty)
-            {
-                userId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-            }
+            var userId = GetUserId();
+            if (userId == Guid.Empty) userId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
             _logger.LogInformation("🗺️ [流式] 开始生成旅行计划 - 城市: {CityName}", request.CityName);
 
@@ -544,11 +525,11 @@ public class ChatController : ControllerBase
             var result = await _aiChatService.GenerateTravelPlanAsync(request, userId);
 
             // 发送成功事件
-            await SendProgressEvent("success", new 
-            { 
-                message = "旅行计划生成成功!", 
+            await SendProgressEvent("success", new
+            {
+                message = "旅行计划生成成功!",
                 progress = 100,
-                data = result 
+                data = result
             });
             await Response.Body.FlushAsync();
 
@@ -563,8 +544,8 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 流式生成AI旅行计划 - 像流水一样逐步输出内容
-    /// 模拟 ChatGPT 的逐字输出效果
+    ///     流式生成AI旅行计划 - 像流水一样逐步输出内容
+    ///     模拟 ChatGPT 的逐字输出效果
     /// </summary>
     /// <param name="request">旅行计划生成请求</param>
     /// <returns>Server-Sent Events 流</returns>
@@ -572,7 +553,7 @@ public class ChatController : ControllerBase
     public async Task GenerateTravelPlanStreamText([FromBody] GenerateTravelPlanRequest request)
     {
         var requestId = Guid.NewGuid().ToString("N")[..8];
-        _logger.LogInformation("🌊 [流式文本-{RequestId}] 开始生成旅行计划 - 城市: {CityName}, Duration: {Duration}", 
+        _logger.LogInformation("🌊 [流式文本-{RequestId}] 开始生成旅行计划 - 城市: {CityName}, Duration: {Duration}",
             requestId, request.CityName, request.Duration);
 
         // 设置SSE响应头 - 必须在发送任何内容前设置
@@ -580,10 +561,10 @@ public class ChatController : ControllerBase
         Response.Headers.Append("Cache-Control", "no-cache");
         Response.Headers.Append("Connection", "keep-alive");
         Response.Headers.Append("X-Accel-Buffering", "no"); // 禁用 Nginx 缓冲
-        
+
         // 立即发送一个初始化消息,建立SSE连接
         var initMessage = "data: {\"type\":\"init\",\"message\":\"连接已建立\"}\n\n";
-        var initBytes = System.Text.Encoding.UTF8.GetBytes(initMessage);
+        var initBytes = Encoding.UTF8.GetBytes(initMessage);
         await Response.Body.WriteAsync(initBytes);
         await Response.Body.FlushAsync();
         _logger.LogDebug("[{RequestId}] ✅ SSE连接已建立", requestId);
@@ -591,7 +572,7 @@ public class ChatController : ControllerBase
         try
         {
             // 获取当前用户ID
-            var userId = this.GetUserId();
+            var userId = GetUserId();
             if (userId == Guid.Empty)
             {
                 userId = Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -638,10 +619,10 @@ public class ChatController : ControllerBase
             await Task.Delay(400);
 
             // 逐天输出行程
-            for (int i = 0; i < result.DailyItineraries.Count; i++)
+            for (var i = 0; i < result.DailyItineraries.Count; i++)
             {
                 var day = result.DailyItineraries[i];
-                
+
                 await StreamText($"\n📅 第 {day.Day} 天\n");
                 await StreamText($"   主题: {day.Theme}\n\n");
                 await Task.Delay(300);
@@ -653,26 +634,17 @@ public class ChatController : ControllerBase
                     await StreamText($"      📍 {activity.Name}\n");
                     await StreamText($"      � {activity.Description}\n");
                     await StreamText($"      � 位置: {activity.Location}\n");
-                    
-                    if (activity.EstimatedCost > 0)
-                    {
-                        await StreamText($"      💰 预计费用: ¥{activity.EstimatedCost:F2}\n");
-                    }
-                    
-                    if (activity.Duration > 0)
-                    {
-                        await StreamText($"      ⏱️  预计时长: {activity.Duration} 分钟\n");
-                    }
-                    
+
+                    if (activity.EstimatedCost > 0) await StreamText($"      💰 预计费用: ¥{activity.EstimatedCost:F2}\n");
+
+                    if (activity.Duration > 0) await StreamText($"      ⏱️  预计时长: {activity.Duration} 分钟\n");
+
                     await StreamText("\n");
                     await Task.Delay(150); // 每个活动间隔
                 }
 
                 // 输出当天备注
-                if (!string.IsNullOrEmpty(day.Notes))
-                {
-                    await StreamText($"   📝 备注: {day.Notes}\n\n");
-                }
+                if (!string.IsNullOrEmpty(day.Notes)) await StreamText($"   📝 备注: {day.Notes}\n\n");
 
                 await Task.Delay(200); // 每天之间的间隔
             }
@@ -697,17 +669,13 @@ public class ChatController : ControllerBase
                 await StreamText($"   推荐: {result.Accommodation.Recommendation}\n");
                 await StreamText($"   区域: {result.Accommodation.Area}\n");
                 await StreamText($"   价格: ¥{result.Accommodation.PricePerNight:F2}/晚\n");
-                
+
                 if (result.Accommodation.Amenities?.Any() == true)
-                {
                     await StreamText($"   设施: {string.Join(", ", result.Accommodation.Amenities)}\n");
-                }
-                
+
                 if (!string.IsNullOrEmpty(result.Accommodation.BookingTips))
-                {
                     await StreamText($"   预订提示: {result.Accommodation.BookingTips}\n");
-                }
-                
+
                 await StreamText("\n");
                 await Task.Delay(300);
             }
@@ -716,23 +684,18 @@ public class ChatController : ControllerBase
             if (result.Attractions?.Any() == true)
             {
                 await StreamText("\n🎯 推荐景点 TOP 5\n");
-                for (int i = 0; i < Math.Min(5, result.Attractions.Count); i++)
+                for (var i = 0; i < Math.Min(5, result.Attractions.Count); i++)
                 {
                     var attraction = result.Attractions[i];
                     await StreamText($"   {i + 1}. {attraction.Name}\n");
                     await StreamText($"      {attraction.Description}\n");
                     await StreamText($"      类别: {attraction.Category} | 评分: {attraction.Rating}⭐\n");
-                    
-                    if (attraction.EntryFee > 0)
-                    {
-                        await StreamText($"      门票: ¥{attraction.EntryFee:F2}\n");
-                    }
-                    
+
+                    if (attraction.EntryFee > 0) await StreamText($"      门票: ¥{attraction.EntryFee:F2}\n");
+
                     if (!string.IsNullOrEmpty(attraction.BestTime))
-                    {
                         await StreamText($"      最佳游览时间: {attraction.BestTime}\n");
-                    }
-                    
+
                     await Task.Delay(150);
                     await StreamText("\n");
                 }
@@ -742,18 +705,16 @@ public class ChatController : ControllerBase
             if (result.Restaurants?.Any() == true)
             {
                 await StreamText("\n🍜 推荐餐厅 TOP 5\n");
-                for (int i = 0; i < Math.Min(5, result.Restaurants.Count); i++)
+                for (var i = 0; i < Math.Min(5, result.Restaurants.Count); i++)
                 {
                     var restaurant = result.Restaurants[i];
                     await StreamText($"   {i + 1}. {restaurant.Name} - {restaurant.Cuisine}\n");
                     await StreamText($"      {restaurant.Description}\n");
                     await StreamText($"      评分: {restaurant.Rating}⭐ | 价格: {restaurant.PriceRange}\n");
-                    
+
                     if (!string.IsNullOrEmpty(restaurant.Specialty))
-                    {
                         await StreamText($"      招牌菜: {restaurant.Specialty}\n");
-                    }
-                    
+
                     await Task.Delay(150);
                     await StreamText("\n");
                 }
@@ -768,7 +729,7 @@ public class ChatController : ControllerBase
                 await StreamText($"   餐饮: ¥{result.BudgetBreakdown.Food:F2}\n");
                 await StreamText($"   活动: ¥{result.BudgetBreakdown.Activities:F2}\n");
                 await StreamText($"   其他: ¥{result.BudgetBreakdown.Miscellaneous:F2}\n");
-                await StreamText($"   ───────────────\n");
+                await StreamText("   ───────────────\n");
                 await StreamText($"   总计: ¥{result.BudgetBreakdown.Total:F2}\n\n");
                 await Task.Delay(300);
             }
@@ -777,11 +738,12 @@ public class ChatController : ControllerBase
             if (result.Tips?.Any() == true)
             {
                 await StreamText("\n💡 旅行贴士\n");
-                for (int i = 0; i < result.Tips.Count; i++)
+                for (var i = 0; i < result.Tips.Count; i++)
                 {
                     await StreamText($"   {i + 1}. {result.Tips[i]}\n");
                     await Task.Delay(100);
                 }
+
                 await StreamText("\n");
             }
 
@@ -792,10 +754,10 @@ public class ChatController : ControllerBase
 
             _logger.LogInformation("📤 [{RequestId}] 准备发送 complete 事件", requestId);
             // 发送完成事件(包含完整数据供客户端使用)
-            await SendProgressEvent("complete", new 
-            { 
+            await SendProgressEvent("complete", new
+            {
                 message = "流式输出完成",
-                data = result 
+                data = result
             });
             await Response.Body.FlushAsync(HttpContext.RequestAborted);
 
@@ -821,7 +783,7 @@ public class ChatController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ [流式文本-{RequestId}] 生成旅行计划失败: {ExceptionType}, {Message}, StackTrace: {StackTrace}", 
+            _logger.LogError(ex, "❌ [流式文本-{RequestId}] 生成旅行计划失败: {ExceptionType}, {Message}, StackTrace: {StackTrace}",
                 requestId, ex.GetType().Name, ex.Message, ex.StackTrace);
             try
             {
@@ -836,7 +798,7 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 流式输出文本 - 像打字机一样逐字输出
+    ///     流式输出文本 - 像打字机一样逐字输出
     /// </summary>
     private async Task StreamText(string text)
     {
@@ -853,18 +815,18 @@ public class ChatController : ControllerBase
             var eventData = new
             {
                 type = "text",
-                payload = new { text = text }
+                payload = new { text }
             };
 
-            var json = System.Text.Json.JsonSerializer.Serialize(eventData);
+            var json = JsonSerializer.Serialize(eventData);
             var message = $"data: {json}\n\n";
-            var bytes = System.Text.Encoding.UTF8.GetBytes(message);
-            
+            var bytes = Encoding.UTF8.GetBytes(message);
+
             _logger.LogTrace("📤 [StreamText] 准备写入 {ByteCount} 字节", bytes.Length);
-            
+
             await Response.Body.WriteAsync(bytes, HttpContext.RequestAborted);
             await Response.Body.FlushAsync(HttpContext.RequestAborted);
-            
+
             _logger.LogTrace("✅ [StreamText] 写入并刷新完成");
 
             // 可选: 添加控制台输出,方便调试
@@ -888,11 +850,11 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 流式输出文本 - 逐字输出(更慢,更像打字机效果)
+    ///     流式输出文本 - 逐字输出(更慢,更像打字机效果)
     /// </summary>
     private async Task StreamTextCharByChar(string text, int delayMs = 30)
     {
-        foreach (char c in text)
+        foreach (var c in text)
         {
             var eventData = new
             {
@@ -901,22 +863,22 @@ public class ChatController : ControllerBase
                 timestamp = DateTime.UtcNow
             };
 
-            var json = System.Text.Json.JsonSerializer.Serialize(eventData);
+            var json = JsonSerializer.Serialize(eventData);
             var message = $"data: {json}\n\n";
-            var bytes = System.Text.Encoding.UTF8.GetBytes(message);
-            
+            var bytes = Encoding.UTF8.GetBytes(message);
+
             await Response.Body.WriteAsync(bytes);
             await Response.Body.FlushAsync();
-            
+
             Console.Write(c);
-            
+
             // 添加延迟,模拟打字机效果
             await Task.Delay(delayMs);
         }
     }
 
     /// <summary>
-    /// 发送 SSE 进度事件
+    ///     发送 SSE 进度事件
     /// </summary>
     private async Task SendProgressEvent(string eventType, object data)
     {
@@ -929,7 +891,7 @@ public class ChatController : ControllerBase
                 return;
             }
 
-            var json = System.Text.Json.JsonSerializer.Serialize(new
+            var json = JsonSerializer.Serialize(new
             {
                 type = eventType,
                 timestamp = DateTime.UtcNow,
@@ -937,13 +899,13 @@ public class ChatController : ControllerBase
             });
 
             var message = $"data: {json}\n\n";
-            var bytes = System.Text.Encoding.UTF8.GetBytes(message);
-            
+            var bytes = Encoding.UTF8.GetBytes(message);
+
             _logger.LogDebug("📤 [SendProgressEvent] 发送事件: {EventType}, 大小: {ByteCount} 字节", eventType, bytes.Length);
-            
+
             await Response.Body.WriteAsync(bytes, HttpContext.RequestAborted);
             await Response.Body.FlushAsync(HttpContext.RequestAborted);
-            
+
             _logger.LogDebug("✅ [SendProgressEvent] 事件发送完成: {EventType}", eventType);
         }
         catch (OperationCanceledException ex)
@@ -964,15 +926,12 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 从 UserContext 中获取用户 ID
+    ///     从 UserContext 中获取用户 ID
     /// </summary>
     private Guid GetUserId()
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-        if (userContext?.IsAuthenticated != true)
-        {
-            return Guid.Empty;
-        }
+        if (userContext?.IsAuthenticated != true) return Guid.Empty;
 
         return Guid.TryParse(userContext.UserId, out var userId) ? userId : Guid.Empty;
     }
@@ -980,10 +939,10 @@ public class ChatController : ControllerBase
     #region 异步任务 API
 
     /// <summary>
-    /// 创建旅行计划生成任务(异步)
+    ///     创建旅行计划生成任务(异步)
     /// </summary>
     [HttpPost("travel-plan/async")]
-    [Microsoft.AspNetCore.Authorization.AllowAnonymous] // 测试用,生产环境应移除
+    [AllowAnonymous] // 测试用,生产环境应移除
     public async Task<ActionResult<ApiResponse<CreateTaskResponse>>> CreateTravelPlanTaskAsync(
         [FromBody] GenerateTravelPlanRequest request,
         [FromServices] IPublishEndpoint publishEndpoint,
@@ -992,7 +951,8 @@ public class ChatController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("📥 收到异步旅行计划请求: CityId={CityId}, CityName={CityName}, Duration={Duration}, Budget={Budget}, TravelStyle={TravelStyle}",
+            _logger.LogInformation(
+                "📥 收到异步旅行计划请求: CityId={CityId}, CityName={CityName}, Duration={Duration}, Budget={Budget}, TravelStyle={TravelStyle}",
                 request.CityId, request.CityName, request.Duration, request.Budget, request.TravelStyle);
 
             if (!ModelState.IsValid)
@@ -1008,7 +968,7 @@ public class ChatController : ControllerBase
                 });
             }
 
-            var userId = this.GetUserId();
+            var userId = GetUserId();
             if (userId == Guid.Empty)
             {
                 // 测试用:使用固定的测试用户ID (生产环境应移除)
@@ -1021,7 +981,7 @@ public class ChatController : ControllerBase
             var startTime = DateTime.UtcNow;
 
             // 初始化任务状态
-            var taskStatus = new Models.TaskStatus
+            var taskStatus = new TaskStatus
             {
                 TaskId = taskId,
                 Status = "queued",
@@ -1048,7 +1008,7 @@ public class ChatController : ControllerBase
                         async (progress, message) =>
                         {
                             // 发送进度消息到 MessageService
-                            await publishEndpoint.Publish(new Shared.Messages.AIProgressMessage
+                            await publishEndpoint.Publish(new AIProgressMessage
                             {
                                 TaskId = taskId,
                                 UserId = userId.ToString(),
@@ -1064,7 +1024,7 @@ public class ChatController : ControllerBase
 
                     // 保存结果到 Redis
                     var planId = travelPlan.Id;
-                    var planJson = System.Text.Json.JsonSerializer.Serialize(travelPlan);
+                    var planJson = JsonSerializer.Serialize(travelPlan);
                     await cache.SetStringAsync($"plan:{planId}", planJson, TimeSpan.FromHours(24));
 
                     // 更新任务状态
@@ -1076,7 +1036,7 @@ public class ChatController : ControllerBase
                     await cache.SetAsync($"task:{taskId}", taskStatus, TimeSpan.FromHours(24));
 
                     // 发送完成消息到 MessageService
-                    await publishEndpoint.Publish(new Shared.Messages.AITaskCompletedMessage
+                    await publishEndpoint.Publish(new AITaskCompletedMessage
                     {
                         TaskId = taskId,
                         UserId = userId.ToString(),
@@ -1100,7 +1060,7 @@ public class ChatController : ControllerBase
                     await cache.SetAsync($"task:{taskId}", taskStatus, TimeSpan.FromHours(24));
 
                     // 发送失败消息到 MessageService
-                    await publishEndpoint.Publish(new Shared.Messages.AITaskFailedMessage
+                    await publishEndpoint.Publish(new AITaskFailedMessage
                     {
                         TaskId = taskId,
                         UserId = userId.ToString(),
@@ -1140,28 +1100,26 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 查询任务状态
+    ///     查询任务状态
     /// </summary>
     [HttpGet("travel-plan/tasks/{taskId}")]
-    [Microsoft.AspNetCore.Authorization.AllowAnonymous] // 测试用,生产环境应移除
-    public async Task<ActionResult<ApiResponse<Models.TaskStatus>>> GetTaskStatusAsync(
+    [AllowAnonymous] // 测试用,生产环境应移除
+    public async Task<ActionResult<ApiResponse<TaskStatus>>> GetTaskStatusAsync(
         string taskId,
         [FromServices] IRedisCache cache)
     {
         try
         {
-            var taskStatus = await cache.GetAsync<Models.TaskStatus>($"task:{taskId}");
+            var taskStatus = await cache.GetAsync<TaskStatus>($"task:{taskId}");
 
             if (taskStatus == null)
-            {
-                return NotFound(new ApiResponse<Models.TaskStatus>
+                return NotFound(new ApiResponse<TaskStatus>
                 {
                     Success = false,
                     Message = "任务不存在或已过期"
                 });
-            }
 
-            return Ok(new ApiResponse<Models.TaskStatus>
+            return Ok(new ApiResponse<TaskStatus>
             {
                 Success = true,
                 Message = "查询成功",
@@ -1171,7 +1129,7 @@ public class ChatController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ 查询任务状态失败: {TaskId}", taskId);
-            return StatusCode(500, new ApiResponse<Models.TaskStatus>
+            return StatusCode(500, new ApiResponse<TaskStatus>
             {
                 Success = false,
                 Message = $"查询失败: {ex.Message}"
@@ -1180,10 +1138,10 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 根据 planId 获取旅行计划详情
+    ///     根据 planId 获取旅行计划详情
     /// </summary>
     [HttpGet("travel-plans/{planId}")]
-    [Microsoft.AspNetCore.Authorization.AllowAnonymous] // 测试用,生产环境应移除
+    [AllowAnonymous] // 测试用,生产环境应移除
     public async Task<ActionResult<ApiResponse<TravelPlanResponse>>> GetTravelPlanByIdAsync(
         string planId,
         [FromServices] IRedisCache cache)
@@ -1211,18 +1169,15 @@ public class ChatController : ControllerBase
             try
             {
                 // 使用与 GenerateTravelPlanAsync 相同的解析逻辑
-                var travelPlan = System.Text.Json.JsonSerializer.Deserialize<TravelPlanResponse>(
+                var travelPlan = JsonSerializer.Deserialize<TravelPlanResponse>(
                     planContent,
-                    new System.Text.Json.JsonSerializerOptions
+                    new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true
                     }
                 );
 
-                if (travelPlan == null)
-                {
-                    throw new InvalidOperationException("解析结果为 null");
-                }
+                if (travelPlan == null) throw new InvalidOperationException("解析结果为 null");
 
                 _logger.LogInformation("✅ 旅行计划解析成功: {PlanId}, Duration={Duration}", planId, travelPlan.Duration);
 
@@ -1233,7 +1188,7 @@ public class ChatController : ControllerBase
                     Data = travelPlan
                 });
             }
-            catch (System.Text.Json.JsonException ex)
+            catch (JsonException ex)
             {
                 _logger.LogError(ex, "❌ JSON 解析失败: {PlanId}", planId);
                 return StatusCode(500, new ApiResponse<TravelPlanResponse>
@@ -1255,16 +1210,17 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 生成数字游民旅游指南
+    ///     生成数字游民旅游指南
     /// </summary>
     [HttpPost("travel-guide")]
-    public async Task<ActionResult<ApiResponse<TravelGuideResponse>>> GenerateTravelGuide([FromBody] GenerateTravelGuideRequest request)
+    public async Task<ActionResult<ApiResponse<TravelGuideResponse>>> GenerateTravelGuide(
+        [FromBody] GenerateTravelGuideRequest request)
     {
         try
         {
             // 获取当前用户ID(可选,AIService 不强制要求认证)
-            var userId = this.GetUserId();
-            
+            var userId = GetUserId();
+
             // 如果没有用户上下文,使用匿名用户ID
             if (userId == Guid.Empty)
             {
@@ -1272,14 +1228,14 @@ public class ChatController : ControllerBase
                 _logger.LogInformation("ℹ️ 匿名用户生成旅游指南");
             }
 
-            _logger.LogInformation("📖 开始生成数字游民旅游指南 - 城市: {CityName}, 用户: {UserId}", 
+            _logger.LogInformation("📖 开始生成数字游民旅游指南 - 城市: {CityName}, 用户: {UserId}",
                 request.CityName, userId);
 
             // 调用AI服务生成旅游指南
             var result = await _aiChatService.GenerateTravelGuideAsync(request, userId);
-            
+
             _logger.LogInformation("✅ 旅游指南生成成功 - 城市: {CityName}", request.CityName);
-            
+
             return Ok(new ApiResponse<TravelGuideResponse>
             {
                 Success = true,
@@ -1305,7 +1261,7 @@ public class ChatController : ControllerBase
                 Message = "AI服务返回格式错误,请稍后重试"
             });
         }
-        catch (System.Text.Json.JsonException ex)
+        catch (JsonException ex)
         {
             _logger.LogError(ex, "❌ JSON解析失败: {Message}", ex.Message);
             return StatusCode(500, new ApiResponse<TravelGuideResponse>
@@ -1326,7 +1282,7 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 流式生成数字游民旅游指南 - 带进度条
+    ///     流式生成数字游民旅游指南 - 带进度条
     /// </summary>
     [HttpPost("travel-guide/stream")]
     public async Task GenerateTravelGuideStream([FromBody] GenerateTravelGuideRequest request)
@@ -1338,11 +1294,8 @@ public class ChatController : ControllerBase
         try
         {
             // 获取当前用户ID
-            var userId = this.GetUserId();
-            if (userId == Guid.Empty)
-            {
-                userId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-            }
+            var userId = GetUserId();
+            if (userId == Guid.Empty) userId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
             _logger.LogInformation("📖 [流式] 开始生成数字游民旅游指南 - 城市: {CityName}", request.CityName);
 
@@ -1352,7 +1305,7 @@ public class ChatController : ControllerBase
 
             // 调用 AI 服务,传入进度回调
             var result = await _aiChatService.GenerateTravelGuideAsync(
-                request, 
+                request,
                 userId,
                 async (progress, message) =>
                 {
@@ -1361,11 +1314,11 @@ public class ChatController : ControllerBase
                 });
 
             // 发送成功事件
-            await SendProgressEvent("success", new 
-            { 
-                message = "旅游指南生成成功!", 
+            await SendProgressEvent("success", new
+            {
+                message = "旅游指南生成成功!",
                 progress = 100,
-                data = result 
+                data = result
             });
             await Response.Body.FlushAsync();
 
@@ -1380,10 +1333,10 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 创建数字游民指南生成任务(异步)
+    ///     创建数字游民指南生成任务(异步)
     /// </summary>
     [HttpPost("guide/async")]
-    [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<CreateTaskResponse>>> CreateDigitalNomadGuideTaskAsync(
         [FromBody] GenerateTravelGuideRequest request,
         [FromServices] IPublishEndpoint publishEndpoint,
@@ -1409,7 +1362,7 @@ public class ChatController : ControllerBase
                 });
             }
 
-            var userId = this.GetUserId();
+            var userId = GetUserId();
             if (userId == Guid.Empty)
             {
                 userId = Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -1421,7 +1374,7 @@ public class ChatController : ControllerBase
             var startTime = DateTime.UtcNow;
 
             // 初始化任务状态
-            var taskStatus = new Models.TaskStatus
+            var taskStatus = new TaskStatus
             {
                 TaskId = taskId,
                 Status = "queued",
@@ -1448,7 +1401,7 @@ public class ChatController : ControllerBase
                         async (progress, message) =>
                         {
                             // 发送进度消息到 MessageService
-                            await publishEndpoint.Publish(new Shared.Messages.AIProgressMessage
+                            await publishEndpoint.Publish(new AIProgressMessage
                             {
                                 TaskId = taskId,
                                 UserId = userId.ToString(),
@@ -1467,33 +1420,33 @@ public class ChatController : ControllerBase
                     {
                         var saveRequest = new
                         {
-                            CityId = request.CityId,
-                            CityName = request.CityName,
-                            Overview = guide.Overview,
+                            request.CityId,
+                            request.CityName,
+                            guide.Overview,
                             VisaInfo = new
                             {
-                                Type = guide.VisaInfo.Type,
-                                Duration = guide.VisaInfo.Duration,
-                                Requirements = guide.VisaInfo.Requirements,
-                                Cost = guide.VisaInfo.Cost,
-                                Process = guide.VisaInfo.Process
+                                guide.VisaInfo.Type,
+                                guide.VisaInfo.Duration,
+                                guide.VisaInfo.Requirements,
+                                guide.VisaInfo.Cost,
+                                guide.VisaInfo.Process
                             },
                             BestAreas = guide.BestAreas.Select(a => new
                             {
-                                Name = a.Name,
-                                Description = a.Description,
-                                EntertainmentScore = a.EntertainmentScore,
-                                EntertainmentDescription = a.EntertainmentDescription,
-                                TourismScore = a.TourismScore,
-                                TourismDescription = a.TourismDescription,
-                                EconomyScore = a.EconomyScore,
-                                EconomyDescription = a.EconomyDescription,
-                                CultureScore = a.CultureScore,
-                                CultureDescription = a.CultureDescription
+                                a.Name,
+                                a.Description,
+                                a.EntertainmentScore,
+                                a.EntertainmentDescription,
+                                a.TourismScore,
+                                a.TourismDescription,
+                                a.EconomyScore,
+                                a.EconomyDescription,
+                                a.CultureScore,
+                                a.CultureDescription
                             }).ToList(),
-                            WorkspaceRecommendations = guide.WorkspaceRecommendations,
-                            Tips = guide.Tips,
-                            EssentialInfo = guide.EssentialInfo
+                            guide.WorkspaceRecommendations,
+                            guide.Tips,
+                            guide.EssentialInfo
                         };
 
                         await daprClient.InvokeMethodAsync<object, object>(
@@ -1511,7 +1464,7 @@ public class ChatController : ControllerBase
 
                     // 保存结果到 Redis
                     var guideId = $"guide_{request.CityId}_{Guid.NewGuid():N}";
-                    var guideJson = System.Text.Json.JsonSerializer.Serialize(guide);
+                    var guideJson = JsonSerializer.Serialize(guide);
                     await cache.SetStringAsync($"guide:{guideId}", guideJson, TimeSpan.FromHours(24));
 
                     // 更新任务状态
@@ -1523,7 +1476,7 @@ public class ChatController : ControllerBase
                     await cache.SetAsync($"task:{taskId}", taskStatus, TimeSpan.FromHours(24));
 
                     // 发送完成消息到 MessageService
-                    await publishEndpoint.Publish(new Shared.Messages.AITaskCompletedMessage
+                    await publishEndpoint.Publish(new AITaskCompletedMessage
                     {
                         TaskId = taskId,
                         UserId = userId.ToString(),
@@ -1547,7 +1500,7 @@ public class ChatController : ControllerBase
                     await cache.SetAsync($"task:{taskId}", taskStatus, TimeSpan.FromHours(24));
 
                     // 发送失败消息到 MessageService
-                    await publishEndpoint.Publish(new Shared.Messages.AITaskFailedMessage
+                    await publishEndpoint.Publish(new AITaskFailedMessage
                     {
                         TaskId = taskId,
                         UserId = userId.ToString(),

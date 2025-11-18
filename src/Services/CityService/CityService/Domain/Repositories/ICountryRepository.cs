@@ -3,7 +3,7 @@ using CityService.Domain.Entities;
 namespace CityService.Domain.Repositories;
 
 /// <summary>
-/// 国家仓储接口
+///     国家仓储接口
 /// </summary>
 public interface ICountryRepository
 {

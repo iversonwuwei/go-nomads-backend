@@ -1,7 +1,7 @@
 namespace CityService.Application.DTOs;
 
 /// <summary>
-/// Represents a subset of the AMap geocoding payload used across the application.
+///     Represents a subset of the AMap geocoding payload used across the application.
 /// </summary>
 public class AmapGeocodeResult
 {

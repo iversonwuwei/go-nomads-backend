@@ -1,13 +1,13 @@
-using Microsoft.AspNetCore.Mvc;
-using GoNomads.Shared.Models;
 using GoNomads.Shared.Middleware;
+using GoNomads.Shared.Models;
+using Microsoft.AspNetCore.Mvc;
 using UserService.Application.DTOs;
 using UserService.Application.Services;
 
 namespace UserService.API.Controllers;
 
 /// <summary>
-/// 兴趣爱好 API - RESTful endpoints for interests management
+///     兴趣爱好 API - RESTful endpoints for interests management
 /// </summary>
 [ApiController]
 [Route("api/v1/interests")]
@@ -23,10 +23,11 @@ public class InterestsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取所有兴趣
+    ///     获取所有兴趣
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<List<InterestDto>>>> GetAllInterests(CancellationToken cancellationToken = default)
+    public async Task<ActionResult<ApiResponse<List<InterestDto>>>> GetAllInterests(
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("📋 获取所有兴趣");
 
@@ -53,7 +54,7 @@ public class InterestsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取按类别分组的兴趣
+    ///     获取按类别分组的兴趣
     /// </summary>
     [HttpGet("by-category")]
     public async Task<ActionResult<ApiResponse<List<InterestsByCategoryDto>>>> GetInterestsByCategory(
@@ -84,7 +85,7 @@ public class InterestsController : ControllerBase
     }
 
     /// <summary>
-    /// 根据类别获取兴趣
+    ///     根据类别获取兴趣
     /// </summary>
     [HttpGet("category/{category}")]
     public async Task<ActionResult<ApiResponse<List<InterestDto>>>> GetInterestsBySpecificCategory(
@@ -116,7 +117,7 @@ public class InterestsController : ControllerBase
     }
 
     /// <summary>
-    /// 根据ID获取兴趣
+    ///     根据ID获取兴趣
     /// </summary>
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<InterestDto>>> GetInterest(
@@ -130,13 +131,11 @@ public class InterestsController : ControllerBase
             var interest = await _interestService.GetInterestByIdAsync(id, cancellationToken);
 
             if (interest == null)
-            {
                 return NotFound(new ApiResponse<InterestDto>
                 {
                     Success = false,
                     Message = "Interest not found"
                 });
-            }
 
             return Ok(new ApiResponse<InterestDto>
             {
@@ -157,7 +156,7 @@ public class InterestsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取用户的所有兴趣
+    ///     获取用户的所有兴趣
     /// </summary>
     [HttpGet("users/{userId}")]
     public async Task<ActionResult<ApiResponse<List<UserInterestDto>>>> GetUserInterests(
@@ -189,7 +188,7 @@ public class InterestsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取当前用户的所有兴趣（使用 UserContext）
+    ///     获取当前用户的所有兴趣（使用 UserContext）
     /// </summary>
     [HttpGet("me")]
     public async Task<ActionResult<ApiResponse<List<UserInterestDto>>>> GetCurrentUserInterests(
@@ -197,13 +196,11 @@ public class InterestsController : ControllerBase
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true)
-        {
             return Unauthorized(new ApiResponse<List<UserInterestDto>>
             {
                 Success = false,
                 Message = "未认证用户"
             });
-        }
 
         _logger.LogInformation("📋 获取当前用户兴趣: {UserId}", userContext.UserId);
 
@@ -230,7 +227,7 @@ public class InterestsController : ControllerBase
     }
 
     /// <summary>
-    /// 添加用户兴趣
+    ///     添加用户兴趣
     /// </summary>
     [HttpPost("users/{userId}")]
     public async Task<ActionResult<ApiResponse<UserInterestDto>>> AddUserInterest(
@@ -275,7 +272,7 @@ public class InterestsController : ControllerBase
     }
 
     /// <summary>
-    /// 添加当前用户兴趣（使用 UserContext）
+    ///     添加当前用户兴趣（使用 UserContext）
     /// </summary>
     [HttpPost("me")]
     public async Task<ActionResult<ApiResponse<UserInterestDto>>> AddCurrentUserInterest(
@@ -284,15 +281,14 @@ public class InterestsController : ControllerBase
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true)
-        {
             return Unauthorized(new ApiResponse<UserInterestDto>
             {
                 Success = false,
                 Message = "未认证用户"
             });
-        }
 
-        _logger.LogInformation("➕ 添加当前用户兴趣: UserId={UserId}, InterestId={InterestId}", userContext.UserId, request.InterestId);
+        _logger.LogInformation("➕ 添加当前用户兴趣: UserId={UserId}, InterestId={InterestId}", userContext.UserId,
+            request.InterestId);
 
         try
         {
@@ -319,7 +315,8 @@ public class InterestsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ 添加当前用户兴趣失败: UserId={UserId}, InterestId={InterestId}", userContext.UserId, request.InterestId);
+            _logger.LogError(ex, "❌ 添加当前用户兴趣失败: UserId={UserId}, InterestId={InterestId}", userContext.UserId,
+                request.InterestId);
             return StatusCode(500, new ApiResponse<UserInterestDto>
             {
                 Success = false,
@@ -329,7 +326,7 @@ public class InterestsController : ControllerBase
     }
 
     /// <summary>
-    /// 批量添加当前用户兴趣（使用 UserContext）
+    ///     批量添加当前用户兴趣（使用 UserContext）
     /// </summary>
     [HttpPost("me/batch")]
     public async Task<ActionResult<ApiResponse<List<UserInterestDto>>>> AddCurrentUserInterestsBatch(
@@ -338,19 +335,18 @@ public class InterestsController : ControllerBase
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true)
-        {
             return Unauthorized(new ApiResponse<List<UserInterestDto>>
             {
                 Success = false,
                 Message = "未认证用户"
             });
-        }
 
         _logger.LogInformation("➕ 批量添加当前用户兴趣: UserId={UserId}, Count={Count}", userContext.UserId, request.Count);
 
         try
         {
-            var interests = await _interestService.AddUserInterestsBatchAsync(userContext.UserId!, request, cancellationToken);
+            var interests =
+                await _interestService.AddUserInterestsBatchAsync(userContext.UserId!, request, cancellationToken);
 
             return Ok(new ApiResponse<List<UserInterestDto>>
             {
@@ -371,7 +367,7 @@ public class InterestsController : ControllerBase
     }
 
     /// <summary>
-    /// 批量添加用户兴趣
+    ///     批量添加用户兴趣
     /// </summary>
     [HttpPost("users/{userId}/batch")]
     public async Task<ActionResult<ApiResponse<List<UserInterestDto>>>> AddUserInterestsBatch(
@@ -404,7 +400,7 @@ public class InterestsController : ControllerBase
     }
 
     /// <summary>
-    /// 删除当前用户兴趣（使用 UserContext）
+    ///     删除当前用户兴趣（使用 UserContext）
     /// </summary>
     [HttpDelete("me/{interestId}")]
     public async Task<ActionResult<ApiResponse<object>>> RemoveCurrentUserInterest(
@@ -413,28 +409,25 @@ public class InterestsController : ControllerBase
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true)
-        {
             return Unauthorized(new ApiResponse<object>
             {
                 Success = false,
                 Message = "未认证用户"
             });
-        }
 
         _logger.LogInformation("➖ 删除当前用户兴趣: UserId={UserId}, InterestId={InterestId}", userContext.UserId, interestId);
 
         try
         {
-            var result = await _interestService.RemoveUserInterestAsync(userContext.UserId!, interestId, cancellationToken);
+            var result =
+                await _interestService.RemoveUserInterestAsync(userContext.UserId!, interestId, cancellationToken);
 
             if (!result)
-            {
                 return NotFound(new ApiResponse<object>
                 {
                     Success = false,
                     Message = "User interest not found"
                 });
-            }
 
             return Ok(new ApiResponse<object>
             {
@@ -444,7 +437,8 @@ public class InterestsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ 删除当前用户兴趣失败: UserId={UserId}, InterestId={InterestId}", userContext.UserId, interestId);
+            _logger.LogError(ex, "❌ 删除当前用户兴趣失败: UserId={UserId}, InterestId={InterestId}", userContext.UserId,
+                interestId);
             return StatusCode(500, new ApiResponse<object>
             {
                 Success = false,
@@ -454,7 +448,7 @@ public class InterestsController : ControllerBase
     }
 
     /// <summary>
-    /// 删除用户兴趣
+    ///     删除用户兴趣
     /// </summary>
     [HttpDelete("users/{userId}/{interestId}")]
     public async Task<ActionResult<ApiResponse<object>>> RemoveUserInterest(
@@ -469,13 +463,11 @@ public class InterestsController : ControllerBase
             var result = await _interestService.RemoveUserInterestAsync(userId, interestId, cancellationToken);
 
             if (!result)
-            {
                 return NotFound(new ApiResponse<object>
                 {
                     Success = false,
                     Message = "User interest not found"
                 });
-            }
 
             return Ok(new ApiResponse<object>
             {
@@ -495,7 +487,7 @@ public class InterestsController : ControllerBase
     }
 
     /// <summary>
-    /// 更新当前用户兴趣（使用 UserContext）
+    ///     更新当前用户兴趣（使用 UserContext）
     /// </summary>
     [HttpPut("me/{interestId}")]
     public async Task<ActionResult<ApiResponse<UserInterestDto>>> UpdateCurrentUserInterest(
@@ -505,13 +497,11 @@ public class InterestsController : ControllerBase
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true)
-        {
             return Unauthorized(new ApiResponse<UserInterestDto>
             {
                 Success = false,
                 Message = "未认证用户"
             });
-        }
 
         _logger.LogInformation("✏️ 更新当前用户兴趣: UserId={UserId}, InterestId={InterestId}", userContext.UserId, interestId);
 
@@ -540,7 +530,8 @@ public class InterestsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ 更新当前用户兴趣失败: UserId={UserId}, InterestId={InterestId}", userContext.UserId, interestId);
+            _logger.LogError(ex, "❌ 更新当前用户兴趣失败: UserId={UserId}, InterestId={InterestId}", userContext.UserId,
+                interestId);
             return StatusCode(500, new ApiResponse<UserInterestDto>
             {
                 Success = false,
@@ -550,7 +541,7 @@ public class InterestsController : ControllerBase
     }
 
     /// <summary>
-    /// 更新用户兴趣
+    ///     更新用户兴趣
     /// </summary>
     [HttpPut("users/{userId}/{interestId}")]
     public async Task<ActionResult<ApiResponse<UserInterestDto>>> UpdateUserInterest(

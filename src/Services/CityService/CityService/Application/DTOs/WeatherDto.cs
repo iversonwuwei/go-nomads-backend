@@ -1,7 +1,7 @@
 namespace CityService.Application.DTOs;
 
 /// <summary>
-/// 天气信息 DTO
+///     天气信息 DTO
 /// </summary>
 public class WeatherDto
 {

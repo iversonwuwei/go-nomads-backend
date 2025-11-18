@@ -5,12 +5,12 @@ using Supabase;
 namespace EventService.Infrastructure.Repositories;
 
 /// <summary>
-/// EventFollower 仓储实现 - Supabase
+///     EventFollower 仓储实现 - Supabase
 /// </summary>
 public class EventFollowerRepository : IEventFollowerRepository
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<EventFollowerRepository> _logger;
+    private readonly Client _supabaseClient;
 
     public EventFollowerRepository(Client supabaseClient, ILogger<EventFollowerRepository> logger)
     {
@@ -27,12 +27,9 @@ public class EventFollowerRepository : IEventFollowerRepository
                 .Insert(follower);
 
             var created = result.Models.FirstOrDefault();
-            if (created == null)
-            {
-                throw new InvalidOperationException("创建关注记录失败");
-            }
+            if (created == null) throw new InvalidOperationException("创建关注记录失败");
 
-            _logger.LogInformation("✅ 关注记录创建成功，EventId: {EventId}, UserId: {UserId}", 
+            _logger.LogInformation("✅ 关注记录创建成功，EventId: {EventId}, UserId: {UserId}",
                 follower.EventId, follower.UserId);
             return created;
         }

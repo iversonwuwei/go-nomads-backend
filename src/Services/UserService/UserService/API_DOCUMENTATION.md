@@ -20,6 +20,7 @@ UserService 已完成 DDD（领域驱动设计）重构，API 现在分为两个
 注册新用户并自动返回 JWT Token。
 
 **Request Body:**
+
 ```json
 {
   "name": "张三",
@@ -30,6 +31,7 @@ UserService 已完成 DDD（领域驱动设计）重构，API 现在分为两个
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -52,6 +54,7 @@ UserService 已完成 DDD（领域驱动设计）重构，API 现在分为两个
 ```
 
 **Error (400 Bad Request):**
+
 ```json
 {
   "success": false,
@@ -68,6 +71,7 @@ UserService 已完成 DDD（领域驱动设计）重构，API 现在分为两个
 用户登录并获取 JWT Token。
 
 **Request Body:**
+
 ```json
 {
   "email": "zhangsan@example.com",
@@ -76,6 +80,7 @@ UserService 已完成 DDD（领域驱动设计）重构，API 现在分为两个
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -91,6 +96,7 @@ UserService 已完成 DDD（领域驱动设计）重构，API 现在分为两个
 ```
 
 **Error (401 Unauthorized):**
+
 ```json
 {
   "success": false,
@@ -107,6 +113,7 @@ UserService 已完成 DDD（领域驱动设计）重构，API 现在分为两个
 使用 refresh token 获取新的 access token。
 
 **Request Body:**
+
 ```json
 {
   "refreshToken": "eyJhbGc..."
@@ -114,6 +121,7 @@ UserService 已完成 DDD（领域驱动设计）重构，API 现在分为两个
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -129,6 +137,7 @@ UserService 已完成 DDD（领域驱动设计）重构，API 现在分为两个
 ```
 
 **Error (401 Unauthorized):**
+
 ```json
 {
   "success": false,
@@ -145,11 +154,13 @@ UserService 已完成 DDD（领域驱动设计）重构，API 现在分为两个
 用户登出（需要认证）。
 
 **Headers:**
+
 ```
 Authorization: Bearer <access_token>
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -168,12 +179,14 @@ Authorization: Bearer <access_token>
 修改当前用户密码（需要认证，使用 UserContext 获取用户 ID）。
 
 **Headers:**
+
 ```
 Authorization: Bearer <access_token>
 X-User-Id: <user_id>  (来自 Gateway)
 ```
 
 **Request Body:**
+
 ```json
 {
   "oldPassword": "password123",
@@ -182,6 +195,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -190,6 +204,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 ```
 
 **Error (400 Bad Request):**
+
 ```json
 {
   "success": false,
@@ -208,10 +223,12 @@ X-User-Id: <user_id>  (来自 Gateway)
 获取用户列表（支持分页）。
 
 **Query Parameters:**
+
 - `page` (int, optional): 页码，默认 1
 - `pageSize` (int, optional): 每页数量，默认 10，最大 100
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -243,6 +260,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 获取指定 ID 的用户信息。
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -259,6 +277,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 ```
 
 **Error (404 Not Found):**
+
 ```json
 {
   "success": false,
@@ -275,12 +294,14 @@ X-User-Id: <user_id>  (来自 Gateway)
 获取当前登录用户信息（需要认证）。
 
 **Headers:**
+
 ```
 Authorization: Bearer <access_token>
 X-User-Id: <user_id>  (来自 Gateway)
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -297,6 +318,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 ```
 
 **Error (401 Unauthorized):**
+
 ```json
 {
   "success": false,
@@ -313,6 +335,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 创建用户（通常由管理员使用，不设置密码）。
 
 **Request Body:**
+
 ```json
 {
   "name": "李四",
@@ -322,6 +345,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -348,6 +372,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 更新指定用户信息。
 
 **Request Body:**
+
 ```json
 {
   "name": "张三（已更新）",
@@ -357,6 +382,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -373,6 +399,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 ```
 
 **Error (400 Bad Request):**
+
 ```json
 {
   "success": false,
@@ -389,12 +416,14 @@ X-User-Id: <user_id>  (来自 Gateway)
 更新当前登录用户信息（需要认证）。
 
 **Headers:**
+
 ```
 Authorization: Bearer <access_token>
 X-User-Id: <user_id>  (来自 Gateway)
 ```
 
 **Request Body:**
+
 ```json
 {
   "name": "张三（已更新）",
@@ -404,6 +433,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -421,6 +451,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 删除指定用户。
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -429,6 +460,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 ```
 
 **Error (404 Not Found):**
+
 ```json
 {
   "success": false,
@@ -447,6 +479,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 服务健康检查端点。
 
 **Response (200 OK):**
+
 ```json
 {
   "status": "healthy",
@@ -464,6 +497,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 通过 Dapr 调用 ProductService 获取用户的产品列表。
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -481,6 +515,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 使用 Dapr State Store 缓存用户数据（缓存 5 分钟）。
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -496,14 +531,17 @@ X-User-Id: <user_id>  (来自 Gateway)
 以下端点使用 **UserContext** 从 Gateway 传递的请求头中获取用户信息，**无需在路径或请求体中传递 userId**：
 
 ### AuthController
+
 - ✅ `POST /api/auth/logout` - 从 `X-User-Id` header 获取 userId
 - ✅ `POST /api/auth/change-password` - 从 `X-User-Id` header 获取 userId
 
 ### UsersController
+
 - ✅ `GET /api/users/me` - 从 `X-User-Id` header 获取当前用户
 - ✅ `PUT /api/users/me` - 从 `X-User-Id` header 更新当前用户
 
 **Gateway 传递的 Headers:**
+
 ```
 X-User-Id: <user_id>
 X-User-Email: <user_email>
@@ -517,6 +555,7 @@ X-User-Role: <user_role>
 所有 API 响应均遵循 `ApiResponse<T>` 格式：
 
 ### 成功响应
+
 ```json
 {
   "success": true,
@@ -526,6 +565,7 @@ X-User-Role: <user_role>
 ```
 
 ### 错误响应
+
 ```json
 {
   "success": false,
@@ -538,14 +578,14 @@ X-User-Role: <user_role>
 
 ## 📊 HTTP 状态码
 
-| 状态码 | 说明 | 使用场景 |
-|--------|------|----------|
-| 200 OK | 成功 | 获取数据、更新成功、删除成功 |
-| 201 Created | 已创建 | 创建用户成功 |
-| 400 Bad Request | 请求错误 | 验证失败、业务规则不满足 |
-| 401 Unauthorized | 未认证 | 未登录、Token 无效 |
-| 404 Not Found | 未找到 | 用户不存在 |
-| 500 Internal Server Error | 服务器错误 | 系统异常 |
+| 状态码                       | 说明    | 使用场景           |
+|---------------------------|-------|----------------|
+| 200 OK                    | 成功    | 获取数据、更新成功、删除成功 |
+| 201 Created               | 已创建   | 创建用户成功         |
+| 400 Bad Request           | 请求错误  | 验证失败、业务规则不满足   |
+| 401 Unauthorized          | 未认证   | 未登录、Token 无效   |
+| 404 Not Found             | 未找到   | 用户不存在          |
+| 500 Internal Server Error | 服务器错误 | 系统异常           |
 
 ---
 
@@ -554,14 +594,14 @@ X-User-Role: <user_role>
 UserService 集成了以下 Dapr 功能：
 
 1. **Pub/Sub**:
-   - 发布 `user-created` 事件（用户创建时）
-   - 发布 `user-deleted` 事件（用户删除时）
+    - 发布 `user-created` 事件（用户创建时）
+    - 发布 `user-deleted` 事件（用户删除时）
 
 2. **Service Invocation**:
-   - 调用 ProductService: `GET /api/users/{userId}/products`
+    - 调用 ProductService: `GET /api/users/{userId}/products`
 
 3. **State Store**:
-   - 缓存用户数据: `GET /api/users/{id}/cached`
+    - 缓存用户数据: `GET /api/users/{id}/cached`
 
 ---
 
@@ -570,6 +610,7 @@ UserService 集成了以下 Dapr 功能：
 ### 使用 cURL
 
 **注册用户:**
+
 ```bash
 curl -X POST http://localhost:5002/api/auth/register \
   -H "Content-Type: application/json" \
@@ -582,6 +623,7 @@ curl -X POST http://localhost:5002/api/auth/register \
 ```
 
 **登录:**
+
 ```bash
 curl -X POST http://localhost:5002/api/auth/login \
   -H "Content-Type: application/json" \
@@ -592,6 +634,7 @@ curl -X POST http://localhost:5002/api/auth/login \
 ```
 
 **获取当前用户（需要 Token）:**
+
 ```bash
 curl -X GET http://localhost:5002/api/users/me \
   -H "Authorization: Bearer <access_token>" \
@@ -603,6 +646,7 @@ curl -X GET http://localhost:5002/api/users/me \
 ## 📝 API 版本历史
 
 ### v2.0.0 (DDD 重构后)
+
 - ✅ 完成 DDD 架构重构
 - ✅ 分离 AuthController 和 UsersController
 - ✅ 集成 UserContext（`/me` 路由）
@@ -610,6 +654,7 @@ curl -X GET http://localhost:5002/api/users/me \
 - ✅ 改进错误处理和 HTTP 状态码
 
 ### v1.0.0 (重构前)
+
 - 基础 CRUD 功能
 - 认证和授权
 - Dapr 集成

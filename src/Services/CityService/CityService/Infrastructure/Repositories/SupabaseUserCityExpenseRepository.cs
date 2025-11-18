@@ -1,13 +1,13 @@
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Microsoft.Extensions.Logging;
+using Postgrest;
 using Shared.Repositories;
-using Supabase;
+using Client = Supabase.Client;
 
 namespace CityService.Infrastructure.Repositories;
 
 /// <summary>
-/// 基于 Supabase 的用户城市费用仓储实现
+///     基于 Supabase 的用户城市费用仓储实现
 /// </summary>
 public class SupabaseUserCityExpenseRepository : SupabaseRepositoryBase<UserCityExpense>, IUserCityExpenseRepository
 {
@@ -31,7 +31,7 @@ public class SupabaseUserCityExpenseRepository : SupabaseRepositoryBase<UserCity
         var response = await SupabaseClient
             .From<UserCityExpense>()
             .Where(x => x.CityId == cityId)
-            .Order(x => x.CreatedAt, Postgrest.Constants.Ordering.Descending)
+            .Order(x => x.CreatedAt, Constants.Ordering.Descending)
             .Get();
 
         return response.Models;
@@ -42,7 +42,7 @@ public class SupabaseUserCityExpenseRepository : SupabaseRepositoryBase<UserCity
         var response = await SupabaseClient
             .From<UserCityExpense>()
             .Where(x => x.CityId == cityId && x.UserId == userId)
-            .Order(x => x.CreatedAt, Postgrest.Constants.Ordering.Descending)
+            .Order(x => x.CreatedAt, Constants.Ordering.Descending)
             .Get();
 
         return response.Models;
@@ -53,7 +53,7 @@ public class SupabaseUserCityExpenseRepository : SupabaseRepositoryBase<UserCity
         var response = await SupabaseClient
             .From<UserCityExpense>()
             .Where(x => x.UserId == userId)
-            .Order(x => x.CreatedAt, Postgrest.Constants.Ordering.Descending)
+            .Order(x => x.CreatedAt, Constants.Ordering.Descending)
             .Get();
 
         return response.Models;

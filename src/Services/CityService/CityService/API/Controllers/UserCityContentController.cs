@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CityService.API.Controllers;
 
 /// <summary>
-/// 用户城市内容 API（照片、费用、评论）
+///     用户城市内容 API（照片、费用、评论）
 /// </summary>
 [ApiController]
 [Route("api/v1/cities/{cityId}/user-content")]
@@ -26,15 +26,13 @@ public class UserCityContentController : ControllerBase
     }
 
     /// <summary>
-    /// 从 UserContext 中获取用户 ID
+    ///     从 UserContext 中获取用户 ID
     /// </summary>
     private Guid GetUserId()
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-        {
             throw new UnauthorizedAccessException("用户未认证");
-        }
 
         return Guid.Parse(userContext.UserId);
     }
@@ -42,11 +40,12 @@ public class UserCityContentController : ControllerBase
     #region 照片 API
 
     /// <summary>
-    /// 添加城市照片
-    /// POST /api/v1/cities/{cityId}/user-content/photos
+    ///     添加城市照片
+    ///     POST /api/v1/cities/{cityId}/user-content/photos
     /// </summary>
     [HttpPost("photos")]
-    public async Task<ActionResult<ApiResponse<UserCityPhotoDto>>> AddPhoto(string cityId, [FromBody] AddCityPhotoRequest request)
+    public async Task<ActionResult<ApiResponse<UserCityPhotoDto>>> AddPhoto(string cityId,
+        [FromBody] AddCityPhotoRequest request)
     {
         try
         {
@@ -88,11 +87,12 @@ public class UserCityContentController : ControllerBase
     }
 
     /// <summary>
-    /// 批量添加城市照片
-    /// POST /api/v1/cities/{cityId}/user-content/photos/batch
+    ///     批量添加城市照片
+    ///     POST /api/v1/cities/{cityId}/user-content/photos/batch
     /// </summary>
     [HttpPost("photos/batch")]
-    public async Task<ActionResult<ApiResponse<IEnumerable<UserCityPhotoDto>>>> SubmitPhotoBatch(string cityId, [FromBody] SubmitCityPhotoBatchRequest request)
+    public async Task<ActionResult<ApiResponse<IEnumerable<UserCityPhotoDto>>>> SubmitPhotoBatch(string cityId,
+        [FromBody] SubmitCityPhotoBatchRequest request)
     {
         try
         {
@@ -140,8 +140,8 @@ public class UserCityContentController : ControllerBase
     }
 
     /// <summary>
-    /// 获取城市的所有照片
-    /// GET /api/v1/cities/{cityId}/user-content/photos?onlyMine=false
+    ///     获取城市的所有照片
+    ///     GET /api/v1/cities/{cityId}/user-content/photos?onlyMine=false
     /// </summary>
     [HttpGet("photos")]
     [AllowAnonymous]
@@ -152,10 +152,7 @@ public class UserCityContentController : ControllerBase
         try
         {
             Guid? userId = null;
-            if (onlyMine)
-            {
-                userId = GetUserId();
-            }
+            if (onlyMine) userId = GetUserId();
 
             var photos = await _contentService.GetCityPhotosAsync(cityId, userId);
 
@@ -179,8 +176,8 @@ public class UserCityContentController : ControllerBase
     }
 
     /// <summary>
-    /// 删除照片
-    /// DELETE /api/v1/cities/{cityId}/user-content/photos/{photoId}
+    ///     删除照片
+    ///     DELETE /api/v1/cities/{cityId}/user-content/photos/{photoId}
     /// </summary>
     [HttpDelete("photos/{photoId}")]
     public async Task<ActionResult<ApiResponse<object>>> DeletePhoto(string cityId, Guid photoId)
@@ -191,13 +188,11 @@ public class UserCityContentController : ControllerBase
             var deleted = await _contentService.DeletePhotoAsync(userId, photoId);
 
             if (!deleted)
-            {
                 return NotFound(new ApiResponse<object>
                 {
                     Success = false,
                     Message = "照片不存在或无权删除"
                 });
-            }
 
             return Ok(new ApiResponse<object>
             {
@@ -232,11 +227,12 @@ public class UserCityContentController : ControllerBase
     #region 费用 API
 
     /// <summary>
-    /// 添加城市费用
-    /// POST /api/v1/cities/{cityId}/user-content/expenses
+    ///     添加城市费用
+    ///     POST /api/v1/cities/{cityId}/user-content/expenses
     /// </summary>
     [HttpPost("expenses")]
-    public async Task<ActionResult<ApiResponse<UserCityExpenseDto>>> AddExpense(string cityId, [FromBody] AddCityExpenseRequest request)
+    public async Task<ActionResult<ApiResponse<UserCityExpenseDto>>> AddExpense(string cityId,
+        [FromBody] AddCityExpenseRequest request)
     {
         try
         {
@@ -278,8 +274,8 @@ public class UserCityContentController : ControllerBase
     }
 
     /// <summary>
-    /// 获取城市的所有费用
-    /// GET /api/v1/cities/{cityId}/user-content/expenses?onlyMine=false
+    ///     获取城市的所有费用
+    ///     GET /api/v1/cities/{cityId}/user-content/expenses?onlyMine=false
     /// </summary>
     [HttpGet("expenses")]
     [AllowAnonymous]
@@ -290,10 +286,7 @@ public class UserCityContentController : ControllerBase
         try
         {
             Guid? userId = null;
-            if (onlyMine)
-            {
-                userId = GetUserId();
-            }
+            if (onlyMine) userId = GetUserId();
 
             var expenses = await _contentService.GetCityExpensesAsync(cityId, userId);
 
@@ -317,8 +310,8 @@ public class UserCityContentController : ControllerBase
     }
 
     /// <summary>
-    /// 删除费用
-    /// DELETE /api/v1/cities/{cityId}/user-content/expenses/{expenseId}
+    ///     删除费用
+    ///     DELETE /api/v1/cities/{cityId}/user-content/expenses/{expenseId}
     /// </summary>
     [HttpDelete("expenses/{expenseId}")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteExpense(string cityId, Guid expenseId)
@@ -329,13 +322,11 @@ public class UserCityContentController : ControllerBase
             var deleted = await _contentService.DeleteExpenseAsync(userId, expenseId);
 
             if (!deleted)
-            {
                 return NotFound(new ApiResponse<object>
                 {
                     Success = false,
                     Message = "费用不存在或无权删除"
                 });
-            }
 
             return Ok(new ApiResponse<object>
             {
@@ -370,11 +361,12 @@ public class UserCityContentController : ControllerBase
     #region 评论 API
 
     /// <summary>
-    /// 创建评论 (每次都新增一条记录)
-    /// POST /api/v1/cities/{cityId}/user-content/reviews
+    ///     创建评论 (每次都新增一条记录)
+    ///     POST /api/v1/cities/{cityId}/user-content/reviews
     /// </summary>
     [HttpPost("reviews")]
-    public async Task<ActionResult<ApiResponse<UserCityReviewDto>>> CreateReview(string cityId, [FromBody] UpsertCityReviewRequest request)
+    public async Task<ActionResult<ApiResponse<UserCityReviewDto>>> CreateReview(string cityId,
+        [FromBody] UpsertCityReviewRequest request)
     {
         try
         {
@@ -413,8 +405,8 @@ public class UserCityContentController : ControllerBase
     }
 
     /// <summary>
-    /// 获取城市的所有评论
-    /// GET /api/v1/cities/{cityId}/user-content/reviews
+    ///     获取城市的所有评论
+    ///     GET /api/v1/cities/{cityId}/user-content/reviews
     /// </summary>
     [HttpGet("reviews")]
     [AllowAnonymous]
@@ -444,8 +436,8 @@ public class UserCityContentController : ControllerBase
     }
 
     /// <summary>
-    /// 删除评论
-    /// DELETE /api/v1/cities/{cityId}/user-content/reviews/{reviewId}
+    ///     删除评论
+    ///     DELETE /api/v1/cities/{cityId}/user-content/reviews/{reviewId}
     /// </summary>
     [HttpDelete("reviews/{reviewId}")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteReview(string cityId, [FromRoute] Guid reviewId)
@@ -456,13 +448,11 @@ public class UserCityContentController : ControllerBase
             var deleted = await _contentService.DeleteReviewAsync(userId, reviewId);
 
             if (!deleted)
-            {
                 return NotFound(new ApiResponse<object>
                 {
                     Success = false,
                     Message = "评论不存在"
                 });
-            }
 
             return Ok(new ApiResponse<object>
             {
@@ -497,8 +487,8 @@ public class UserCityContentController : ControllerBase
     #region 统计 API
 
     /// <summary>
-    /// 获取城市内容统计
-    /// GET /api/v1/cities/{cityId}/user-content/stats
+    ///     获取城市内容统计
+    ///     GET /api/v1/cities/{cityId}/user-content/stats
     /// </summary>
     [HttpGet("stats")]
     [AllowAnonymous]
@@ -528,8 +518,8 @@ public class UserCityContentController : ControllerBase
     }
 
     /// <summary>
-    /// 获取城市综合费用统计 - 基于用户提交的实际费用数据
-    /// GET /api/v1/cities/{cityId}/user-content/cost-summary
+    ///     获取城市综合费用统计 - 基于用户提交的实际费用数据
+    ///     GET /api/v1/cities/{cityId}/user-content/cost-summary
     /// </summary>
     [HttpGet("cost-summary")]
     [AllowAnonymous]
@@ -563,12 +553,12 @@ public class UserCityContentController : ControllerBase
     #region Pros & Cons API
 
     /// <summary>
-    /// 添加 Pros & Cons
-    /// POST /api/v1/cities/{cityId}/user-content/pros-cons
+    ///     添加 Pros & Cons
+    ///     POST /api/v1/cities/{cityId}/user-content/pros-cons
     /// </summary>
     [HttpPost("pros-cons")]
     public async Task<ActionResult<ApiResponse<CityProsConsDto>>> AddProsCons(
-        string cityId, 
+        string cityId,
         [FromBody] AddCityProsConsRequest request)
     {
         try
@@ -611,8 +601,8 @@ public class UserCityContentController : ControllerBase
     }
 
     /// <summary>
-    /// 获取城市的 Pros & Cons
-    /// GET /api/v1/cities/{cityId}/user-content/pros-cons?isPro=true
+    ///     获取城市的 Pros & Cons
+    ///     GET /api/v1/cities/{cityId}/user-content/pros-cons?isPro=true
     /// </summary>
     [HttpGet("pros-cons")]
     [AllowAnonymous]
@@ -644,8 +634,8 @@ public class UserCityContentController : ControllerBase
     }
 
     /// <summary>
-    /// 更新 Pros & Cons
-    /// PUT /api/v1/cities/{cityId}/user-content/pros-cons/{id}
+    ///     更新 Pros & Cons
+    ///     PUT /api/v1/cities/{cityId}/user-content/pros-cons/{id}
     /// </summary>
     [HttpPut("pros-cons/{id}")]
     public async Task<ActionResult<ApiResponse<CityProsConsDto>>> UpdateProsCons(
@@ -688,8 +678,8 @@ public class UserCityContentController : ControllerBase
     }
 
     /// <summary>
-    /// 删除 Pros & Cons
-    /// DELETE /api/v1/cities/{cityId}/user-content/pros-cons/{id}
+    ///     删除 Pros & Cons
+    ///     DELETE /api/v1/cities/{cityId}/user-content/pros-cons/{id}
     /// </summary>
     [HttpDelete("pros-cons/{id}")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteProsCons(string cityId, Guid id)
@@ -700,14 +690,12 @@ public class UserCityContentController : ControllerBase
             var success = await _contentService.DeleteProsConsAsync(userId, id);
 
             if (!success)
-            {
                 return NotFound(new ApiResponse<bool>
                 {
                     Success = false,
                     Message = "记录不存在或您没有权限删除",
                     Data = false
                 });
-            }
 
             return Ok(new ApiResponse<bool>
             {

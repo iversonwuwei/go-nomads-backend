@@ -1,16 +1,17 @@
 using AIService.Domain.Entities;
 using AIService.Domain.Repositories;
-using Supabase;
+using Postgrest;
+using Client = Supabase.Client;
 
 namespace AIService.Infrastructure.Repositories;
 
 /// <summary>
-/// AI 对话仓储实现 (Supabase)
+///     AI 对话仓储实现 (Supabase)
 /// </summary>
 public class AIConversationRepository : IAIConversationRepository
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<AIConversationRepository> _logger;
+    private readonly Client _supabaseClient;
 
     public AIConversationRepository(Client supabaseClient, ILogger<AIConversationRepository> logger)
     {
@@ -27,10 +28,7 @@ public class AIConversationRepository : IAIConversationRepository
                 .Insert(conversation);
 
             var created = response.Models.FirstOrDefault();
-            if (created == null)
-            {
-                throw new InvalidOperationException("创建对话失败");
-            }
+            if (created == null) throw new InvalidOperationException("创建对话失败");
 
             _logger.LogInformation("✅ 成功创建对话，ID: {ConversationId}", created.Id);
             return created;
@@ -61,9 +59,9 @@ public class AIConversationRepository : IAIConversationRepository
     }
 
     public async Task<(List<AIConversation> Conversations, int Total)> GetByUserIdAsync(
-        Guid userId, 
-        string? status = null, 
-        int page = 1, 
+        Guid userId,
+        string? status = null,
+        int page = 1,
         int pageSize = 20)
     {
         try
@@ -73,15 +71,12 @@ public class AIConversationRepository : IAIConversationRepository
                 .Where(c => c.UserId == userId && c.DeletedAt == null);
 
             // 状态过滤
-            if (!string.IsNullOrEmpty(status) && status != "all")
-            {
-                query = query.Where(c => c.Status == status);
-            }
+            if (!string.IsNullOrEmpty(status) && status != "all") query = query.Where(c => c.Status == status);
 
             // 分页
             var offset = (page - 1) * pageSize;
             query = query
-                .Order(c => c.LastMessageAt ?? DateTime.MinValue, Postgrest.Constants.Ordering.Descending)
+                .Order(c => c.LastMessageAt ?? DateTime.MinValue, Constants.Ordering.Descending)
                 .Range(offset, offset + pageSize - 1);
 
             var response = await query.Get();
@@ -93,9 +88,7 @@ public class AIConversationRepository : IAIConversationRepository
                 .Where(c => c.UserId == userId && c.DeletedAt == null);
 
             if (!string.IsNullOrEmpty(status) && status != "all")
-            {
                 totalQuery = totalQuery.Where(c => c.Status == status);
-            }
 
             var totalResponse = await totalQuery.Get();
             var total = totalResponse.Models?.Count ?? 0;
@@ -121,10 +114,7 @@ public class AIConversationRepository : IAIConversationRepository
                 .Update(conversation);
 
             var updated = response.Models.FirstOrDefault();
-            if (updated == null)
-            {
-                throw new InvalidOperationException("更新对话失败");
-            }
+            if (updated == null) throw new InvalidOperationException("更新对话失败");
 
             _logger.LogInformation("✅ 成功更新对话，ID: {ConversationId}", conversation.Id);
             return updated;
@@ -186,7 +176,8 @@ public class AIConversationRepository : IAIConversationRepository
         }
     }
 
-    public async Task<(int TotalConversations, int ActiveConversations, int TotalMessages)> GetUserStatsAsync(Guid userId)
+    public async Task<(int TotalConversations, int ActiveConversations, int TotalMessages)>
+        GetUserStatsAsync(Guid userId)
     {
         try
         {

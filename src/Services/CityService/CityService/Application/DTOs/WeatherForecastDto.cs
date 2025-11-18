@@ -1,10 +1,7 @@
-using System;
-using System.Collections.Generic;
-
 namespace CityService.Application.DTOs;
 
 /// <summary>
-/// 未来几日的天气预报信息。
+///     未来几日的天气预报信息。
 /// </summary>
 public class WeatherForecastDto
 {
@@ -17,7 +14,7 @@ public class WeatherForecastDto
 }
 
 /// <summary>
-/// 单日天气预报细节。
+///     单日天气预报细节。
 /// </summary>
 public class DailyForecastDto
 {

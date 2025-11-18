@@ -1,7 +1,7 @@
 namespace CityService.Application.DTOs;
 
 /// <summary>
-/// 数字游民指南DTO
+///     数字游民指南DTO
 /// </summary>
 public class DigitalNomadGuideDto
 {
@@ -19,7 +19,7 @@ public class DigitalNomadGuideDto
 }
 
 /// <summary>
-/// 签证信息DTO
+///     签证信息DTO
 /// </summary>
 public class VisaInfoDto
 {
@@ -31,7 +31,7 @@ public class VisaInfoDto
 }
 
 /// <summary>
-/// 最佳区域DTO
+///     最佳区域DTO
 /// </summary>
 public class BestAreaDto
 {
@@ -48,7 +48,7 @@ public class BestAreaDto
 }
 
 /// <summary>
-/// 保存指南请求DTO
+///     保存指南请求DTO
 /// </summary>
 public class SaveDigitalNomadGuideRequest
 {

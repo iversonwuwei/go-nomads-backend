@@ -1,18 +1,19 @@
-using Microsoft.Extensions.Logging;
+using System.Reflection;
+using Postgrest;
 using Postgrest.Models;
-using Supabase;
+using Client = Supabase.Client;
 
 namespace Shared.Repositories;
 
 /// <summary>
-/// Supabase Repository 基类
-/// 提供通用的 CRUD 操作
+///     Supabase Repository 基类
+///     提供通用的 CRUD 操作
 /// </summary>
 /// <typeparam name="T">实体类型，必须继承自 BaseModel</typeparam>
 public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
 {
-    protected readonly Client SupabaseClient;
     protected readonly ILogger Logger;
+    protected readonly Client SupabaseClient;
 
     protected SupabaseRepositoryBase(Client supabaseClient, ILogger logger)
     {
@@ -21,7 +22,7 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
     }
 
     /// <summary>
-    /// 获取所有记录
+    ///     获取所有记录
     /// </summary>
     public virtual async Task<IEnumerable<T>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -44,7 +45,7 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
     }
 
     /// <summary>
-    /// 获取分页记录
+    ///     获取分页记录
     /// </summary>
     public virtual async Task<(IEnumerable<T> Items, int TotalCount)> GetPagedAsync(
         int page,
@@ -82,9 +83,10 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
     }
 
     /// <summary>
-    /// 根据 ID 获取记录
+    ///     根据 ID 获取记录
     /// </summary>
-    public virtual async Task<T?> GetByIdAsync(string id, string idColumn = "id", CancellationToken cancellationToken = default)
+    public virtual async Task<T?> GetByIdAsync(string id, string idColumn = "id",
+        CancellationToken cancellationToken = default)
     {
         Logger.LogInformation("Fetching record by ID: {Id}", id);
 
@@ -95,13 +97,11 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
                 .Get(cancellationToken);
 
             // 使用反射查找匹配的记录（不区分大小写）
-            var property = typeof(T).GetProperty(idColumn, System.Reflection.BindingFlags.IgnoreCase | 
-                                                           System.Reflection.BindingFlags.Public | 
-                                                           System.Reflection.BindingFlags.Instance);
+            var property = typeof(T).GetProperty(idColumn, BindingFlags.IgnoreCase |
+                                                           BindingFlags.Public |
+                                                           BindingFlags.Instance);
             if (property == null)
-            {
                 throw new InvalidOperationException($"Property '{idColumn}' not found on type {typeof(T).Name}");
-            }
 
             var match = allRecords.Models.FirstOrDefault(entity =>
             {
@@ -119,7 +119,7 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
     }
 
     /// <summary>
-    /// 插入记录
+    ///     插入记录
     /// </summary>
     public virtual async Task<T> InsertAsync(T entity, CancellationToken cancellationToken = default)
     {
@@ -132,10 +132,7 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
                 .Insert(new List<T> { entity });
 
             var inserted = response.Models.FirstOrDefault();
-            if (inserted == null)
-            {
-                throw new InvalidOperationException("Failed to insert record");
-            }
+            if (inserted == null) throw new InvalidOperationException("Failed to insert record");
 
             Logger.LogInformation("Successfully inserted record");
             return inserted;
@@ -148,9 +145,10 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
     }
 
     /// <summary>
-    /// 批量插入记录
+    ///     批量插入记录
     /// </summary>
-    public virtual async Task<IEnumerable<T>> InsertManyAsync(IEnumerable<T> entities, CancellationToken cancellationToken = default)
+    public virtual async Task<IEnumerable<T>> InsertManyAsync(IEnumerable<T> entities,
+        CancellationToken cancellationToken = default)
     {
         Logger.LogInformation("Inserting {Count} records of type {Type}", entities.Count(), typeof(T).Name);
 
@@ -171,9 +169,10 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
     }
 
     /// <summary>
-    /// 更新记录
+    ///     更新记录
     /// </summary>
-    public virtual async Task<T> UpdateAsync(T entity, string id, string idColumn = "id", CancellationToken cancellationToken = default)
+    public virtual async Task<T> UpdateAsync(T entity, string id, string idColumn = "id",
+        CancellationToken cancellationToken = default)
     {
         Logger.LogInformation("Updating record by ID: {Id}", id);
 
@@ -181,10 +180,7 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
         {
             // 先检查记录是否存在
             var existing = await GetByIdAsync(id, idColumn, cancellationToken);
-            if (existing == null)
-            {
-                throw new InvalidOperationException($"Record with ID {id} not found");
-            }
+            if (existing == null) throw new InvalidOperationException($"Record with ID {id} not found");
 
             // 使用 Upsert 更新记录
             var response = await SupabaseClient
@@ -192,9 +188,7 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
                 .Update(entity);
 
             if (response.Models.Count == 0)
-            {
                 throw new InvalidOperationException("Update operation did not return any records");
-            }
 
             Logger.LogInformation("Successfully updated record: {Id}", id);
             return response.Models.First();
@@ -207,9 +201,10 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
     }
 
     /// <summary>
-    /// 删除记录
+    ///     删除记录
     /// </summary>
-    public virtual async Task<bool> DeleteAsync(string id, string idColumn = "id", CancellationToken cancellationToken = default)
+    public virtual async Task<bool> DeleteAsync(string id, string idColumn = "id",
+        CancellationToken cancellationToken = default)
     {
         Logger.LogInformation("Deleting record by ID: {Id}", id);
 
@@ -226,7 +221,7 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
             // 使用 Filter 筛选要删除的记录
             await SupabaseClient
                 .From<T>()
-                .Filter(idColumn, Postgrest.Constants.Operator.Equals, id)
+                .Filter(idColumn, Constants.Operator.Equals, id)
                 .Delete();
 
             Logger.LogInformation("Successfully deleted record: {Id}", id);
@@ -240,9 +235,10 @@ public abstract class SupabaseRepositoryBase<T> where T : BaseModel, new()
     }
 
     /// <summary>
-    /// 检查记录是否存在
+    ///     检查记录是否存在
     /// </summary>
-    public virtual async Task<bool> ExistsAsync(string id, string idColumn = "id", CancellationToken cancellationToken = default)
+    public virtual async Task<bool> ExistsAsync(string id, string idColumn = "id",
+        CancellationToken cancellationToken = default)
     {
         Logger.LogInformation("Checking if record exists: {Id}", id);
 

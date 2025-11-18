@@ -1,7 +1,7 @@
 namespace CityService.Domain.Entities;
 
 /// <summary>
-/// 用户收藏城市实体
+///     用户收藏城市实体
 /// </summary>
 public class UserFavoriteCity
 {

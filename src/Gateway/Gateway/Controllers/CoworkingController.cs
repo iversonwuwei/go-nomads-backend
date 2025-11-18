@@ -1,19 +1,19 @@
-using Microsoft.AspNetCore.Mvc;
 using Dapr.Client;
 using Gateway.DTOs;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Gateway.Controllers;
 
 /// <summary>
-/// Coworking 空间控制器 - Gateway 代理层
+///     Coworking 空间控制器 - Gateway 代理层
 /// </summary>
 [ApiController]
 [Route("api/v1/coworking")]
 public class CoworkingController : ControllerBase
 {
+    private const string CoworkingServiceAppId = "coworking-service";
     private readonly DaprClient _daprClient;
     private readonly ILogger<CoworkingController> _logger;
-    private const string CoworkingServiceAppId = "coworking-service";
 
     public CoworkingController(DaprClient daprClient, ILogger<CoworkingController> logger)
     {
@@ -22,7 +22,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 根据城市ID获取 Coworking 空间列表（分页）
+    ///     根据城市ID获取 Coworking 空间列表（分页）
     /// </summary>
     /// <param name="cityId">城市ID</param>
     /// <param name="page">页码</param>
@@ -50,7 +50,7 @@ public class CoworkingController : ControllerBase
             if (response?.Success != true)
             {
                 _logger.LogWarning(
-                    "CoworkingService 返回非成功结果: {Message}", 
+                    "CoworkingService 返回非成功结果: {Message}",
                     response?.Message ?? "Unknown");
                 return StatusCode(500, response);
             }
@@ -71,7 +71,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 获取所有 Coworking 空间列表（分页）
+    ///     获取所有 Coworking 空间列表（分页）
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
@@ -83,10 +83,7 @@ public class CoworkingController : ControllerBase
         try
         {
             var queryParams = $"page={page}&pageSize={pageSize}";
-            if (!string.IsNullOrEmpty(cityId))
-            {
-                queryParams += $"&cityId={cityId}";
-            }
+            if (!string.IsNullOrEmpty(cityId)) queryParams += $"&cityId={cityId}";
 
             var response = await _daprClient.InvokeMethodAsync<ApiResponse<object>>(
                 HttpMethod.Get,
@@ -105,7 +102,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 根据ID获取单个 Coworking 空间
+    ///     根据ID获取单个 Coworking 空间
     /// </summary>
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
@@ -119,10 +116,7 @@ public class CoworkingController : ControllerBase
                 CoworkingServiceAppId,
                 $"api/v1/coworking/{id}");
 
-            if (response?.Success != true)
-            {
-                return NotFound(response);
-            }
+            if (response?.Success != true) return NotFound(response);
 
             return Ok(response);
         }

@@ -1,16 +1,17 @@
-using Supabase;
+using Postgrest;
 using UserService.Domain.Entities;
 using UserService.Domain.Repositories;
+using Client = Supabase.Client;
 
 namespace UserService.Infrastructure.Repositories;
 
 /// <summary>
-/// User 仓储 Supabase 实现
+///     User 仓储 Supabase 实现
 /// </summary>
 public class UserRepository : IUserRepository
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<UserRepository> _logger;
+    private readonly Client _supabaseClient;
 
     public UserRepository(Client supabaseClient, ILogger<UserRepository> logger)
     {
@@ -29,10 +30,7 @@ public class UserRepository : IUserRepository
                 .Insert(user, cancellationToken: cancellationToken);
 
             var createdUser = result.Models.FirstOrDefault();
-            if (createdUser == null)
-            {
-                throw new InvalidOperationException("创建用户失败");
-            }
+            if (createdUser == null) throw new InvalidOperationException("创建用户失败");
 
             _logger.LogInformation("✅ 成功创建用户: {UserId}", createdUser.Id);
             return createdUser;
@@ -96,10 +94,7 @@ public class UserRepository : IUserRepository
                 .Update(user, cancellationToken: cancellationToken);
 
             var updatedUser = response.Models.FirstOrDefault();
-            if (updatedUser == null)
-            {
-                throw new KeyNotFoundException($"用户不存在: {user.Id}");
-            }
+            if (updatedUser == null) throw new KeyNotFoundException($"用户不存在: {user.Id}");
 
             _logger.LogInformation("✅ 成功更新用户: {UserId}", user.Id);
             return updatedUser;
@@ -153,7 +148,7 @@ public class UserRepository : IUserRepository
             // 获取分页数据（Supabase 会在响应头中返回总数）
             var response = await _supabaseClient
                 .From<User>()
-                .Order(u => u.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                .Order(u => u.CreatedAt, Constants.Ordering.Descending)
                 .Range(from, to)
                 .Get();
 
@@ -191,35 +186,37 @@ public class UserRepository : IUserRepository
                 // 同时有搜索词和角色筛选
                 var response = await _supabaseClient
                     .From<User>()
-                    .Filter("name", Postgrest.Constants.Operator.ILike, $"%{searchTerm}%")
-                    .Filter("role", Postgrest.Constants.Operator.Equals, role)
-                    .Order(u => u.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                    .Filter("name", Constants.Operator.ILike, $"%{searchTerm}%")
+                    .Filter("role", Constants.Operator.Equals, role)
+                    .Order(u => u.CreatedAt, Constants.Ordering.Descending)
                     .Range(from, to)
                     .Get(cancellationToken);
 
                 _logger.LogInformation("✅ 搜索到 {Count} 个用户", response.Models.Count);
                 return (response.Models.ToList(), response.Models.Count);
             }
-            else if (!string.IsNullOrWhiteSpace(searchTerm))
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
             {
                 // 只有搜索词（搜索名称）
                 var response = await _supabaseClient
                     .From<User>()
-                    .Filter("name", Postgrest.Constants.Operator.ILike, $"%{searchTerm}%")
-                    .Order(u => u.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                    .Filter("name", Constants.Operator.ILike, $"%{searchTerm}%")
+                    .Order(u => u.CreatedAt, Constants.Ordering.Descending)
                     .Range(from, to)
                     .Get(cancellationToken);
 
                 _logger.LogInformation("✅ 搜索到 {Count} 个用户", response.Models.Count);
                 return (response.Models.ToList(), response.Models.Count);
             }
-            else if (!string.IsNullOrWhiteSpace(role))
+
+            if (!string.IsNullOrWhiteSpace(role))
             {
                 // 只有角色筛选
                 var response = await _supabaseClient
                     .From<User>()
-                    .Filter("role", Postgrest.Constants.Operator.Equals, role)
-                    .Order(u => u.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                    .Filter("role", Constants.Operator.Equals, role)
+                    .Order(u => u.CreatedAt, Constants.Ordering.Descending)
                     .Range(from, to)
                     .Get(cancellationToken);
 
@@ -231,7 +228,7 @@ public class UserRepository : IUserRepository
                 // 无筛选条件，返回所有用户
                 var response = await _supabaseClient
                     .From<User>()
-                    .Order(u => u.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                    .Order(u => u.CreatedAt, Constants.Ordering.Descending)
                     .Range(from, to)
                     .Get(cancellationToken);
 

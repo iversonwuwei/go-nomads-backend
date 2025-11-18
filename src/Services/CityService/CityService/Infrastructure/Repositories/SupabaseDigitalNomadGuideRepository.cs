@@ -1,19 +1,19 @@
-using System.Text.Json;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Microsoft.Extensions.Logging;
+using Postgrest;
 using Shared.Repositories;
-using Supabase;
+using Client = Supabase.Client;
 
 namespace CityService.Infrastructure.Repositories;
 
 /// <summary>
-/// 基于Supabase的数字游民指南Repository实现
+///     基于Supabase的数字游民指南Repository实现
 /// </summary>
-public class SupabaseDigitalNomadGuideRepository : SupabaseRepositoryBase<DigitalNomadGuide>, IDigitalNomadGuideRepository
+public class SupabaseDigitalNomadGuideRepository : SupabaseRepositoryBase<DigitalNomadGuide>,
+    IDigitalNomadGuideRepository
 {
     public SupabaseDigitalNomadGuideRepository(
-        Client supabaseClient, 
+        Client supabaseClient,
         ILogger<SupabaseDigitalNomadGuideRepository> logger)
         : base(supabaseClient, logger)
     {
@@ -28,20 +28,16 @@ public class SupabaseDigitalNomadGuideRepository : SupabaseRepositoryBase<Digita
             var response = await SupabaseClient
                 .From<DigitalNomadGuide>()
                 .Where(x => x.CityId == cityId)
-                .Order("updated_at", Postgrest.Constants.Ordering.Descending)
+                .Order("updated_at", Constants.Ordering.Descending)
                 .Limit(1)
                 .Get();
 
             var guide = response.Models.FirstOrDefault();
-            
+
             if (guide != null)
-            {
                 Logger.LogInformation("✅ 找到指南: guideId={GuideId}, cityName={CityName}", guide.Id, guide.CityName);
-            }
             else
-            {
                 Logger.LogInformation("📭 未找到指南: cityId={CityId}", cityId);
-            }
 
             return guide;
         }
@@ -65,7 +61,7 @@ public class SupabaseDigitalNomadGuideRepository : SupabaseRepositoryBase<Digita
             {
                 // 更新现有记录
                 Logger.LogInformation("🔄 更新现有指南: guideId={GuideId}, cityId={CityId}", existing.Id, guide.CityId);
-                
+
                 guide.Id = existing.Id;
                 guide.CreatedAt = existing.CreatedAt;
 
@@ -80,7 +76,7 @@ public class SupabaseDigitalNomadGuideRepository : SupabaseRepositoryBase<Digita
             {
                 // 插入新记录
                 Logger.LogInformation("➕ 创建新指南: cityId={CityId}, cityName={CityName}", guide.CityId, guide.CityName);
-                
+
                 guide.Id = Guid.NewGuid().ToString();
                 guide.CreatedAt = DateTime.UtcNow;
 

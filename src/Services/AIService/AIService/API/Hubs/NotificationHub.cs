@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.SignalR;
 namespace AIService.API.Hubs;
 
 /// <summary>
-/// SignalR 通知中心
+///     SignalR 通知中心
 /// </summary>
 public class NotificationHub : Hub
 {
@@ -25,18 +25,14 @@ public class NotificationHub : Hub
     {
         var connectionId = Context.ConnectionId;
         if (exception != null)
-        {
             _logger.LogWarning(exception, "⚠️ SignalR 客户端异常断开: {ConnectionId}", connectionId);
-        }
         else
-        {
             _logger.LogInformation("🔌 SignalR 客户端已断开: {ConnectionId}", connectionId);
-        }
         await base.OnDisconnectedAsync(exception);
     }
 
     /// <summary>
-    /// 订阅任务通知
+    ///     订阅任务通知
     /// </summary>
     public async Task SubscribeToTask(string taskId)
     {
@@ -46,7 +42,7 @@ public class NotificationHub : Hub
     }
 
     /// <summary>
-    /// 取消订阅任务通知
+    ///     取消订阅任务通知
     /// </summary>
     public async Task UnsubscribeFromTask(string taskId)
     {
@@ -57,28 +53,28 @@ public class NotificationHub : Hub
 }
 
 /// <summary>
-/// SignalR 通知服务
+///     SignalR 通知服务
 /// </summary>
 public interface INotificationService
 {
     /// <summary>
-    /// 发送任务进度更新
+    ///     发送任务进度更新
     /// </summary>
     Task SendTaskProgressAsync(string taskId, int progress, string? message = null);
 
     /// <summary>
-    /// 发送任务完成通知
+    ///     发送任务完成通知
     /// </summary>
     Task SendTaskCompletedAsync(string taskId, string? planId = null, string? guideId = null, object? result = null);
 
     /// <summary>
-    /// 发送任务失败通知
+    ///     发送任务失败通知
     /// </summary>
     Task SendTaskFailedAsync(string taskId, string error);
 }
 
 /// <summary>
-/// SignalR 通知服务实现
+///     SignalR 通知服务实现
 /// </summary>
 public class NotificationService : INotificationService
 {
@@ -99,9 +95,9 @@ public class NotificationService : INotificationService
         var now = DateTime.UtcNow;
         await _hubContext.Clients.Group(groupName).SendAsync("TaskProgress", new
         {
-            taskId = taskId,
+            taskId,
             status = "processing",
-            progress = progress,
+            progress,
             progressMessage = message,
             createdAt = now.ToString("o"),
             updatedAt = now.ToString("o")
@@ -109,7 +105,8 @@ public class NotificationService : INotificationService
         _logger.LogInformation("📊 任务进度通知已发送: {TaskId} - {Progress}%", taskId, progress);
     }
 
-    public async Task SendTaskCompletedAsync(string taskId, string? planId = null, string? guideId = null, object? result = null)
+    public async Task SendTaskCompletedAsync(string taskId, string? planId = null, string? guideId = null,
+        object? result = null)
     {
         var groupName = $"task_{taskId}";
         var now = DateTime.UtcNow;
@@ -128,10 +125,7 @@ public class NotificationService : INotificationService
         };
 
         // 如果有 result 数据，添加到 payload 中
-        if (result != null)
-        {
-            payload["result"] = result;
-        }
+        if (result != null) payload["result"] = result;
 
         await _hubContext.Clients.Group(groupName).SendAsync("TaskCompleted", payload);
         _logger.LogInformation("✅ 任务完成通知已发送: {TaskId} - PlanId: {PlanId}, GuideId: {GuideId}", taskId, planId, guideId);
@@ -143,9 +137,9 @@ public class NotificationService : INotificationService
         var now = DateTime.UtcNow;
         await _hubContext.Clients.Group(groupName).SendAsync("TaskFailed", new
         {
-            taskId = taskId,
+            taskId,
             status = "failed",
-            error = error,
+            error,
             progress = 0,
             progressMessage = "任务失败",
             createdAt = now.ToString("o"),

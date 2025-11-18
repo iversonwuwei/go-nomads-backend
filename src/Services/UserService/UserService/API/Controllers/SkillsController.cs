@@ -1,20 +1,20 @@
-using Microsoft.AspNetCore.Mvc;
-using GoNomads.Shared.Models;
 using GoNomads.Shared.Middleware;
+using GoNomads.Shared.Models;
+using Microsoft.AspNetCore.Mvc;
 using UserService.Application.DTOs;
 using UserService.Application.Services;
 
 namespace UserService.API.Controllers;
 
 /// <summary>
-/// 技能 API - RESTful endpoints for skills management
+///     技能 API - RESTful endpoints for skills management
 /// </summary>
 [ApiController]
 [Route("api/v1/skills")]
 public class SkillsController : ControllerBase
 {
-    private readonly ISkillService _skillService;
     private readonly ILogger<SkillsController> _logger;
+    private readonly ISkillService _skillService;
 
     public SkillsController(ISkillService skillService, ILogger<SkillsController> logger)
     {
@@ -23,10 +23,11 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取所有技能
+    ///     获取所有技能
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<List<SkillDto>>>> GetAllSkills(CancellationToken cancellationToken = default)
+    public async Task<ActionResult<ApiResponse<List<SkillDto>>>> GetAllSkills(
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("📋 获取所有技能");
 
@@ -53,7 +54,7 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取按类别分组的技能
+    ///     获取按类别分组的技能
     /// </summary>
     [HttpGet("by-category")]
     public async Task<ActionResult<ApiResponse<List<SkillsByCategoryDto>>>> GetSkillsByCategory(
@@ -84,7 +85,7 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// 根据类别获取技能
+    ///     根据类别获取技能
     /// </summary>
     [HttpGet("category/{category}")]
     public async Task<ActionResult<ApiResponse<List<SkillDto>>>> GetSkillsBySpecificCategory(
@@ -116,7 +117,7 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// 根据ID获取技能
+    ///     根据ID获取技能
     /// </summary>
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<SkillDto>>> GetSkill(
@@ -130,13 +131,11 @@ public class SkillsController : ControllerBase
             var skill = await _skillService.GetSkillByIdAsync(id, cancellationToken);
 
             if (skill == null)
-            {
                 return NotFound(new ApiResponse<SkillDto>
                 {
                     Success = false,
                     Message = "Skill not found"
                 });
-            }
 
             return Ok(new ApiResponse<SkillDto>
             {
@@ -157,7 +156,7 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取用户的所有技能
+    ///     获取用户的所有技能
     /// </summary>
     [HttpGet("users/{userId}")]
     public async Task<ActionResult<ApiResponse<List<UserSkillDto>>>> GetUserSkills(
@@ -189,7 +188,7 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取当前用户的所有技能（使用 UserContext）
+    ///     获取当前用户的所有技能（使用 UserContext）
     /// </summary>
     [HttpGet("me")]
     public async Task<ActionResult<ApiResponse<List<UserSkillDto>>>> GetCurrentUserSkills(
@@ -197,13 +196,11 @@ public class SkillsController : ControllerBase
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true)
-        {
             return Unauthorized(new ApiResponse<List<UserSkillDto>>
             {
                 Success = false,
                 Message = "未认证用户"
             });
-        }
 
         _logger.LogInformation("📋 获取当前用户技能: {UserId}", userContext.UserId);
 
@@ -230,7 +227,7 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// 添加用户技能
+    ///     添加用户技能
     /// </summary>
     [HttpPost("users/{userId}")]
     public async Task<ActionResult<ApiResponse<UserSkillDto>>> AddUserSkill(
@@ -276,7 +273,7 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// 添加当前用户技能（使用 UserContext）
+    ///     添加当前用户技能（使用 UserContext）
     /// </summary>
     [HttpPost("me")]
     public async Task<ActionResult<ApiResponse<UserSkillDto>>> AddCurrentUserSkill(
@@ -285,13 +282,11 @@ public class SkillsController : ControllerBase
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true)
-        {
             return Unauthorized(new ApiResponse<UserSkillDto>
             {
                 Success = false,
                 Message = "未认证用户"
             });
-        }
 
         _logger.LogInformation("➕ 添加当前用户技能: UserId={UserId}, SkillId={SkillId}", userContext.UserId, request.SkillId);
 
@@ -321,7 +316,8 @@ public class SkillsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ 添加当前用户技能失败: UserId={UserId}, SkillId={SkillId}", userContext.UserId, request.SkillId);
+            _logger.LogError(ex, "❌ 添加当前用户技能失败: UserId={UserId}, SkillId={SkillId}", userContext.UserId,
+                request.SkillId);
             return StatusCode(500, new ApiResponse<UserSkillDto>
             {
                 Success = false,
@@ -331,7 +327,7 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// 批量添加当前用户技能（使用 UserContext）
+    ///     批量添加当前用户技能（使用 UserContext）
     /// </summary>
     [HttpPost("me/batch")]
     public async Task<ActionResult<ApiResponse<List<UserSkillDto>>>> AddCurrentUserSkillsBatch(
@@ -340,13 +336,11 @@ public class SkillsController : ControllerBase
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true)
-        {
             return Unauthorized(new ApiResponse<List<UserSkillDto>>
             {
                 Success = false,
                 Message = "未认证用户"
             });
-        }
 
         _logger.LogInformation("➕ 批量添加当前用户技能: UserId={UserId}, Count={Count}", userContext.UserId, request.Count);
 
@@ -373,7 +367,7 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// 批量添加用户技能
+    ///     批量添加用户技能
     /// </summary>
     [HttpPost("users/{userId}/batch")]
     public async Task<ActionResult<ApiResponse<List<UserSkillDto>>>> AddUserSkillsBatch(
@@ -406,7 +400,7 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// 删除当前用户技能（使用 UserContext）
+    ///     删除当前用户技能（使用 UserContext）
     /// </summary>
     [HttpDelete("me/{skillId}")]
     public async Task<ActionResult<ApiResponse<object>>> RemoveCurrentUserSkill(
@@ -415,13 +409,11 @@ public class SkillsController : ControllerBase
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true)
-        {
             return Unauthorized(new ApiResponse<object>
             {
                 Success = false,
                 Message = "未认证用户"
             });
-        }
 
         _logger.LogInformation("➖ 删除当前用户技能: UserId={UserId}, SkillId={SkillId}", userContext.UserId, skillId);
 
@@ -430,13 +422,11 @@ public class SkillsController : ControllerBase
             var result = await _skillService.RemoveUserSkillAsync(userContext.UserId!, skillId, cancellationToken);
 
             if (!result)
-            {
                 return NotFound(new ApiResponse<object>
                 {
                     Success = false,
                     Message = "User skill not found"
                 });
-            }
 
             return Ok(new ApiResponse<object>
             {
@@ -456,7 +446,7 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// 删除用户技能
+    ///     删除用户技能
     /// </summary>
     [HttpDelete("users/{userId}/{skillId}")]
     public async Task<ActionResult<ApiResponse<object>>> RemoveUserSkill(
@@ -471,13 +461,11 @@ public class SkillsController : ControllerBase
             var result = await _skillService.RemoveUserSkillAsync(userId, skillId, cancellationToken);
 
             if (!result)
-            {
                 return NotFound(new ApiResponse<object>
                 {
                     Success = false,
                     Message = "User skill not found"
                 });
-            }
 
             return Ok(new ApiResponse<object>
             {
@@ -497,7 +485,7 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// 更新当前用户技能（使用 UserContext）
+    ///     更新当前用户技能（使用 UserContext）
     /// </summary>
     [HttpPut("me/{skillId}")]
     public async Task<ActionResult<ApiResponse<UserSkillDto>>> UpdateCurrentUserSkill(
@@ -507,13 +495,11 @@ public class SkillsController : ControllerBase
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true)
-        {
             return Unauthorized(new ApiResponse<UserSkillDto>
             {
                 Success = false,
                 Message = "未认证用户"
             });
-        }
 
         _logger.LogInformation("✏️ 更新当前用户技能: UserId={UserId}, SkillId={SkillId}", userContext.UserId, skillId);
 
@@ -553,7 +539,7 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// 更新用户技能
+    ///     更新用户技能
     /// </summary>
     [HttpPut("users/{userId}/{skillId}")]
     public async Task<ActionResult<ApiResponse<UserSkillDto>>> UpdateUserSkill(

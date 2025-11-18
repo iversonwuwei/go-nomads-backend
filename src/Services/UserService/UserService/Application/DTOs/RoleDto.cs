@@ -1,7 +1,7 @@
 namespace UserService.Application.DTOs;
 
 /// <summary>
-/// 角色 DTO
+///     角色 DTO
 /// </summary>
 public class RoleDto
 {

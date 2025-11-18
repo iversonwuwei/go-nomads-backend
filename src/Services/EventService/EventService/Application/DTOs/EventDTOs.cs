@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace EventService.Application.DTOs;
 
 /// <summary>
-/// 创建 Meetup/Event 请求 DTO
+///     创建 Meetup/Event 请求 DTO
 /// </summary>
 public class CreateEventRequest
 {
@@ -17,8 +17,7 @@ public class CreateEventRequest
 
     public Guid? CityId { get; set; }
 
-    [MaxLength(200)]
-    public string? Location { get; set; }
+    [MaxLength(200)] public string? Location { get; set; }
 
     public string? Address { get; set; }
 
@@ -26,19 +25,16 @@ public class CreateEventRequest
 
     public List<string>? Images { get; set; }
 
-    [MaxLength(50)]
-    public string? Category { get; set; }
+    [MaxLength(50)] public string? Category { get; set; }
 
-    [Required(ErrorMessage = "开始时间不能为空")]
-    public DateTime StartTime { get; set; }
+    [Required(ErrorMessage = "开始时间不能为空")] public DateTime StartTime { get; set; }
 
     public DateTime? EndTime { get; set; }
 
     [Range(1, 10000, ErrorMessage = "最大参与人数必须在1-10000之间")]
     public int? MaxParticipants { get; set; }
 
-    [MaxLength(20)]
-    public string LocationType { get; set; } = "physical"; // physical, online, hybrid
+    [MaxLength(20)] public string LocationType { get; set; } = "physical"; // physical, online, hybrid
 
     public string? MeetingLink { get; set; }
 
@@ -50,20 +46,17 @@ public class CreateEventRequest
 }
 
 /// <summary>
-/// 更新 Meetup/Event 请求 DTO
+///     更新 Meetup/Event 请求 DTO
 /// </summary>
 public class UpdateEventRequest
 {
-    [MaxLength(200)]
-    public string? Title { get; set; }
+    [MaxLength(200)] public string? Title { get; set; }
 
-    [MaxLength(2000)]
-    public string? Description { get; set; }
+    [MaxLength(2000)] public string? Description { get; set; }
 
     public Guid? CityId { get; set; }
 
-    [MaxLength(200)]
-    public string? Location { get; set; }
+    [MaxLength(200)] public string? Location { get; set; }
 
     public string? Address { get; set; }
 
@@ -71,21 +64,17 @@ public class UpdateEventRequest
 
     public List<string>? Images { get; set; }
 
-    [MaxLength(50)]
-    public string? Category { get; set; }
+    [MaxLength(50)] public string? Category { get; set; }
 
     public DateTime? StartTime { get; set; }
 
     public DateTime? EndTime { get; set; }
 
-    [Range(1, 10000)]
-    public int? MaxParticipants { get; set; }
+    [Range(1, 10000)] public int? MaxParticipants { get; set; }
 
-    [MaxLength(20)]
-    public string? Status { get; set; }
+    [MaxLength(20)] public string? Status { get; set; }
 
-    [MaxLength(20)]
-    public string? LocationType { get; set; }
+    [MaxLength(20)] public string? LocationType { get; set; }
 
     public string? MeetingLink { get; set; }
 
@@ -97,7 +86,7 @@ public class UpdateEventRequest
 }
 
 /// <summary>
-/// Event 响应 DTO
+///     Event 响应 DTO
 /// </summary>
 public class EventResponse
 {
@@ -114,10 +103,9 @@ public class EventResponse
     public DateTime StartTime { get; set; }
     public DateTime? EndTime { get; set; }
     public int? MaxParticipants { get; set; }
-    
-    [JsonPropertyName("participantCount")]
-    public int CurrentParticipants { get; set; }
-    
+
+    [JsonPropertyName("participantCount")] public int CurrentParticipants { get; set; }
+
     public string Status { get; set; } = "upcoming";
     public string LocationType { get; set; } = "physical";
     public string? MeetingLink { get; set; }
@@ -135,19 +123,16 @@ public class EventResponse
     public int FollowerCount { get; set; }
 
     // 从其他服务获取的关联数据
-    [JsonInclude]
-    public CityInfo? City { get; set; }
+    [JsonInclude] public CityInfo? City { get; set; }
 
-    [JsonInclude]
-    public OrganizerInfo? Organizer { get; set; }
+    [JsonInclude] public OrganizerInfo? Organizer { get; set; }
 
     // 参与者列表
-    [JsonInclude]
-    public List<ParticipantResponse>? Participants { get; set; }
+    [JsonInclude] public List<ParticipantResponse>? Participants { get; set; }
 }
 
 /// <summary>
-/// 城市信息（从 CityService 获取）
+///     城市信息（从 CityService 获取）
 /// </summary>
 public class CityInfo
 {
@@ -160,7 +145,7 @@ public class CityInfo
 }
 
 /// <summary>
-/// 组织者信息（从 UserService 获取）
+///     组织者信息（从 UserService 获取）
 /// </summary>
 public class OrganizerInfo
 {
@@ -170,14 +155,14 @@ public class OrganizerInfo
 }
 
 /// <summary>
-/// 参加 Meetup 请求 DTO
+///     参加 Meetup 请求 DTO
 /// </summary>
 public class JoinEventRequest
 {
 }
 
 /// <summary>
-/// 关注 Meetup 请求 DTO
+///     关注 Meetup 请求 DTO
 /// </summary>
 public class FollowEventRequest
 {
@@ -185,7 +170,7 @@ public class FollowEventRequest
 }
 
 /// <summary>
-/// 参与者响应 DTO
+///     参与者响应 DTO
 /// </summary>
 public class ParticipantResponse
 {
@@ -194,14 +179,13 @@ public class ParticipantResponse
     public Guid UserId { get; set; }
     public string Status { get; set; } = "registered";
     public DateTime RegisteredAt { get; set; }
-    
+
     // 用户详细信息
-    [JsonInclude]
-    public UserInfo? User { get; set; }
+    [JsonInclude] public UserInfo? User { get; set; }
 }
 
 /// <summary>
-/// 用户信息（从 UserService 获取）
+///     用户信息（从 UserService 获取）
 /// </summary>
 public class UserInfo
 {
@@ -213,7 +197,7 @@ public class UserInfo
 }
 
 /// <summary>
-/// 关注者响应 DTO
+///     关注者响应 DTO
 /// </summary>
 public class FollowerResponse
 {

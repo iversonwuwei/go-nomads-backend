@@ -2,15 +2,16 @@
 -- 创建时间: 2025-10-28
 
 -- 1. 创建 AI 对话表
-CREATE TABLE IF NOT EXISTS ai_conversations (
+CREATE TABLE IF NOT EXISTS ai_conversations
+(
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title VARCHAR(200) NOT NULL,
+    title          VARCHAR(200) NOT NULL,
     user_id UUID NOT NULL,
-    status VARCHAR(50) DEFAULT 'active' CHECK (status IN ('active', 'archived', 'deleted')),
-    model_name VARCHAR(100) DEFAULT 'qwen-plus',
-    system_prompt TEXT,
-    total_messages INTEGER DEFAULT 0,
-    total_tokens INTEGER DEFAULT 0,
+    status         VARCHAR(50)  DEFAULT 'active' CHECK (status IN ('active', 'archived', 'deleted')),
+    model_name     VARCHAR(100) DEFAULT 'qwen-plus',
+    system_prompt  TEXT,
+    total_messages INTEGER      DEFAULT 0,
+    total_tokens   INTEGER      DEFAULT 0,
     last_message_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
@@ -18,20 +19,21 @@ CREATE TABLE IF NOT EXISTS ai_conversations (
 );
 
 -- 2. 创建 AI 消息表
-CREATE TABLE IF NOT EXISTS ai_messages (
+CREATE TABLE IF NOT EXISTS ai_messages
+(
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     conversation_id UUID NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
-    content TEXT NOT NULL,
-    token_count INTEGER DEFAULT 0,
-    model_name VARCHAR(100),
-    prompt_tokens INTEGER,
+    role              VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+    content           TEXT        NOT NULL,
+    token_count       INTEGER DEFAULT 0,
+    model_name        VARCHAR(100),
+    prompt_tokens     INTEGER,
     completion_tokens INTEGER,
-    total_tokens INTEGER,
-    response_time_ms INTEGER,
+    total_tokens      INTEGER,
+    response_time_ms  INTEGER,
     metadata JSONB,
-    error_message TEXT,
-    is_error BOOLEAN DEFAULT FALSE,
+    error_message     TEXT,
+    is_error          BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
     deleted_at TIMESTAMPTZ
@@ -58,14 +60,18 @@ ALTER TABLE ai_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_messages ENABLE ROW LEVEL SECURITY;
 
 -- 对话表 RLS 策略
-DROP POLICY IF EXISTS "Users can only access their own conversations" ON ai_conversations;
-CREATE POLICY "Users can only access their own conversations" 
+DROP
+POLICY IF EXISTS "Users can only access their own conversations" ON ai_conversations;
+CREATE
+POLICY "Users can only access their own conversations" 
 ON ai_conversations FOR ALL 
 USING (user_id = auth.uid());
 
 -- 消息表 RLS 策略 (通过对话表关联)
-DROP POLICY IF EXISTS "Users can only access messages from their conversations" ON ai_messages;
-CREATE POLICY "Users can only access messages from their conversations" 
+DROP
+POLICY IF EXISTS "Users can only access messages from their conversations" ON ai_messages;
+CREATE
+POLICY "Users can only access messages from their conversations" 
 ON ai_messages FOR ALL 
 USING (
     conversation_id IN (
@@ -74,57 +80,57 @@ USING (
 );
 
 -- 5. 创建触发器函数，自动更新 updated_at 字段
-CREATE OR REPLACE FUNCTION update_updated_at_column()
+CREATE OR
+REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
+BEGIN NEW.updated_at = NOW();
+RETURN NEW;
 END;
 $$ language 'plpgsql';
 
 -- 6. 为表创建 updated_at 触发器
 DROP TRIGGER IF EXISTS update_ai_conversations_updated_at ON ai_conversations;
-CREATE TRIGGER update_ai_conversations_updated_at 
-    BEFORE UPDATE ON ai_conversations 
+CREATE TRIGGER update_ai_conversations_updated_at
+    BEFORE UPDATE
+    ON ai_conversations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS update_ai_messages_updated_at ON ai_messages;
-CREATE TRIGGER update_ai_messages_updated_at 
-    BEFORE UPDATE ON ai_messages 
+CREATE TRIGGER update_ai_messages_updated_at
+    BEFORE UPDATE
+    ON ai_messages
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- 7. 创建一些有用的视图
 -- 对话统计视图
 CREATE OR REPLACE VIEW ai_conversation_stats AS
-SELECT 
-    c.id,
-    c.title,
-    c.user_id,
-    c.status,
-    c.model_name,
-    c.created_at,
-    c.last_message_at,
-    COUNT(m.id) as message_count,
-    SUM(CASE WHEN m.role = 'user' THEN 1 ELSE 0 END) as user_message_count,
-    SUM(CASE WHEN m.role = 'assistant' THEN 1 ELSE 0 END) as assistant_message_count,
-    SUM(m.token_count) as total_tokens_used,
-    AVG(m.response_time_ms) as avg_response_time
+SELECT c.id,
+       c.title,
+       c.user_id,
+       c.status,
+       c.model_name,
+       c.created_at,
+       c.last_message_at,
+       COUNT(m.id)                                           as message_count,
+       SUM(CASE WHEN m.role = 'user' THEN 1 ELSE 0 END)      as user_message_count,
+       SUM(CASE WHEN m.role = 'assistant' THEN 1 ELSE 0 END) as assistant_message_count,
+       SUM(m.token_count)                                    as total_tokens_used,
+       AVG(m.response_time_ms)                               as avg_response_time
 FROM ai_conversations c
-LEFT JOIN ai_messages m ON c.id = m.conversation_id AND m.deleted_at IS NULL
+         LEFT JOIN ai_messages m ON c.id = m.conversation_id AND m.deleted_at IS NULL
 WHERE c.deleted_at IS NULL
 GROUP BY c.id, c.title, c.user_id, c.status, c.model_name, c.created_at, c.last_message_at;
 
 -- 用户统计视图
 CREATE OR REPLACE VIEW ai_user_stats AS
-SELECT 
-    user_id,
-    COUNT(*) as total_conversations,
-    COUNT(CASE WHEN status = 'active' THEN 1 END) as active_conversations,
-    COUNT(CASE WHEN status = 'archived' THEN 1 END) as archived_conversations,
-    SUM(total_messages) as total_messages,
-    SUM(total_tokens) as total_tokens,
-    MAX(last_message_at) as last_activity_at,
-    MIN(created_at) as first_conversation_at
+SELECT user_id,
+       COUNT(*)                                        as total_conversations,
+       COUNT(CASE WHEN status = 'active' THEN 1 END)   as active_conversations,
+       COUNT(CASE WHEN status = 'archived' THEN 1 END) as archived_conversations,
+       SUM(total_messages)                             as total_messages,
+       SUM(total_tokens)                               as total_tokens,
+       MAX(last_message_at)                            as last_activity_at,
+       MIN(created_at)                                 as first_conversation_at
 FROM ai_conversations
 WHERE deleted_at IS NULL
 GROUP BY user_id;
@@ -150,28 +156,32 @@ GRANT SELECT ON ai_user_stats TO anon, authenticated;
 
 -- 10. 创建存储过程（可选）
 -- 清理旧的已删除记录的存储过程
-CREATE OR REPLACE FUNCTION cleanup_deleted_ai_records(days_old INTEGER DEFAULT 30)
+CREATE
+OR
+REPLACE FUNCTION cleanup_deleted_ai_records(days_old INTEGER DEFAULT 30)
 RETURNS INTEGER AS $$
 DECLARE
     deleted_count INTEGER;
-    total_deleted INTEGER := 0;
+total_deleted INTEGER := 0;
 BEGIN
-    -- 物理删除超过指定天数的软删除记录
-    DELETE FROM ai_messages 
-    WHERE deleted_at IS NOT NULL 
-    AND deleted_at < NOW() - (days_old || ' days')::INTERVAL;
-    
-    GET DIAGNOSTICS deleted_count = ROW_COUNT;
-    total_deleted := total_deleted + deleted_count;
-    
-    DELETE FROM ai_conversations 
-    WHERE deleted_at IS NOT NULL 
-    AND deleted_at < NOW() - (days_old || ' days')::INTERVAL;
-    
-    GET DIAGNOSTICS deleted_count = ROW_COUNT;
-    total_deleted := total_deleted + deleted_count;
-    
-    RETURN total_deleted;
+-- 物理删除超过指定天数的软删除记录
+DELETE
+FROM ai_messages
+WHERE deleted_at IS NOT NULL
+  AND deleted_at < NOW() - (days_old || ' days')::INTERVAL;
+
+GET DIAGNOSTICS deleted_count = ROW_COUNT;
+total_deleted := total_deleted + deleted_count;
+
+DELETE
+FROM ai_conversations
+WHERE deleted_at IS NOT NULL
+  AND deleted_at < NOW() - (days_old || ' days')::INTERVAL;
+
+GET DIAGNOSTICS deleted_count = ROW_COUNT;
+total_deleted := total_deleted + deleted_count;
+
+RETURN total_deleted;
 END;
 $$ LANGUAGE plpgsql;
 

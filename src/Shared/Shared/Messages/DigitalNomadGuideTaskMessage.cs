@@ -1,7 +1,7 @@
 namespace Shared.Messages;
 
 /// <summary>
-/// 数字游民指南任务消息
+///     数字游民指南任务消息
 /// </summary>
 public class DigitalNomadGuideTaskMessage
 {

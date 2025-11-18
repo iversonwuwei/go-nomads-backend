@@ -6,12 +6,12 @@ using UserService.Domain.Entities;
 namespace UserService.Infrastructure.Services;
 
 /// <summary>
-/// 兴趣爱好服务实现
+///     兴趣爱好服务实现
 /// </summary>
 public class InterestService : IInterestService
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<InterestService> _logger;
+    private readonly Client _supabaseClient;
 
     public InterestService(Client supabaseClient, ILogger<InterestService> logger)
     {
@@ -46,14 +46,15 @@ public class InterestService : IInterestService
         }
     }
 
-    public async Task<List<InterestsByCategoryDto>> GetInterestsByCategoryAsync(CancellationToken cancellationToken = default)
+    public async Task<List<InterestsByCategoryDto>> GetInterestsByCategoryAsync(
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("📋 获取按类别分组的兴趣");
 
         try
         {
             var interests = await GetAllInterestsAsync(cancellationToken);
-            
+
             return interests
                 .GroupBy(i => i.Category)
                 .Select(g => new InterestsByCategoryDto
@@ -71,7 +72,8 @@ public class InterestService : IInterestService
         }
     }
 
-    public async Task<List<InterestDto>> GetInterestsBySpecificCategoryAsync(string category, CancellationToken cancellationToken = default)
+    public async Task<List<InterestDto>> GetInterestsBySpecificCategoryAsync(string category,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("📋 获取类别为 {Category} 的兴趣", category);
 
@@ -99,7 +101,8 @@ public class InterestService : IInterestService
         }
     }
 
-    public async Task<InterestDto?> GetInterestByIdAsync(string interestId, CancellationToken cancellationToken = default)
+    public async Task<InterestDto?> GetInterestByIdAsync(string interestId,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("🔍 获取兴趣: {InterestId}", interestId);
 
@@ -129,7 +132,8 @@ public class InterestService : IInterestService
         }
     }
 
-    public async Task<List<UserInterestDto>> GetUserInterestsAsync(string userId, CancellationToken cancellationToken = default)
+    public async Task<List<UserInterestDto>> GetUserInterestsAsync(string userId,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("📋 获取用户兴趣: {UserId}", userId);
 
@@ -148,7 +152,6 @@ public class InterestService : IInterestService
             {
                 var interest = await GetInterestByIdAsync(userInterest.InterestId, cancellationToken);
                 if (interest != null)
-                {
                     results.Add(new UserInterestDto
                     {
                         Id = userInterest.Id,
@@ -160,7 +163,6 @@ public class InterestService : IInterestService
                         IntensityLevel = userInterest.IntensityLevel,
                         CreatedAt = userInterest.CreatedAt
                     });
-                }
             }
 
             // 按类别和名称排序
@@ -185,10 +187,7 @@ public class InterestService : IInterestService
         {
             // 检查兴趣是否存在
             var interest = await GetInterestByIdAsync(interestId, cancellationToken);
-            if (interest == null)
-            {
-                throw new KeyNotFoundException($"兴趣不存在: {interestId}");
-            }
+            if (interest == null) throw new KeyNotFoundException($"兴趣不存在: {interestId}");
 
             var userInterest = new UserInterest
             {
@@ -202,10 +201,7 @@ public class InterestService : IInterestService
                 .Insert(userInterest, cancellationToken: cancellationToken);
 
             var created = response.Models.FirstOrDefault();
-            if (created == null)
-            {
-                throw new InvalidOperationException("添加用户兴趣失败");
-            }
+            if (created == null) throw new InvalidOperationException("添加用户兴趣失败");
 
             return new UserInterestDto
             {
@@ -234,9 +230,8 @@ public class InterestService : IInterestService
         _logger.LogInformation("➕ 批量添加用户兴趣: UserId={UserId}, Count={Count}", userId, interests.Count);
 
         var results = new List<UserInterestDto>();
-        
+
         foreach (var interest in interests)
-        {
             try
             {
                 var result = await AddUserInterestAsync(
@@ -244,7 +239,7 @@ public class InterestService : IInterestService
                     interest.InterestId,
                     interest.IntensityLevel,
                     cancellationToken);
-                
+
                 results.Add(result);
             }
             catch (Exception ex)
@@ -252,14 +247,15 @@ public class InterestService : IInterestService
                 _logger.LogWarning(ex, "⚠️ 添加兴趣失败: {InterestId}", interest.InterestId);
                 // 继续处理其他兴趣
             }
-        }
 
         return results;
     }
 
-    public async Task<bool> RemoveUserInterestAsync(string userId, string interestId, CancellationToken cancellationToken = default)
+    public async Task<bool> RemoveUserInterestAsync(string userId, string interestId,
+        CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("➖ 删除用户兴趣: UserId={UserId}, InterestRecordOrInterestId={InterestId}", userId, interestId);
+        _logger.LogInformation("➖ 删除用户兴趣: UserId={UserId}, InterestRecordOrInterestId={InterestId}", userId,
+            interestId);
 
         try
         {
@@ -273,17 +269,20 @@ public class InterestService : IInterestService
                 .Where(ui => ui.UserId == userId && ui.InterestId == interestId)
                 .Delete();
 
-            _logger.LogInformation("✅ 成功删除用户兴趣: UserId={UserId}, InterestRecordOrInterestId={InterestId}", userId, interestId);
+            _logger.LogInformation("✅ 成功删除用户兴趣: UserId={UserId}, InterestRecordOrInterestId={InterestId}", userId,
+                interestId);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ 删除用户兴趣失败: UserId={UserId}, InterestRecordOrInterestId={InterestId}", userId, interestId);
+            _logger.LogError(ex, "❌ 删除用户兴趣失败: UserId={UserId}, InterestRecordOrInterestId={InterestId}", userId,
+                interestId);
             return false;
         }
     }
 
-    public async Task<bool> RemoveUserInterestByNameAsync(string userId, string interestName, CancellationToken cancellationToken = default)
+    public async Task<bool> RemoveUserInterestByNameAsync(string userId, string interestName,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("➖ 按名称删除用户兴趣: UserId={UserId}, InterestName={InterestName}", userId, interestName);
 
@@ -338,10 +337,7 @@ public class InterestService : IInterestService
                 .Update(update, cancellationToken: cancellationToken);
 
             var updated = response.Models.FirstOrDefault();
-            if (updated == null)
-            {
-                throw new KeyNotFoundException("用户兴趣不存在");
-            }
+            if (updated == null) throw new KeyNotFoundException("用户兴趣不存在");
 
             // 获取兴趣详情
             var interest = await GetInterestByIdAsync(interestId, cancellationToken);

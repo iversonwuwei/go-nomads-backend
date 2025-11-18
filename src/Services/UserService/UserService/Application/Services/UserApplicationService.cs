@@ -5,15 +5,15 @@ using UserService.Domain.Repositories;
 namespace UserService.Application.Services;
 
 /// <summary>
-/// User 应用服务实现 - 协调领域对象和仓储
+///     User 应用服务实现 - 协调领域对象和仓储
 /// </summary>
 public class UserApplicationService : IUserService
 {
-    private readonly IUserRepository _userRepository;
-    private readonly IRoleRepository _roleRepository;
-    private readonly ISkillService _skillService;
     private readonly IInterestService _interestService;
     private readonly ILogger<UserApplicationService> _logger;
+    private readonly IRoleRepository _roleRepository;
+    private readonly ISkillService _skillService;
+    private readonly IUserRepository _userRepository;
 
     public UserApplicationService(
         IUserRepository userRepository,
@@ -39,10 +39,7 @@ public class UserApplicationService : IUserService
         var (users, total) = await _userRepository.GetListAsync(page, pageSize, cancellationToken);
 
         var userDtos = new List<UserDto>();
-        foreach (var user in users)
-        {
-            userDtos.Add(await MapToDtoAsync(user, cancellationToken));
-        }
+        foreach (var user in users) userDtos.Add(await MapToDtoAsync(user, cancellationToken));
 
         return (userDtos, total);
     }
@@ -60,10 +57,7 @@ public class UserApplicationService : IUserService
         var (users, total) = await _userRepository.SearchAsync(searchTerm, role, page, pageSize, cancellationToken);
 
         var userDtos = new List<UserDto>();
-        foreach (var user in users)
-        {
-            userDtos.Add(await MapToDtoAsync(user, cancellationToken));
-        }
+        foreach (var user in users) userDtos.Add(await MapToDtoAsync(user, cancellationToken));
 
         _logger.LogInformation("✅ 搜索结果: {Count}/{Total} 个用户", userDtos.Count, total);
         return (userDtos, total);
@@ -72,10 +66,7 @@ public class UserApplicationService : IUserService
     public async Task<UserDto?> GetUserByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         var user = await _userRepository.GetByIdAsync(id, cancellationToken);
-        if (user == null)
-        {
-            return null;
-        }
+        if (user == null) return null;
 
         var userDto = await MapToDtoAsync(user, cancellationToken);
 
@@ -100,21 +91,15 @@ public class UserApplicationService : IUserService
     {
         _logger.LogInformation("📋 批量获取用户 - Count: {Count}", ids.Count);
 
-        if (ids == null || ids.Count == 0)
-        {
-            return new List<UserDto>();
-        }
+        if (ids == null || ids.Count == 0) return new List<UserDto>();
 
         var users = new List<UserDto>();
-        
+
         // 批量获取用户
         foreach (var id in ids.Distinct())
         {
             var user = await _userRepository.GetByIdAsync(id, cancellationToken);
-            if (user != null)
-            {
-                users.Add(await MapToDtoAsync(user, cancellationToken));
-            }
+            if (user != null) users.Add(await MapToDtoAsync(user, cancellationToken));
         }
 
         _logger.LogInformation("✅ 成功获取 {Count}/{Total} 个用户", users.Count, ids.Count);
@@ -137,10 +122,7 @@ public class UserApplicationService : IUserService
 
         // 检查邮箱是否已存在
         var existingUser = await _userRepository.GetByEmailAsync(email, cancellationToken);
-        if (existingUser != null)
-        {
-            throw new InvalidOperationException($"邮箱 '{email}' 已被注册");
-        }
+        if (existingUser != null) throw new InvalidOperationException($"邮箱 '{email}' 已被注册");
 
         // 获取默认角色
         var defaultRole = await _roleRepository.GetByNameAsync(Role.RoleNames.User, cancellationToken);
@@ -171,10 +153,7 @@ public class UserApplicationService : IUserService
 
         // 检查邮箱是否已存在
         var existingUser = await _userRepository.GetByEmailAsync(email, cancellationToken);
-        if (existingUser != null)
-        {
-            throw new InvalidOperationException($"邮箱 '{email}' 已被注册");
-        }
+        if (existingUser != null) throw new InvalidOperationException($"邮箱 '{email}' 已被注册");
 
         // 获取默认角色
         var defaultRole = await _roleRepository.GetByNameAsync(Role.RoleNames.User, cancellationToken);
@@ -205,19 +184,14 @@ public class UserApplicationService : IUserService
 
         // 获取用户
         var user = await _userRepository.GetByIdAsync(id, cancellationToken);
-        if (user == null)
-        {
-            throw new KeyNotFoundException($"用户不存在: {id}");
-        }
+        if (user == null) throw new KeyNotFoundException($"用户不存在: {id}");
 
         // 检查邮箱是否被其他用户使用
         if (user.Email != email)
         {
             var existingUser = await _userRepository.GetByEmailAsync(email, cancellationToken);
             if (existingUser != null && existingUser.Id != id)
-            {
                 throw new InvalidOperationException($"邮箱 '{email}' 已被其他用户使用");
-            }
         }
 
         // 使用领域方法更新
@@ -236,10 +210,7 @@ public class UserApplicationService : IUserService
 
         var result = await _userRepository.DeleteAsync(id, cancellationToken);
 
-        if (result)
-        {
-            _logger.LogInformation("✅ 成功删除用户: {UserId}", id);
-        }
+        if (result) _logger.LogInformation("✅ 成功删除用户: {UserId}", id);
 
         return result;
     }
@@ -282,10 +253,7 @@ public class UserApplicationService : IUserService
 
         // 检查角色名称是否已存在
         var existingRole = await _roleRepository.GetByNameAsync(name, cancellationToken);
-        if (existingRole != null)
-        {
-            throw new InvalidOperationException($"角色名称 '{name}' 已存在");
-        }
+        if (existingRole != null) throw new InvalidOperationException($"角色名称 '{name}' 已存在");
 
         // 使用领域工厂方法创建角色
         var role = Role.Create(name, description);
@@ -307,19 +275,14 @@ public class UserApplicationService : IUserService
 
         // 获取角色
         var role = await _roleRepository.GetByIdAsync(id, cancellationToken);
-        if (role == null)
-        {
-            throw new KeyNotFoundException($"角色不存在: {id}");
-        }
+        if (role == null) throw new KeyNotFoundException($"角色不存在: {id}");
 
         // 检查角色名称是否被其他角色使用
         if (role.Name != name)
         {
             var existingRole = await _roleRepository.GetByNameAsync(name, cancellationToken);
             if (existingRole != null && existingRole.Id != id)
-            {
                 throw new InvalidOperationException($"角色名称 '{name}' 已被其他角色使用");
-            }
         }
 
         // 使用领域方法更新
@@ -338,17 +301,11 @@ public class UserApplicationService : IUserService
 
         // 检查是否有用户在使用此角色
         var usersWithRole = await GetUsersByRoleAsync(id, cancellationToken);
-        if (usersWithRole.Any())
-        {
-            throw new InvalidOperationException($"无法删除角色: 仍有 {usersWithRole.Count} 个用户使用此角色");
-        }
+        if (usersWithRole.Any()) throw new InvalidOperationException($"无法删除角色: 仍有 {usersWithRole.Count} 个用户使用此角色");
 
         var result = await _roleRepository.DeleteAsync(id, cancellationToken);
 
-        if (result)
-        {
-            _logger.LogInformation("✅ 成功删除角色: {RoleId}", id);
-        }
+        if (result) _logger.LogInformation("✅ 成功删除角色: {RoleId}", id);
 
         return result;
     }
@@ -362,17 +319,11 @@ public class UserApplicationService : IUserService
 
         // 获取用户
         var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
-        if (user == null)
-        {
-            throw new KeyNotFoundException($"用户不存在: {userId}");
-        }
+        if (user == null) throw new KeyNotFoundException($"用户不存在: {userId}");
 
         // 验证角色是否存在
         var role = await _roleRepository.GetByIdAsync(roleId, cancellationToken);
-        if (role == null)
-        {
-            throw new KeyNotFoundException($"角色不存在: {roleId}");
-        }
+        if (role == null) throw new KeyNotFoundException($"角色不存在: {roleId}");
 
         // 更改用户角色
         user.ChangeRole(roleId);
@@ -390,10 +341,7 @@ public class UserApplicationService : IUserService
 
         // 验证角色是否存在
         var role = await _roleRepository.GetByIdAsync(roleId, cancellationToken);
-        if (role == null)
-        {
-            throw new KeyNotFoundException($"角色不存在: {roleId}");
-        }
+        if (role == null) throw new KeyNotFoundException($"角色不存在: {roleId}");
 
         // 这里需要在 IUserRepository 中添加 GetByRoleIdAsync 方法
         // 暂时使用获取所有用户然后过滤的方式（性能较低，仅用于演示）
@@ -401,10 +349,7 @@ public class UserApplicationService : IUserService
         var usersWithRole = allUsers.Where(u => u.RoleId == roleId).ToList();
 
         var userDtos = new List<UserDto>();
-        foreach (var user in usersWithRole)
-        {
-            userDtos.Add(await MapToDtoAsync(user, cancellationToken));
-        }
+        foreach (var user in usersWithRole) userDtos.Add(await MapToDtoAsync(user, cancellationToken));
 
         _logger.LogInformation("✅ 找到 {Count} 个用户使用角色 {RoleName}", userDtos.Count, role.Name);
         return userDtos;

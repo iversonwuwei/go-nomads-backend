@@ -4,9 +4,11 @@
 
 -- 方案 1: 如果 roles 表的 id 字段是 VARCHAR 类型（正确的）
 -- 直接插入即可
-INSERT INTO public.roles (id, name, description) VALUES
-    ('role_moderator', 'moderator', '城市版主角色 - 可以管理特定城市的内容')
-ON CONFLICT (name) DO NOTHING;
+INSERT INTO public.roles (id, name, description)
+VALUES ('role_moderator', 'moderator', '城市版主角色 - 可以管理特定城市的内容')
+ON CONFLICT
+    (name)
+    DO NOTHING;
 
 -- 如果上面的语句报错 "invalid input syntax for type uuid"
 -- 说明 roles 表的 id 字段被错误地设置为 UUID 类型
@@ -35,4 +37,6 @@ ON CONFLICT (name) DO NOTHING;
 */
 
 -- 验证角色已创建
-SELECT * FROM public.roles WHERE name = 'moderator';
+SELECT *
+FROM public.roles
+WHERE name = 'moderator';

@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
+using System.Net;
 using System.Text.Json;
 using CityService.Application.Abstractions.Services;
 using CityService.Application.DTOs;
@@ -11,19 +8,19 @@ using Microsoft.Extensions.Caching.Memory;
 namespace CityService.Infrastructure.Integrations.Weather;
 
 /// <summary>
-/// OpenWeatherMap-backed implementation of <see cref="IWeatherService"/>.
+///     OpenWeatherMap-backed implementation of <see cref="IWeatherService" />.
 /// </summary>
 public class WeatherService : IWeatherService
 {
-    private readonly HttpClient _httpClient;
-    private readonly IConfiguration _configuration;
-    private readonly IMemoryCache _cache;
-    private readonly ILogger<WeatherService> _logger;
     private readonly string _apiKey;
     private readonly string _baseUrl;
-    private readonly string _forecastBaseUrl;
-    private readonly string _oneCallApiKey;
+    private readonly IMemoryCache _cache;
     private readonly TimeSpan _cacheDuration;
+    private readonly IConfiguration _configuration;
+    private readonly string _forecastBaseUrl;
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<WeatherService> _logger;
+    private readonly string _oneCallApiKey;
 
     public WeatherService(
         HttpClient httpClient,
@@ -36,7 +33,8 @@ public class WeatherService : IWeatherService
         _cache = cache;
         _logger = logger;
 
-        _apiKey = configuration["Weather:ApiKey"] ?? throw new InvalidOperationException("Weather API Key is not configured");
+        _apiKey = configuration["Weather:ApiKey"] ??
+                  throw new InvalidOperationException("Weather API Key is not configured");
         _baseUrl = configuration["Weather:BaseUrl"] ?? "https://api.openweathermap.org/data/2.5";
         _forecastBaseUrl = configuration["Weather:ForecastBaseUrl"] ?? "https://api.openweathermap.org/data/3.0";
         _oneCallApiKey = configuration["Weather:OneCallApiKey"] ?? _apiKey;
@@ -113,7 +111,8 @@ public class WeatherService : IWeatherService
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Weather API returned {StatusCode} for coordinates ({Lat}, {Lon})", response.StatusCode, latitude, longitude);
+                _logger.LogWarning("Weather API returned {StatusCode} for coordinates ({Lat}, {Lon})",
+                    response.StatusCode, latitude, longitude);
                 return null;
             }
 
@@ -122,7 +121,8 @@ public class WeatherService : IWeatherService
 
             if (weatherData == null)
             {
-                _logger.LogWarning("Failed to deserialize weather payload for coordinates ({Lat}, {Lon})", latitude, longitude);
+                _logger.LogWarning("Failed to deserialize weather payload for coordinates ({Lat}, {Lon})", latitude,
+                    longitude);
                 return null;
             }
 
@@ -133,7 +133,8 @@ public class WeatherService : IWeatherService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error while retrieving weather for coordinates ({Lat}, {Lon})", latitude, longitude);
+            _logger.LogError(ex, "Unexpected error while retrieving weather for coordinates ({Lat}, {Lon})", latitude,
+                longitude);
             return null;
         }
     }
@@ -150,10 +151,7 @@ public class WeatherService : IWeatherService
 
         var responses = await Task.WhenAll(tasks);
 
-        foreach (var item in responses)
-        {
-            result[item.City] = item.Weather;
-        }
+        foreach (var item in responses) result[item.City] = item.Weather;
 
         return result;
     }
@@ -177,7 +175,8 @@ public class WeatherService : IWeatherService
 
             var language = _configuration["Weather:Language"] ?? "zh_cn";
             // 使用免费的 2.5 forecast 端点（5天/3小时）
-            var url = $"{_baseUrl}/forecast?lat={latitude}&lon={longitude}&appid={_apiKey}&units=metric&lang={language}";
+            var url =
+                $"{_baseUrl}/forecast?lat={latitude}&lon={longitude}&appid={_apiKey}&units=metric&lang={language}";
 
             _logger.LogInformation("Calling forecast API for coordinates ({Lat}, {Lon})", latitude, longitude);
 
@@ -255,10 +254,7 @@ public class WeatherService : IWeatherService
                 currentWeather.Longitude.Value,
                 normalizedDays);
 
-            if (forecast != null)
-            {
-                _cache.Set(cacheKey, forecast, _cacheDuration);
-            }
+            if (forecast != null) _cache.Set(cacheKey, forecast, _cacheDuration);
 
             return forecast;
         }
@@ -322,10 +318,10 @@ public class WeatherService : IWeatherService
                     Sunset = DateTimeOffset.FromUnixTimeSeconds(day.Sunset).UtcDateTime,
                     Moonrise = day.Moonrise.HasValue
                         ? DateTimeOffset.FromUnixTimeSeconds(day.Moonrise.Value).UtcDateTime
-                        : (DateTime?)null,
+                        : null,
                     Moonset = day.Moonset.HasValue
                         ? DateTimeOffset.FromUnixTimeSeconds(day.Moonset.Value).UtcDateTime
-                        : (DateTime?)null,
+                        : null,
                     MoonPhase = day.MoonPhase,
                     TempDay = day.Temp.Day,
                     TempNight = day.Temp.Night,
@@ -369,9 +365,10 @@ public class WeatherService : IWeatherService
     }
 
     /// <summary>
-    /// 将 API 2.5 的 3 小时预报数据聚合为每日预报
+    ///     将 API 2.5 的 3 小时预报数据聚合为每日预报
     /// </summary>
-    private WeatherForecastDto MapToForecastDtoFrom25(ForecastResponse data, int days, double latitude, double longitude)
+    private WeatherForecastDto MapToForecastDtoFrom25(ForecastResponse data, int days, double latitude,
+        double longitude)
     {
         // 按日期分组 3 小时数据
         var groupedByDate = data.List
@@ -395,12 +392,12 @@ public class WeatherService : IWeatherService
             var windSpeeds = items.Select(i => i.Wind.Speed).ToList();
 
             // 选择白天（12:00）的数据作为代表，如果没有则选中间时段
-            var dayItem = items.FirstOrDefault(i => 
+            var dayItem = items.FirstOrDefault(i =>
                 DateTimeOffset.FromUnixTimeSeconds(i.Dt).Hour == 12) ?? items[items.Count / 2];
 
             // 选择夜晚（00:00 或 21:00）的数据
-            var nightItem = items.FirstOrDefault(i => 
-                DateTimeOffset.FromUnixTimeSeconds(i.Dt).Hour == 0 || 
+            var nightItem = items.FirstOrDefault(i =>
+                DateTimeOffset.FromUnixTimeSeconds(i.Dt).Hour == 0 ||
                 DateTimeOffset.FromUnixTimeSeconds(i.Dt).Hour == 21) ?? items.Last();
 
             // 获取最常见的天气描述
@@ -422,25 +419,25 @@ public class WeatherService : IWeatherService
             dailyForecasts.Add(new DailyForecastDto
             {
                 Date = dayGroup.Key,
-                Sunrise = data.City.Sunrise > 0 
-                    ? DateTimeOffset.FromUnixTimeSeconds(data.City.Sunrise).UtcDateTime 
+                Sunrise = data.City.Sunrise > 0
+                    ? DateTimeOffset.FromUnixTimeSeconds(data.City.Sunrise).UtcDateTime
                     : dayGroup.Key.AddHours(6),
-                Sunset = data.City.Sunset > 0 
-                    ? DateTimeOffset.FromUnixTimeSeconds(data.City.Sunset).UtcDateTime 
+                Sunset = data.City.Sunset > 0
+                    ? DateTimeOffset.FromUnixTimeSeconds(data.City.Sunset).UtcDateTime
                     : dayGroup.Key.AddHours(18),
                 TempDay = dayItem.Main.Temp,
                 TempNight = nightItem.Main.Temp,
                 TempMin = temps.Min(),
                 TempMax = temps.Max(),
-                TempEvening = items.FirstOrDefault(i => 
+                TempEvening = items.FirstOrDefault(i =>
                     DateTimeOffset.FromUnixTimeSeconds(i.Dt).Hour == 18)?.Main.Temp,
-                TempMorning = items.FirstOrDefault(i => 
+                TempMorning = items.FirstOrDefault(i =>
                     DateTimeOffset.FromUnixTimeSeconds(i.Dt).Hour == 6)?.Main.Temp,
                 FeelsLikeDay = dayItem.Main.FeelsLike,
                 FeelsLikeNight = nightItem.Main.FeelsLike,
-                FeelsLikeEvening = items.FirstOrDefault(i => 
+                FeelsLikeEvening = items.FirstOrDefault(i =>
                     DateTimeOffset.FromUnixTimeSeconds(i.Dt).Hour == 18)?.Main.FeelsLike,
-                FeelsLikeMorning = items.FirstOrDefault(i => 
+                FeelsLikeMorning = items.FirstOrDefault(i =>
                     DateTimeOffset.FromUnixTimeSeconds(i.Dt).Hour == 6)?.Main.FeelsLike,
                 Humidity = (int)humidities.Average(),
                 Pressure = (int)pressures.Average(),
@@ -453,7 +450,7 @@ public class WeatherService : IWeatherService
                 RainVolume = totalRain > 0 ? totalRain : null,
                 SnowVolume = totalSnow > 0 ? totalSnow : null,
                 UvIndex = 0, // API 2.5 不提供 UV 指数
-                DewPoint = items.Average(i => i.Main.Temp - ((100 - i.Main.Humidity) / 5.0m)),
+                DewPoint = items.Average(i => i.Main.Temp - (100 - i.Main.Humidity) / 5.0m),
                 Weather = weather?.Main ?? "Unknown",
                 WeatherDescription = weather?.Description ?? "未知",
                 WeatherIcon = weather?.Icon ?? "01d",
@@ -472,7 +469,8 @@ public class WeatherService : IWeatherService
         };
     }
 
-    private async Task LogOneCallFailureAsync(HttpResponseMessage response, double? latitude = null, double? longitude = null)
+    private async Task LogOneCallFailureAsync(HttpResponseMessage response, double? latitude = null,
+        double? longitude = null)
     {
         var body = await response.Content.ReadAsStringAsync();
         var context = latitude.HasValue && longitude.HasValue
@@ -485,27 +483,21 @@ public class WeatherService : IWeatherService
             context,
             string.IsNullOrWhiteSpace(body) ? "<empty>" : body);
 
-        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-        {
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
             _logger.LogError(
                 "One Call API responded with 401 Unauthorized. Verify that the configured API key is subscribed to One Call API 3.0 (Weather:OneCallApiKey). If the product is not enabled, daily forecasts cannot be retrieved.");
-        }
-        else if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+        else if (response.StatusCode == HttpStatusCode.Forbidden)
             _logger.LogError(
                 "One Call API responded with 403 Forbidden. Check the subscription tier and that the One Call endpoint is permitted for the API key in use.");
-        }
-        else if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
-        {
+        else if (response.StatusCode == HttpStatusCode.TooManyRequests)
             _logger.LogWarning(
                 "One Call API rate limit exceeded. Consider caching responses longer or reducing request frequency.");
-        }
     }
 
     private string GetWindDirectionDescription(int degrees)
     {
         var directions = new[] { "北风", "东北风", "东风", "东南风", "南风", "西南风", "西风", "西北风" };
-        var index = (int)Math.Round(((degrees % 360) / 45.0)) % 8;
+        var index = (int)Math.Round(degrees % 360 / 45.0) % 8;
         return directions[index];
     }
 }

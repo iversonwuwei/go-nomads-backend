@@ -1,17 +1,17 @@
-using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
-using GoNomads.Shared.Models;
 using GoNomads.Shared.Middleware;
+using GoNomads.Shared.Models;
+using Microsoft.AspNetCore.Mvc;
 using UserService.Application.DTOs;
 using UserService.Application.Services;
 
 namespace UserService.API.Controllers;
 
 /// <summary>
-/// 认证相关 API - 薄层控制器
+///     认证相关 API - 薄层控制器
 /// </summary>
 /// <summary>
-/// Authentication API - RESTful endpoints for authentication
+///     Authentication API - RESTful endpoints for authentication
 /// </summary>
 [ApiController]
 [Route("api/v1/auth")]
@@ -29,7 +29,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// 用户注册
+    ///     用户注册
     /// </summary>
     [HttpPost("register")]
     public async Task<ActionResult<ApiResponse<AuthResponseDto>>> Register(
@@ -81,7 +81,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// 用户登录
+    ///     用户登录
     /// </summary>
     [HttpPost("login")]
     public async Task<ActionResult<ApiResponse<AuthResponseDto>>> Login(
@@ -133,7 +133,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// 刷新访问令牌
+    ///     刷新访问令牌
     /// </summary>
     [HttpPost("refresh")]
     public async Task<ActionResult<ApiResponse<AuthResponseDto>>> RefreshToken(
@@ -185,8 +185,8 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// 用户登出
-    /// 注意: JWT 是无状态的,客户端需要删除本地存储的 token
+    ///     用户登出
+    ///     注意: JWT 是无状态的,客户端需要删除本地存储的 token
     /// </summary>
     [HttpPost("logout")]
     public async Task<ActionResult<ApiResponse<object>>> Logout(CancellationToken cancellationToken = default)
@@ -194,13 +194,11 @@ public class AuthController : ControllerBase
         // 从 UserContext 获取当前用户 ID
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true)
-        {
             return Unauthorized(new ApiResponse<object>
             {
                 Success = false,
                 Message = "未认证用户"
             });
-        }
 
         _logger.LogInformation("👋 用户登出: {UserId}", userContext.UserId);
 
@@ -226,7 +224,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// 修改密码
+    ///     修改密码
     /// </summary>
     [HttpPost("change-password")]
     public async Task<ActionResult<ApiResponse<object>>> ChangePassword(
@@ -236,13 +234,11 @@ public class AuthController : ControllerBase
         // 从 UserContext 获取当前用户 ID
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true)
-        {
             return Unauthorized(new ApiResponse<object>
             {
                 Success = false,
                 Message = "未认证用户"
             });
-        }
 
         _logger.LogInformation("🔐 用户修改密码: {UserId}", userContext.UserId);
 
@@ -302,12 +298,11 @@ public class AuthController : ControllerBase
 }
 
 /// <summary>
-/// 修改密码请求 DTO
+///     修改密码请求 DTO
 /// </summary>
 public class ChangePasswordRequest
 {
-    [Required(ErrorMessage = "旧密码不能为空")]
-    public string OldPassword { get; set; } = string.Empty;
+    [Required(ErrorMessage = "旧密码不能为空")] public string OldPassword { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "新密码不能为空")]
     [MinLength(6, ErrorMessage = "新密码至少需要6个字符")]

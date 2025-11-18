@@ -1,7 +1,7 @@
 namespace MessageService.Domain.Entities;
 
 /// <summary>
-/// 消息实体
+///     消息实体
 /// </summary>
 public class Message
 {

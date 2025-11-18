@@ -3,7 +3,7 @@ using CityService.Application.DTOs;
 namespace CityService.Application.Services;
 
 /// <summary>
-/// 用户城市内容应用服务接口
+///     用户城市内容应用服务接口
 /// </summary>
 public interface IUserCityContentService
 {

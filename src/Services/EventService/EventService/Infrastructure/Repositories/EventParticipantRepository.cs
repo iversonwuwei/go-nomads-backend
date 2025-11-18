@@ -5,12 +5,12 @@ using Supabase;
 namespace EventService.Infrastructure.Repositories;
 
 /// <summary>
-/// EventParticipant 仓储实现 - Supabase
+///     EventParticipant 仓储实现 - Supabase
 /// </summary>
 public class EventParticipantRepository : IEventParticipantRepository
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<EventParticipantRepository> _logger;
+    private readonly Client _supabaseClient;
 
     public EventParticipantRepository(Client supabaseClient, ILogger<EventParticipantRepository> logger)
     {
@@ -27,12 +27,9 @@ public class EventParticipantRepository : IEventParticipantRepository
                 .Insert(participant);
 
             var created = result.Models.FirstOrDefault();
-            if (created == null)
-            {
-                throw new InvalidOperationException("创建参与记录失败");
-            }
+            if (created == null) throw new InvalidOperationException("创建参与记录失败");
 
-            _logger.LogInformation("✅ 参与记录创建成功，EventId: {EventId}, UserId: {UserId}", 
+            _logger.LogInformation("✅ 参与记录创建成功，EventId: {EventId}, UserId: {UserId}",
                 participant.EventId, participant.UserId);
             return created;
         }
@@ -138,7 +135,7 @@ public class EventParticipantRepository : IEventParticipantRepository
         try
         {
             _logger.LogInformation("� 开始统计Event参与者数量，EventId: {EventId}", eventId);
-            
+
             var result = await _supabaseClient
                 .From<EventParticipant>()
                 .Where(p => p.EventId == eventId)

@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace CoworkingService.Application.DTOs;
 
 /// <summary>
-/// Coworking 空间响应 DTO
+///     Coworking 空间响应 DTO
 /// </summary>
 public class CoworkingSpaceResponse
 {
@@ -39,7 +39,7 @@ public class CoworkingSpaceResponse
 }
 
 /// <summary>
-/// 创建共享办公空间请求 DTO
+///     创建共享办公空间请求 DTO
 /// </summary>
 public class CreateCoworkingSpaceRequest
 {
@@ -49,8 +49,7 @@ public class CreateCoworkingSpaceRequest
 
     public Guid? CityId { get; set; }
 
-    [Required(ErrorMessage = "地址不能为空")]
-    public string Address { get; set; } = string.Empty;
+    [Required(ErrorMessage = "地址不能为空")] public string Address { get; set; } = string.Empty;
 
     public string? Description { get; set; }
     public string? ImageUrl { get; set; }
@@ -65,8 +64,7 @@ public class CreateCoworkingSpaceRequest
     [Range(0, 500, ErrorMessage = "时价格必须在 0-500 之间")]
     public decimal? PricePerHour { get; set; }
 
-    [MaxLength(10)]
-    public string Currency { get; set; } = "USD";
+    [MaxLength(10)] public string Currency { get; set; } = "USD";
 
     [Range(0, 1000, ErrorMessage = "Wifi 速度必须在 0-1000 之间")]
     public decimal? WifiSpeed { get; set; }
@@ -92,8 +90,7 @@ public class CreateCoworkingSpaceRequest
     [EmailAddress(ErrorMessage = "无效的电子邮件地址")]
     public string? Email { get; set; }
 
-    [Url(ErrorMessage = "无效的网站 URL")]
-    public string? Website { get; set; }
+    [Url(ErrorMessage = "无效的网站 URL")] public string? Website { get; set; }
 
     public string? OpeningHours { get; set; }
 
@@ -101,7 +98,7 @@ public class CreateCoworkingSpaceRequest
 }
 
 /// <summary>
-/// 更新共享办公空间请求 DTO
+///     更新共享办公空间请求 DTO
 /// </summary>
 public class UpdateCoworkingSpaceRequest
 {
@@ -111,27 +108,21 @@ public class UpdateCoworkingSpaceRequest
 
     public Guid? CityId { get; set; }
 
-    [Required(ErrorMessage = "地址不能为空")]
-    public string Address { get; set; } = string.Empty;
+    [Required(ErrorMessage = "地址不能为空")] public string Address { get; set; } = string.Empty;
 
     public string? Description { get; set; }
     public string? ImageUrl { get; set; }
     public string[]? Images { get; set; }
 
-    [Range(0, 10000)]
-    public decimal? PricePerDay { get; set; }
+    [Range(0, 10000)] public decimal? PricePerDay { get; set; }
 
-    [Range(0, 50000)]
-    public decimal? PricePerMonth { get; set; }
+    [Range(0, 50000)] public decimal? PricePerMonth { get; set; }
 
-    [Range(0, 500)]
-    public decimal? PricePerHour { get; set; }
+    [Range(0, 500)] public decimal? PricePerHour { get; set; }
 
-    [MaxLength(10)]
-    public string Currency { get; set; } = "USD";
+    [MaxLength(10)] public string Currency { get; set; } = "USD";
 
-    [Range(0, 1000)]
-    public decimal? WifiSpeed { get; set; }
+    [Range(0, 1000)] public decimal? WifiSpeed { get; set; }
 
     public bool HasMeetingRoom { get; set; }
     public bool HasCoffee { get; set; }
@@ -139,23 +130,18 @@ public class UpdateCoworkingSpaceRequest
     public bool Has247Access { get; set; }
     public string[]? Amenities { get; set; }
 
-    [Range(1, 1000)]
-    public int? Capacity { get; set; }
+    [Range(1, 1000)] public int? Capacity { get; set; }
 
-    [Range(-90, 90)]
-    public decimal? Latitude { get; set; }
+    [Range(-90, 90)] public decimal? Latitude { get; set; }
 
-    [Range(-180, 180)]
-    public decimal? Longitude { get; set; }
+    [Range(-180, 180)] public decimal? Longitude { get; set; }
 
     // 移除 [Phone] 验证以支持各种电话号码格式(中国手机/固话等)
     public string? Phone { get; set; }
 
-    [EmailAddress]
-    public string? Email { get; set; }
+    [EmailAddress] public string? Email { get; set; }
 
-    [Url]
-    public string? Website { get; set; }
+    [Url] public string? Website { get; set; }
 
     public string? OpeningHours { get; set; }
 
@@ -163,7 +149,7 @@ public class UpdateCoworkingSpaceRequest
 }
 
 /// <summary>
-/// 分页的共享办公空间列表响应
+///     分页的共享办公空间列表响应
 /// </summary>
 public class PaginatedCoworkingSpacesResponse
 {
@@ -175,7 +161,7 @@ public class PaginatedCoworkingSpacesResponse
 }
 
 /// <summary>
-/// Coworking 预订响应 DTO
+///     Coworking 预订响应 DTO
 /// </summary>
 public class CoworkingBookingResponse
 {
@@ -198,7 +184,7 @@ public class CoworkingBookingResponse
 }
 
 /// <summary>
-/// 创建预订请求 DTO
+///     创建预订请求 DTO
 /// </summary>
 public class CreateBookingRequest
 {
@@ -208,8 +194,7 @@ public class CreateBookingRequest
     [Required(ErrorMessage = "用户 ID 不能为空")]
     public Guid UserId { get; set; }
 
-    [Required(ErrorMessage = "预订日期不能为空")]
-    public DateTime BookingDate { get; set; }
+    [Required(ErrorMessage = "预订日期不能为空")] public DateTime BookingDate { get; set; }
 
     public TimeSpan? StartTime { get; set; }
     public TimeSpan? EndTime { get; set; }

@@ -5,7 +5,7 @@ using Postgrest.Attributes;
 namespace AIService.Domain.Entities;
 
 /// <summary>
-/// AI 对话会话聚合根
+///     AI 对话会话聚合根
 /// </summary>
 [Table("ai_conversations")]
 public class AIConversation : BaseAIModel
@@ -15,9 +15,7 @@ public class AIConversation : BaseAIModel
     [Column("title")]
     public string Title { get; private set; } = string.Empty;
 
-    [Required]
-    [Column("user_id")]
-    public Guid UserId { get; private set; }
+    [Required] [Column("user_id")] public Guid UserId { get; private set; }
 
     [MaxLength(50)]
     [Column("status")]
@@ -27,29 +25,26 @@ public class AIConversation : BaseAIModel
     [Column("model_name")]
     public string ModelName { get; private set; } = "qwen-plus";
 
-    [Column("system_prompt")]
-    public string? SystemPrompt { get; private set; }
+    [Column("system_prompt")] public string? SystemPrompt { get; private set; }
 
-    [Column("total_messages")]
-    public int TotalMessages { get; private set; } = 0;
+    [Column("total_messages")] public int TotalMessages { get; private set; }
 
-    [Column("total_tokens")]
-    public int TotalTokens { get; private set; } = 0;
+    [Column("total_tokens")] public int TotalTokens { get; private set; }
 
-    [Column("last_message_at")]
-    public DateTime? LastMessageAt { get; private set; }
+    [Column("last_message_at")] public DateTime? LastMessageAt { get; private set; }
 
     // 领域行为方法
 
     /// <summary>
-    /// 工厂方法 - 创建新对话
+    ///     工厂方法 - 创建新对话
     /// </summary>
-    public static AIConversation Create(Guid userId, string title, string? systemPrompt = null, string modelName = "qwen-plus")
+    public static AIConversation Create(Guid userId, string title, string? systemPrompt = null,
+        string modelName = "qwen-plus")
     {
         // 业务规则验证
         if (userId == Guid.Empty)
             throw new ArgumentException("用户ID不能为空", nameof(userId));
-        
+
         if (string.IsNullOrWhiteSpace(title))
             throw new ArgumentException("对话标题不能为空", nameof(title));
 
@@ -69,7 +64,7 @@ public class AIConversation : BaseAIModel
     }
 
     /// <summary>
-    /// 更新对话标题
+    ///     更新对话标题
     /// </summary>
     public void UpdateTitle(string newTitle)
     {
@@ -84,7 +79,7 @@ public class AIConversation : BaseAIModel
     }
 
     /// <summary>
-    /// 添加消息时更新统计
+    ///     添加消息时更新统计
     /// </summary>
     public void AddMessage(int tokenCount)
     {
@@ -95,7 +90,7 @@ public class AIConversation : BaseAIModel
     }
 
     /// <summary>
-    /// 归档对话
+    ///     归档对话
     /// </summary>
     public void Archive()
     {
@@ -107,7 +102,7 @@ public class AIConversation : BaseAIModel
     }
 
     /// <summary>
-    /// 激活对话
+    ///     激活对话
     /// </summary>
     public void Activate()
     {
@@ -119,7 +114,7 @@ public class AIConversation : BaseAIModel
     }
 
     /// <summary>
-    /// 检查是否可以添加消息
+    ///     检查是否可以添加消息
     /// </summary>
     public bool CanAddMessage()
     {
@@ -127,7 +122,7 @@ public class AIConversation : BaseAIModel
     }
 
     /// <summary>
-    /// 软删除重写
+    ///     软删除重写
     /// </summary>
     public override void Delete()
     {
@@ -136,5 +131,4 @@ public class AIConversation : BaseAIModel
     }
 
     // 无参构造函数 (ORM 需要)
-    public AIConversation() { }
 }

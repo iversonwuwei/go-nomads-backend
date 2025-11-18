@@ -1,14 +1,13 @@
-using System.Linq;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Microsoft.Extensions.Logging;
+using Postgrest;
 using Shared.Repositories;
-using Supabase;
+using Client = Supabase.Client;
 
 namespace CityService.Infrastructure.Repositories;
 
 /// <summary>
-/// 基于 Supabase 的用户城市照片仓储实现
+///     基于 Supabase 的用户城市照片仓储实现
 /// </summary>
 public class SupabaseUserCityPhotoRepository : SupabaseRepositoryBase<UserCityPhoto>, IUserCityPhotoRepository
 {
@@ -31,16 +30,10 @@ public class SupabaseUserCityPhotoRepository : SupabaseRepositoryBase<UserCityPh
     public async Task<IEnumerable<UserCityPhoto>> CreateBatchAsync(IEnumerable<UserCityPhoto> photos)
     {
         var photoList = photos.ToList();
-        if (!photoList.Any())
-        {
-            return Array.Empty<UserCityPhoto>();
-        }
+        if (!photoList.Any()) return Array.Empty<UserCityPhoto>();
 
         var now = DateTime.UtcNow;
-        foreach (var photo in photoList)
-        {
-            photo.CreatedAt = now;
-        }
+        foreach (var photo in photoList) photo.CreatedAt = now;
 
         var cities = string.Join(",", photoList.Select(p => p.CityId).Distinct());
         var users = string.Join(",", photoList.Select(p => p.UserId).Distinct());
@@ -62,7 +55,7 @@ public class SupabaseUserCityPhotoRepository : SupabaseRepositoryBase<UserCityPh
         var response = await SupabaseClient
             .From<UserCityPhoto>()
             .Where(x => x.CityId == cityId)
-            .Order(x => x.CreatedAt, Postgrest.Constants.Ordering.Descending)
+            .Order(x => x.CreatedAt, Constants.Ordering.Descending)
             .Get();
 
         return response.Models;
@@ -73,7 +66,7 @@ public class SupabaseUserCityPhotoRepository : SupabaseRepositoryBase<UserCityPh
         var response = await SupabaseClient
             .From<UserCityPhoto>()
             .Where(x => x.CityId == cityId && x.UserId == userId)
-            .Order(x => x.CreatedAt, Postgrest.Constants.Ordering.Descending)
+            .Order(x => x.CreatedAt, Constants.Ordering.Descending)
             .Get();
 
         return response.Models;
@@ -84,7 +77,7 @@ public class SupabaseUserCityPhotoRepository : SupabaseRepositoryBase<UserCityPh
         var response = await SupabaseClient
             .From<UserCityPhoto>()
             .Where(x => x.UserId == userId)
-            .Order(x => x.CreatedAt, Postgrest.Constants.Ordering.Descending)
+            .Order(x => x.CreatedAt, Constants.Ordering.Descending)
             .Get();
 
         return response.Models;

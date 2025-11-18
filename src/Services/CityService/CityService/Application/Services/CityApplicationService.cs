@@ -1,31 +1,28 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Diagnostics;
 using CityService.Application.Abstractions.Services;
 using CityService.Application.DTOs;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
 using CityService.Domain.ValueObjects;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Caching.Memory;
 using Dapr.Client;
 using GoNomads.Shared.Models;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace CityService.Application.Services;
 
 /// <summary>
-/// 城市应用服务实现
+///     城市应用服务实现
 /// </summary>
 public class CityApplicationService : ICityService
 {
+    private readonly IMemoryCache _cache;
     private readonly ICityRepository _cityRepository;
     private readonly ICountryRepository _countryRepository;
-    private readonly IWeatherService _weatherService;
-    private readonly IUserFavoriteCityService _favoriteCityService;
-    private readonly ICityModeratorRepository _moderatorRepository;
     private readonly DaprClient _daprClient;
-    private readonly IMemoryCache _cache;
+    private readonly IUserFavoriteCityService _favoriteCityService;
     private readonly ILogger<CityApplicationService> _logger;
+    private readonly ICityModeratorRepository _moderatorRepository;
+    private readonly IWeatherService _weatherService;
 
     public CityApplicationService(
         ICityRepository cityRepository,
@@ -47,7 +44,8 @@ public class CityApplicationService : ICityService
         _logger = logger;
     }
 
-    public async Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize, Guid? userId = null, string? userRole = null)
+    public async Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize, Guid? userId = null,
+        string? userRole = null)
     {
         var cities = await _cityRepository.GetAllAsync(pageNumber, pageSize);
         var cityDtos = cities.Select(MapToDto).ToList();
@@ -62,11 +60,8 @@ public class CityApplicationService : ICityService
         await Task.WhenAll(weatherTask, moderatorTask, favoriteTask);
 
         // 设置用户上下文
-        foreach (var cityDto in cityDtos)
-        {
-            cityDto.SetUserContext(userId, userRole);
-        }
-        
+        foreach (var cityDto in cityDtos) cityDto.SetUserContext(userId, userRole);
+
         return cityDtos;
     }
 
@@ -74,7 +69,7 @@ public class CityApplicationService : ICityService
     {
         var city = await _cityRepository.GetByIdAsync(id);
         if (city == null) return null;
-        
+
         var cityDto = MapToDto(city);
 
         // 并行填充数据
@@ -85,13 +80,11 @@ public class CityApplicationService : ICityService
 
         await Task.WhenAll(favoriteTask, moderatorTask);
 
-        if (userId.HasValue)
-        {
-            cityDto.IsFavorite = await favoriteTask;
-        }
+        if (userId.HasValue) cityDto.IsFavorite = await favoriteTask;
 
         // 调试日志（Debug 级别）
-        _logger.LogDebug("🔍 [GetCityById] CityId: {CityId}, CurrentUserId: {UserId}, UserRole: {UserRole}, ModeratorId: {ModeratorId}",
+        _logger.LogDebug(
+            "🔍 [GetCityById] CityId: {CityId}, CurrentUserId: {UserId}, UserRole: {UserRole}, ModeratorId: {ModeratorId}",
             id, userId, userRole, cityDto.ModeratorId);
 
         // 设置用户上下文（包括是否为管理员和是否为该城市版主）
@@ -103,7 +96,8 @@ public class CityApplicationService : ICityService
         return cityDto;
     }
 
-    public async Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null, string? userRole = null)
+    public async Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null,
+        string? userRole = null)
     {
         var criteria = new CitySearchCriteria
         {
@@ -131,11 +125,8 @@ public class CityApplicationService : ICityService
         await Task.WhenAll(weatherTask, moderatorTask, favoriteTask);
 
         // 设置用户上下文
-        foreach (var cityDto in cityDtos)
-        {
-            cityDto.SetUserContext(userId, userRole);
-        }
-        
+        foreach (var cityDto in cityDtos) cityDto.SetUserContext(userId, userRole);
+
         return cityDtos;
     }
 
@@ -162,9 +153,7 @@ public class CityApplicationService : ICityService
         };
 
         if (createCityDto.Latitude.HasValue && createCityDto.Longitude.HasValue)
-        {
             city.Location = $"POINT({createCityDto.Longitude.Value} {createCityDto.Latitude.Value})";
-        }
 
         var createdCity = await _cityRepository.CreateAsync(city);
         _logger.LogInformation("City created: {CityId} - {CityName}", createdCity.Id, createdCity.Name);
@@ -174,10 +163,7 @@ public class CityApplicationService : ICityService
     public async Task<CityDto?> UpdateCityAsync(Guid id, UpdateCityDto updateCityDto, Guid userId)
     {
         var existingCity = await _cityRepository.GetByIdAsync(id);
-        if (existingCity == null)
-        {
-            return null;
-        }
+        if (existingCity == null) return null;
 
         if (!string.IsNullOrWhiteSpace(updateCityDto.Name)) existingCity.Name = updateCityDto.Name;
         if (!string.IsNullOrWhiteSpace(updateCityDto.Country)) existingCity.Country = updateCityDto.Country;
@@ -187,16 +173,15 @@ public class CityApplicationService : ICityService
         if (updateCityDto.Longitude.HasValue) existingCity.Longitude = updateCityDto.Longitude;
 
         if (updateCityDto.Latitude.HasValue && updateCityDto.Longitude.HasValue)
-        {
             existingCity.Location = $"POINT({updateCityDto.Longitude.Value} {updateCityDto.Latitude.Value})";
-        }
 
         if (updateCityDto.Population.HasValue) existingCity.Population = updateCityDto.Population;
         if (updateCityDto.Climate != null) existingCity.Climate = updateCityDto.Climate;
         if (updateCityDto.TimeZone != null) existingCity.TimeZone = updateCityDto.TimeZone;
         if (updateCityDto.Currency != null) existingCity.Currency = updateCityDto.Currency;
         if (updateCityDto.ImageUrl != null) existingCity.ImageUrl = updateCityDto.ImageUrl;
-        if (updateCityDto.AverageCostOfLiving.HasValue) existingCity.AverageCostOfLiving = updateCityDto.AverageCostOfLiving;
+        if (updateCityDto.AverageCostOfLiving.HasValue)
+            existingCity.AverageCostOfLiving = updateCityDto.AverageCostOfLiving;
         if (updateCityDto.Tags != null) existingCity.Tags = updateCityDto.Tags;
         if (updateCityDto.IsActive.HasValue) existingCity.IsActive = updateCityDto.IsActive.Value;
 
@@ -204,10 +189,7 @@ public class CityApplicationService : ICityService
         existingCity.UpdatedAt = DateTime.UtcNow;
 
         var updatedCity = await _cityRepository.UpdateAsync(id, existingCity);
-        if (updatedCity == null)
-        {
-            return null;
-        }
+        if (updatedCity == null) return null;
 
         _logger.LogInformation("City updated: {CityId} - {CityName}", id, existingCity.Name);
         return MapToDto(updatedCity);
@@ -216,10 +198,7 @@ public class CityApplicationService : ICityService
     public async Task<bool> DeleteCityAsync(Guid id)
     {
         var result = await _cityRepository.DeleteAsync(id);
-        if (result)
-        {
-            _logger.LogInformation("City deleted: {CityId}", id);
-        }
+        if (result) _logger.LogInformation("City deleted: {CityId}", id);
 
         return result;
     }
@@ -233,23 +212,17 @@ public class CityApplicationService : ICityService
     {
         var cities = await _cityRepository.GetRecommendedAsync(count);
         var cityDtos = cities.Select(MapToDto).ToList();
-        
+
         // 填充收藏状态
-        if (userId.HasValue)
-        {
-            await EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value);
-        }
-        
+        if (userId.HasValue) await EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value);
+
         return cityDtos;
     }
 
     public async Task<CityStatisticsDto?> GetCityStatisticsAsync(Guid id)
     {
         var city = await _cityRepository.GetByIdAsync(id);
-        if (city == null)
-        {
-            return null;
-        }
+        if (city == null) return null;
 
         return new CityStatisticsDto
         {
@@ -285,10 +258,7 @@ public class CityApplicationService : ICityService
                     }).ToList()
                 };
 
-                if (countryDto.Cities.Any())
-                {
-                    result.Add(countryDto);
-                }
+                if (countryDto.Cities.Any()) result.Add(countryDto);
             }
 
             return result;
@@ -305,10 +275,7 @@ public class CityApplicationService : ICityService
         try
         {
             var country = await _countryRepository.GetCountryByIdAsync(countryId);
-            if (country == null)
-            {
-                return Enumerable.Empty<CitySummaryDto>();
-            }
+            if (country == null) return Enumerable.Empty<CitySummaryDto>();
 
             var cities = await _cityRepository.GetByCountryAsync(country.Name);
 
@@ -343,10 +310,7 @@ public class CityApplicationService : ICityService
     public async Task<WeatherDto?> GetCityWeatherAsync(Guid id, bool includeForecast = false, int days = 7)
     {
         var city = await _cityRepository.GetByIdAsync(id);
-        if (city == null)
-        {
-            return null;
-        }
+        if (city == null) return null;
 
         try
         {
@@ -359,12 +323,10 @@ public class CityApplicationService : ICityService
                     city.Longitude.Value);
 
                 if (weather != null && includeForecast)
-                {
                     weather.Forecast = await _weatherService.GetDailyForecastAsync(
                         city.Latitude.Value,
                         city.Longitude.Value,
                         normalizedDays);
-                }
 
                 return weather;
             }
@@ -376,18 +338,14 @@ public class CityApplicationService : ICityService
             if (cityWeather != null && includeForecast)
             {
                 if (cityWeather.Latitude.HasValue && cityWeather.Longitude.HasValue)
-                {
                     cityWeather.Forecast = await _weatherService.GetDailyForecastAsync(
                         cityWeather.Latitude.Value,
                         cityWeather.Longitude.Value,
                         normalizedDays);
-                }
                 else
-                {
                     cityWeather.Forecast = await _weatherService.GetDailyForecastByCityNameAsync(
                         cityName,
                         normalizedDays);
-                }
             }
 
             return cityWeather;
@@ -396,6 +354,76 @@ public class CityApplicationService : ICityService
         {
             _logger.LogWarning(ex, "获取城市天气失败: {CityName}", city.Name);
             return null;
+        }
+    }
+
+    /// <summary>
+    ///     申请成为城市版主 (普通用户)
+    /// </summary>
+    public async Task<bool> ApplyModeratorAsync(Guid userId, ApplyModeratorDto dto)
+    {
+        try
+        {
+            var city = await _cityRepository.GetByIdAsync(dto.CityId);
+            if (city == null)
+            {
+                _logger.LogWarning("城市不存在: {CityId}", dto.CityId);
+                return false;
+            }
+
+            if (city.ModeratorId.HasValue)
+            {
+                _logger.LogWarning("城市已有版主: {CityId}, ModeratorId: {ModeratorId}", dto.CityId, city.ModeratorId);
+                return false;
+            }
+
+            // TODO: 这里可以添加申请记录到数据库，等待管理员审核
+            // 目前简化流程：直接设置为版主
+            city.ModeratorId = userId;
+            city.UpdatedAt = DateTime.UtcNow;
+            city.UpdatedById = userId;
+
+            await _cityRepository.UpdateAsync(city.Id, city);
+
+            _logger.LogInformation("用户 {UserId} 申请成为城市 {CityId} 的版主成功", userId, dto.CityId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "申请城市版主失败: UserId={UserId}, CityId={CityId}", userId, dto.CityId);
+            throw;
+        }
+    }
+
+    /// <summary>
+    ///     指定城市版主 (仅管理员)
+    /// </summary>
+    public async Task<bool> AssignModeratorAsync(AssignModeratorDto dto)
+    {
+        try
+        {
+            var city = await _cityRepository.GetByIdAsync(dto.CityId);
+            if (city == null)
+            {
+                _logger.LogWarning("城市不存在: {CityId}", dto.CityId);
+                return false;
+            }
+
+            // TODO: 验证目标用户是否存在且角色为 moderator
+            // 这里需要调用 UserService 验证
+
+            city.ModeratorId = dto.UserId;
+            city.UpdatedAt = DateTime.UtcNow;
+
+            await _cityRepository.UpdateAsync(city.Id, city);
+
+            _logger.LogInformation("城市 {CityId} 的版主已设置为 {UserId}", dto.CityId, dto.UserId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "指定城市版主失败: CityId={CityId}, UserId={UserId}", dto.CityId, dto.UserId);
+            throw;
         }
     }
 
@@ -464,7 +492,7 @@ public class CityApplicationService : ICityService
             _logger.LogDebug("🌦️ 开始批量填充天气信息: {TotalCities} 个城市, {BatchCount} 批次",
                 cities.Count, batches.Count);
 
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var stopwatch = Stopwatch.StartNew();
 
             foreach (var batch in batches)
             {
@@ -496,10 +524,7 @@ public class CityApplicationService : ICityService
                 await Task.WhenAll(weatherTasks);
 
                 // 批次间略微延迟，避免 API 频率限制
-                if (batches.IndexOf(batch) < batches.Count - 1)
-                {
-                    await Task.Delay(100); // 100ms 延迟
-                }
+                if (batches.IndexOf(batch) < batches.Count - 1) await Task.Delay(100); // 100ms 延迟
             }
 
             stopwatch.Stop();
@@ -516,7 +541,7 @@ public class CityApplicationService : ICityService
     }
 
     /// <summary>
-    /// 填充城市的版主信息（从 city_moderators 表查询第一个活跃的版主）
+    ///     填充城市的版主信息（从 city_moderators 表查询第一个活跃的版主）
     /// </summary>
     private async Task EnrichCityWithModeratorInfoAsync(CityDto cityDto)
     {
@@ -534,7 +559,6 @@ public class CityApplicationService : ICityService
                 var userInfo = await GetUserInfoWithCacheAsync(firstActiveModerator.UserId);
 
                 if (userInfo != null)
-                {
                     cityDto.Moderator = new ModeratorDto
                     {
                         Id = userInfo.Id,
@@ -542,7 +566,6 @@ public class CityApplicationService : ICityService
                         Email = userInfo.Email,
                         Avatar = userInfo.Avatar
                     };
-                }
             }
         }
         catch (Exception ex)
@@ -552,7 +575,7 @@ public class CityApplicationService : ICityService
     }
 
     /// <summary>
-    /// 批量填充城市的版主信息（优化 N+1 查询问题）
+    ///     批量填充城市的版主信息（优化 N+1 查询问题）
     /// </summary>
     private async Task EnrichCitiesWithModeratorInfoAsync(List<CityDto> cities)
     {
@@ -560,7 +583,7 @@ public class CityApplicationService : ICityService
 
         try
         {
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var stopwatch = Stopwatch.StartNew();
             var cityIds = cities.Select(c => c.Id).ToList();
 
             // 🚀 优化：使用批量查询接口
@@ -586,21 +609,16 @@ public class CityApplicationService : ICityService
             foreach (var userId in userIds)
             {
                 var userInfo = await GetUserInfoWithCacheAsync(userId);
-                if (userInfo != null)
-                {
-                    userInfoMap[userId] = userInfo;
-                }
+                if (userInfo != null) userInfoMap[userId] = userInfo;
             }
 
             // 填充每个城市的版主信息
             foreach (var city in cities)
-            {
                 if (cityModeratorMap.TryGetValue(city.Id, out var moderator))
                 {
                     city.ModeratorId = moderator.UserId;
 
                     if (userInfoMap.TryGetValue(moderator.UserId, out var userInfo))
-                    {
                         city.Moderator = new ModeratorDto
                         {
                             Id = userInfo.Id,
@@ -608,9 +626,7 @@ public class CityApplicationService : ICityService
                             Email = userInfo.Email,
                             Avatar = userInfo.Avatar
                         };
-                    }
                 }
-            }
 
             stopwatch.Stop();
             _logger.LogInformation(
@@ -624,7 +640,7 @@ public class CityApplicationService : ICityService
     }
 
     /// <summary>
-    /// 批量填充城市的收藏状态
+    ///     批量填充城市的收藏状态
     /// </summary>
     private async Task EnrichCitiesWithFavoriteStatusAsync(List<CityDto> cities, Guid userId)
     {
@@ -633,28 +649,22 @@ public class CityApplicationService : ICityService
             // 获取用户收藏的所有城市ID列表
             var favoriteCityIds = await _favoriteCityService.GetUserFavoriteCityIdsAsync(userId);
             var favoriteSet = new HashSet<string>(favoriteCityIds);
-            
+
             // 填充每个城市的收藏状态
-            foreach (var city in cities)
-            {
-                city.IsFavorite = favoriteSet.Contains(city.Id.ToString());
-            }
-            
+            foreach (var city in cities) city.IsFavorite = favoriteSet.Contains(city.Id.ToString());
+
             _logger.LogDebug("已为 {Count} 个城市填充收藏状态 (用户: {UserId})", cities.Count, userId);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "填充城市收藏状态失败 (用户: {UserId})", userId);
             // 失败时默认所有城市都未收藏
-            foreach (var city in cities)
-            {
-                city.IsFavorite = false;
-            }
+            foreach (var city in cities) city.IsFavorite = false;
         }
     }
 
     /// <summary>
-    /// 通过缓存获取用户信息（带重试机制）
+    ///     通过缓存获取用户信息（带重试机制）
     /// </summary>
     private async Task<SimpleUserDto?> GetUserInfoWithCacheAsync(Guid userId)
     {
@@ -669,8 +679,7 @@ public class CityApplicationService : ICityService
 
         // 缓存未命中，调用 Dapr（带重试）
         const int maxRetries = 2;
-        for (int attempt = 0; attempt <= maxRetries; attempt++)
-        {
+        for (var attempt = 0; attempt <= maxRetries; attempt++)
             try
             {
                 var userResponse = await _daprClient.InvokeMethodAsync<ApiResponse<SimpleUserDto>>(
@@ -708,79 +717,8 @@ public class CityApplicationService : ICityService
                     return null;
                 }
             }
-        }
 
         return null;
-    }
-
-    /// <summary>
-    /// 申请成为城市版主 (普通用户)
-    /// </summary>
-    public async Task<bool> ApplyModeratorAsync(Guid userId, ApplyModeratorDto dto)
-    {
-        try
-        {
-            var city = await _cityRepository.GetByIdAsync(dto.CityId);
-            if (city == null)
-            {
-                _logger.LogWarning("城市不存在: {CityId}", dto.CityId);
-                return false;
-            }
-
-            if (city.ModeratorId.HasValue)
-            {
-                _logger.LogWarning("城市已有版主: {CityId}, ModeratorId: {ModeratorId}", dto.CityId, city.ModeratorId);
-                return false;
-            }
-
-            // TODO: 这里可以添加申请记录到数据库，等待管理员审核
-            // 目前简化流程：直接设置为版主
-            city.ModeratorId = userId;
-            city.UpdatedAt = DateTime.UtcNow;
-            city.UpdatedById = userId;
-
-            await _cityRepository.UpdateAsync(city.Id, city);
-
-            _logger.LogInformation("用户 {UserId} 申请成为城市 {CityId} 的版主成功", userId, dto.CityId);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "申请城市版主失败: UserId={UserId}, CityId={CityId}", userId, dto.CityId);
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// 指定城市版主 (仅管理员)
-    /// </summary>
-    public async Task<bool> AssignModeratorAsync(AssignModeratorDto dto)
-    {
-        try
-        {
-            var city = await _cityRepository.GetByIdAsync(dto.CityId);
-            if (city == null)
-            {
-                _logger.LogWarning("城市不存在: {CityId}", dto.CityId);
-                return false;
-            }
-
-            // TODO: 验证目标用户是否存在且角色为 moderator
-            // 这里需要调用 UserService 验证
-
-            city.ModeratorId = dto.UserId;
-            city.UpdatedAt = DateTime.UtcNow;
-
-            await _cityRepository.UpdateAsync(city.Id, city);
-
-            _logger.LogInformation("城市 {CityId} 的版主已设置为 {UserId}", dto.CityId, dto.UserId);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "指定城市版主失败: CityId={CityId}, UserId={UserId}", dto.CityId, dto.UserId);
-            throw;
-        }
     }
 }
 

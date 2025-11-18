@@ -5,12 +5,12 @@ using UserService.Domain.Repositories;
 namespace UserService.Infrastructure.Repositories;
 
 /// <summary>
-/// Role 仓储 Supabase 实现
+///     Role 仓储 Supabase 实现
 /// </summary>
 public class RoleRepository : IRoleRepository
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<RoleRepository> _logger;
+    private readonly Client _supabaseClient;
 
     public RoleRepository(Client supabaseClient, ILogger<RoleRepository> logger)
     {
@@ -29,10 +29,7 @@ public class RoleRepository : IRoleRepository
                 .Insert(role, cancellationToken: cancellationToken);
 
             var createdRole = result.Models.FirstOrDefault();
-            if (createdRole == null)
-            {
-                throw new InvalidOperationException("创建角色失败");
-            }
+            if (createdRole == null) throw new InvalidOperationException("创建角色失败");
 
             _logger.LogInformation("✅ 成功创建角色: {RoleId}", createdRole.Id);
             return createdRole;
@@ -116,10 +113,7 @@ public class RoleRepository : IRoleRepository
                 .Update(role, cancellationToken: cancellationToken);
 
             var updatedRole = response.Models.FirstOrDefault();
-            if (updatedRole == null)
-            {
-                throw new KeyNotFoundException($"角色不存在: {role.Id}");
-            }
+            if (updatedRole == null) throw new KeyNotFoundException($"角色不存在: {role.Id}");
 
             _logger.LogInformation("✅ 成功更新角色: {RoleId}", role.Id);
             return updatedRole;

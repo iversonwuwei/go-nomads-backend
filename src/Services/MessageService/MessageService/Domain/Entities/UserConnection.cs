@@ -1,7 +1,7 @@
 namespace MessageService.Domain.Entities;
 
 /// <summary>
-/// 用户 SignalR 连接信息
+///     用户 SignalR 连接信息
 /// </summary>
 public class UserConnection
 {

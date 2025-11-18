@@ -1,18 +1,18 @@
 using MessageService.Domain.Entities;
 using MessageService.Domain.Repositories;
 using Microsoft.Extensions.Logging;
-using Supabase;
-using System.Text.Json;
+using Postgrest;
+using Client = Supabase.Client;
 
 namespace MessageService.Infrastructure.Repositories;
 
 /// <summary>
-/// 通知仓储实现 - Supabase
+///     通知仓储实现 - Supabase
 /// </summary>
 public class NotificationRepository : INotificationRepository
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<NotificationRepository> _logger;
+    private readonly Client _supabaseClient;
 
     public NotificationRepository(Client supabaseClient, ILogger<NotificationRepository> logger)
     {
@@ -34,20 +34,14 @@ public class NotificationRepository : INotificationRepository
                 .Where(n => n.UserId == userId);
 
             // 筛选已读/未读
-            if (isRead.HasValue)
-            {
-                query = query.Where(n => n.IsRead == isRead.Value);
-            }
+            if (isRead.HasValue) query = query.Where(n => n.IsRead == isRead.Value);
 
             // 获取总数
             var countQuery = _supabaseClient
                 .From<Notification>()
                 .Where(n => n.UserId == userId);
 
-            if (isRead.HasValue)
-            {
-                countQuery = countQuery.Where(n => n.IsRead == isRead.Value);
-            }
+            if (isRead.HasValue) countQuery = countQuery.Where(n => n.IsRead == isRead.Value);
 
             // 获取总数（先获取数据再统计）
             var countResult = await countQuery.Get(cancellationToken);
@@ -56,13 +50,13 @@ public class NotificationRepository : INotificationRepository
             // 分页查询
             var skip = (page - 1) * pageSize;
             var response = await query
-                .Order("created_at", Postgrest.Constants.Ordering.Descending)
+                .Order("created_at", Constants.Ordering.Descending)
                 .Range(skip, skip + pageSize - 1)
                 .Get(cancellationToken);
 
             var notifications = response.Models ?? new List<Notification>();
 
-            _logger.LogInformation("✅ 获取用户通知: UserId={UserId}, IsRead={IsRead}, Total={Total}", 
+            _logger.LogInformation("✅ 获取用户通知: UserId={UserId}, IsRead={IsRead}, Total={Total}",
                 userId, isRead, totalCount);
 
             return (notifications, totalCount);
@@ -114,7 +108,8 @@ public class NotificationRepository : INotificationRepository
         }
     }
 
-    public async Task<Notification> CreateAsync(Notification notification, CancellationToken cancellationToken = default)
+    public async Task<Notification> CreateAsync(Notification notification,
+        CancellationToken cancellationToken = default)
     {
         try
         {
@@ -124,22 +119,18 @@ public class NotificationRepository : INotificationRepository
 
             var response = await _supabaseClient
                 .From<Notification>()
-                .Insert(notification, new Postgrest.QueryOptions { Returning = Postgrest.QueryOptions.ReturnType.Representation }, cancellationToken);
+                .Insert(notification, new QueryOptions { Returning = QueryOptions.ReturnType.Representation },
+                    cancellationToken);
 
             var created = response.Models.FirstOrDefault();
 
             if (created == null)
-            {
                 // Fallback: 查询刚创建的记录
                 created = await GetByIdAsync(notification.Id, cancellationToken);
-            }
 
-            if (created == null)
-            {
-                throw new InvalidOperationException("创建通知失败 - 无法获取创建的记录");
-            }
+            if (created == null) throw new InvalidOperationException("创建通知失败 - 无法获取创建的记录");
 
-            _logger.LogInformation("✅ 创建通知成功: Id={Id}, UserId={UserId}, Type={Type}", 
+            _logger.LogInformation("✅ 创建通知成功: Id={Id}, UserId={UserId}, Type={Type}",
                 created.Id, created.UserId, created.Type);
 
             return created;
@@ -151,7 +142,8 @@ public class NotificationRepository : INotificationRepository
         }
     }
 
-    public async Task<List<Notification>> CreateBatchAsync(List<Notification> notifications, CancellationToken cancellationToken = default)
+    public async Task<List<Notification>> CreateBatchAsync(List<Notification> notifications,
+        CancellationToken cancellationToken = default)
     {
         try
         {
@@ -165,7 +157,8 @@ public class NotificationRepository : INotificationRepository
 
             var response = await _supabaseClient
                 .From<Notification>()
-                .Insert(notifications, new Postgrest.QueryOptions { Returning = Postgrest.QueryOptions.ReturnType.Representation }, cancellationToken);
+                .Insert(notifications, new QueryOptions { Returning = QueryOptions.ReturnType.Representation },
+                    cancellationToken);
 
             var created = response.Models ?? new List<Notification>();
 
@@ -210,14 +203,12 @@ public class NotificationRepository : INotificationRepository
         }
     }
 
-    public async Task<int> MarkMultipleAsReadAsync(List<Guid> ids, string userId, CancellationToken cancellationToken = default)
+    public async Task<int> MarkMultipleAsReadAsync(List<Guid> ids, string userId,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            if (ids == null || ids.Count == 0)
-            {
-                return 0;
-            }
+            if (ids == null || ids.Count == 0) return 0;
 
             var now = DateTime.UtcNow;
             var updateModel = new Notification
@@ -227,7 +218,7 @@ public class NotificationRepository : INotificationRepository
             };
 
             // Supabase 不支持 IN 查询，需要逐个更新
-            int updatedCount = 0;
+            var updatedCount = 0;
             foreach (var id in ids)
             {
                 var notification = await GetByIdAsync(id, cancellationToken);
@@ -254,10 +245,10 @@ public class NotificationRepository : INotificationRepository
         try
         {
             // 获取所有未读通知
-            var (notifications, _) = await GetUserNotificationsAsync(userId, isRead: false, page: 1, pageSize: 1000, cancellationToken);
+            var (notifications, _) = await GetUserNotificationsAsync(userId, false, 1, 1000, cancellationToken);
 
             var now = DateTime.UtcNow;
-            int updatedCount = 0;
+            var updatedCount = 0;
 
             foreach (var notification in notifications)
             {

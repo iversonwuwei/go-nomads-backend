@@ -1,21 +1,20 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using System.IdentityModel.Tokens.Jwt;
 
 namespace Gateway.Middleware;
 
 /// <summary>
-/// JWT 认证拦截中间件
-/// 在请求到达 YARP 反向代理之前验证 JWT token
+///     JWT 认证拦截中间件
+///     在请求到达 YARP 反向代理之前验证 JWT token
 /// </summary>
 public class JwtAuthenticationInterceptor
 {
-    private readonly RequestDelegate _next;
     private readonly ILogger<JwtAuthenticationInterceptor> _logger;
+    private readonly RequestDelegate _next;
     private readonly HashSet<string> _publicPaths;
 
     public JwtAuthenticationInterceptor(
-        RequestDelegate next, 
+        RequestDelegate next,
         ILogger<JwtAuthenticationInterceptor> logger,
         IConfiguration configuration)
     {
@@ -23,7 +22,8 @@ public class JwtAuthenticationInterceptor
         _logger = logger;
 
         // 从配置读取公开路径白名单
-        var publicPaths = configuration.GetSection("Authentication:PublicPaths").Get<string[]>() ?? Array.Empty<string>();
+        var publicPaths = configuration.GetSection("Authentication:PublicPaths").Get<string[]>() ??
+                          Array.Empty<string>();
         _publicPaths = new HashSet<string>(publicPaths, StringComparer.OrdinalIgnoreCase);
 
         _logger.LogInformation("🔓 Public paths configured: {Paths}", string.Join(", ", _publicPaths));
@@ -78,20 +78,17 @@ public class JwtAuthenticationInterceptor
         _logger.LogInformation("🔑 Found Authorization header, validating token...");
 
         // 移除 "Bearer " 前缀
-        if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        {
-            token = token.Substring(7);
-        }
+        if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) token = token.Substring(7);
 
         // 验证 token (通过 ASP.NET Core Authentication)
         var authenticateResult = await context.AuthenticateAsync(JwtBearerDefaults.AuthenticationScheme);
 
         if (!authenticateResult.Succeeded)
         {
-            _logger.LogWarning("❌ JWT validation failed for path: {Path} - Error: {Error}", 
-                path, 
+            _logger.LogWarning("❌ JWT validation failed for path: {Path} - Error: {Error}",
+                path,
                 authenticateResult.Failure?.Message ?? "Unknown error");
-            
+
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsJsonAsync(new
@@ -116,18 +113,20 @@ public class JwtAuthenticationInterceptor
             context.Request.Headers["X-User-Id"] = userId;
             _logger.LogInformation("   Added X-User-Id: {UserId}", userId);
         }
+
         if (!string.IsNullOrEmpty(email))
         {
             context.Request.Headers["X-User-Email"] = email;
             _logger.LogInformation("   Added X-User-Email: {Email}", email);
         }
+
         if (!string.IsNullOrEmpty(role))
         {
             context.Request.Headers["X-User-Role"] = role;
             _logger.LogInformation("   Added X-User-Role: {Role}", role);
         }
 
-        _logger.LogInformation("✅ JWT validated - UserId: {UserId}, Email: {Email}, Role: {Role}, Path: {Path}", 
+        _logger.LogInformation("✅ JWT validated - UserId: {UserId}, Email: {Email}, Role: {Role}, Path: {Path}",
             userId, email, role, path);
 
         // 继续处理请求
@@ -137,26 +136,19 @@ public class JwtAuthenticationInterceptor
     private bool IsPublicPath(string path)
     {
         // 精确匹配
-        if (_publicPaths.Contains(path))
-        {
-            return true;
-        }
+        if (_publicPaths.Contains(path)) return true;
 
         // 前缀匹配
         foreach (var publicPath in _publicPaths)
-        {
             if (path.StartsWith(publicPath, StringComparison.OrdinalIgnoreCase))
-            {
                 return true;
-            }
-        }
 
         return false;
     }
 }
 
 /// <summary>
-/// JWT 认证拦截中间件扩展方法
+///     JWT 认证拦截中间件扩展方法
 /// </summary>
 public static class JwtAuthenticationInterceptorExtensions
 {

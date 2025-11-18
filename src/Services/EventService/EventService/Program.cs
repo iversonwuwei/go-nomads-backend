@@ -1,9 +1,13 @@
-using Dapr.Client;
-using Scalar.AspNetCore;
-using Prometheus;
-using Shared.Extensions;
-using Serilog;
+using EventService.Application.Services;
+using EventService.Domain.Repositories;
+using EventService.Infrastructure.GrpcClients;
+using EventService.Infrastructure.Repositories;
 using GoNomads.Shared.Extensions;
+using Microsoft.OpenApi.Models;
+using Prometheus;
+using Scalar.AspNetCore;
+using Serilog;
+using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,23 +25,23 @@ builder.Host.UseSerilog();
 builder.Services.AddSupabase(builder.Configuration);
 
 // 注册仓储 (Infrastructure Layer)
-builder.Services.AddScoped<EventService.Domain.Repositories.IEventRepository, EventService.Infrastructure.Repositories.EventRepository>();
-builder.Services.AddScoped<EventService.Domain.Repositories.IEventParticipantRepository, EventService.Infrastructure.Repositories.EventParticipantRepository>();
-builder.Services.AddScoped<EventService.Domain.Repositories.IEventFollowerRepository, EventService.Infrastructure.Repositories.EventFollowerRepository>();
+builder.Services.AddScoped<IEventRepository, EventRepository>();
+builder.Services.AddScoped<IEventParticipantRepository, EventParticipantRepository>();
+builder.Services.AddScoped<IEventFollowerRepository, EventFollowerRepository>();
 
 // 注册 gRPC 客户端 (通过 Dapr Service Invocation)
-builder.Services.AddScoped<EventService.Infrastructure.GrpcClients.ICityGrpcClient, EventService.Infrastructure.GrpcClients.CityGrpcClient>();
-builder.Services.AddScoped<EventService.Infrastructure.GrpcClients.IUserGrpcClient, EventService.Infrastructure.GrpcClients.UserGrpcClient>();
+builder.Services.AddScoped<ICityGrpcClient, CityGrpcClient>();
+builder.Services.AddScoped<IUserGrpcClient, UserGrpcClient>();
 
 // 注册应用服务 (Application Layer)
-builder.Services.AddScoped<EventService.Application.Services.IEventService, EventService.Application.Services.EventApplicationService>();
+builder.Services.AddScoped<IEventService, EventApplicationService>();
 
 // 配置 DaprClient 使用 gRPC 协议（性能更好）
 // 在 container sidecar 模式下，EventService 和 Dapr 共享网络命名空间，使用 localhost
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
     // 使用 gRPC 端点（默认端口 50001）
-    var daprGrpcPort = builder.Configuration.GetValue<int>("Dapr:GrpcPort", 50001);
+    var daprGrpcPort = builder.Configuration.GetValue("Dapr:GrpcPort", 50001);
     var daprGrpcEndpoint = $"http://localhost:{daprGrpcPort}";
 
     daprClientBuilder.UseGrpcEndpoint(daprGrpcEndpoint);
@@ -56,7 +60,7 @@ builder.Services.AddOpenApi(options =>
     options.AddDocumentTransformer((document, context, cancellationToken) =>
     {
         // 配置正确的服务器 URL
-        document.Servers = new List<Microsoft.OpenApi.Models.OpenApiServer>
+        document.Servers = new List<OpenApiServer>
         {
             new() { Url = "http://localhost:8005", Description = "Local Development" }
         };
@@ -93,7 +97,8 @@ app.UseUserContext();
 app.MapControllers();
 
 // Add health check endpoint
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "EventService", timestamp = DateTime.UtcNow }));
+app.MapGet("/health",
+    () => Results.Ok(new { status = "healthy", service = "EventService", timestamp = DateTime.UtcNow }));
 
 // Map Prometheus metrics endpoint
 app.MapMetrics();

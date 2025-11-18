@@ -1,22 +1,21 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using GoNomads.Shared.Models;
+using System.ComponentModel.DataAnnotations;
 using GoNomads.Shared.Middleware;
+using GoNomads.Shared.Models;
+using Microsoft.AspNetCore.Mvc;
 using UserService.Application.DTOs;
 using UserService.Application.Services;
-using System.ComponentModel.DataAnnotations;
 
 namespace UserService.API.Controllers;
 
 /// <summary>
-/// Roles API - RESTful endpoints for role management
+///     Roles API - RESTful endpoints for role management
 /// </summary>
 [ApiController]
 [Route("api/v1/roles")]
 public class RolesController : ControllerBase
 {
-    private readonly IUserService _userService;
     private readonly ILogger<RolesController> _logger;
+    private readonly IUserService _userService;
 
     public RolesController(
         IUserService userService,
@@ -27,7 +26,7 @@ public class RolesController : ControllerBase
     }
 
     /// <summary>
-    /// 获取所有角色
+    ///     获取所有角色
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<List<RoleDto>>>> GetAllRoles(
@@ -58,7 +57,7 @@ public class RolesController : ControllerBase
     }
 
     /// <summary>
-    /// 根据 ID 获取角色
+    ///     根据 ID 获取角色
     /// </summary>
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<RoleDto>>> GetRole(
@@ -72,13 +71,11 @@ public class RolesController : ControllerBase
             var role = await _userService.GetRoleByIdAsync(id, cancellationToken);
 
             if (role == null)
-            {
                 return NotFound(new ApiResponse<RoleDto>
                 {
                     Success = false,
                     Message = "Role not found"
                 });
-            }
 
             return Ok(new ApiResponse<RoleDto>
             {
@@ -99,7 +96,7 @@ public class RolesController : ControllerBase
     }
 
     /// <summary>
-    /// 根据名称获取角色
+    ///     根据名称获取角色
     /// </summary>
     [HttpGet("by-name/{name}")]
     public async Task<ActionResult<ApiResponse<RoleDto>>> GetRoleByName(
@@ -113,13 +110,11 @@ public class RolesController : ControllerBase
             var role = await _userService.GetRoleByNameAsync(name, cancellationToken);
 
             if (role == null)
-            {
                 return NotFound(new ApiResponse<RoleDto>
                 {
                     Success = false,
                     Message = $"Role '{name}' not found"
                 });
-            }
 
             return Ok(new ApiResponse<RoleDto>
             {
@@ -140,7 +135,7 @@ public class RolesController : ControllerBase
     }
 
     /// <summary>
-    /// 创建角色（仅管理员）
+    ///     创建角色（仅管理员）
     /// </summary>
     [HttpPost]
     public async Task<ActionResult<ApiResponse<RoleDto>>> CreateRole(
@@ -149,10 +144,7 @@ public class RolesController : ControllerBase
     {
         // 验证用户是否为管理员
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-        if (userContext?.Role != "admin")
-        {
-            return Forbid();
-        }
+        if (userContext?.Role != "admin") return Forbid();
 
         _logger.LogInformation("📝 创建角色: {RoleName}", request.Name);
 
@@ -205,7 +197,7 @@ public class RolesController : ControllerBase
     }
 
     /// <summary>
-    /// 更新角色（仅管理员）
+    ///     更新角色（仅管理员）
     /// </summary>
     [HttpPut("{id}")]
     public async Task<ActionResult<ApiResponse<RoleDto>>> UpdateRole(
@@ -215,10 +207,7 @@ public class RolesController : ControllerBase
     {
         // 验证用户是否为管理员
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-        if (userContext?.Role != "admin")
-        {
-            return Forbid();
-        }
+        if (userContext?.Role != "admin") return Forbid();
 
         _logger.LogInformation("📝 更新角色: {RoleId}", id);
 
@@ -276,7 +265,7 @@ public class RolesController : ControllerBase
     }
 
     /// <summary>
-    /// 删除角色（仅管理员）
+    ///     删除角色（仅管理员）
     /// </summary>
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteRole(
@@ -285,10 +274,7 @@ public class RolesController : ControllerBase
     {
         // 验证用户是否为管理员
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-        if (userContext?.Role != "admin")
-        {
-            return Forbid();
-        }
+        if (userContext?.Role != "admin") return Forbid();
 
         _logger.LogInformation("🗑️ 删除角色: {RoleId}", id);
 
@@ -297,13 +283,11 @@ public class RolesController : ControllerBase
             var result = await _userService.DeleteRoleAsync(id, cancellationToken);
 
             if (!result)
-            {
                 return NotFound(new ApiResponse<object>
                 {
                     Success = false,
                     Message = "Role not found"
                 });
-            }
 
             return Ok(new ApiResponse<object>
             {
@@ -331,7 +315,7 @@ public class RolesController : ControllerBase
     }
 
     /// <summary>
-    /// 获取指定角色的所有用户
+    ///     获取指定角色的所有用户
     /// </summary>
     [HttpGet("{id}/users")]
     public async Task<ActionResult<ApiResponse<List<UserDto>>>> GetUsersByRole(
@@ -374,7 +358,7 @@ public class RolesController : ControllerBase
 #region Request DTOs
 
 /// <summary>
-/// 创建角色请求 DTO
+///     创建角色请求 DTO
 /// </summary>
 public class CreateRoleRequest
 {
@@ -387,7 +371,7 @@ public class CreateRoleRequest
 }
 
 /// <summary>
-/// 更新角色请求 DTO
+///     更新角色请求 DTO
 /// </summary>
 public class UpdateRoleRequest
 {

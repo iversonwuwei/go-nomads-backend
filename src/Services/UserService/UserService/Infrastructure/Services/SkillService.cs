@@ -6,12 +6,12 @@ using UserService.Domain.Entities;
 namespace UserService.Infrastructure.Services;
 
 /// <summary>
-/// 技能服务实现
+///     技能服务实现
 /// </summary>
 public class SkillService : ISkillService
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<SkillService> _logger;
+    private readonly Client _supabaseClient;
 
     public SkillService(Client supabaseClient, ILogger<SkillService> logger)
     {
@@ -53,7 +53,7 @@ public class SkillService : ISkillService
         try
         {
             var skills = await GetAllSkillsAsync(cancellationToken);
-            
+
             return skills
                 .GroupBy(s => s.Category)
                 .Select(g => new SkillsByCategoryDto
@@ -71,7 +71,8 @@ public class SkillService : ISkillService
         }
     }
 
-    public async Task<List<SkillDto>> GetSkillsBySpecificCategoryAsync(string category, CancellationToken cancellationToken = default)
+    public async Task<List<SkillDto>> GetSkillsBySpecificCategoryAsync(string category,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("📋 获取类别为 {Category} 的技能", category);
 
@@ -129,7 +130,8 @@ public class SkillService : ISkillService
         }
     }
 
-    public async Task<List<UserSkillDto>> GetUserSkillsAsync(string userId, CancellationToken cancellationToken = default)
+    public async Task<List<UserSkillDto>> GetUserSkillsAsync(string userId,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("📋 获取用户技能: {UserId}", userId);
 
@@ -148,7 +150,6 @@ public class SkillService : ISkillService
             {
                 var skill = await GetSkillByIdAsync(userSkill.SkillId, cancellationToken);
                 if (skill != null)
-                {
                     results.Add(new UserSkillDto
                     {
                         Id = userSkill.Id,
@@ -161,7 +162,6 @@ public class SkillService : ISkillService
                         YearsOfExperience = userSkill.YearsOfExperience,
                         CreatedAt = userSkill.CreatedAt
                     });
-                }
             }
 
             // 按类别和名称排序
@@ -187,10 +187,7 @@ public class SkillService : ISkillService
         {
             // 检查技能是否存在
             var skill = await GetSkillByIdAsync(skillId, cancellationToken);
-            if (skill == null)
-            {
-                throw new KeyNotFoundException($"技能不存在: {skillId}");
-            }
+            if (skill == null) throw new KeyNotFoundException($"技能不存在: {skillId}");
 
             var userSkill = new UserSkill
             {
@@ -205,10 +202,7 @@ public class SkillService : ISkillService
                 .Insert(userSkill, cancellationToken: cancellationToken);
 
             var created = response.Models.FirstOrDefault();
-            if (created == null)
-            {
-                throw new InvalidOperationException("添加用户技能失败");
-            }
+            if (created == null) throw new InvalidOperationException("添加用户技能失败");
 
             return new UserSkillDto
             {
@@ -238,9 +232,8 @@ public class SkillService : ISkillService
         _logger.LogInformation("➕ 批量添加用户技能: UserId={UserId}, Count={Count}", userId, skills.Count);
 
         var results = new List<UserSkillDto>();
-        
+
         foreach (var skill in skills)
-        {
             try
             {
                 var result = await AddUserSkillAsync(
@@ -249,7 +242,7 @@ public class SkillService : ISkillService
                     skill.ProficiencyLevel,
                     skill.YearsOfExperience,
                     cancellationToken);
-                
+
                 results.Add(result);
             }
             catch (Exception ex)
@@ -257,12 +250,12 @@ public class SkillService : ISkillService
                 _logger.LogWarning(ex, "⚠️ 添加技能失败: {SkillId}", skill.SkillId);
                 // 继续处理其他技能
             }
-        }
 
         return results;
     }
 
-    public async Task<bool> RemoveUserSkillAsync(string userId, string skillId, CancellationToken cancellationToken = default)
+    public async Task<bool> RemoveUserSkillAsync(string userId, string skillId,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("➖ 删除用户技能: UserId={UserId}, UserSkillOrRecordId={SkillId}", userId, skillId);
 
@@ -290,7 +283,8 @@ public class SkillService : ISkillService
         }
     }
 
-    public async Task<bool> RemoveUserSkillByNameAsync(string userId, string skillName, CancellationToken cancellationToken = default)
+    public async Task<bool> RemoveUserSkillByNameAsync(string userId, string skillName,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("➖ 按名称删除用户技能: UserId={UserId}, SkillName={SkillName}", userId, skillName);
 
@@ -347,10 +341,7 @@ public class SkillService : ISkillService
                 .Update(update, cancellationToken: cancellationToken);
 
             var updated = response.Models.FirstOrDefault();
-            if (updated == null)
-            {
-                throw new KeyNotFoundException("用户技能不存在");
-            }
+            if (updated == null) throw new KeyNotFoundException("用户技能不存在");
 
             // 获取技能详情
             var skill = await GetSkillByIdAsync(skillId, cancellationToken);

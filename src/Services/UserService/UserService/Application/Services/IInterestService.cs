@@ -3,37 +3,38 @@ using UserService.Application.DTOs;
 namespace UserService.Application.Services;
 
 /// <summary>
-/// 兴趣爱好服务接口
+///     兴趣爱好服务接口
 /// </summary>
 public interface IInterestService
 {
     /// <summary>
-    /// 获取所有兴趣
+    ///     获取所有兴趣
     /// </summary>
     Task<List<InterestDto>> GetAllInterestsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 获取按类别分组的兴趣
+    ///     获取按类别分组的兴趣
     /// </summary>
     Task<List<InterestsByCategoryDto>> GetInterestsByCategoryAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 根据类别获取兴趣
+    ///     根据类别获取兴趣
     /// </summary>
-    Task<List<InterestDto>> GetInterestsBySpecificCategoryAsync(string category, CancellationToken cancellationToken = default);
+    Task<List<InterestDto>> GetInterestsBySpecificCategoryAsync(string category,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 根据ID获取兴趣
+    ///     根据ID获取兴趣
     /// </summary>
     Task<InterestDto?> GetInterestByIdAsync(string interestId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 获取用户的所有兴趣
+    ///     获取用户的所有兴趣
     /// </summary>
     Task<List<UserInterestDto>> GetUserInterestsAsync(string userId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 添加用户兴趣
+    ///     添加用户兴趣
     /// </summary>
     Task<UserInterestDto> AddUserInterestAsync(
         string userId,
@@ -42,7 +43,7 @@ public interface IInterestService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 批量添加用户兴趣
+    ///     批量添加用户兴趣
     /// </summary>
     Task<List<UserInterestDto>> AddUserInterestsBatchAsync(
         string userId,
@@ -50,17 +51,18 @@ public interface IInterestService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 删除用户兴趣
+    ///     删除用户兴趣
     /// </summary>
     Task<bool> RemoveUserInterestAsync(string userId, string interestId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 按兴趣名称删除用户兴趣
+    ///     按兴趣名称删除用户兴趣
     /// </summary>
-    Task<bool> RemoveUserInterestByNameAsync(string userId, string interestName, CancellationToken cancellationToken = default);
+    Task<bool> RemoveUserInterestByNameAsync(string userId, string interestName,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 更新用户兴趣强度
+    ///     更新用户兴趣强度
     /// </summary>
     Task<UserInterestDto> UpdateUserInterestAsync(
         string userId,

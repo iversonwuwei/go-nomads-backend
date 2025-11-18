@@ -3,32 +3,32 @@ using EventService.Application.DTOs;
 namespace EventService.Application.Services;
 
 /// <summary>
-/// Event 应用服务接口
+///     Event 应用服务接口
 /// </summary>
 public interface IEventService
 {
     /// <summary>
-    /// 创建 Event
+    ///     创建 Event
     /// </summary>
     Task<EventResponse> CreateEventAsync(CreateEventRequest request, Guid organizerId);
 
     /// <summary>
-    /// 获取 Event 详情
+    ///     获取 Event 详情
     /// </summary>
     Task<EventResponse> GetEventAsync(Guid id, Guid? userId = null);
 
     /// <summary>
-    /// 更新 Event
+    ///     更新 Event
     /// </summary>
     Task<EventResponse> UpdateEventAsync(Guid id, UpdateEventRequest request, Guid userId);
 
     /// <summary>
-    /// 取消活动
+    ///     取消活动
     /// </summary>
     Task<EventResponse> CancelEventAsync(Guid id, Guid userId);
 
     /// <summary>
-    /// 获取 Event 列表
+    ///     获取 Event 列表
     /// </summary>
     Task<(List<EventResponse> Events, int Total)> GetEventsAsync(
         Guid? cityId = null,
@@ -39,47 +39,47 @@ public interface IEventService
         Guid? userId = null);
 
     /// <summary>
-    /// 参加 Event
+    ///     参加 Event
     /// </summary>
     Task<ParticipantResponse> JoinEventAsync(Guid eventId, Guid userId, JoinEventRequest request);
 
     /// <summary>
-    /// 取消参加 Event
+    ///     取消参加 Event
     /// </summary>
     Task LeaveEventAsync(Guid eventId, Guid userId);
 
     /// <summary>
-    /// 关注 Event
+    ///     关注 Event
     /// </summary>
     Task<FollowerResponse> FollowEventAsync(Guid eventId, Guid userId, FollowEventRequest request);
 
     /// <summary>
-    /// 取消关注 Event
+    ///     取消关注 Event
     /// </summary>
     Task UnfollowEventAsync(Guid eventId, Guid userId);
 
     /// <summary>
-    /// 获取参与者列表
+    ///     获取参与者列表
     /// </summary>
     Task<List<ParticipantResponse>> GetParticipantsAsync(Guid eventId);
 
     /// <summary>
-    /// 获取关注者列表
+    ///     获取关注者列表
     /// </summary>
     Task<List<FollowerResponse>> GetFollowersAsync(Guid eventId);
 
     /// <summary>
-    /// 获取用户创建的 Event
+    ///     获取用户创建的 Event
     /// </summary>
     Task<List<EventResponse>> GetUserCreatedEventsAsync(Guid userId);
 
     /// <summary>
-    /// 获取用户参加的 Event
+    ///     获取用户参加的 Event
     /// </summary>
     Task<List<EventResponse>> GetUserJoinedEventsAsync(Guid userId);
 
     /// <summary>
-    /// 获取用户关注的 Event
+    ///     获取用户关注的 Event
     /// </summary>
     Task<List<EventResponse>> GetUserFollowingEventsAsync(Guid userId);
 }

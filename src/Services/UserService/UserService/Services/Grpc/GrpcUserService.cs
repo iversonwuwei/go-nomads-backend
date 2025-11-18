@@ -5,12 +5,12 @@ using UserService.Grpc;
 namespace UserService.Services.Grpc;
 
 /// <summary>
-/// gRPC 用户信息服务实现
+///     gRPC 用户信息服务实现
 /// </summary>
 public class GrpcUserService : UserService.Grpc.UserService.UserServiceBase
 {
-    private readonly IUserService _userService;
     private readonly ILogger<GrpcUserService> _logger;
+    private readonly IUserService _userService;
 
     public GrpcUserService(
         IUserService userService,
@@ -21,7 +21,7 @@ public class GrpcUserService : UserService.Grpc.UserService.UserServiceBase
     }
 
     /// <summary>
-    /// 获取单个用户信息
+    ///     获取单个用户信息
     /// </summary>
     public override async Task<UserInfoResponse> GetUserInfo(
         GetUserInfoRequest request,
@@ -80,7 +80,7 @@ public class GrpcUserService : UserService.Grpc.UserService.UserServiceBase
     }
 
     /// <summary>
-    /// 批量获取用户信息
+    ///     批量获取用户信息
     /// </summary>
     public override async Task<GetUsersInfoResponse> GetUsersInfo(
         GetUsersInfoRequest request,
@@ -108,7 +108,6 @@ public class GrpcUserService : UserService.Grpc.UserService.UserServiceBase
                     {
                         var user = await _userService.GetUserByIdAsync(userId, context.CancellationToken);
                         if (user != null)
-                        {
                             return new UserInfoResponse
                             {
                                 UserId = user.Id,
@@ -117,16 +116,13 @@ public class GrpcUserService : UserService.Grpc.UserService.UserServiceBase
                                 AvatarUrl = string.Empty, // UserDto 暂时没有 AvatarUrl
                                 Success = true
                             };
-                        }
-                        else
+
+                        return new UserInfoResponse
                         {
-                            return new UserInfoResponse
-                            {
-                                UserId = userId,
-                                Success = false,
-                                ErrorMessage = "User not found"
-                            };
-                        }
+                            UserId = userId,
+                            Success = false,
+                            ErrorMessage = "User not found"
+                        };
                     }
                     catch (Exception ex)
                     {

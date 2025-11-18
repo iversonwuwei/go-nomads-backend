@@ -5,13 +5,13 @@ using CoworkingService.Domain.Repositories;
 namespace CoworkingService.Application.Services;
 
 /// <summary>
-/// Coworking 应用服务实现
-/// 协调领域对象完成业务用例
+///     Coworking 应用服务实现
+///     协调领域对象完成业务用例
 /// </summary>
 public class CoworkingApplicationService : ICoworkingService
 {
-    private readonly ICoworkingRepository _coworkingRepository;
     private readonly ICoworkingBookingRepository _bookingRepository;
+    private readonly ICoworkingRepository _coworkingRepository;
     private readonly ILogger<CoworkingApplicationService> _logger;
 
     public CoworkingApplicationService(
@@ -34,30 +34,30 @@ public class CoworkingApplicationService : ICoworkingService
         {
             // 1. 使用领域工厂方法创建实体
             var coworkingSpace = CoworkingSpace.Create(
-                name: request.Name,
-                address: request.Address,
-                latitude: request.Latitude,
-                longitude: request.Longitude,
-                cityId: request.CityId,
-                description: request.Description,
-                imageUrl: request.ImageUrl,
-                images: request.Images,
-                pricePerDay: request.PricePerDay,
-                pricePerMonth: request.PricePerMonth,
-                pricePerHour: request.PricePerHour,
-                currency: request.Currency,
-                wifiSpeed: request.WifiSpeed,
-                hasMeetingRoom: request.HasMeetingRoom,
-                hasCoffee: request.HasCoffee,
-                hasParking: request.HasParking,
-                has247Access: request.Has247Access,
-                amenities: request.Amenities,
-                capacity: request.Capacity,
-                phone: request.Phone,
-                email: request.Email,
-                website: request.Website,
-                openingHours: request.OpeningHours,
-                createdBy: request.CreatedBy);
+                request.Name,
+                request.Address,
+                request.Latitude,
+                request.Longitude,
+                request.CityId,
+                request.Description,
+                request.ImageUrl,
+                request.Images,
+                request.PricePerDay,
+                request.PricePerMonth,
+                request.PricePerHour,
+                request.Currency,
+                request.WifiSpeed,
+                request.HasMeetingRoom,
+                request.HasCoffee,
+                request.HasParking,
+                request.Has247Access,
+                request.Amenities,
+                request.Capacity,
+                request.Phone,
+                request.Email,
+                request.Website,
+                request.OpeningHours,
+                request.CreatedBy);
 
             // 2. 通过仓储持久化
             var created = await _coworkingRepository.CreateAsync(coworkingSpace);
@@ -79,10 +79,7 @@ public class CoworkingApplicationService : ICoworkingService
         _logger.LogInformation("获取共享办公空间: {Id}", id);
 
         var coworkingSpace = await _coworkingRepository.GetByIdAsync(id);
-        if (coworkingSpace == null)
-        {
-            throw new KeyNotFoundException($"未找到 ID 为 {id} 的共享办公空间");
-        }
+        if (coworkingSpace == null) throw new KeyNotFoundException($"未找到 ID 为 {id} 的共享办公空间");
 
         return MapToResponse(coworkingSpace);
     }
@@ -97,37 +94,34 @@ public class CoworkingApplicationService : ICoworkingService
         {
             // 1. 获取聚合根
             var coworkingSpace = await _coworkingRepository.GetByIdAsync(id);
-            if (coworkingSpace == null)
-            {
-                throw new KeyNotFoundException($"未找到 ID 为 {id} 的共享办公空间");
-            }
+            if (coworkingSpace == null) throw new KeyNotFoundException($"未找到 ID 为 {id} 的共享办公空间");
 
             // 2. 调用领域方法更新
             coworkingSpace.Update(
-                name: request.Name,
-                address: request.Address,
-                latitude: request.Latitude,
-                longitude: request.Longitude,
-                cityId: request.CityId,
-                description: request.Description,
-                imageUrl: request.ImageUrl,
-                images: request.Images,
-                pricePerDay: request.PricePerDay,
-                pricePerMonth: request.PricePerMonth,
-                pricePerHour: request.PricePerHour,
-                currency: request.Currency,
-                wifiSpeed: request.WifiSpeed,
-                hasMeetingRoom: request.HasMeetingRoom,
-                hasCoffee: request.HasCoffee,
-                hasParking: request.HasParking,
-                has247Access: request.Has247Access,
-                amenities: request.Amenities,
-                capacity: request.Capacity,
-                phone: request.Phone,
-                email: request.Email,
-                website: request.Website,
-                openingHours: request.OpeningHours,
-                updatedBy: request.UpdatedBy);
+                request.Name,
+                request.Address,
+                request.Latitude,
+                request.Longitude,
+                request.CityId,
+                request.Description,
+                request.ImageUrl,
+                request.Images,
+                request.PricePerDay,
+                request.PricePerMonth,
+                request.PricePerHour,
+                request.Currency,
+                request.WifiSpeed,
+                request.HasMeetingRoom,
+                request.HasCoffee,
+                request.HasParking,
+                request.Has247Access,
+                request.Amenities,
+                request.Capacity,
+                request.Phone,
+                request.Email,
+                request.Website,
+                request.OpeningHours,
+                request.UpdatedBy);
 
             // 3. 持久化更新
             var updated = await _coworkingRepository.UpdateAsync(coworkingSpace);
@@ -150,10 +144,7 @@ public class CoworkingApplicationService : ICoworkingService
         try
         {
             var exists = await _coworkingRepository.ExistsAsync(id);
-            if (!exists)
-            {
-                throw new KeyNotFoundException($"未找到 ID 为 {id} 的共享办公空间");
-            }
+            if (!exists) throw new KeyNotFoundException($"未找到 ID 为 {id} 的共享办公空间");
 
             await _coworkingRepository.DeleteAsync(id);
 
@@ -208,13 +199,10 @@ public class CoworkingApplicationService : ICoworkingService
     {
         _logger.LogInformation("批量获取城市的 Coworking 空间数量: CityCount={Count}", cityIds.Count);
 
-        if (cityIds == null || !cityIds.Any())
-        {
-            return new Dictionary<Guid, int>();
-        }
+        if (cityIds == null || !cityIds.Any()) return new Dictionary<Guid, int>();
 
         var result = await _coworkingRepository.GetCountByCitiesAsync(cityIds);
-        
+
         _logger.LogInformation("成功获取 {Count} 个城市的 Coworking 统计", result.Count);
         return result;
     }
@@ -232,15 +220,9 @@ public class CoworkingApplicationService : ICoworkingService
         {
             // 1. 验证共享办公空间是否存在且可预订
             var coworkingSpace = await _coworkingRepository.GetByIdAsync(request.CoworkingId);
-            if (coworkingSpace == null)
-            {
-                throw new KeyNotFoundException($"未找到 ID 为 {request.CoworkingId} 的共享办公空间");
-            }
+            if (coworkingSpace == null) throw new KeyNotFoundException($"未找到 ID 为 {request.CoworkingId} 的共享办公空间");
 
-            if (!coworkingSpace.CanBook())
-            {
-                throw new InvalidOperationException("该共享办公空间不可预订");
-            }
+            if (!coworkingSpace.CanBook()) throw new InvalidOperationException("该共享办公空间不可预订");
 
             // 2. 检查预订冲突
             var hasConflict = await _bookingRepository.HasConflictAsync(
@@ -249,10 +231,7 @@ public class CoworkingApplicationService : ICoworkingService
                 request.StartTime,
                 request.EndTime);
 
-            if (hasConflict)
-            {
-                throw new InvalidOperationException("该时间段已被预订");
-            }
+            if (hasConflict) throw new InvalidOperationException("该时间段已被预订");
 
             // 3. 计算价格
             var totalPrice = CalculatePrice(
@@ -263,15 +242,15 @@ public class CoworkingApplicationService : ICoworkingService
 
             // 4. 使用领域工厂方法创建预订
             var booking = CoworkingBooking.Create(
-                coworkingId: request.CoworkingId,
-                userId: request.UserId,
-                bookingDate: request.BookingDate,
-                bookingType: request.BookingType,
-                totalPrice: totalPrice,
-                currency: coworkingSpace.Currency,
-                startTime: request.StartTime,
-                endTime: request.EndTime,
-                specialRequests: request.SpecialRequests);
+                request.CoworkingId,
+                request.UserId,
+                request.BookingDate,
+                request.BookingType,
+                totalPrice,
+                coworkingSpace.Currency,
+                request.StartTime,
+                request.EndTime,
+                request.SpecialRequests);
 
             // 5. 持久化
             var created = await _bookingRepository.CreateAsync(booking);
@@ -292,10 +271,7 @@ public class CoworkingApplicationService : ICoworkingService
         _logger.LogInformation("获取预订: {Id}", id);
 
         var booking = await _bookingRepository.GetByIdAsync(id);
-        if (booking == null)
-        {
-            throw new KeyNotFoundException($"未找到 ID 为 {id} 的预订");
-        }
+        if (booking == null) throw new KeyNotFoundException($"未找到 ID 为 {id} 的预订");
 
         var coworkingSpace = await _coworkingRepository.GetByIdAsync(booking.CoworkingId);
         return MapToBookingResponse(booking, coworkingSpace);
@@ -308,16 +284,10 @@ public class CoworkingApplicationService : ICoworkingService
         try
         {
             var booking = await _bookingRepository.GetByIdAsync(id);
-            if (booking == null)
-            {
-                throw new KeyNotFoundException($"未找到 ID 为 {id} 的预订");
-            }
+            if (booking == null) throw new KeyNotFoundException($"未找到 ID 为 {id} 的预订");
 
             // 验证用户权限
-            if (booking.UserId != userId)
-            {
-                throw new UnauthorizedAccessException("无权取消此预订");
-            }
+            if (booking.UserId != userId) throw new UnauthorizedAccessException("无权取消此预订");
 
             // 调用领域方法
             booking.Cancel();
@@ -357,10 +327,7 @@ public class CoworkingApplicationService : ICoworkingService
         try
         {
             var booking = await _bookingRepository.GetByIdAsync(id);
-            if (booking == null)
-            {
-                throw new KeyNotFoundException($"未找到 ID 为 {id} 的预订");
-            }
+            if (booking == null) throw new KeyNotFoundException($"未找到 ID 为 {id} 的预订");
 
             booking.Confirm();
             await _bookingRepository.UpdateAsync(booking);
@@ -381,10 +348,7 @@ public class CoworkingApplicationService : ICoworkingService
         try
         {
             var booking = await _bookingRepository.GetByIdAsync(id);
-            if (booking == null)
-            {
-                throw new KeyNotFoundException($"未找到 ID 为 {id} 的预订");
-            }
+            if (booking == null) throw new KeyNotFoundException($"未找到 ID 为 {id} 的预订");
 
             booking.Complete();
             await _bookingRepository.UpdateAsync(booking);
@@ -403,7 +367,7 @@ public class CoworkingApplicationService : ICoworkingService
     #region Private Helpers
 
     /// <summary>
-    /// 映射实体到响应 DTO
+    ///     映射实体到响应 DTO
     /// </summary>
     private CoworkingSpaceResponse MapToResponse(CoworkingSpace space)
     {
@@ -442,7 +406,7 @@ public class CoworkingApplicationService : ICoworkingService
     }
 
     /// <summary>
-    /// 映射预订实体到响应 DTO
+    ///     映射预订实体到响应 DTO
     /// </summary>
     private CoworkingBookingResponse MapToBookingResponse(
         CoworkingBooking booking,
@@ -468,7 +432,7 @@ public class CoworkingApplicationService : ICoworkingService
     }
 
     /// <summary>
-    /// 计算预订价格
+    ///     计算预订价格
     /// </summary>
     private decimal CalculatePrice(
         CoworkingSpace coworkingSpace,
@@ -486,22 +450,16 @@ public class CoworkingApplicationService : ICoworkingService
     }
 
     /// <summary>
-    /// 计算小时价格
+    ///     计算小时价格
     /// </summary>
     private decimal CalculateHourlyPrice(
         CoworkingSpace coworkingSpace,
         TimeSpan? startTime,
         TimeSpan? endTime)
     {
-        if (!coworkingSpace.PricePerHour.HasValue)
-        {
-            throw new InvalidOperationException("未设置时价格");
-        }
+        if (!coworkingSpace.PricePerHour.HasValue) throw new InvalidOperationException("未设置时价格");
 
-        if (!startTime.HasValue || !endTime.HasValue)
-        {
-            throw new ArgumentException("小时预订必须指定开始和结束时间");
-        }
+        if (!startTime.HasValue || !endTime.HasValue) throw new ArgumentException("小时预订必须指定开始和结束时间");
 
         var hours = (endTime.Value - startTime.Value).TotalHours;
         return (decimal)hours * coworkingSpace.PricePerHour.Value;

@@ -1,13 +1,13 @@
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Microsoft.Extensions.Logging;
+using Postgrest;
 using Shared.Repositories;
-using Supabase;
+using Client = Supabase.Client;
 
 namespace CityService.Infrastructure.Repositories;
 
 /// <summary>
-/// 基于 Supabase 的城市 Pros & Cons 仓储实现
+///     基于 Supabase 的城市 Pros & Cons 仓储实现
 /// </summary>
 public class SupabaseUserCityProsConsRepository : SupabaseRepositoryBase<CityProsCons>, IUserCityProsConsRepository
 {
@@ -20,7 +20,7 @@ public class SupabaseUserCityProsConsRepository : SupabaseRepositoryBase<CityPro
     {
         prosCons.CreatedAt = DateTime.UtcNow;
         prosCons.UpdatedAt = DateTime.UtcNow;
-        
+
         var response = await SupabaseClient
             .From<CityProsCons>()
             .Insert(prosCons);
@@ -35,13 +35,10 @@ public class SupabaseUserCityProsConsRepository : SupabaseRepositoryBase<CityPro
             .Where(x => x.CityId == cityId)
             .Where(x => x.IsDeleted == false);
 
-        if (isPro.HasValue)
-        {
-            query = query.Where(x => x.IsPro == isPro.Value);
-        }
+        if (isPro.HasValue) query = query.Where(x => x.IsPro == isPro.Value);
 
         var response = await query
-            .Order(x => x.CreatedAt, Postgrest.Constants.Ordering.Descending)
+            .Order(x => x.CreatedAt, Constants.Ordering.Descending)
             .Get();
 
         return response.Models;
@@ -67,7 +64,7 @@ public class SupabaseUserCityProsConsRepository : SupabaseRepositoryBase<CityPro
     public async Task<CityProsCons> UpdateAsync(CityProsCons prosCons)
     {
         prosCons.UpdatedAt = DateTime.UtcNow;
-        
+
         var response = await SupabaseClient
             .From<CityProsCons>()
             .Where(x => x.Id == prosCons.Id)
@@ -82,10 +79,7 @@ public class SupabaseUserCityProsConsRepository : SupabaseRepositoryBase<CityPro
         {
             // 逻辑删除：设置 IsDeleted = true
             var prosCons = await GetByIdAsync(id);
-            if (prosCons == null || prosCons.UserId != userId)
-            {
-                return false;
-            }
+            if (prosCons == null || prosCons.UserId != userId) return false;
 
             prosCons.IsDeleted = true;
             prosCons.UpdatedAt = DateTime.UtcNow;

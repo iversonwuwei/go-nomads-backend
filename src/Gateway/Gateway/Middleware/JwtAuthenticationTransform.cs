@@ -5,7 +5,7 @@ using Yarp.ReverseProxy.Transforms.Builder;
 namespace Gateway.Middleware;
 
 /// <summary>
-/// YARP 转换器 - 将 JWT 认证信息添加到转发的请求头中
+///     YARP 转换器 - 将 JWT 认证信息添加到转发的请求头中
 /// </summary>
 public class JwtAuthenticationTransform : ITransformProvider
 {
@@ -32,21 +32,22 @@ public class JwtAuthenticationTransform : ITransformProvider
         context.AddRequestTransform(async transformContext =>
         {
             var httpContext = transformContext.HttpContext;
-            
+
             _logger.LogInformation("🔍 JwtAuthenticationTransform - 请求路径: {Path}", httpContext.Request.Path);
-            _logger.LogInformation("   User.Identity?.IsAuthenticated: {IsAuth}", httpContext.User.Identity?.IsAuthenticated);
-            
+            _logger.LogInformation("   User.Identity?.IsAuthenticated: {IsAuth}",
+                httpContext.User.Identity?.IsAuthenticated);
+
             // 检查用户是否已认证
             if (httpContext.User.Identity?.IsAuthenticated == true)
             {
                 // 提取用户信息 (优先使用 Supabase 的标准 Claim 名称)
-                var userId = httpContext.User.FindFirst("sub")?.Value 
-                          ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                var email = httpContext.User.FindFirst("email")?.Value 
-                         ?? httpContext.User.FindFirst(ClaimTypes.Email)?.Value;
-                var role = httpContext.User.FindFirst("role")?.Value 
-                        ?? httpContext.User.FindFirst(ClaimTypes.Role)?.Value;
-                
+                var userId = httpContext.User.FindFirst("sub")?.Value
+                             ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var email = httpContext.User.FindFirst("email")?.Value
+                            ?? httpContext.User.FindFirst(ClaimTypes.Email)?.Value;
+                var role = httpContext.User.FindFirst("role")?.Value
+                           ?? httpContext.User.FindFirst(ClaimTypes.Role)?.Value;
+
                 _logger.LogInformation("   提取到的用户信息: UserId={UserId}, Email={Email}, Role={Role}", userId, email, role);
 
                 // 添加自定义请求头，传递给下游服务
@@ -61,14 +62,14 @@ public class JwtAuthenticationTransform : ITransformProvider
                 {
                     _logger.LogWarning("   ⚠️ UserId 为空，未添加 X-User-Id header");
                 }
-                
+
                 if (!string.IsNullOrEmpty(email))
                 {
                     transformContext.ProxyRequest.Headers.Remove("X-User-Email");
                     transformContext.ProxyRequest.Headers.Add("X-User-Email", email);
                     _logger.LogInformation("   ✅ 添加 X-User-Email: {Email}", email);
                 }
-                
+
                 if (!string.IsNullOrEmpty(role))
                 {
                     transformContext.ProxyRequest.Headers.Remove("X-User-Role");
@@ -78,17 +79,17 @@ public class JwtAuthenticationTransform : ITransformProvider
 
                 // 传递原始的 Authorization 头
                 if (httpContext.Request.Headers.TryGetValue("Authorization", out var authHeader))
-                {
-                    transformContext.ProxyRequest.Headers.TryAddWithoutValidation("Authorization", authHeader.ToString());
-                }
+                    transformContext.ProxyRequest.Headers.TryAddWithoutValidation("Authorization",
+                        authHeader.ToString());
 
                 _logger.LogDebug(
-                    "JWT Authentication - User authenticated: UserId={UserId}, Email={Email}, Role={Role}", 
+                    "JWT Authentication - User authenticated: UserId={UserId}, Email={Email}, Role={Role}",
                     userId, email, role);
             }
             else
             {
-                _logger.LogWarning("⚠️ JWT Authentication - Request is not authenticated. Path: {Path}", httpContext.Request.Path);
+                _logger.LogWarning("⚠️ JWT Authentication - Request is not authenticated. Path: {Path}",
+                    httpContext.Request.Path);
             }
 
             await Task.CompletedTask;

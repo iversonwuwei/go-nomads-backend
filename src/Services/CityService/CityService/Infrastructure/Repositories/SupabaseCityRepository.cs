@@ -1,17 +1,14 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
 using CityService.Domain.ValueObjects;
-using Microsoft.Extensions.Logging;
+using Postgrest;
 using Shared.Repositories;
-using Supabase;
+using Client = Supabase.Client;
 
 namespace CityService.Infrastructure.Repositories;
 
 /// <summary>
-/// 基于 Supabase 的城市仓储实现
+///     基于 Supabase 的城市仓储实现
 /// </summary>
 public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityRepository
 {
@@ -26,8 +23,8 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
 
         var response = await SupabaseClient
             .From<City>()
-            .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
-            .Order(x => x.OverallScore!, Postgrest.Constants.Ordering.Descending)
+            .Filter("is_active", Constants.Operator.Equals, "true")
+            .Order(x => x.OverallScore!, Constants.Ordering.Descending)
             .Range(offset, offset + pageSize - 1)
             .Get();
 
@@ -55,50 +52,37 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
     {
         var response = await SupabaseClient
             .From<City>()
-            .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
-            .Order(x => x.OverallScore!, Postgrest.Constants.Ordering.Descending)
+            .Filter("is_active", Constants.Operator.Equals, "true")
+            .Order(x => x.OverallScore!, Constants.Ordering.Descending)
             .Get();
 
         var cities = response.Models.AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(criteria.Name))
-        {
             // 支持中英文搜索: 在 name 或 name_en 字段中搜索
-            cities = cities.Where(c => 
+            cities = cities.Where(c =>
                 c.Name.Contains(criteria.Name, StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrWhiteSpace(c.NameEn) && c.NameEn.Contains(criteria.Name, StringComparison.OrdinalIgnoreCase))
+                (!string.IsNullOrWhiteSpace(c.NameEn) &&
+                 c.NameEn.Contains(criteria.Name, StringComparison.OrdinalIgnoreCase))
             );
-        }
 
         if (!string.IsNullOrWhiteSpace(criteria.Country))
-        {
             cities = cities.Where(c => c.Country.Contains(criteria.Country, StringComparison.OrdinalIgnoreCase));
-        }
 
         if (!string.IsNullOrWhiteSpace(criteria.Region))
-        {
-            cities = cities.Where(c => c.Region != null && c.Region.Contains(criteria.Region, StringComparison.OrdinalIgnoreCase));
-        }
+            cities = cities.Where(c =>
+                c.Region != null && c.Region.Contains(criteria.Region, StringComparison.OrdinalIgnoreCase));
 
         if (criteria.MinCostOfLiving.HasValue)
-        {
             cities = cities.Where(c => c.AverageCostOfLiving >= criteria.MinCostOfLiving.Value);
-        }
 
         if (criteria.MaxCostOfLiving.HasValue)
-        {
             cities = cities.Where(c => c.AverageCostOfLiving <= criteria.MaxCostOfLiving.Value);
-        }
 
-        if (criteria.MinScore.HasValue)
-        {
-            cities = cities.Where(c => c.OverallScore >= criteria.MinScore.Value);
-        }
+        if (criteria.MinScore.HasValue) cities = cities.Where(c => c.OverallScore >= criteria.MinScore.Value);
 
         if (criteria.Tags is { Count: > 0 })
-        {
             cities = cities.Where(c => c.Tags != null && criteria.Tags.All(tag => c.Tags.Contains(tag)));
-        }
 
         return cities
             .Skip((criteria.PageNumber - 1) * criteria.PageSize)
@@ -159,7 +143,7 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
     {
         var response = await SupabaseClient
             .From<City>()
-            .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
+            .Filter("is_active", Constants.Operator.Equals, "true")
             .Get();
 
         return response.Models.Count;
@@ -169,9 +153,9 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
     {
         var response = await SupabaseClient
             .From<City>()
-            .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
-            .Order(x => x.OverallScore!, Postgrest.Constants.Ordering.Descending)
-            .Order(x => x.CommunityScore!, Postgrest.Constants.Ordering.Descending)
+            .Filter("is_active", Constants.Operator.Equals, "true")
+            .Order(x => x.OverallScore!, Constants.Ordering.Descending)
+            .Order(x => x.CommunityScore!, Constants.Ordering.Descending)
             .Limit(count)
             .Get();
 
@@ -182,9 +166,9 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
     {
         var response = await SupabaseClient
             .From<City>()
-            .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
-            .Filter("country", Postgrest.Constants.Operator.ILike, $"%{countryName}%")
-            .Order(x => x.Name, Postgrest.Constants.Ordering.Ascending)
+            .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("country", Constants.Operator.ILike, $"%{countryName}%")
+            .Order(x => x.Name, Constants.Ordering.Ascending)
             .Get();
 
         return response.Models;

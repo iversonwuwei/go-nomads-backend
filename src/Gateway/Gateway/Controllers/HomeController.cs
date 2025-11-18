@@ -1,15 +1,12 @@
-using Microsoft.AspNetCore.Mvc;
 using Dapr.Client;
 using Gateway.DTOs;
 using GoNomads.Shared.Extensions;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Gateway.Controllers;
 
 /// <summary>
-/// 首页控制器 - BFF 层聚合接口
+///     首页控制器 - BFF 层聚合接口
 /// </summary>
 [ApiController]
 [Route("api/v1/home")]
@@ -25,7 +22,7 @@ public class HomeController : ControllerBase
     }
 
     /// <summary>
-    /// 获取首页聚合数据 (城市列表 + Meetup 列表)
+    ///     获取首页聚合数据 (城市列表 + Meetup 列表)
     /// </summary>
     /// <param name="cityLimit">城市列表数量限制</param>
     /// <param name="meetupLimit">Meetup 列表数量限制</param>
@@ -50,15 +47,9 @@ public class HomeController : ControllerBase
             var cities = await citiesTask;
             var meetups = await meetupsTask;
 
-            if (!cities.Response.Success)
-            {
-                _logger.LogWarning("城市服务返回非成功结果: {Message}", cities.Response.Message);
-            }
+            if (!cities.Response.Success) _logger.LogWarning("城市服务返回非成功结果: {Message}", cities.Response.Message);
 
-            if (!meetups.Response.Success)
-            {
-                _logger.LogWarning("活动服务返回非成功结果: {Message}", meetups.Response.Message);
-            }
+            if (!meetups.Response.Success) _logger.LogWarning("活动服务返回非成功结果: {Message}", meetups.Response.Message);
 
             var cityList = cities.Response.Data ?? new List<CityDto>();
             var meetupList = meetups.Response.Data ?? new List<MeetupDto>();
@@ -92,7 +83,7 @@ public class HomeController : ControllerBase
     }
 
     /// <summary>
-    /// 调用 City Service 获取城市列表
+    ///     调用 City Service 获取城市列表
     /// </summary>
     private async Task<ServiceListResult<CityDto>> GetCitiesAsync(int limit)
     {
@@ -150,7 +141,7 @@ public class HomeController : ControllerBase
     }
 
     /// <summary>
-    /// 调用 Event Service 获取 Meetup 列表
+    ///     调用 Event Service 获取 Meetup 列表
     /// </summary>
     private async Task<ServiceListResult<MeetupDto>> GetMeetupsAsync(int limit)
     {
@@ -225,7 +216,7 @@ public class HomeController : ControllerBase
     }
 
     /// <summary>
-    /// 获取城市列表(含 Coworking 数量) - 专门为 coworking_home 页面设计
+    ///     获取城市列表(含 Coworking 数量) - 专门为 coworking_home 页面设计
     /// </summary>
     [HttpGet("cities-with-coworking")]
     [ProducesResponseType(typeof(ApiResponse<PaginatedResponse<CityDto>>), StatusCodes.Status200OK)]
@@ -263,18 +254,18 @@ public class HomeController : ControllerBase
         }
     }
 
-    private sealed class ServiceListResult<T>
-    {
-        public ApiResponse<List<T>> Response { get; init; } = ApiResponse<List<T>>.SuccessResponse(new List<T>());
-        public bool HasMore { get; init; }
-    }
-
     /// <summary>
-    /// 健康检查接口
+    ///     健康检查接口
     /// </summary>
     [HttpGet("health")]
     public IActionResult HealthCheck()
     {
         return Ok(new { status = "healthy", timestamp = DateTime.UtcNow });
+    }
+
+    private sealed class ServiceListResult<T>
+    {
+        public ApiResponse<List<T>> Response { get; init; } = ApiResponse<List<T>>.SuccessResponse(new List<T>());
+        public bool HasMore { get; init; }
     }
 }

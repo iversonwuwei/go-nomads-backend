@@ -3,7 +3,7 @@ using MessageService.Application.DTOs;
 namespace MessageService.Application.Services;
 
 /// <summary>
-/// SignalR 推送服务接口（Application 层定义，API 层实现）
+///     SignalR 推送服务接口（Application 层定义，API 层实现）
 /// </summary>
 public interface ISignalRNotifier
 {

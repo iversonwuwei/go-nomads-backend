@@ -1,18 +1,17 @@
 using Dapr.Client;
 using EventService.Application.DTOs;
 using GoNomads.Shared.Models;
-using System.Text.Json;
 
 namespace EventService.Infrastructure.GrpcClients;
 
 /// <summary>
-/// City Service gRPC 客户端实现（通过 Dapr）
+///     City Service gRPC 客户端实现（通过 Dapr）
 /// </summary>
 public class CityGrpcClient : ICityGrpcClient
 {
+    private const string CityServiceAppId = "city-service";
     private readonly DaprClient _daprClient;
     private readonly ILogger<CityGrpcClient> _logger;
-    private const string CityServiceAppId = "city-service";
 
     public CityGrpcClient(DaprClient daprClient, ILogger<CityGrpcClient> logger)
     {
@@ -64,10 +63,7 @@ public class CityGrpcClient : ICityGrpcClient
         var result = new Dictionary<Guid, CityInfo>();
         var uniqueCityIds = cityIds.Distinct().Where(id => id != Guid.Empty).ToList();
 
-        if (!uniqueCityIds.Any())
-        {
-            return result;
-        }
+        if (!uniqueCityIds.Any()) return result;
 
         _logger.LogInformation("🌍 批量获取城市信息: Count={Count}", uniqueCityIds.Count);
 
@@ -81,12 +77,8 @@ public class CityGrpcClient : ICityGrpcClient
         var cities = await Task.WhenAll(tasks);
 
         foreach (var (cityId, cityInfo) in cities)
-        {
             if (cityInfo != null)
-            {
                 result[cityId] = cityInfo;
-            }
-        }
 
         _logger.LogInformation("✅ 批量获取城市信息完成: 请求={Requested}, 成功={Success}",
             uniqueCityIds.Count, result.Count);
@@ -96,7 +88,7 @@ public class CityGrpcClient : ICityGrpcClient
 }
 
 /// <summary>
-/// CityService 返回的 DTO（映射）
+///     CityService 返回的 DTO（映射）
 /// </summary>
 internal class CityDto
 {

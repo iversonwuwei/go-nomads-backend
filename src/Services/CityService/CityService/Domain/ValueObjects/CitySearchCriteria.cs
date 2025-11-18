@@ -1,9 +1,7 @@
-using System.Collections.Generic;
-
 namespace CityService.Domain.ValueObjects;
 
 /// <summary>
-/// 城市搜索条件 - 用于仓储查询
+///     城市搜索条件 - 用于仓储查询
 /// </summary>
 public class CitySearchCriteria
 {

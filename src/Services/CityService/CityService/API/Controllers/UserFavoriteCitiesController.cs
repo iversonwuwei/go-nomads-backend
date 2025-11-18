@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CityService.API.Controllers;
 
 /// <summary>
-/// 用户收藏城市API控制器
+///     用户收藏城市API控制器
 /// </summary>
 [ApiController]
 [Route("api/v1/user-favorite-cities")]
@@ -24,7 +24,7 @@ public class UserFavoriteCitiesController : ControllerBase
     }
 
     /// <summary>
-    /// 检查城市是否已收藏
+    ///     检查城市是否已收藏
     /// </summary>
     /// <param name="cityId">城市ID</param>
     /// <returns>收藏状态</returns>
@@ -47,7 +47,7 @@ public class UserFavoriteCitiesController : ControllerBase
     }
 
     /// <summary>
-    /// 添加收藏城市
+    ///     添加收藏城市
     /// </summary>
     /// <param name="request">添加收藏请求</param>
     /// <returns>收藏记录</returns>
@@ -62,10 +62,7 @@ public class UserFavoriteCitiesController : ControllerBase
 
             // 检查是否已存在
             var exists = await _favoriteCityService.IsCityFavoritedAsync(userId, request.CityId);
-            if (exists)
-            {
-                return Conflict(new { error = "城市已在收藏列表中" });
-            }
+            if (exists) return Conflict(new { error = "城市已在收藏列表中" });
 
             var result = await _favoriteCityService.AddFavoriteCityAsync(userId, request.CityId);
 
@@ -95,7 +92,7 @@ public class UserFavoriteCitiesController : ControllerBase
     }
 
     /// <summary>
-    /// 移除收藏城市
+    ///     移除收藏城市
     /// </summary>
     /// <param name="cityId">城市ID</param>
     /// <returns>操作结果</returns>
@@ -108,10 +105,7 @@ public class UserFavoriteCitiesController : ControllerBase
             var userId = GetCurrentUserId();
             var success = await _favoriteCityService.RemoveFavoriteCityAsync(userId, cityId);
 
-            if (!success)
-            {
-                return NotFound(new { error = "收藏记录不存在" });
-            }
+            if (!success) return NotFound(new { error = "收藏记录不存在" });
 
             return NoContent();
         }
@@ -123,7 +117,7 @@ public class UserFavoriteCitiesController : ControllerBase
     }
 
     /// <summary>
-    /// 获取用户收藏的城市ID列表
+    ///     获取用户收藏的城市ID列表
     /// </summary>
     /// <returns>城市ID列表</returns>
     [HttpGet("ids")]
@@ -145,7 +139,7 @@ public class UserFavoriteCitiesController : ControllerBase
     }
 
     /// <summary>
-    /// 获取用户收藏的城市列表（分页）
+    ///     获取用户收藏的城市列表（分页）
     /// </summary>
     /// <param name="page">页码（默认1）</param>
     /// <param name="pageSize">每页数量（默认20，最大100）</param>
@@ -188,15 +182,13 @@ public class UserFavoriteCitiesController : ControllerBase
     }
 
     /// <summary>
-    /// 获取当前用户ID（从 UserContext 中获取）
+    ///     获取当前用户ID（从 UserContext 中获取）
     /// </summary>
     private Guid GetCurrentUserId()
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-        {
             throw new UnauthorizedAccessException("用户未认证");
-        }
 
         return Guid.Parse(userContext.UserId);
     }

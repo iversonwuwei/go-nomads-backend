@@ -1,10 +1,9 @@
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using AIService.Application.DTOs;
 using AIService.Domain.Entities;
 using AIService.Domain.Repositories;
-using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
@@ -12,16 +11,16 @@ using Microsoft.SemanticKernel.Connectors.OpenAI;
 namespace AIService.Application.Services;
 
 /// <summary>
-/// AI 聊天应用服务实现
+///     AI 聊天应用服务实现
 /// </summary>
 public class AIChatApplicationService : IAIChatService
 {
-    private readonly IAIConversationRepository _conversationRepository;
-    private readonly IAIMessageRepository _messageRepository;
-    private readonly Kernel _kernel;
     private readonly IChatCompletionService _chatCompletionService;
-    private readonly ILogger<AIChatApplicationService> _logger;
     private readonly IConfiguration _configuration;
+    private readonly IAIConversationRepository _conversationRepository;
+    private readonly Kernel _kernel;
+    private readonly ILogger<AIChatApplicationService> _logger;
+    private readonly IAIMessageRepository _messageRepository;
 
     public AIChatApplicationService(
         IAIConversationRepository conversationRepository,
@@ -45,9 +44,9 @@ public class AIChatApplicationService : IAIChatService
             _logger.LogInformation("创建新对话，用户ID: {UserId}, 标题: {Title}", userId, request.Title);
 
             var conversation = AIConversation.Create(
-                userId, 
-                request.Title, 
-                request.SystemPrompt, 
+                userId,
+                request.Title,
+                request.SystemPrompt,
                 request.ModelName);
 
             var createdConversation = await _conversationRepository.CreateAsync(conversation);
@@ -70,14 +69,15 @@ public class AIChatApplicationService : IAIChatService
         }
     }
 
-    public async Task<PagedResponse<ConversationResponse>> GetConversationsAsync(GetConversationsRequest request, Guid userId)
+    public async Task<PagedResponse<ConversationResponse>> GetConversationsAsync(GetConversationsRequest request,
+        Guid userId)
     {
         try
         {
             var (conversations, total) = await _conversationRepository.GetByUserIdAsync(
-                userId, 
-                request.Status, 
-                request.Page, 
+                userId,
+                request.Status,
+                request.Page,
                 request.PageSize);
 
             var conversationResponses = conversations.Select(MapToConversationResponse).ToList();
@@ -103,19 +103,17 @@ public class AIChatApplicationService : IAIChatService
         return MapToConversationResponse(conversation);
     }
 
-    public async Task<ConversationResponse> UpdateConversationAsync(Guid conversationId, UpdateConversationRequest request, Guid userId)
+    public async Task<ConversationResponse> UpdateConversationAsync(Guid conversationId,
+        UpdateConversationRequest request, Guid userId)
     {
         try
         {
             var conversation = await GetConversationWithPermissionCheck(conversationId, userId);
 
-            if (!string.IsNullOrWhiteSpace(request.Title))
-            {
-                conversation.UpdateTitle(request.Title);
-            }
+            if (!string.IsNullOrWhiteSpace(request.Title)) conversation.UpdateTitle(request.Title);
 
             var updatedConversation = await _conversationRepository.UpdateAsync(conversation);
-            
+
             _logger.LogInformation("✅ 成功更新对话，ID: {ConversationId}", conversationId);
 
             return MapToConversationResponse(updatedConversation);
@@ -132,7 +130,7 @@ public class AIChatApplicationService : IAIChatService
         try
         {
             var conversation = await GetConversationWithPermissionCheck(conversationId, userId);
-            
+
             conversation.Delete();
             await _conversationRepository.UpdateAsync(conversation);
 
@@ -153,7 +151,7 @@ public class AIChatApplicationService : IAIChatService
         try
         {
             var conversation = await GetConversationWithPermissionCheck(conversationId, userId);
-            
+
             conversation.Archive();
             var updatedConversation = await _conversationRepository.UpdateAsync(conversation);
 
@@ -173,7 +171,7 @@ public class AIChatApplicationService : IAIChatService
         try
         {
             var conversation = await GetConversationWithPermissionCheck(conversationId, userId);
-            
+
             conversation.Activate();
             var updatedConversation = await _conversationRepository.UpdateAsync(conversation);
 
@@ -191,43 +189,31 @@ public class AIChatApplicationService : IAIChatService
     public async Task<ChatResponse> SendMessageAsync(Guid conversationId, SendMessageRequest request, Guid userId)
     {
         var stopwatch = Stopwatch.StartNew();
-        
+
         try
         {
             _logger.LogInformation("发送消息到对话，ID: {ConversationId}, 用户ID: {UserId}", conversationId, userId);
 
             var conversation = await GetConversationWithPermissionCheck(conversationId, userId);
 
-            if (!conversation.CanAddMessage())
-            {
-                throw new InvalidOperationException("当前对话状态不允许添加消息");
-            }
+            if (!conversation.CanAddMessage()) throw new InvalidOperationException("当前对话状态不允许添加消息");
 
             // 创建用户消息
             var userMessage = AIMessage.CreateUserMessage(conversationId, request.Content);
             var savedUserMessage = await _messageRepository.CreateAsync(userMessage);
 
             // 获取上下文消息
-            var contextMessages = await _messageRepository.GetContextMessagesAsync(conversationId, 20);
-            
+            var contextMessages = await _messageRepository.GetContextMessagesAsync(conversationId);
+
             // 构建 ChatHistory
             var chatHistory = new ChatHistory();
-            
+
             foreach (var msg in contextMessages.OrderBy(m => m.CreatedAt))
-            {
                 if (msg.IsSystemMessage())
-                {
                     chatHistory.AddSystemMessage(msg.Content);
-                }
                 else if (msg.IsUserMessage())
-                {
                     chatHistory.AddUserMessage(msg.Content);
-                }
-                else if (msg.IsAssistantMessage() && !msg.IsError)
-                {
-                    chatHistory.AddAssistantMessage(msg.Content);
-                }
-            }
+                else if (msg.IsAssistantMessage() && !msg.IsError) chatHistory.AddAssistantMessage(msg.Content);
 
             // 配置执行设置
             var executionSettings = new OpenAIPromptExecutionSettings
@@ -239,8 +225,8 @@ public class AIChatApplicationService : IAIChatService
 
             // 调用 Qwen 大模型
             var response = await _chatCompletionService.GetChatMessageContentAsync(
-                chatHistory, 
-                executionSettings, 
+                chatHistory,
+                executionSettings,
                 _kernel);
 
             stopwatch.Stop();
@@ -250,8 +236,12 @@ public class AIChatApplicationService : IAIChatService
                 conversationId,
                 response.Content ?? "",
                 executionSettings.ModelId,
-                response.Metadata?.TryGetValue("Usage.PromptTokens", out var promptTokens) == true ? (int?)promptTokens : null,
-                response.Metadata?.TryGetValue("Usage.CompletionTokens", out var completionTokens) == true ? (int?)completionTokens : null,
+                response.Metadata?.TryGetValue("Usage.PromptTokens", out var promptTokens) == true
+                    ? (int?)promptTokens
+                    : null,
+                response.Metadata?.TryGetValue("Usage.CompletionTokens", out var completionTokens) == true
+                    ? (int?)completionTokens
+                    : null,
                 (int)stopwatch.ElapsedMilliseconds);
 
             var savedAssistantMessage = await _messageRepository.CreateAsync(assistantMessage);
@@ -261,7 +251,7 @@ public class AIChatApplicationService : IAIChatService
             conversation.AddMessage(totalTokens);
             await _conversationRepository.UpdateAsync(conversation);
 
-            _logger.LogInformation("✅ 成功处理消息，对话ID: {ConversationId}, 响应时间: {ResponseTime}ms", 
+            _logger.LogInformation("✅ 成功处理消息，对话ID: {ConversationId}, 响应时间: {ResponseTime}ms",
                 conversationId, stopwatch.ElapsedMilliseconds);
 
             return new ChatResponse
@@ -273,7 +263,9 @@ public class AIChatApplicationService : IAIChatService
                 CompletionTokens = assistantMessage.CompletionTokens,
                 TotalTokens = assistantMessage.TotalTokens,
                 ResponseTimeMs = (int)stopwatch.ElapsedMilliseconds,
-                FinishReason = response.Metadata?.TryGetValue("FinishReason", out var finishReason) == true ? finishReason?.ToString() : null,
+                FinishReason = response.Metadata?.TryGetValue("FinishReason", out var finishReason) == true
+                    ? finishReason?.ToString()
+                    : null,
                 UserMessage = MapToMessageResponse(savedUserMessage),
                 AssistantMessage = MapToMessageResponse(savedAssistantMessage)
             };
@@ -299,13 +291,13 @@ public class AIChatApplicationService : IAIChatService
     }
 
     public async IAsyncEnumerable<StreamResponse> SendMessageStreamAsync(
-        Guid conversationId, 
-        SendMessageRequest request, 
+        Guid conversationId,
+        SendMessageRequest request,
         Guid userId)
     {
         // 流式实现（简化版本，实际需要根据千问API的流式支持）
         var response = await SendMessageAsync(conversationId, request, userId);
-        
+
         if (response.IsError)
         {
             yield return new StreamResponse
@@ -326,7 +318,7 @@ public class AIChatApplicationService : IAIChatService
                 Delta = word + " ",
                 IsComplete = false
             };
-            
+
             await Task.Delay(50); // 模拟延迟
         }
 
@@ -339,16 +331,17 @@ public class AIChatApplicationService : IAIChatService
         };
     }
 
-    public async Task<PagedResponse<MessageResponse>> GetMessagesAsync(Guid conversationId, GetMessagesRequest request, Guid userId)
+    public async Task<PagedResponse<MessageResponse>> GetMessagesAsync(Guid conversationId, GetMessagesRequest request,
+        Guid userId)
     {
         try
         {
             await GetConversationWithPermissionCheck(conversationId, userId);
 
             var messages = await _messageRepository.GetByConversationIdAsync(
-                conversationId, 
-                request.Page, 
-                request.PageSize, 
+                conversationId,
+                request.Page,
+                request.PageSize,
                 request.IncludeSystem);
 
             var messageResponses = messages.Select(MapToMessageResponse).ToList();
@@ -375,7 +368,7 @@ public class AIChatApplicationService : IAIChatService
     {
         try
         {
-            var (totalConversations, activeConversations, totalMessages) = 
+            var (totalConversations, activeConversations, totalMessages) =
                 await _conversationRepository.GetUserStatsAsync(userId);
 
             return new UserStatsResponse
@@ -417,21 +410,134 @@ public class AIChatApplicationService : IAIChatService
         }
     }
 
+#pragma warning disable SKEXP0010 // ResponseFormat is experimental
+    public async Task<TravelPlanResponse> GenerateTravelPlanAsync(
+        GenerateTravelPlanRequest request,
+        Guid userId,
+        Func<int, string, Task>? onProgress = null)
+    {
+        try
+        {
+            _logger.LogInformation("� 开始分段生成旅行计划 - 城市: {CityName}, 天数: {Duration}, 用户ID: {UserId}",
+                request.CityName, request.Duration, userId);
+
+            var planId = Guid.NewGuid().ToString();
+
+            // 第一步：生成基础信息（交通和住宿）- 15-25%
+            _logger.LogInformation("📍 步骤 1/4: 生成交通和住宿计划...");
+            if (onProgress != null) await onProgress(15, "正在生成交通和住宿方案...");
+            var (transportation, accommodation) = await GenerateBasicInfoAsync(request);
+            if (onProgress != null) await onProgress(25, "交通和住宿方案生成完成");
+
+            // 第二步：生成每日行程 - 25-60%
+            _logger.LogInformation("📍 步骤 2/4: 生成每日行程...");
+            if (onProgress != null) await onProgress(30, $"正在规划 {request.Duration} 天的详细行程...");
+            var dailyItineraries = await GenerateDailyItinerariesAsync(request, async (day, totalDays) =>
+            {
+                // 每天的进度：30% + (day / totalDays * 30%)
+                var dayProgress = 30 + (int)((double)day / totalDays * 30);
+                if (onProgress != null)
+                    await onProgress(dayProgress, $"正在规划第 {day}/{totalDays} 天的行程...");
+            });
+            if (onProgress != null) await onProgress(60, "每日行程规划完成");
+
+            // 第三步：生成景点和餐厅推荐 - 60-75%
+            _logger.LogInformation("📍 步骤 3/4: 生成景点和餐厅推荐...");
+            if (onProgress != null) await onProgress(65, "正在推荐必游景点和美食...");
+            var (attractions, restaurants) = await GenerateAttractionsAndRestaurantsAsync(request);
+            if (onProgress != null) await onProgress(75, "景点和餐厅推荐完成");
+
+            // 第四步：生成预算和建议 - 75-85%
+            _logger.LogInformation("📍 步骤 4/4: 生成预算明细和旅行建议...");
+            if (onProgress != null) await onProgress(80, "正在计算预算和准备旅行贴士...");
+            var (budgetBreakdown, tips) =
+                await GenerateBudgetAndTipsAsync(request, transportation, accommodation, dailyItineraries);
+            if (onProgress != null) await onProgress(85, "预算和建议生成完成");
+
+            var travelPlan = new TravelPlanResponse
+            {
+                Id = planId,
+                CityId = request.CityId,
+                CityName = request.CityName,
+                CityImage = request.CityImage ?? "",
+                CreatedAt = DateTime.UtcNow,
+                Duration = request.Duration,
+                Budget = request.Budget,
+                TravelStyle = request.TravelStyle,
+                Interests = request.Interests,
+                Transportation = transportation,
+                Accommodation = accommodation,
+                DailyItineraries = dailyItineraries,
+                Attractions = attractions,
+                Restaurants = restaurants,
+                Tips = tips,
+                BudgetBreakdown = budgetBreakdown
+            };
+
+            _logger.LogInformation("✅ 旅行计划分段生成完成，ID: {PlanId}", planId);
+            return travelPlan;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 生成旅行计划失败，城市: {CityName}", request.CityName);
+            throw;
+        }
+    }
+#pragma warning restore SKEXP0010
+
+    /// <summary>
+    ///     生成数字游民旅游指南（拆分为多个小请求）
+    /// </summary>
+    public async Task<TravelGuideResponse> GenerateTravelGuideAsync(
+        GenerateTravelGuideRequest request,
+        Guid userId,
+        Func<int, string, Task>? onProgress = null)
+    {
+        try
+        {
+            _logger.LogInformation("📖 开始生成数字游民旅游指南（拆分请求模式）- 城市: {CityName}, 用户ID: {UserId}",
+                request.CityName, userId);
+
+            // 初始化结果对象
+            var guide = new TravelGuideResponse
+            {
+                CityId = request.CityId,
+                CityName = request.CityName
+            };
+
+            // 第 1 部分: 概述 + 签证信息 (15% - 40%)
+            if (onProgress != null) await onProgress(15, "正在生成城市概述和签证信息...");
+            await GenerateBasicInfoAsync(request, guide, onProgress);
+
+            // 第 2 部分: 推荐区域 (40% - 70%)
+            if (onProgress != null) await onProgress(40, "正在分析推荐区域...");
+            await GenerateBestAreasAsync(request, guide, onProgress);
+
+            // 第 3 部分: 工作空间 + 实用建议 + 基本信息 (70% - 100%)
+            if (onProgress != null) await onProgress(70, "正在整理工作空间和实用建议...");
+            await GeneratePracticalInfoAsync(request, guide, onProgress);
+
+            if (onProgress != null) await onProgress(100, "旅游指南生成完成!");
+
+            _logger.LogInformation("✅ 数字游民旅游指南生成成功 - 城市: {CityName}", request.CityName);
+            return guide;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 生成数字游民旅游指南失败，城市: {CityName}", request.CityName);
+            throw;
+        }
+    }
+
     // 私有辅助方法
 
     private async Task<AIConversation> GetConversationWithPermissionCheck(Guid conversationId, Guid userId)
     {
         var conversation = await _conversationRepository.GetByIdAsync(conversationId);
-        
-        if (conversation == null)
-        {
-            throw new ArgumentException($"对话不存在，ID: {conversationId}");
-        }
 
-        if (conversation.UserId != userId)
-        {
-            throw new UnauthorizedAccessException("无权限访问此对话");
-        }
+        if (conversation == null) throw new ArgumentException($"对话不存在，ID: {conversationId}");
+
+        if (conversation.UserId != userId) throw new UnauthorizedAccessException("无权限访问此对话");
 
         return conversation;
     }
@@ -475,80 +581,6 @@ public class AIChatApplicationService : IAIChatService
         };
     }
 
-#pragma warning disable SKEXP0010 // ResponseFormat is experimental
-    public async Task<TravelPlanResponse> GenerateTravelPlanAsync(
-        GenerateTravelPlanRequest request, 
-        Guid userId,
-        Func<int, string, Task>? onProgress = null)
-    {
-        try
-        {
-            _logger.LogInformation("� 开始分段生成旅行计划 - 城市: {CityName}, 天数: {Duration}, 用户ID: {UserId}", 
-                request.CityName, request.Duration, userId);
-
-            var planId = Guid.NewGuid().ToString();
-            
-            // 第一步：生成基础信息（交通和住宿）- 15-25%
-            _logger.LogInformation("📍 步骤 1/4: 生成交通和住宿计划...");
-            if (onProgress != null) await onProgress(15, "正在生成交通和住宿方案...");
-            var (transportation, accommodation) = await GenerateBasicInfoAsync(request);
-            if (onProgress != null) await onProgress(25, "交通和住宿方案生成完成");
-            
-            // 第二步：生成每日行程 - 25-60%
-            _logger.LogInformation("📍 步骤 2/4: 生成每日行程...");
-            if (onProgress != null) await onProgress(30, $"正在规划 {request.Duration} 天的详细行程...");
-            var dailyItineraries = await GenerateDailyItinerariesAsync(request, async (day, totalDays) =>
-            {
-                // 每天的进度：30% + (day / totalDays * 30%)
-                var dayProgress = 30 + (int)((double)day / totalDays * 30);
-                if (onProgress != null) 
-                    await onProgress(dayProgress, $"正在规划第 {day}/{totalDays} 天的行程...");
-            });
-            if (onProgress != null) await onProgress(60, "每日行程规划完成");
-            
-            // 第三步：生成景点和餐厅推荐 - 60-75%
-            _logger.LogInformation("📍 步骤 3/4: 生成景点和餐厅推荐...");
-            if (onProgress != null) await onProgress(65, "正在推荐必游景点和美食...");
-            var (attractions, restaurants) = await GenerateAttractionsAndRestaurantsAsync(request);
-            if (onProgress != null) await onProgress(75, "景点和餐厅推荐完成");
-            
-            // 第四步：生成预算和建议 - 75-85%
-            _logger.LogInformation("📍 步骤 4/4: 生成预算明细和旅行建议...");
-            if (onProgress != null) await onProgress(80, "正在计算预算和准备旅行贴士...");
-            var (budgetBreakdown, tips) = await GenerateBudgetAndTipsAsync(request, transportation, accommodation, dailyItineraries);
-            if (onProgress != null) await onProgress(85, "预算和建议生成完成");
-
-            var travelPlan = new TravelPlanResponse
-            {
-                Id = planId,
-                CityId = request.CityId,
-                CityName = request.CityName,
-                CityImage = request.CityImage ?? "",
-                CreatedAt = DateTime.UtcNow,
-                Duration = request.Duration,
-                Budget = request.Budget,
-                TravelStyle = request.TravelStyle,
-                Interests = request.Interests,
-                Transportation = transportation,
-                Accommodation = accommodation,
-                DailyItineraries = dailyItineraries,
-                Attractions = attractions,
-                Restaurants = restaurants,
-                Tips = tips,
-                BudgetBreakdown = budgetBreakdown
-            };
-
-            _logger.LogInformation("✅ 旅行计划分段生成完成，ID: {PlanId}", planId);
-            return travelPlan;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ 生成旅行计划失败，城市: {CityName}", request.CityName);
-            throw;
-        }
-    }
-#pragma warning restore SKEXP0010
-
     private string BuildTravelPlanPrompt(GenerateTravelPlanRequest request)
     {
         var budgetDescription = request.Budget switch
@@ -568,8 +600,8 @@ public class AIChatApplicationService : IAIChatService
             _ => "文化探索"
         };
 
-        var interestsText = request.Interests.Any() 
-            ? string.Join("、", request.Interests) 
+        var interestsText = request.Interests.Any()
+            ? string.Join("、", request.Interests)
             : "无特定偏好";
 
         var departureInfo = !string.IsNullOrWhiteSpace(request.DepartureLocation)
@@ -673,13 +705,25 @@ public class AIChatApplicationService : IAIChatService
                 Budget = request.Budget,
                 TravelStyle = request.TravelStyle,
                 Interests = request.Interests,
-                Transportation = root.TryGetProperty("transportation", out var trans) ? ParseTransportation(trans) : new TransportationPlanDto(),
-                Accommodation = root.TryGetProperty("accommodation", out var acc) ? ParseAccommodation(acc) : new AccommodationPlanDto(),
-                DailyItineraries = root.TryGetProperty("dailyItineraries", out var daily) ? ParseDailyItineraries(daily) : new List<DailyItineraryDto>(),
-                Attractions = root.TryGetProperty("attractions", out var attr) ? ParseAttractions(attr) : new List<AttractionDto>(),
-                Restaurants = root.TryGetProperty("restaurants", out var rest) ? ParseRestaurants(rest) : new List<RestaurantDto>(),
+                Transportation = root.TryGetProperty("transportation", out var trans)
+                    ? ParseTransportation(trans)
+                    : new TransportationPlanDto(),
+                Accommodation = root.TryGetProperty("accommodation", out var acc)
+                    ? ParseAccommodation(acc)
+                    : new AccommodationPlanDto(),
+                DailyItineraries = root.TryGetProperty("dailyItineraries", out var daily)
+                    ? ParseDailyItineraries(daily)
+                    : new List<DailyItineraryDto>(),
+                Attractions = root.TryGetProperty("attractions", out var attr)
+                    ? ParseAttractions(attr)
+                    : new List<AttractionDto>(),
+                Restaurants = root.TryGetProperty("restaurants", out var rest)
+                    ? ParseRestaurants(rest)
+                    : new List<RestaurantDto>(),
                 Tips = root.TryGetProperty("tips", out var tips) ? ParseStringArray(tips) : new List<string>(),
-                BudgetBreakdown = root.TryGetProperty("budgetBreakdown", out var budget) ? ParseBudgetBreakdown(budget) : new BudgetBreakdownDto()
+                BudgetBreakdown = root.TryGetProperty("budgetBreakdown", out var budget)
+                    ? ParseBudgetBreakdown(budget)
+                    : new BudgetBreakdownDto()
             };
         }
         catch (Exception ex)
@@ -697,7 +741,8 @@ public class AIChatApplicationService : IAIChatService
             ArrivalDetails = element.TryGetProperty("arrivalDetails", out var ad) ? ad.GetString() ?? "" : "",
             EstimatedCost = element.TryGetProperty("estimatedCost", out var ec) ? ec.GetDouble() : 0,
             LocalTransport = element.TryGetProperty("localTransport", out var lt) ? lt.GetString() ?? "" : "",
-            LocalTransportDetails = element.TryGetProperty("localTransportDetails", out var ltd) ? ltd.GetString() ?? "" : "",
+            LocalTransportDetails =
+                element.TryGetProperty("localTransportDetails", out var ltd) ? ltd.GetString() ?? "" : "",
             DailyTransportCost = element.TryGetProperty("dailyTransportCost", out var dtc) ? dtc.GetDouble() : 0
         };
     }
@@ -710,7 +755,9 @@ public class AIChatApplicationService : IAIChatService
             Recommendation = element.TryGetProperty("recommendation", out var r) ? r.GetString() ?? "" : "",
             Area = element.TryGetProperty("area", out var a) ? a.GetString() ?? "" : "",
             PricePerNight = element.TryGetProperty("pricePerNight", out var ppn) ? ppn.GetDouble() : 0,
-            Amenities = element.TryGetProperty("amenities", out var amenities) ? ParseStringArray(amenities) : new List<string>(),
+            Amenities = element.TryGetProperty("amenities", out var amenities)
+                ? ParseStringArray(amenities)
+                : new List<string>(),
             BookingTips = element.TryGetProperty("bookingTips", out var bt) ? bt.GetString() ?? "" : ""
         };
     }
@@ -719,15 +766,15 @@ public class AIChatApplicationService : IAIChatService
     {
         var itineraries = new List<DailyItineraryDto>();
         foreach (var item in element.EnumerateArray())
-        {
             itineraries.Add(new DailyItineraryDto
             {
                 Day = item.TryGetProperty("day", out var day) ? day.GetInt32() : 0,
                 Theme = item.TryGetProperty("theme", out var theme) ? theme.GetString() ?? "" : "",
-                Activities = item.TryGetProperty("activities", out var acts) ? ParseActivities(acts) : new List<ActivityDto>(),
+                Activities = item.TryGetProperty("activities", out var acts)
+                    ? ParseActivities(acts)
+                    : new List<ActivityDto>(),
                 Notes = item.TryGetProperty("notes", out var notes) ? notes.GetString() ?? "" : ""
             });
-        }
         return itineraries;
     }
 
@@ -735,7 +782,6 @@ public class AIChatApplicationService : IAIChatService
     {
         var activities = new List<ActivityDto>();
         foreach (var item in element.EnumerateArray())
-        {
             activities.Add(new ActivityDto
             {
                 Time = item.TryGetProperty("time", out var timeEl) ? timeEl.GetString() ?? "" : "",
@@ -745,7 +791,6 @@ public class AIChatApplicationService : IAIChatService
                 EstimatedCost = item.TryGetProperty("estimatedCost", out var costEl) ? costEl.GetDouble() : 0,
                 Duration = item.TryGetProperty("duration", out var durEl) ? durEl.GetInt32() : 0
             });
-        }
         return activities;
     }
 
@@ -753,7 +798,6 @@ public class AIChatApplicationService : IAIChatService
     {
         var attractions = new List<AttractionDto>();
         foreach (var item in element.EnumerateArray())
-        {
             attractions.Add(new AttractionDto
             {
                 Name = item.TryGetProperty("name", out var name) ? name.GetString() ?? "" : "",
@@ -765,7 +809,6 @@ public class AIChatApplicationService : IAIChatService
                 BestTime = item.TryGetProperty("bestTime", out var bt) ? bt.GetString() ?? "" : "",
                 Image = item.TryGetProperty("image", out var img) ? img.GetString() ?? "" : ""
             });
-        }
         return attractions;
     }
 
@@ -773,7 +816,6 @@ public class AIChatApplicationService : IAIChatService
     {
         var restaurants = new List<RestaurantDto>();
         foreach (var item in element.EnumerateArray())
-        {
             restaurants.Add(new RestaurantDto
             {
                 Name = item.TryGetProperty("name", out var name) ? name.GetString() ?? "" : "",
@@ -785,7 +827,6 @@ public class AIChatApplicationService : IAIChatService
                 Specialty = item.TryGetProperty("specialty", out var spec) ? spec.GetString() ?? "" : "",
                 Image = item.TryGetProperty("image", out var img) ? img.GetString() ?? "" : ""
             });
-        }
         return restaurants;
     }
 
@@ -809,570 +850,22 @@ public class AIChatApplicationService : IAIChatService
         foreach (var item in element.EnumerateArray())
         {
             var value = item.GetString();
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                result.Add(value);
-            }
+            if (!string.IsNullOrWhiteSpace(value)) result.Add(value);
         }
+
         return result;
     }
 
-    #region 分段生成旅行计划的辅助方法
-
     /// <summary>
-    /// 步骤1: 生成交通和住宿信息
-    /// </summary>
-    private async Task<(TransportationPlanDto, AccommodationPlanDto)> GenerateBasicInfoAsync(GenerateTravelPlanRequest request)
-    {
-        // 构建出发地点和日期信息
-        var departureDateInfo = request.DepartureDate.HasValue
-            ? $"出发日期：{request.DepartureDate.Value:yyyy年MM月dd日}"
-            : "";
-
-        var prompt = $@"请为{request.CityName}的旅行规划交通和住宿方案。
-
-旅行信息：
-- 目的地：{request.CityName}
-- 旅行天数：{request.Duration}天
-- 预算：{GetBudgetDescription(request.Budget)}
-{(string.IsNullOrEmpty(request.DepartureLocation) ? "" : $"- 出发地：{request.DepartureLocation}")}
-{(string.IsNullOrEmpty(departureDateInfo) ? "" : $"- {departureDateInfo}")}
-
-交通规划要求：
-1. 如果提供了出发地点，请推荐3-5个航班选择，包括：
-   - 航空公司
-   - 航班号
-   - 大致时间（早班/午班/晚班）
-   - 估计价格区间
-   - 飞行时长
-2. 如果没有出发地点，提供一般性的到达建议
-
-请以 JSON 格式返回，包含两个部分：
-
-{{
-  ""transportation"": {{
-    ""arrivalMethod"": ""到达方式（飞机/火车/汽车）"",
-    ""arrivalDetails"": ""到达详情"",
-    ""flightRecommendations"": [
-      {{
-        ""airline"": ""航空公司"",
-        ""flightNumber"": ""航班号（如：CA1234）"",
-        ""timeSlot"": ""时间段（早班/午班/晚班）"",
-        ""priceRange"": ""价格区间（如：500-800美元）"",
-        ""duration"": ""飞行时长（如：2小时30分钟）"",
-        ""notes"": ""备注信息""
-      }}
-    ],
-    ""estimatedCost"": 费用数字,
-    ""localTransport"": ""当地交通方式（用逗号分隔，如：地铁,公交,出租车）"",
-    ""localTransportDetails"": ""详情"",
-    ""dailyTransportCost"": 每日费用数字
-  }},
-  ""accommodation"": {{
-    ""type"": ""hotel"",
-    ""recommendation"": ""推荐说明"",
-    ""area"": ""推荐区域"",
-    ""pricePerNight"": 每晚价格数字,
-    ""amenities"": [""设施1"", ""设施2""],
-    ""bookingTips"": ""预订建议""
-  }}
-}}
-
-注意：
-1. 所有数字字段必须是数字类型，不要用字符串
-2. localTransport 必须是字符串，用逗号分隔多个交通方式
-3. flightRecommendations 数组在没有出发地时可以为空数组
-4. 如果有出发地和日期，请提供符合该时间段的实际航班建议（基于常见航线）";
-
-        _logger.LogInformation($"📝 发送给 AI 的 prompt (前500字符): {prompt.Substring(0, Math.Min(500, prompt.Length))}...");
-        _logger.LogInformation($"📍 出发地: {request.DepartureLocation ?? "未提供"}, 出发日期: {(request.DepartureDate.HasValue ? request.DepartureDate.Value.ToString("yyyy-MM-dd") : "未提供")}");
-
-        var response = await CallAIAsync(prompt, 2000); // 增加token以容纳航班信息
-        var json = ExtractJsonFromAIResponse(response);
-
-        // 调试日志：打印 AI 返回的 JSON
-        _logger.LogInformation($"🔍 AI 返回的交通住宿 JSON: {json.Substring(0, Math.Min(500, json.Length))}...");
-
-        // 验证 JSON 是否完整
-        ValidateJsonComplete(json, "步骤1-交通住宿");
-        
-        // 直接反序列化
-        var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        
-        var transportation = new TransportationPlanDto();
-        var accommodation = new AccommodationPlanDto();
-        
-        if (root.TryGetProperty("transportation", out var trans))
-        {
-            transportation.ArrivalMethod = trans.TryGetProperty("arrivalMethod", out var am) ? am.GetString() ?? "" : "";
-            transportation.ArrivalDetails = trans.TryGetProperty("arrivalDetails", out var ad) ? ad.GetString() ?? "" : "";
-
-            // 处理航班推荐
-            if (trans.TryGetProperty("flightRecommendations", out var flights) && flights.ValueKind == JsonValueKind.Array)
-            {
-                _logger.LogInformation($"✈️ 找到航班推荐数组，数量: {flights.GetArrayLength()}");
-                var flightsList = new List<string>();
-                foreach (var flight in flights.EnumerateArray())
-                {
-                    var airline = flight.TryGetProperty("airline", out var al) ? al.GetString() ?? "" : "";
-                    var flightNum = flight.TryGetProperty("flightNumber", out var fn) ? fn.GetString() ?? "" : "";
-                    var timeSlot = flight.TryGetProperty("timeSlot", out var ts) ? ts.GetString() ?? "" : "";
-                    var priceRange = flight.TryGetProperty("priceRange", out var pr) ? pr.GetString() ?? "" : "";
-                    var duration = flight.TryGetProperty("duration", out var dur) ? dur.GetString() ?? "" : "";
-                    var notes = flight.TryGetProperty("notes", out var nt) ? nt.GetString() ?? "" : "";
-
-                    var flightInfo = $"{airline} {flightNum} ({timeSlot}) - {priceRange}, {duration}";
-                    if (!string.IsNullOrEmpty(notes))
-                    {
-                        flightInfo += $" - {notes}";
-                    }
-                    flightsList.Add(flightInfo);
-                    _logger.LogInformation($"✈️ 解析航班: {flightInfo}");
-                }
-
-                if (flightsList.Any())
-                {
-                    // 将航班信息添加到 arrivalDetails 中
-                    var flightInfo = string.Join("\n", flightsList);
-                    transportation.ArrivalDetails += $"\n\n航班推荐：\n{flightInfo}";
-                    _logger.LogInformation($"✅ 已添加 {flightsList.Count} 个航班推荐到 arrivalDetails");
-                }
-            }
-            else
-            {
-                _logger.LogWarning("⚠️ JSON 中未找到 flightRecommendations 数组或格式不正确");
-            }
-
-            transportation.EstimatedCost = trans.TryGetProperty("estimatedCost", out var ec) ? ec.GetDouble() : 0;
-            
-            // 处理 localTransport - 可能是字符串或数组
-            if (trans.TryGetProperty("localTransport", out var lt))
-            {
-                if (lt.ValueKind == JsonValueKind.Array)
-                {
-                    // 如果是数组，转换为逗号分隔的字符串
-                    var transports = new List<string>();
-                    foreach (var item in lt.EnumerateArray())
-                    {
-                        var val = item.GetString();
-                        if (!string.IsNullOrWhiteSpace(val))
-                            transports.Add(val);
-                    }
-                    transportation.LocalTransport = string.Join(", ", transports);
-                }
-                else
-                {
-                    transportation.LocalTransport = lt.GetString() ?? "";
-                }
-            }
-            
-            transportation.LocalTransportDetails = trans.TryGetProperty("localTransportDetails", out var ltd) ? ltd.GetString() ?? "" : "";
-            transportation.DailyTransportCost = trans.TryGetProperty("dailyTransportCost", out var dtc) ? dtc.GetDouble() : 0;
-        }
-        
-        if (root.TryGetProperty("accommodation", out var acc))
-        {
-            accommodation.Type = acc.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "";
-            accommodation.Recommendation = acc.TryGetProperty("recommendation", out var r) ? r.GetString() ?? "" : "";
-            accommodation.Area = acc.TryGetProperty("area", out var a) ? a.GetString() ?? "" : "";
-            accommodation.PricePerNight = acc.TryGetProperty("pricePerNight", out var ppn) ? ppn.GetDouble() : 0;
-            accommodation.Amenities = acc.TryGetProperty("amenities", out var amenities) ? ParseStringArray(amenities) : new List<string>();
-            accommodation.BookingTips = acc.TryGetProperty("bookingTips", out var bt) ? bt.GetString() ?? "" : "";
-        }
-            
-        return (transportation, accommodation);
-    }
-
-    /// <summary>
-    /// 步骤2: 生成每日行程（按天循环生成）
-    /// </summary>
-    private async Task<List<DailyItineraryDto>> GenerateDailyItinerariesAsync(
-        GenerateTravelPlanRequest request,
-        Func<int, int, Task>? onDayProgress = null)
-    {
-        var allItineraries = new List<DailyItineraryDto>();
-        
-        // 收集已访问的景点，确保不重复
-        var visitedLocations = new HashSet<string>();
-        
-        // 按天循环生成，每天一个独立请求
-        for (int day = 1; day <= request.Duration; day++)
-        {
-            _logger.LogInformation("📅 生成第 {Day}/{Total} 天的行程...", day, request.Duration);
-            
-            // 回调进度
-            if (onDayProgress != null)
-                await onDayProgress(day, request.Duration);
-            
-            // 构建已访问景点列表
-            var visitedLocationsText = visitedLocations.Count > 0 
-                ? $"\n⚠️ 重要：以下景点已在前{day-1}天访问过，请安排不同的景点：\n- {string.Join("\n- ", visitedLocations)}" 
-                : "";
-            
-            var prompt = $@"请为{request.CityName}第{day}天的旅行制定行程计划（共{request.Duration}天）。
-
-旅行风格：{GetStyleDescription(request.TravelStyle)}
-{(day == 1 ? "第一天：初到城市，安排轻松适应性活动" : "")}
-{(day == request.Duration ? $"最后一天：安排返程前的活动，预留离开时间" : "")}{visitedLocationsText}
-
-返回 JSON 格式（安排3-4个活动，描述简洁）：
-
-{{
-  ""day"": {day},
-  ""theme"": ""当天主题"",
-  ""activities"": [
-    {{
-      ""time"": ""09:00"",
-      ""name"": ""活动名称"",
-      ""description"": ""简短描述(20字内)"",
-      ""location"": ""地点"",
-      ""estimatedCost"": 数字,
-      ""duration"": 分钟数字
-    }}
-  ],
-  ""notes"": ""简要提示""
-}}
-
-要求：
-1. 每天安排3-4个不同的活动
-2. 每天的景点/地点必须与之前的天数不重复
-3. description不超过20字
-4. 所有数字用数字类型";
-
-            var response = await CallAIAsync(prompt, 1000); // 单天只需要 1000 tokens
-            var json = ExtractJsonFromAIResponse(response);
-            ValidateJsonComplete(json, $"第{day}天行程");
-            
-            var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-            
-            var itinerary = new DailyItineraryDto
-            {
-                Day = root.TryGetProperty("day", out var d) ? d.GetInt32() : day,
-                Theme = root.TryGetProperty("theme", out var t) ? t.GetString() ?? "" : "",
-                Activities = root.TryGetProperty("activities", out var acts) 
-                    ? ParseActivities(acts) 
-                    : new List<ActivityDto>(),
-                Notes = root.TryGetProperty("notes", out var n) ? n.GetString() ?? "" : ""
-            };
-            
-            // 收集本天访问的景点到已访问列表
-            foreach (var activity in itinerary.Activities)
-            {
-                if (!string.IsNullOrWhiteSpace(activity.Location))
-                {
-                    visitedLocations.Add(activity.Location);
-                }
-            }
-            
-            allItineraries.Add(itinerary);
-            _logger.LogInformation("✅ 第 {Day} 天行程生成完成，包含 {Count} 个活动，已访问 {Visited} 个景点", 
-                day, itinerary.Activities.Count, visitedLocations.Count);
-            
-            // 避免请求过快，添加小延迟
-            if (day < request.Duration)
-            {
-                await Task.Delay(500);
-            }
-        }
-        
-        _logger.LogInformation("✅ 所有 {Total} 天行程生成完成", request.Duration);
-        return allItineraries;
-    }
-
-    /// <summary>
-    /// 步骤3: 生成景点和餐厅推荐
-    /// </summary>
-    private async Task<(List<AttractionDto>, List<RestaurantDto>)> GenerateAttractionsAndRestaurantsAsync(GenerateTravelPlanRequest request)
-    {
-        var prompt = $@"推荐{request.CityName}的景点(5-8个)和餐厅(3-5个)。
-
-JSON 格式（描述简洁）：
-
-{{
-  ""attractions"": [
-    {{
-      ""name"": ""名称"",
-      ""description"": ""简短描述(30字内)"",
-      ""category"": ""类别"",
-      ""rating"": 评分数字,
-      ""location"": ""位置"",
-      ""entryFee"": 费用数字,
-      ""bestTime"": ""时间"",
-      ""image"": """"
-    }}
-  ],
-  ""restaurants"": [
-    {{
-      ""name"": ""名称"",
-      ""cuisine"": ""菜系"",
-      ""description"": ""简短描述(20字内)"",
-      ""rating"": 评分数字,
-      ""priceRange"": ""$$ 或 $$$"",
-      ""location"": ""位置"",
-      ""specialty"": ""招牌菜"",
-      ""image"": """"
-    }}
-  ]
-}}";
-
-        var response = await CallAIAsync(prompt, 3000); // 增加到 3000
-        var json = ExtractJsonFromAIResponse(response);
-        ValidateJsonComplete(json, "步骤3-景点餐厅");
-        
-        var doc = JsonDocument.Parse(json);
-        
-        var attractions = doc.RootElement.TryGetProperty("attractions", out var attr) 
-            ? ParseAttractions(attr) 
-            : new List<AttractionDto>();
-            
-        var restaurants = doc.RootElement.TryGetProperty("restaurants", out var rest) 
-            ? ParseRestaurants(rest) 
-            : new List<RestaurantDto>();
-            
-        return (attractions, restaurants);
-    }
-
-    /// <summary>
-    /// 步骤4: 生成预算明细和旅行建议
-    /// </summary>
-    private async Task<(BudgetBreakdownDto, List<string>)> GenerateBudgetAndTipsAsync(
-        GenerateTravelPlanRequest request,
-        TransportationPlanDto transportation,
-        AccommodationPlanDto accommodation,
-        List<DailyItineraryDto> dailyItineraries)
-    {
-        // 计算已知的费用
-        var transportCost = transportation.EstimatedCost + (transportation.DailyTransportCost * request.Duration);
-        var accommodationCost = accommodation.PricePerNight * request.Duration;
-        var activitiesCost = dailyItineraries
-            .SelectMany(d => d.Activities)
-            .Sum(a => a.EstimatedCost);
-
-        var prompt = $@"请为{request.CityName}的{request.Duration}天旅行提供预算明细和实用建议。
-
-已知费用：
-- 交通费用：{transportCost}
-- 住宿费用：{accommodationCost}
-- 活动费用：{activitiesCost}
-
-请以 JSON 格式返回：
-
-{{
-  ""budgetBreakdown"": {{
-    ""transportation"": {transportCost},
-    ""accommodation"": {accommodationCost},
-    ""food"": 估算餐饮费用数字,
-    ""activities"": {activitiesCost},
-    ""miscellaneous"": 其他费用数字,
-    ""total"": 总费用数字,
-    ""currency"": ""USD""
-  }},
-  ""tips"": [
-    ""建议1"",
-    ""建议2"",
-    ""建议3""
-  ]
-}}";
-
-        var response = await CallAIAsync(prompt, 1200); // 增加到 1200
-        var json = ExtractJsonFromAIResponse(response);
-        ValidateJsonComplete(json, "步骤4-预算建议");
-        
-        var doc = JsonDocument.Parse(json);
-        
-        var budget = doc.RootElement.TryGetProperty("budgetBreakdown", out var bud) 
-            ? ParseBudgetBreakdown(bud) 
-            : new BudgetBreakdownDto();
-            
-        var tips = doc.RootElement.TryGetProperty("tips", out var t) 
-            ? ParseStringArray(t) 
-            : new List<string>();
-            
-        return (budget, tips);
-    }
-
-    /// <summary>
-    /// 调用 AI 的通用方法（带重试机制）- 直接使用 HttpClient
-    /// </summary>
-    private async Task<string> CallAIAsync(string userPrompt, int maxTokens, int maxRetries = 3)
-    {
-        Exception? lastException = null;
-        
-        for (int attempt = 1; attempt <= maxRetries; attempt++)
-        {
-            try
-            {
-                _logger.LogInformation("🔄 AI 请求尝试 {Attempt}/{MaxRetries}, MaxTokens: {MaxTokens}", 
-                    attempt, maxRetries, maxTokens);
-
-                var stopwatch = Stopwatch.StartNew();
-                
-                // 直接使用 HttpClient 调用 Qwen API
-                var apiKey = _configuration["Qwen:ApiKey"] ?? throw new InvalidOperationException("Qwen API Key 未配置");
-                var baseUrl = _configuration["Qwen:BaseUrl"] ?? "https://dashscope.aliyuncs.com/compatible-mode/v1";
-                var model = _configuration["SemanticKernel:DefaultModel"] ?? "qwen-plus";
-
-                // 创建 HttpClient 时配置更长的超时和缓冲区
-                using var httpClient = new HttpClient(new SocketsHttpHandler
-                {
-                    PooledConnectionLifetime = TimeSpan.FromMinutes(10),
-                    PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
-                    MaxConnectionsPerServer = 10,
-                    ResponseDrainTimeout = TimeSpan.FromMinutes(5)
-                });
-
-                httpClient.Timeout = TimeSpan.FromMinutes(10); // 增加到 10 分钟
-
-                var requestBody = new
-                {
-                    model = model,
-                    messages = new[]
-                    {
-                        new { role = "system", content = "你是一个专业的旅行规划助手。请以有效的 JSON 格式返回结果，不要包含其他文字说明。" },
-                        new { role = "user", content = userPrompt }
-                    },
-                    temperature = 0.7,
-                    max_tokens = maxTokens,
-                    stream = false // 明确禁用流式输出
-                };
-                
-                var requestJson = System.Text.Json.JsonSerializer.Serialize(requestBody);
-                var content = new StringContent(requestJson, System.Text.Encoding.UTF8, "application/json");
-                
-                var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/chat/completions");
-                request.Headers.Add("Authorization", $"Bearer {apiKey}");
-                request.Headers.Add("Accept", "application/json");
-                request.Content = content;
-
-                _logger.LogInformation("📤 发送 AI 请求到: {Url}, MaxTokens: {MaxTokens}", $"{baseUrl}/chat/completions", maxTokens);
-
-                // 使用 ResponseHeadersRead 模式，避免缓冲整个响应
-                var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-                response.EnsureSuccessStatusCode();
-
-                // 流式读取响应内容
-                var responseBody = await response.Content.ReadAsStringAsync();
-                stopwatch.Stop();
-                
-                _logger.LogInformation("✅ AI 响应成功 (尝试 {Attempt}), 耗时: {ElapsedMs}ms, 响应长度: {Length}", 
-                    attempt, stopwatch.ElapsedMilliseconds, responseBody.Length);
-                
-                // 解析响应
-                var jsonDoc = JsonDocument.Parse(responseBody);
-                var choices = jsonDoc.RootElement.GetProperty("choices");
-                if (choices.GetArrayLength() == 0)
-                {
-                    throw new InvalidOperationException("AI 响应中没有 choices");
-                }
-                
-                var firstChoice = choices[0];
-                var message = firstChoice.GetProperty("message");
-                var aiContent = message.GetProperty("content").GetString() ?? string.Empty;
-                
-                _logger.LogInformation("📝 AI 返回内容长度: {Length}", aiContent.Length);
-                
-                return aiContent;
-            }
-            catch (HttpRequestException ex)
-            {
-                lastException = ex;
-                _logger.LogWarning(ex, "⚠️ AI HTTP 请求失败 (尝试 {Attempt}/{MaxRetries}), 错误: {Message}, 正在重试...",
-                    attempt, maxRetries, ex.Message);
-
-                if (attempt < maxRetries)
-                {
-                    var delaySeconds = attempt * 3; // 增加重试间隔：3秒、6秒、9秒
-                    _logger.LogInformation("⏳ 等待 {DelaySeconds} 秒后重试...", delaySeconds);
-                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
-                }
-            }
-            catch (TaskCanceledException ex)
-            {
-                lastException = ex;
-                _logger.LogWarning(ex, "⚠️ AI 请求超时 (尝试 {Attempt}/{MaxRetries}), 正在重试...", 
-                    attempt, maxRetries);
-                
-                if (attempt < maxRetries)
-                {
-                    var delaySeconds = attempt * 3; // 增加重试间隔
-                    _logger.LogInformation("⏳ 等待 {DelaySeconds} 秒后重试...", delaySeconds);
-                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "❌ AI 请求失败 (尝试 {Attempt}/{MaxRetries})", attempt, maxRetries);
-                throw;
-            }
-        }
-        
-        _logger.LogError(lastException, "❌ AI 请求失败: 已重试 {MaxRetries} 次仍然失败", maxRetries);
-        throw new InvalidOperationException($"AI 请求失败: 已重试 {maxRetries} 次", lastException);
-    }
-
-    /// <summary>
-    /// 验证 JSON 是否完整（括号匹配）
-    /// </summary>
-    private void ValidateJsonComplete(string json, string step)
-    {
-        var openBraces = json.Count(c => c == '{');
-        var closeBraces = json.Count(c => c == '}');
-        var openBrackets = json.Count(c => c == '[');
-        var closeBrackets = json.Count(c => c == ']');
-
-        if (openBraces != closeBraces || openBrackets != closeBrackets)
-        {
-            _logger.LogError("❌ {Step} JSON 不完整 - 大括号: {OpenBraces}/{CloseBraces}, 中括号: {OpenBrackets}/{CloseBrackets}", 
-                step, openBraces, closeBraces, openBrackets, closeBrackets);
-            _logger.LogError("JSON 内容 (前500字符): {JsonPreview}", json.Substring(0, Math.Min(500, json.Length)));
-            _logger.LogError("JSON 内容 (后500字符): {JsonSuffix}", json.Length > 500 ? json.Substring(json.Length - 500) : json);
-            throw new JsonException($"{step}: AI 返回的 JSON 不完整，可能是 token 限制导致截断");
-        }
-        
-        _logger.LogInformation("✅ {Step} JSON 验证通过 - 大括号: {Braces}, 中括号: {Brackets}", 
-            step, openBraces, openBrackets);
-    }
-
-    private string GetBudgetDescription(string budget)
-    {
-        return budget switch
-        {
-            "low" => "经济型（每天50-100美元）",
-            "medium" => "中等（每天100-200美元）",
-            "high" => "豪华（每天200美元以上）",
-            _ => "中等预算"
-        };
-    }
-
-    private string GetStyleDescription(string style)
-    {
-        return style switch
-        {
-            "adventure" => "冒险探索",
-            "relaxation" => "休闲放松",
-            "culture" => "文化探索",
-            "nightlife" => "夜生活娱乐",
-            _ => "文化探索"
-        };
-    }
-
-    #endregion
-
-    /// <summary>
-    /// 从 AI 响应中提取 JSON 内容
-    /// 处理以下情况：
-    /// 1. 纯 JSON
-    /// 2. JSON 被代码块包裹
-    /// 3. JSON 前后有文字说明
+    ///     从 AI 响应中提取 JSON 内容
+    ///     处理以下情况：
+    ///     1. 纯 JSON
+    ///     2. JSON 被代码块包裹
+    ///     3. JSON 前后有文字说明
     /// </summary>
     private string ExtractJsonFromAIResponse(string aiContent)
     {
-        if (string.IsNullOrWhiteSpace(aiContent))
-        {
-            throw new ArgumentException("AI 响应内容为空", nameof(aiContent));
-        }
+        if (string.IsNullOrWhiteSpace(aiContent)) throw new ArgumentException("AI 响应内容为空", nameof(aiContent));
 
         var content = aiContent.Trim();
         const string codeBlockMarker = "```";
@@ -1382,7 +875,7 @@ JSON 格式（描述简洁）：
         if (content.Contains(jsonCodeBlock) || content.Contains(codeBlockMarker))
         {
             _logger.LogInformation("📝 检测到代码块格式，开始提取 JSON");
-            
+
             // 提取代码块之间的内容
             var startMarker = content.Contains(jsonCodeBlock) ? jsonCodeBlock : codeBlockMarker;
             var startIndex = content.IndexOf(startMarker);
@@ -1417,7 +910,7 @@ JSON 格式（描述简洁）：
     }
 
     /// <summary>
-    /// 尝试修复不完整的 JSON（处理未闭合的对象/数组）
+    ///     尝试修复不完整的 JSON（处理未闭合的对象/数组）
     /// </summary>
     private string TryFixIncompleteJson(string json)
     {
@@ -1434,12 +927,12 @@ JSON 格式（描述简洁）：
             _logger.LogWarning("⚠️ JSON 格式不完整，尝试自动修复...");
 
             // 统计括号和方括号
-            int braceCount = 0;
-            int bracketCount = 0;
-            bool inString = false;
-            char prevChar = '\0';
+            var braceCount = 0;
+            var bracketCount = 0;
+            var inString = false;
+            var prevChar = '\0';
 
-            foreach (char c in json)
+            foreach (var c in json)
             {
                 if (c == '"' && prevChar != '\\')
                 {
@@ -1452,6 +945,7 @@ JSON 格式（描述简洁）：
                     else if (c == '[') bracketCount++;
                     else if (c == ']') bracketCount--;
                 }
+
                 prevChar = c;
             }
 
@@ -1459,16 +953,10 @@ JSON 格式（描述简洁）：
             var fixedJson = json;
 
             // 先闭合数组
-            for (int i = 0; i < bracketCount; i++)
-            {
-                fixedJson += "\n]";
-            }
+            for (var i = 0; i < bracketCount; i++) fixedJson += "\n]";
 
             // 再闭合对象
-            for (int i = 0; i < braceCount; i++)
-            {
-                fixedJson += "\n}";
-            }
+            for (var i = 0; i < braceCount; i++) fixedJson += "\n}";
 
             _logger.LogInformation("🔧 JSON 修复完成，补全了 {Brackets} 个方括号和 {Braces} 个花括号", bracketCount, braceCount);
 
@@ -1487,51 +975,7 @@ JSON 格式（描述简洁）：
     }
 
     /// <summary>
-    /// 生成数字游民旅游指南（拆分为多个小请求）
-    /// </summary>
-    public async Task<TravelGuideResponse> GenerateTravelGuideAsync(
-        GenerateTravelGuideRequest request, 
-        Guid userId,
-        Func<int, string, Task>? onProgress = null)
-    {
-        try
-        {
-            _logger.LogInformation("📖 开始生成数字游民旅游指南（拆分请求模式）- 城市: {CityName}, 用户ID: {UserId}",
-                request.CityName, userId);
-
-            // 初始化结果对象
-            var guide = new TravelGuideResponse
-            {
-                CityId = request.CityId,
-                CityName = request.CityName
-            };
-
-            // 第 1 部分: 概述 + 签证信息 (15% - 40%)
-            if (onProgress != null) await onProgress(15, "正在生成城市概述和签证信息...");
-            await GenerateBasicInfoAsync(request, guide, onProgress);
-
-            // 第 2 部分: 推荐区域 (40% - 70%)
-            if (onProgress != null) await onProgress(40, "正在分析推荐区域...");
-            await GenerateBestAreasAsync(request, guide, onProgress);
-
-            // 第 3 部分: 工作空间 + 实用建议 + 基本信息 (70% - 100%)
-            if (onProgress != null) await onProgress(70, "正在整理工作空间和实用建议...");
-            await GeneratePracticalInfoAsync(request, guide, onProgress);
-
-            if (onProgress != null) await onProgress(100, "旅游指南生成完成!");
-            
-            _logger.LogInformation("✅ 数字游民旅游指南生成成功 - 城市: {CityName}", request.CityName);
-            return guide;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ 生成数字游民旅游指南失败，城市: {CityName}", request.CityName);
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// 第 1 部分：生成基本信息（概述 + 签证）
+    ///     第 1 部分：生成基本信息（概述 + 签证）
     /// </summary>
     private async Task GenerateBasicInfoAsync(
         GenerateTravelGuideRequest request,
@@ -1556,7 +1000,7 @@ JSON 格式（描述简洁）：
 要求：信息要准确、实用、最新，使用中文，必须返回严格的 JSON 格式。";
 
         _logger.LogInformation("🤖 [1/3] 调用 AI 生成基本信息...");
-        var aiResponse = await CallAIAsync(prompt, 800, maxRetries: 3);
+        var aiResponse = await CallAIAsync(prompt, 800);
 
         if (onProgress != null) await onProgress(35, "正在解析基本信息...");
 
@@ -1569,13 +1013,16 @@ JSON 格式（描述简洁）：
             var root = jsonDoc.RootElement;
 
             guide.Overview = root.TryGetProperty("overview", out var overview) ? overview.GetString() ?? "" : "";
-            guide.VisaInfo = root.TryGetProperty("visaInfo", out var visaInfo) ? ParseVisaInfo(visaInfo) : new VisaInfoDto();
+            guide.VisaInfo = root.TryGetProperty("visaInfo", out var visaInfo)
+                ? ParseVisaInfo(visaInfo)
+                : new VisaInfoDto();
 
             _logger.LogInformation("✅ [1/3] 基本信息生成完成");
         }
         catch (JsonException ex)
         {
-            _logger.LogError(ex, "❌ JSON 解析失败，原始响应: {Response}", aiResponse.Length > 500 ? aiResponse.Substring(0, 500) + "..." : aiResponse);
+            _logger.LogError(ex, "❌ JSON 解析失败，原始响应: {Response}",
+                aiResponse.Length > 500 ? aiResponse.Substring(0, 500) + "..." : aiResponse);
 
             // 提供默认值
             guide.Overview = $"{request.CityName} 是一个适合数字游民工作和生活的城市。";
@@ -1585,7 +1032,7 @@ JSON 格式（描述简洁）：
     }
 
     /// <summary>
-    /// 第 2 部分：生成推荐区域
+    ///     第 2 部分：生成推荐区域
     /// </summary>
     private async Task GenerateBestAreasAsync(
         GenerateTravelGuideRequest request,
@@ -1664,7 +1111,7 @@ JSON 格式（描述简洁）：
 要求：必须包含5个区域，从娱乐、旅游、经济、文化四个维度评分(1-5数字)，使用中文，返回严格 JSON 格式。";
 
         _logger.LogInformation("🤖 [2/3] 调用 AI 生成推荐区域...");
-        var aiResponse = await CallAIAsync(prompt, 1200, maxRetries: 3);
+        var aiResponse = await CallAIAsync(prompt, 1200);
 
         if (onProgress != null) await onProgress(65, "正在解析推荐区域...");
 
@@ -1678,13 +1125,16 @@ JSON 格式（描述简洁）：
             var jsonDoc = JsonDocument.Parse(jsonContent);
             var root = jsonDoc.RootElement;
 
-            guide.BestAreas = root.TryGetProperty("bestAreas", out var areas) ? ParseBestAreas(areas) : new List<BestAreaDto>();
+            guide.BestAreas = root.TryGetProperty("bestAreas", out var areas)
+                ? ParseBestAreas(areas)
+                : new List<BestAreaDto>();
 
             _logger.LogInformation("✅ [2/3] 推荐区域生成完成，共 {Count} 个区域", guide.BestAreas.Count);
         }
         catch (JsonException ex)
         {
-            _logger.LogError(ex, "❌ JSON 解析失败，原始响应: {Response}", aiResponse.Length > 500 ? aiResponse.Substring(0, 500) + "..." : aiResponse);
+            _logger.LogError(ex, "❌ JSON 解析失败，原始响应: {Response}",
+                aiResponse.Length > 500 ? aiResponse.Substring(0, 500) + "..." : aiResponse);
 
             // 如果解析失败，返回空列表而不是抛出异常
             guide.BestAreas = new List<BestAreaDto>();
@@ -1693,7 +1143,7 @@ JSON 格式（描述简洁）：
     }
 
     /// <summary>
-    /// 第 3 部分：生成实用信息（工作空间 + 建议 + 基本信息）
+    ///     第 3 部分：生成实用信息（工作空间 + 建议 + 基本信息）
     /// </summary>
     private async Task GeneratePracticalInfoAsync(
         GenerateTravelGuideRequest request,
@@ -1734,7 +1184,7 @@ JSON 格式（描述简洁）：
 要求：信息要具体可操作，使用中文，返回严格 JSON 格式。";
 
         _logger.LogInformation("🤖 [3/3] 调用 AI 生成实用信息...");
-        var aiResponse = await CallAIAsync(prompt, 1000, maxRetries: 3);
+        var aiResponse = await CallAIAsync(prompt, 1000);
 
         if (onProgress != null) await onProgress(95, "正在解析实用信息...");
 
@@ -1746,15 +1196,20 @@ JSON 格式（描述简洁）：
             var jsonDoc = JsonDocument.Parse(jsonContent);
             var root = jsonDoc.RootElement;
 
-            guide.WorkspaceRecommendations = root.TryGetProperty("workspaceRecommendations", out var workspaces) ? ParseStringArray(workspaces) : new List<string>();
+            guide.WorkspaceRecommendations = root.TryGetProperty("workspaceRecommendations", out var workspaces)
+                ? ParseStringArray(workspaces)
+                : new List<string>();
             guide.Tips = root.TryGetProperty("tips", out var tips) ? ParseStringArray(tips) : new List<string>();
-            guide.EssentialInfo = root.TryGetProperty("essentialInfo", out var essentialInfo) ? ParseEssentialInfo(essentialInfo) : new Dictionary<string, string>();
+            guide.EssentialInfo = root.TryGetProperty("essentialInfo", out var essentialInfo)
+                ? ParseEssentialInfo(essentialInfo)
+                : new Dictionary<string, string>();
 
             _logger.LogInformation("✅ [3/3] 实用信息生成完成");
         }
         catch (JsonException ex)
         {
-            _logger.LogError(ex, "❌ JSON 解析失败，原始响应: {Response}", aiResponse.Length > 500 ? aiResponse.Substring(0, 500) + "..." : aiResponse);
+            _logger.LogError(ex, "❌ JSON 解析失败，原始响应: {Response}",
+                aiResponse.Length > 500 ? aiResponse.Substring(0, 500) + "..." : aiResponse);
 
             // 提供默认值
             guide.WorkspaceRecommendations = new List<string>();
@@ -1767,30 +1222,36 @@ JSON 格式（描述简洁）：
     private List<BestAreaDto> ParseBestAreas(JsonElement element)
     {
         var areas = new List<BestAreaDto>();
-        
+
         if (element.ValueKind == JsonValueKind.Array)
-        {
             foreach (var item in element.EnumerateArray())
-            {
                 if (item.ValueKind == JsonValueKind.Object)
-                {
                     areas.Add(new BestAreaDto
                     {
                         Name = item.TryGetProperty("name", out var name) ? name.GetString() ?? "" : "",
                         Description = item.TryGetProperty("description", out var desc) ? desc.GetString() ?? "" : "",
-                        EntertainmentScore = item.TryGetProperty("entertainmentScore", out var entScore) ? entScore.GetDouble() : 0,
-                        EntertainmentDescription = item.TryGetProperty("entertainmentDescription", out var entDesc) ? entDesc.GetString() ?? "" : "",
-                        TourismScore = item.TryGetProperty("tourismScore", out var tourScore) ? tourScore.GetDouble() : 0,
-                        TourismDescription = item.TryGetProperty("tourismDescription", out var tourDesc) ? tourDesc.GetString() ?? "" : "",
+                        EntertainmentScore = item.TryGetProperty("entertainmentScore", out var entScore)
+                            ? entScore.GetDouble()
+                            : 0,
+                        EntertainmentDescription = item.TryGetProperty("entertainmentDescription", out var entDesc)
+                            ? entDesc.GetString() ?? ""
+                            : "",
+                        TourismScore = item.TryGetProperty("tourismScore", out var tourScore)
+                            ? tourScore.GetDouble()
+                            : 0,
+                        TourismDescription = item.TryGetProperty("tourismDescription", out var tourDesc)
+                            ? tourDesc.GetString() ?? ""
+                            : "",
                         EconomyScore = item.TryGetProperty("economyScore", out var ecoScore) ? ecoScore.GetDouble() : 0,
-                        EconomyDescription = item.TryGetProperty("economyDescription", out var ecoDesc) ? ecoDesc.GetString() ?? "" : "",
+                        EconomyDescription = item.TryGetProperty("economyDescription", out var ecoDesc)
+                            ? ecoDesc.GetString() ?? ""
+                            : "",
                         CultureScore = item.TryGetProperty("cultureScore", out var culScore) ? culScore.GetDouble() : 0,
-                        CultureDescription = item.TryGetProperty("cultureDescription", out var culDesc) ? culDesc.GetString() ?? "" : ""
+                        CultureDescription = item.TryGetProperty("cultureDescription", out var culDesc)
+                            ? culDesc.GetString() ?? ""
+                            : ""
                     });
-                }
-            }
-        }
-        
+
         return areas;
     }
 
@@ -1800,7 +1261,9 @@ JSON 格式（描述简洁）：
         {
             Type = element.TryGetProperty("type", out var type) ? type.GetString() ?? "" : "",
             Duration = element.TryGetProperty("duration", out var duration) ? duration.GetInt32() : 0,
-            Requirements = element.TryGetProperty("requirements", out var requirements) ? requirements.GetString() ?? "" : "",
+            Requirements = element.TryGetProperty("requirements", out var requirements)
+                ? requirements.GetString() ?? ""
+                : "",
             Cost = element.TryGetProperty("cost", out var cost) ? cost.GetDouble() : 0,
             Process = element.TryGetProperty("process", out var process) ? process.GetString() ?? "" : ""
         };
@@ -1809,10 +1272,549 @@ JSON 格式（描述简洁）：
     private Dictionary<string, string> ParseEssentialInfo(JsonElement element)
     {
         var dict = new Dictionary<string, string>();
-        foreach (var property in element.EnumerateObject())
-        {
-            dict[property.Name] = property.Value.GetString() ?? "";
-        }
+        foreach (var property in element.EnumerateObject()) dict[property.Name] = property.Value.GetString() ?? "";
         return dict;
     }
+
+    #region 分段生成旅行计划的辅助方法
+
+    /// <summary>
+    ///     步骤1: 生成交通和住宿信息
+    /// </summary>
+    private async Task<(TransportationPlanDto, AccommodationPlanDto)> GenerateBasicInfoAsync(
+        GenerateTravelPlanRequest request)
+    {
+        // 构建出发地点和日期信息
+        var departureDateInfo = request.DepartureDate.HasValue
+            ? $"出发日期：{request.DepartureDate.Value:yyyy年MM月dd日}"
+            : "";
+
+        var prompt = $@"请为{request.CityName}的旅行规划交通和住宿方案。
+
+旅行信息：
+- 目的地：{request.CityName}
+- 旅行天数：{request.Duration}天
+- 预算：{GetBudgetDescription(request.Budget)}
+{(string.IsNullOrEmpty(request.DepartureLocation) ? "" : $"- 出发地：{request.DepartureLocation}")}
+{(string.IsNullOrEmpty(departureDateInfo) ? "" : $"- {departureDateInfo}")}
+
+交通规划要求：
+1. 如果提供了出发地点，请推荐3-5个航班选择，包括：
+   - 航空公司
+   - 航班号
+   - 大致时间（早班/午班/晚班）
+   - 估计价格区间
+   - 飞行时长
+2. 如果没有出发地点，提供一般性的到达建议
+
+请以 JSON 格式返回，包含两个部分：
+
+{{
+  ""transportation"": {{
+    ""arrivalMethod"": ""到达方式（飞机/火车/汽车）"",
+    ""arrivalDetails"": ""到达详情"",
+    ""flightRecommendations"": [
+      {{
+        ""airline"": ""航空公司"",
+        ""flightNumber"": ""航班号（如：CA1234）"",
+        ""timeSlot"": ""时间段（早班/午班/晚班）"",
+        ""priceRange"": ""价格区间（如：500-800美元）"",
+        ""duration"": ""飞行时长（如：2小时30分钟）"",
+        ""notes"": ""备注信息""
+      }}
+    ],
+    ""estimatedCost"": 费用数字,
+    ""localTransport"": ""当地交通方式（用逗号分隔，如：地铁,公交,出租车）"",
+    ""localTransportDetails"": ""详情"",
+    ""dailyTransportCost"": 每日费用数字
+  }},
+  ""accommodation"": {{
+    ""type"": ""hotel"",
+    ""recommendation"": ""推荐说明"",
+    ""area"": ""推荐区域"",
+    ""pricePerNight"": 每晚价格数字,
+    ""amenities"": [""设施1"", ""设施2""],
+    ""bookingTips"": ""预订建议""
+  }}
+}}
+
+注意：
+1. 所有数字字段必须是数字类型，不要用字符串
+2. localTransport 必须是字符串，用逗号分隔多个交通方式
+3. flightRecommendations 数组在没有出发地时可以为空数组
+4. 如果有出发地和日期，请提供符合该时间段的实际航班建议（基于常见航线）";
+
+        _logger.LogInformation($"📝 发送给 AI 的 prompt (前500字符): {prompt.Substring(0, Math.Min(500, prompt.Length))}...");
+        _logger.LogInformation(
+            $"📍 出发地: {request.DepartureLocation ?? "未提供"}, 出发日期: {(request.DepartureDate.HasValue ? request.DepartureDate.Value.ToString("yyyy-MM-dd") : "未提供")}");
+
+        var response = await CallAIAsync(prompt, 2000); // 增加token以容纳航班信息
+        var json = ExtractJsonFromAIResponse(response);
+
+        // 调试日志：打印 AI 返回的 JSON
+        _logger.LogInformation($"🔍 AI 返回的交通住宿 JSON: {json.Substring(0, Math.Min(500, json.Length))}...");
+
+        // 验证 JSON 是否完整
+        ValidateJsonComplete(json, "步骤1-交通住宿");
+
+        // 直接反序列化
+        var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        var transportation = new TransportationPlanDto();
+        var accommodation = new AccommodationPlanDto();
+
+        if (root.TryGetProperty("transportation", out var trans))
+        {
+            transportation.ArrivalMethod =
+                trans.TryGetProperty("arrivalMethod", out var am) ? am.GetString() ?? "" : "";
+            transportation.ArrivalDetails =
+                trans.TryGetProperty("arrivalDetails", out var ad) ? ad.GetString() ?? "" : "";
+
+            // 处理航班推荐
+            if (trans.TryGetProperty("flightRecommendations", out var flights) &&
+                flights.ValueKind == JsonValueKind.Array)
+            {
+                _logger.LogInformation($"✈️ 找到航班推荐数组，数量: {flights.GetArrayLength()}");
+                var flightsList = new List<string>();
+                foreach (var flight in flights.EnumerateArray())
+                {
+                    var airline = flight.TryGetProperty("airline", out var al) ? al.GetString() ?? "" : "";
+                    var flightNum = flight.TryGetProperty("flightNumber", out var fn) ? fn.GetString() ?? "" : "";
+                    var timeSlot = flight.TryGetProperty("timeSlot", out var ts) ? ts.GetString() ?? "" : "";
+                    var priceRange = flight.TryGetProperty("priceRange", out var pr) ? pr.GetString() ?? "" : "";
+                    var duration = flight.TryGetProperty("duration", out var dur) ? dur.GetString() ?? "" : "";
+                    var notes = flight.TryGetProperty("notes", out var nt) ? nt.GetString() ?? "" : "";
+
+                    var flightInfo = $"{airline} {flightNum} ({timeSlot}) - {priceRange}, {duration}";
+                    if (!string.IsNullOrEmpty(notes)) flightInfo += $" - {notes}";
+                    flightsList.Add(flightInfo);
+                    _logger.LogInformation($"✈️ 解析航班: {flightInfo}");
+                }
+
+                if (flightsList.Any())
+                {
+                    // 将航班信息添加到 arrivalDetails 中
+                    var flightInfo = string.Join("\n", flightsList);
+                    transportation.ArrivalDetails += $"\n\n航班推荐：\n{flightInfo}";
+                    _logger.LogInformation($"✅ 已添加 {flightsList.Count} 个航班推荐到 arrivalDetails");
+                }
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ JSON 中未找到 flightRecommendations 数组或格式不正确");
+            }
+
+            transportation.EstimatedCost = trans.TryGetProperty("estimatedCost", out var ec) ? ec.GetDouble() : 0;
+
+            // 处理 localTransport - 可能是字符串或数组
+            if (trans.TryGetProperty("localTransport", out var lt))
+            {
+                if (lt.ValueKind == JsonValueKind.Array)
+                {
+                    // 如果是数组，转换为逗号分隔的字符串
+                    var transports = new List<string>();
+                    foreach (var item in lt.EnumerateArray())
+                    {
+                        var val = item.GetString();
+                        if (!string.IsNullOrWhiteSpace(val))
+                            transports.Add(val);
+                    }
+
+                    transportation.LocalTransport = string.Join(", ", transports);
+                }
+                else
+                {
+                    transportation.LocalTransport = lt.GetString() ?? "";
+                }
+            }
+
+            transportation.LocalTransportDetails = trans.TryGetProperty("localTransportDetails", out var ltd)
+                ? ltd.GetString() ?? ""
+                : "";
+            transportation.DailyTransportCost =
+                trans.TryGetProperty("dailyTransportCost", out var dtc) ? dtc.GetDouble() : 0;
+        }
+
+        if (root.TryGetProperty("accommodation", out var acc))
+        {
+            accommodation.Type = acc.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "";
+            accommodation.Recommendation = acc.TryGetProperty("recommendation", out var r) ? r.GetString() ?? "" : "";
+            accommodation.Area = acc.TryGetProperty("area", out var a) ? a.GetString() ?? "" : "";
+            accommodation.PricePerNight = acc.TryGetProperty("pricePerNight", out var ppn) ? ppn.GetDouble() : 0;
+            accommodation.Amenities = acc.TryGetProperty("amenities", out var amenities)
+                ? ParseStringArray(amenities)
+                : new List<string>();
+            accommodation.BookingTips = acc.TryGetProperty("bookingTips", out var bt) ? bt.GetString() ?? "" : "";
+        }
+
+        return (transportation, accommodation);
+    }
+
+    /// <summary>
+    ///     步骤2: 生成每日行程（按天循环生成）
+    /// </summary>
+    private async Task<List<DailyItineraryDto>> GenerateDailyItinerariesAsync(
+        GenerateTravelPlanRequest request,
+        Func<int, int, Task>? onDayProgress = null)
+    {
+        var allItineraries = new List<DailyItineraryDto>();
+
+        // 收集已访问的景点，确保不重复
+        var visitedLocations = new HashSet<string>();
+
+        // 按天循环生成，每天一个独立请求
+        for (var day = 1; day <= request.Duration; day++)
+        {
+            _logger.LogInformation("📅 生成第 {Day}/{Total} 天的行程...", day, request.Duration);
+
+            // 回调进度
+            if (onDayProgress != null)
+                await onDayProgress(day, request.Duration);
+
+            // 构建已访问景点列表
+            var visitedLocationsText = visitedLocations.Count > 0
+                ? $"\n⚠️ 重要：以下景点已在前{day - 1}天访问过，请安排不同的景点：\n- {string.Join("\n- ", visitedLocations)}"
+                : "";
+
+            var prompt = $@"请为{request.CityName}第{day}天的旅行制定行程计划（共{request.Duration}天）。
+
+旅行风格：{GetStyleDescription(request.TravelStyle)}
+{(day == 1 ? "第一天：初到城市，安排轻松适应性活动" : "")}
+{(day == request.Duration ? "最后一天：安排返程前的活动，预留离开时间" : "")}{visitedLocationsText}
+
+返回 JSON 格式（安排3-4个活动，描述简洁）：
+
+{{
+  ""day"": {day},
+  ""theme"": ""当天主题"",
+  ""activities"": [
+    {{
+      ""time"": ""09:00"",
+      ""name"": ""活动名称"",
+      ""description"": ""简短描述(20字内)"",
+      ""location"": ""地点"",
+      ""estimatedCost"": 数字,
+      ""duration"": 分钟数字
+    }}
+  ],
+  ""notes"": ""简要提示""
+}}
+
+要求：
+1. 每天安排3-4个不同的活动
+2. 每天的景点/地点必须与之前的天数不重复
+3. description不超过20字
+4. 所有数字用数字类型";
+
+            var response = await CallAIAsync(prompt, 1000); // 单天只需要 1000 tokens
+            var json = ExtractJsonFromAIResponse(response);
+            ValidateJsonComplete(json, $"第{day}天行程");
+
+            var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            var itinerary = new DailyItineraryDto
+            {
+                Day = root.TryGetProperty("day", out var d) ? d.GetInt32() : day,
+                Theme = root.TryGetProperty("theme", out var t) ? t.GetString() ?? "" : "",
+                Activities = root.TryGetProperty("activities", out var acts)
+                    ? ParseActivities(acts)
+                    : new List<ActivityDto>(),
+                Notes = root.TryGetProperty("notes", out var n) ? n.GetString() ?? "" : ""
+            };
+
+            // 收集本天访问的景点到已访问列表
+            foreach (var activity in itinerary.Activities)
+                if (!string.IsNullOrWhiteSpace(activity.Location))
+                    visitedLocations.Add(activity.Location);
+
+            allItineraries.Add(itinerary);
+            _logger.LogInformation("✅ 第 {Day} 天行程生成完成，包含 {Count} 个活动，已访问 {Visited} 个景点",
+                day, itinerary.Activities.Count, visitedLocations.Count);
+
+            // 避免请求过快，添加小延迟
+            if (day < request.Duration) await Task.Delay(500);
+        }
+
+        _logger.LogInformation("✅ 所有 {Total} 天行程生成完成", request.Duration);
+        return allItineraries;
+    }
+
+    /// <summary>
+    ///     步骤3: 生成景点和餐厅推荐
+    /// </summary>
+    private async Task<(List<AttractionDto>, List<RestaurantDto>)> GenerateAttractionsAndRestaurantsAsync(
+        GenerateTravelPlanRequest request)
+    {
+        var prompt = $@"推荐{request.CityName}的景点(5-8个)和餐厅(3-5个)。
+
+JSON 格式（描述简洁）：
+
+{{
+  ""attractions"": [
+    {{
+      ""name"": ""名称"",
+      ""description"": ""简短描述(30字内)"",
+      ""category"": ""类别"",
+      ""rating"": 评分数字,
+      ""location"": ""位置"",
+      ""entryFee"": 费用数字,
+      ""bestTime"": ""时间"",
+      ""image"": """"
+    }}
+  ],
+  ""restaurants"": [
+    {{
+      ""name"": ""名称"",
+      ""cuisine"": ""菜系"",
+      ""description"": ""简短描述(20字内)"",
+      ""rating"": 评分数字,
+      ""priceRange"": ""$$ 或 $$$"",
+      ""location"": ""位置"",
+      ""specialty"": ""招牌菜"",
+      ""image"": """"
+    }}
+  ]
+}}";
+
+        var response = await CallAIAsync(prompt, 3000); // 增加到 3000
+        var json = ExtractJsonFromAIResponse(response);
+        ValidateJsonComplete(json, "步骤3-景点餐厅");
+
+        var doc = JsonDocument.Parse(json);
+
+        var attractions = doc.RootElement.TryGetProperty("attractions", out var attr)
+            ? ParseAttractions(attr)
+            : new List<AttractionDto>();
+
+        var restaurants = doc.RootElement.TryGetProperty("restaurants", out var rest)
+            ? ParseRestaurants(rest)
+            : new List<RestaurantDto>();
+
+        return (attractions, restaurants);
+    }
+
+    /// <summary>
+    ///     步骤4: 生成预算明细和旅行建议
+    /// </summary>
+    private async Task<(BudgetBreakdownDto, List<string>)> GenerateBudgetAndTipsAsync(
+        GenerateTravelPlanRequest request,
+        TransportationPlanDto transportation,
+        AccommodationPlanDto accommodation,
+        List<DailyItineraryDto> dailyItineraries)
+    {
+        // 计算已知的费用
+        var transportCost = transportation.EstimatedCost + transportation.DailyTransportCost * request.Duration;
+        var accommodationCost = accommodation.PricePerNight * request.Duration;
+        var activitiesCost = dailyItineraries
+            .SelectMany(d => d.Activities)
+            .Sum(a => a.EstimatedCost);
+
+        var prompt = $@"请为{request.CityName}的{request.Duration}天旅行提供预算明细和实用建议。
+
+已知费用：
+- 交通费用：{transportCost}
+- 住宿费用：{accommodationCost}
+- 活动费用：{activitiesCost}
+
+请以 JSON 格式返回：
+
+{{
+  ""budgetBreakdown"": {{
+    ""transportation"": {transportCost},
+    ""accommodation"": {accommodationCost},
+    ""food"": 估算餐饮费用数字,
+    ""activities"": {activitiesCost},
+    ""miscellaneous"": 其他费用数字,
+    ""total"": 总费用数字,
+    ""currency"": ""USD""
+  }},
+  ""tips"": [
+    ""建议1"",
+    ""建议2"",
+    ""建议3""
+  ]
+}}";
+
+        var response = await CallAIAsync(prompt, 1200); // 增加到 1200
+        var json = ExtractJsonFromAIResponse(response);
+        ValidateJsonComplete(json, "步骤4-预算建议");
+
+        var doc = JsonDocument.Parse(json);
+
+        var budget = doc.RootElement.TryGetProperty("budgetBreakdown", out var bud)
+            ? ParseBudgetBreakdown(bud)
+            : new BudgetBreakdownDto();
+
+        var tips = doc.RootElement.TryGetProperty("tips", out var t)
+            ? ParseStringArray(t)
+            : new List<string>();
+
+        return (budget, tips);
+    }
+
+    /// <summary>
+    ///     调用 AI 的通用方法（带重试机制）- 直接使用 HttpClient
+    /// </summary>
+    private async Task<string> CallAIAsync(string userPrompt, int maxTokens, int maxRetries = 3)
+    {
+        Exception? lastException = null;
+
+        for (var attempt = 1; attempt <= maxRetries; attempt++)
+            try
+            {
+                _logger.LogInformation("🔄 AI 请求尝试 {Attempt}/{MaxRetries}, MaxTokens: {MaxTokens}",
+                    attempt, maxRetries, maxTokens);
+
+                var stopwatch = Stopwatch.StartNew();
+
+                // 直接使用 HttpClient 调用 Qwen API
+                var apiKey = _configuration["Qwen:ApiKey"] ?? throw new InvalidOperationException("Qwen API Key 未配置");
+                var baseUrl = _configuration["Qwen:BaseUrl"] ?? "https://dashscope.aliyuncs.com/compatible-mode/v1";
+                var model = _configuration["SemanticKernel:DefaultModel"] ?? "qwen-plus";
+
+                // 创建 HttpClient 时配置更长的超时和缓冲区
+                using var httpClient = new HttpClient(new SocketsHttpHandler
+                {
+                    PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+                    PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
+                    MaxConnectionsPerServer = 10,
+                    ResponseDrainTimeout = TimeSpan.FromMinutes(5)
+                });
+
+                httpClient.Timeout = TimeSpan.FromMinutes(10); // 增加到 10 分钟
+
+                var requestBody = new
+                {
+                    model,
+                    messages = new[]
+                    {
+                        new { role = "system", content = "你是一个专业的旅行规划助手。请以有效的 JSON 格式返回结果，不要包含其他文字说明。" },
+                        new { role = "user", content = userPrompt }
+                    },
+                    temperature = 0.7,
+                    max_tokens = maxTokens,
+                    stream = false // 明确禁用流式输出
+                };
+
+                var requestJson = JsonSerializer.Serialize(requestBody);
+                var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
+
+                var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/chat/completions");
+                request.Headers.Add("Authorization", $"Bearer {apiKey}");
+                request.Headers.Add("Accept", "application/json");
+                request.Content = content;
+
+                _logger.LogInformation("📤 发送 AI 请求到: {Url}, MaxTokens: {MaxTokens}", $"{baseUrl}/chat/completions",
+                    maxTokens);
+
+                // 使用 ResponseHeadersRead 模式，避免缓冲整个响应
+                var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+                response.EnsureSuccessStatusCode();
+
+                // 流式读取响应内容
+                var responseBody = await response.Content.ReadAsStringAsync();
+                stopwatch.Stop();
+
+                _logger.LogInformation("✅ AI 响应成功 (尝试 {Attempt}), 耗时: {ElapsedMs}ms, 响应长度: {Length}",
+                    attempt, stopwatch.ElapsedMilliseconds, responseBody.Length);
+
+                // 解析响应
+                var jsonDoc = JsonDocument.Parse(responseBody);
+                var choices = jsonDoc.RootElement.GetProperty("choices");
+                if (choices.GetArrayLength() == 0) throw new InvalidOperationException("AI 响应中没有 choices");
+
+                var firstChoice = choices[0];
+                var message = firstChoice.GetProperty("message");
+                var aiContent = message.GetProperty("content").GetString() ?? string.Empty;
+
+                _logger.LogInformation("📝 AI 返回内容长度: {Length}", aiContent.Length);
+
+                return aiContent;
+            }
+            catch (HttpRequestException ex)
+            {
+                lastException = ex;
+                _logger.LogWarning(ex, "⚠️ AI HTTP 请求失败 (尝试 {Attempt}/{MaxRetries}), 错误: {Message}, 正在重试...",
+                    attempt, maxRetries, ex.Message);
+
+                if (attempt < maxRetries)
+                {
+                    var delaySeconds = attempt * 3; // 增加重试间隔：3秒、6秒、9秒
+                    _logger.LogInformation("⏳ 等待 {DelaySeconds} 秒后重试...", delaySeconds);
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                }
+            }
+            catch (TaskCanceledException ex)
+            {
+                lastException = ex;
+                _logger.LogWarning(ex, "⚠️ AI 请求超时 (尝试 {Attempt}/{MaxRetries}), 正在重试...",
+                    attempt, maxRetries);
+
+                if (attempt < maxRetries)
+                {
+                    var delaySeconds = attempt * 3; // 增加重试间隔
+                    _logger.LogInformation("⏳ 等待 {DelaySeconds} 秒后重试...", delaySeconds);
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ AI 请求失败 (尝试 {Attempt}/{MaxRetries})", attempt, maxRetries);
+                throw;
+            }
+
+        _logger.LogError(lastException, "❌ AI 请求失败: 已重试 {MaxRetries} 次仍然失败", maxRetries);
+        throw new InvalidOperationException($"AI 请求失败: 已重试 {maxRetries} 次", lastException);
+    }
+
+    /// <summary>
+    ///     验证 JSON 是否完整（括号匹配）
+    /// </summary>
+    private void ValidateJsonComplete(string json, string step)
+    {
+        var openBraces = json.Count(c => c == '{');
+        var closeBraces = json.Count(c => c == '}');
+        var openBrackets = json.Count(c => c == '[');
+        var closeBrackets = json.Count(c => c == ']');
+
+        if (openBraces != closeBraces || openBrackets != closeBrackets)
+        {
+            _logger.LogError("❌ {Step} JSON 不完整 - 大括号: {OpenBraces}/{CloseBraces}, 中括号: {OpenBrackets}/{CloseBrackets}",
+                step, openBraces, closeBraces, openBrackets, closeBrackets);
+            _logger.LogError("JSON 内容 (前500字符): {JsonPreview}", json.Substring(0, Math.Min(500, json.Length)));
+            _logger.LogError("JSON 内容 (后500字符): {JsonSuffix}",
+                json.Length > 500 ? json.Substring(json.Length - 500) : json);
+            throw new JsonException($"{step}: AI 返回的 JSON 不完整，可能是 token 限制导致截断");
+        }
+
+        _logger.LogInformation("✅ {Step} JSON 验证通过 - 大括号: {Braces}, 中括号: {Brackets}",
+            step, openBraces, openBrackets);
+    }
+
+    private string GetBudgetDescription(string budget)
+    {
+        return budget switch
+        {
+            "low" => "经济型（每天50-100美元）",
+            "medium" => "中等（每天100-200美元）",
+            "high" => "豪华（每天200美元以上）",
+            _ => "中等预算"
+        };
+    }
+
+    private string GetStyleDescription(string style)
+    {
+        return style switch
+        {
+            "adventure" => "冒险探索",
+            "relaxation" => "休闲放松",
+            "culture" => "文化探索",
+            "nightlife" => "夜生活娱乐",
+            _ => "文化探索"
+        };
+    }
+
+    #endregion
 }

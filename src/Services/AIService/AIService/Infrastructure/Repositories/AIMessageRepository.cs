@@ -1,16 +1,17 @@
 using AIService.Domain.Entities;
 using AIService.Domain.Repositories;
-using Supabase;
+using Postgrest;
+using Client = Supabase.Client;
 
 namespace AIService.Infrastructure.Repositories;
 
 /// <summary>
-/// AI 消息仓储实现 (Supabase)
+///     AI 消息仓储实现 (Supabase)
 /// </summary>
 public class AIMessageRepository : IAIMessageRepository
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<AIMessageRepository> _logger;
+    private readonly Client _supabaseClient;
 
     public AIMessageRepository(Client supabaseClient, ILogger<AIMessageRepository> logger)
     {
@@ -27,10 +28,7 @@ public class AIMessageRepository : IAIMessageRepository
                 .Insert(message);
 
             var created = response.Models.FirstOrDefault();
-            if (created == null)
-            {
-                throw new InvalidOperationException("创建消息失败");
-            }
+            if (created == null) throw new InvalidOperationException("创建消息失败");
 
             _logger.LogInformation("✅ 成功创建消息，ID: {MessageId}, 角色: {Role}", created.Id, created.Role);
             return created;
@@ -51,7 +49,7 @@ public class AIMessageRepository : IAIMessageRepository
                 .Insert(messages);
 
             var created = response.Models ?? new List<AIMessage>();
-            
+
             _logger.LogInformation("✅ 成功批量创建消息，数量: {Count}", created.Count);
             return created;
         }
@@ -81,9 +79,9 @@ public class AIMessageRepository : IAIMessageRepository
     }
 
     public async Task<List<AIMessage>> GetByConversationIdAsync(
-        Guid conversationId, 
-        int page = 1, 
-        int pageSize = 50, 
+        Guid conversationId,
+        int page = 1,
+        int pageSize = 50,
         bool includeSystem = false)
     {
         try
@@ -93,15 +91,12 @@ public class AIMessageRepository : IAIMessageRepository
                 .Where(m => m.ConversationId == conversationId && m.DeletedAt == null);
 
             // 是否包含系统消息
-            if (!includeSystem)
-            {
-                query = query.Where(m => m.Role != "system");
-            }
+            if (!includeSystem) query = query.Where(m => m.Role != "system");
 
             // 分页
             var offset = (page - 1) * pageSize;
             query = query
-                .Order(m => m.CreatedAt, Postgrest.Constants.Ordering.Ascending)
+                .Order(m => m.CreatedAt, Constants.Ordering.Ascending)
                 .Range(offset, offset + pageSize - 1);
 
             var response = await query.Get();
@@ -121,7 +116,7 @@ public class AIMessageRepository : IAIMessageRepository
             var response = await _supabaseClient
                 .From<AIMessage>()
                 .Where(m => m.ConversationId == conversationId && m.DeletedAt == null)
-                .Order(m => m.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                .Order(m => m.CreatedAt, Constants.Ordering.Descending)
                 .Limit(1)
                 .Single();
 
@@ -141,7 +136,7 @@ public class AIMessageRepository : IAIMessageRepository
             var response = await _supabaseClient
                 .From<AIMessage>()
                 .Where(m => m.ConversationId == conversationId && m.DeletedAt == null)
-                .Order(m => m.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                .Order(m => m.CreatedAt, Constants.Ordering.Descending)
                 .Limit(maxMessages)
                 .Get();
 
@@ -168,10 +163,7 @@ public class AIMessageRepository : IAIMessageRepository
                 .Update(message);
 
             var updated = response.Models.FirstOrDefault();
-            if (updated == null)
-            {
-                throw new InvalidOperationException("更新消息失败");
-            }
+            if (updated == null) throw new InvalidOperationException("更新消息失败");
 
             _logger.LogInformation("✅ 成功更新消息，ID: {MessageId}", message.Id);
             return updated;
@@ -214,10 +206,7 @@ public class AIMessageRepository : IAIMessageRepository
 
             if (messages.Models != null && messages.Models.Any())
             {
-                foreach (var message in messages.Models)
-                {
-                    message.Delete();
-                }
+                foreach (var message in messages.Models) message.Delete();
 
                 await _supabaseClient
                     .From<AIMessage>()

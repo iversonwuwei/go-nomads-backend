@@ -1,17 +1,20 @@
+using System.Text.Json;
 using MassTransit;
+using MessageService.Application.DTOs;
 using MessageService.Application.Services;
 using Microsoft.Extensions.Logging;
 using Shared.Messages;
+using AIProgressMessage = MessageService.Application.DTOs.AIProgressMessage;
 
 namespace MessageService.Infrastructure.Consumers;
 
 /// <summary>
-/// AI 任务完成消息消费者
+///     AI 任务完成消息消费者
 /// </summary>
 public class AITaskCompletedMessageConsumer : IConsumer<AITaskCompletedMessage>
 {
-    private readonly ISignalRNotifier _notifier;
     private readonly ILogger<AITaskCompletedMessageConsumer> _logger;
+    private readonly ISignalRNotifier _notifier;
 
     public AITaskCompletedMessageConsumer(
         ISignalRNotifier notifier,
@@ -47,21 +50,21 @@ public class AITaskCompletedMessageConsumer : IConsumer<AITaskCompletedMessage>
             await _notifier.SendTaskCompletedAsync(message.TaskId, message.UserId, notificationData);
 
             // 发送进度消息（100%完成）
-            var progressMessage = new Application.DTOs.AIProgressMessage
+            var progressMessage = new AIProgressMessage
             {
                 TaskId = message.TaskId,
                 UserId = message.UserId,
                 Progress = 100,
                 Status = "completed",
                 CurrentStep = $"任务完成！耗时 {message.DurationSeconds} 秒",
-                Result = System.Text.Json.JsonSerializer.Serialize(message.Result),
+                Result = JsonSerializer.Serialize(message.Result),
                 Timestamp = message.CompletedAt
             };
 
             await _notifier.SendAIProgressAsync(message.UserId, progressMessage);
 
             // 发送任务完成通知
-            var notification = new Application.DTOs.NotificationMessage
+            var notification = new NotificationMessage
             {
                 UserId = message.UserId,
                 Type = "success",

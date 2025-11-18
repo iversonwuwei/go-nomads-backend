@@ -1,22 +1,17 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting.Server;
-using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 
 namespace Shared.Extensions;
 
 /// <summary>
-/// Consul 服务自动注册扩展
+///     Consul 服务自动注册扩展
 /// </summary>
 public static class ConsulServiceRegistration
 {
     /// <summary>
-    /// 注册服务到 Consul（自动从配置读取）
+    ///     注册服务到 Consul（自动从配置读取）
     /// </summary>
     public static async Task RegisterWithConsulAsync(this WebApplication app)
     {
@@ -26,7 +21,7 @@ public static class ConsulServiceRegistration
 
         // 读取配置
         var consulConfig = configuration.GetSection("Consul");
-        
+
         // 检查是否启用 Consul 注册
         var enabled = consulConfig.GetValue<bool?>("Enabled");
         if (enabled.HasValue && !enabled.Value)
@@ -51,7 +46,7 @@ public static class ConsulServiceRegistration
         var healthCheckPath = consulConfig["HealthCheckPath"] ?? "/health";
         var healthCheckInterval = consulConfig["HealthCheckInterval"] ?? "10s";
         var healthCheckTimeout = consulConfig["HealthCheckTimeout"] ?? "5s";
-        
+
         // 服务元数据
         var version = consulConfig["ServiceVersion"] ?? "1.0.0";
         var protocol = serviceAddress.StartsWith("https") ? "https" : "http";
@@ -71,7 +66,8 @@ public static class ConsulServiceRegistration
             },
             Check = new
             {
-                HTTP = $"{protocol}://{serviceAddress.Replace("http://", "").Replace("https://", "").Split(':')[0]}:{servicePort}{healthCheckPath}",
+                HTTP =
+                    $"{protocol}://{serviceAddress.Replace("http://", "").Replace("https://", "").Split(':')[0]}:{servicePort}{healthCheckPath}",
                 Interval = healthCheckInterval,
                 Timeout = healthCheckTimeout,
                 DeregisterCriticalServiceAfter = "30s"
@@ -89,6 +85,7 @@ public static class ConsulServiceRegistration
         {
             // 忽略注销失败（可能服务不存在）
         }
+
         var json = JsonSerializer.Serialize(registration);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
@@ -97,7 +94,7 @@ public static class ConsulServiceRegistration
             var response = await httpClient.PutAsync($"{consulAddress}/v1/agent/service/register", content);
             if (response.IsSuccessStatusCode)
             {
-                logger.LogInformation("✅ 服务已注册到 Consul: {ServiceName} ({ServiceId}) at {Address}:{Port}", 
+                logger.LogInformation("✅ 服务已注册到 Consul: {ServiceName} ({ServiceId}) at {Address}:{Port}",
                     serviceName, serviceId, serviceAddress, servicePort);
             }
             else
@@ -116,11 +113,10 @@ public static class ConsulServiceRegistration
         {
             try
             {
-                var deregisterResponse = await httpClient.PutAsync($"{consulAddress}/v1/agent/service/deregister/{serviceId}", null);
+                var deregisterResponse =
+                    await httpClient.PutAsync($"{consulAddress}/v1/agent/service/deregister/{serviceId}", null);
                 if (deregisterResponse.IsSuccessStatusCode)
-                {
                     logger.LogInformation("✅ 服务已从 Consul 注销: {ServiceId}", serviceId);
-                }
             }
             catch (Exception ex)
             {
@@ -133,27 +129,21 @@ public static class ConsulServiceRegistration
     {
         // 从配置读取
         var configAddress = app.Configuration["Consul:ServiceAddress"];
-        if (!string.IsNullOrEmpty(configAddress))
-        {
-            return configAddress;
-        }
+        if (!string.IsNullOrEmpty(configAddress)) return configAddress;
 
         // 从环境变量读取（容器环境）
-        var hostname = Environment.GetEnvironmentVariable("HOSTNAME") 
-                      ?? Environment.GetEnvironmentVariable("SERVICE_HOST")
-                      ?? "localhost";
-        
+        var hostname = Environment.GetEnvironmentVariable("HOSTNAME")
+                       ?? Environment.GetEnvironmentVariable("SERVICE_HOST")
+                       ?? "localhost";
+
         // 如果是容器环境，使用容器主机名
-        if (hostname != "localhost" && !hostname.StartsWith("192.168") && !hostname.StartsWith("127."))
-        {
-            return hostname;
-        }
+        if (hostname != "localhost" && !hostname.StartsWith("192.168") && !hostname.StartsWith("127.")) return hostname;
 
         // 从服务器地址获取
         await Task.Delay(100); // 等待服务器启动
         var server = app.Services.GetRequiredService<IServer>();
         var addresses = server.Features.Get<IServerAddressesFeature>();
-        
+
         if (addresses?.Addresses.Any() == true)
         {
             var address = addresses.Addresses.First();
@@ -169,15 +159,12 @@ public static class ConsulServiceRegistration
     private static int GetServicePort(WebApplication app)
     {
         // 从配置读取
-        if (int.TryParse(app.Configuration["Consul:ServicePort"], out var configPort))
-        {
-            return configPort;
-        }
+        if (int.TryParse(app.Configuration["Consul:ServicePort"], out var configPort)) return configPort;
 
         // 从服务器地址获取
         var server = app.Services.GetRequiredService<IServer>();
         var addresses = server.Features.Get<IServerAddressesFeature>();
-        
+
         if (addresses?.Addresses.Any() == true)
         {
             var address = addresses.Addresses.First();

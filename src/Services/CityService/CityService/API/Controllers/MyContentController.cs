@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CityService.API.Controllers;
 
 /// <summary>
-/// 我的城市内容 API（用户自己的所有内容）
+///     我的城市内容 API（用户自己的所有内容）
 /// </summary>
 [ApiController]
 [Route("api/v1/user/city-content")]
@@ -25,22 +25,20 @@ public class MyContentController : ControllerBase
     }
 
     /// <summary>
-    /// 从 UserContext 中获取用户 ID
+    ///     从 UserContext 中获取用户 ID
     /// </summary>
     private Guid GetUserId()
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-        {
             throw new UnauthorizedAccessException("用户未认证");
-        }
 
         return Guid.Parse(userContext.UserId);
     }
 
     /// <summary>
-    /// 获取我的所有照片
-    /// GET /api/v1/user/city-content/photos
+    ///     获取我的所有照片
+    ///     GET /api/v1/user/city-content/photos
     /// </summary>
     [HttpGet("photos")]
     public async Task<ActionResult<ApiResponse<IEnumerable<UserCityPhotoDto>>>> GetMyPhotos()
@@ -80,8 +78,8 @@ public class MyContentController : ControllerBase
     }
 
     /// <summary>
-    /// 获取我的所有费用
-    /// GET /api/v1/user/city-content/expenses
+    ///     获取我的所有费用
+    ///     GET /api/v1/user/city-content/expenses
     /// </summary>
     [HttpGet("expenses")]
     public async Task<ActionResult<ApiResponse<IEnumerable<UserCityExpenseDto>>>> GetMyExpenses()
@@ -121,8 +119,8 @@ public class MyContentController : ControllerBase
     }
 
     /// <summary>
-    /// 获取我对某个城市的评论
-    /// GET /api/v1/user/city-content/reviews/{cityId}
+    ///     获取我对某个城市的评论
+    ///     GET /api/v1/user/city-content/reviews/{cityId}
     /// </summary>
     [HttpGet("reviews/{cityId}")]
     public async Task<ActionResult<ApiResponse<IEnumerable<UserCityReviewDto>>>> GetMyReviews(string cityId)

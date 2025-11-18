@@ -1,29 +1,28 @@
+using System.Security.Claims;
 using CityService.Application.DTOs;
 using CityService.Application.Services;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using GoNomads.Shared.Models;
+using Dapr.Client;
 using GoNomads.Shared.Middleware;
+using GoNomads.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
-using System.Linq;
-using Dapr.Client;
 
 namespace CityService.API.Controllers;
 
 /// <summary>
-/// Cities API - RESTful endpoints for city management
+///     Cities API - RESTful endpoints for city management
 /// </summary>
 [ApiController]
 [Route("api/v1/cities")]
 public class CitiesController : ControllerBase
 {
     private readonly ICityService _cityService;
-    private readonly IDigitalNomadGuideService _guideService;
-    private readonly ICityModeratorRepository _moderatorRepository;
     private readonly DaprClient _daprClient;
+    private readonly IDigitalNomadGuideService _guideService;
     private readonly ILogger<CitiesController> _logger;
+    private readonly ICityModeratorRepository _moderatorRepository;
 
     public CitiesController(
         ICityService cityService,
@@ -40,7 +39,7 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Get all cities with pagination and optional search
+    ///     Get all cities with pagination and optional search
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PaginatedResponse<CityDto>>>> GetCities(
@@ -55,7 +54,7 @@ public class CitiesController : ControllerBase
 
             IEnumerable<CityDto> cities;
             int totalCount;
-            
+
             // 如果有搜索参数,使用搜索接口(支持中英文搜索)
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -104,8 +103,8 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Get recommended cities
-    /// GET /api/v1/cities/recommended?count=10
+    ///     Get recommended cities
+    ///     GET /api/v1/cities/recommended?count=10
     /// </summary>
     [HttpGet("recommended")]
     public async Task<ActionResult<ApiResponse<IEnumerable<CityDto>>>> GetRecommendedCities([FromQuery] int count = 10)
@@ -134,8 +133,8 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Get cities by country ID (Query parameter approach)
-    /// GET /api/v1/cities?countryId={guid}
+    ///     Get cities by country ID (Query parameter approach)
+    ///     GET /api/v1/cities?countryId={guid}
     /// </summary>
     [HttpGet("by-country/{countryId:guid}")]
     public async Task<ActionResult<ApiResponse<IEnumerable<CitySummaryDto>>>> GetCitiesByCountryId(Guid countryId)
@@ -163,8 +162,8 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Get cities grouped by country
-    /// GET /api/v1/cities/grouped-by-country
+    ///     Get cities grouped by country
+    ///     GET /api/v1/cities/grouped-by-country
     /// </summary>
     [HttpGet("grouped-by-country")]
     public async Task<ActionResult<ApiResponse<IEnumerable<CountryCitiesDto>>>> GetCitiesGroupedByCountry()
@@ -192,9 +191,9 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Get all countries (as a related resource)
-    /// GET /api/v1/cities/countries
-    /// Note: Consider moving to separate /api/v1/countries endpoint
+    ///     Get all countries (as a related resource)
+    ///     GET /api/v1/cities/countries
+    ///     Note: Consider moving to separate /api/v1/countries endpoint
     /// </summary>
     [HttpGet("countries")]
     public async Task<ActionResult<ApiResponse<IEnumerable<CountryDto>>>> GetAllCountries()
@@ -222,7 +221,7 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Search cities with filters
+    ///     Search cities with filters
     /// </summary>
     [HttpGet("search")]
     public async Task<ActionResult<ApiResponse<IEnumerable<CityDto>>>> SearchCities([FromQuery] CitySearchDto searchDto)
@@ -252,7 +251,7 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Get city by ID
+    ///     Get city by ID
     /// </summary>
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<CityDto>>> GetCity(Guid id)
@@ -263,14 +262,12 @@ public class CitiesController : ControllerBase
             var userRole = TryGetCurrentUserRole();
             var city = await _cityService.GetCityByIdAsync(id, userId, userRole);
             if (city == null)
-            {
                 return NotFound(new ApiResponse<CityDto>
                 {
                     Success = false,
                     Message = $"City with ID {id} not found",
                     Errors = new List<string> { "City not found" }
                 });
-            }
 
             return Ok(new ApiResponse<CityDto>
             {
@@ -292,7 +289,7 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Get city statistics
+    ///     Get city statistics
     /// </summary>
     [HttpGet("{id:guid}/statistics")]
     public async Task<ActionResult<ApiResponse<CityStatisticsDto>>> GetCityStatistics(Guid id)
@@ -301,14 +298,12 @@ public class CitiesController : ControllerBase
         {
             var statistics = await _cityService.GetCityStatisticsAsync(id);
             if (statistics == null)
-            {
                 return NotFound(new ApiResponse<CityStatisticsDto>
                 {
                     Success = false,
                     Message = $"City with ID {id} not found",
                     Errors = new List<string> { "City not found" }
                 });
-            }
 
             return Ok(new ApiResponse<CityStatisticsDto>
             {
@@ -330,8 +325,8 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Get current weather for a city
-    /// GET /api/v1/cities/{id}/weather
+    ///     Get current weather for a city
+    ///     GET /api/v1/cities/{id}/weather
     /// </summary>
     [HttpGet("{id:guid}/weather")]
     public async Task<ActionResult<ApiResponse<WeatherDto>>> GetCityWeather(
@@ -343,14 +338,12 @@ public class CitiesController : ControllerBase
         {
             var weather = await _cityService.GetCityWeatherAsync(id, includeForecast, days);
             if (weather == null)
-            {
                 return NotFound(new ApiResponse<WeatherDto>
                 {
                     Success = false,
                     Message = "Weather data is not available for this city",
                     Errors = new List<string> { "Weather data not available" }
                 });
-            }
 
             return Ok(new ApiResponse<WeatherDto>
             {
@@ -374,7 +367,7 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Create a new city (Admin only)
+    ///     Create a new city (Admin only)
     /// </summary>
     [HttpPost]
     [Authorize]
@@ -407,7 +400,7 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Update a city (Admin only)
+    ///     Update a city (Admin only)
     /// </summary>
     [HttpPut("{id}")]
     [Authorize]
@@ -418,14 +411,12 @@ public class CitiesController : ControllerBase
             var userId = GetUserId();
             var city = await _cityService.UpdateCityAsync(id, updateCityDto, userId);
             if (city == null)
-            {
                 return NotFound(new ApiResponse<CityDto>
                 {
                     Success = false,
                     Message = $"City with ID {id} not found",
                     Errors = new List<string> { "City not found" }
                 });
-            }
 
             return Ok(new ApiResponse<CityDto>
             {
@@ -447,7 +438,7 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Delete a city (Admin only)
+    ///     Delete a city (Admin only)
     /// </summary>
     [HttpDelete("{id}")]
     [Authorize]
@@ -457,14 +448,12 @@ public class CitiesController : ControllerBase
         {
             var result = await _cityService.DeleteCityAsync(id);
             if (!result)
-            {
                 return NotFound(new ApiResponse<bool>
                 {
                     Success = false,
                     Message = $"City with ID {id} not found",
                     Errors = new List<string> { "City not found" }
                 });
-            }
 
             return Ok(new ApiResponse<bool>
             {
@@ -486,8 +475,8 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Get cities with coworking count for coworking home page
-    /// 专门为 coworking_home 页面提供城市列表和每个城市的 coworking 数量
+    ///     Get cities with coworking count for coworking home page
+    ///     专门为 coworking_home 页面提供城市列表和每个城市的 coworking 数量
     /// </summary>
     [HttpGet("with-coworking-count")]
     public async Task<ActionResult<ApiResponse<PaginatedResponse<CityDto>>>> GetCitiesWithCoworkingCount(
@@ -537,14 +526,11 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// 通过 Dapr 调用 CoworkingService 批量获取城市的 coworking 数量
+    ///     通过 Dapr 调用 CoworkingService 批量获取城市的 coworking 数量
     /// </summary>
     private async Task EnrichCitiesWithCoworkingCountAsync(List<CityDto> cities)
     {
-        if (cities == null || cities.Count == 0)
-        {
-            return;
-        }
+        if (cities == null || cities.Count == 0) return;
 
         try
         {
@@ -562,16 +548,10 @@ public class CitiesController : ControllerBase
             {
                 // 填充每个城市的 coworking 数量
                 foreach (var city in cities)
-                {
                     if (apiResponse.Data.TryGetValue(city.Id, out var count))
-                    {
                         city.CoworkingCount = count;
-                    }
                     else
-                    {
                         city.CoworkingCount = 0;
-                    }
-                }
 
                 _logger.LogInformation(
                     "成功从 CoworkingService 获取 {CityCount} 个城市的 Coworking 数量",
@@ -582,22 +562,16 @@ public class CitiesController : ControllerBase
                 _logger.LogWarning(
                     "CoworkingService 返回非成功结果: {Message}",
                     apiResponse?.Message ?? "响应为空");
-                
+
                 // 设置默认值
-                foreach (var city in cities)
-                {
-                    city.CoworkingCount = 0;
-                }
+                foreach (var city in cities) city.CoworkingCount = 0;
             }
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "调用 CoworkingService 获取 Coworking 数量失败，使用默认值 0");
             // 容错: 如果调用失败，将所有城市的 CoworkingCount 设为 0
-            foreach (var city in cities)
-            {
-                city.CoworkingCount = 0;
-            }
+            foreach (var city in cities) city.CoworkingCount = 0;
         }
     }
 
@@ -610,8 +584,8 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// 尝试获取当前用户ID（从 UserContext 中获取）
-    /// 如果用户未认证，返回 null
+    ///     尝试获取当前用户ID（从 UserContext 中获取）
+    ///     如果用户未认证，返回 null
     /// </summary>
     private Guid? TryGetCurrentUserId()
     {
@@ -619,12 +593,8 @@ public class CitiesController : ControllerBase
         {
             var userContext = UserContextMiddleware.GetUserContext(HttpContext);
             if (userContext?.IsAuthenticated == true && !string.IsNullOrEmpty(userContext.UserId))
-            {
                 if (Guid.TryParse(userContext.UserId, out var userId))
-                {
                     return userId;
-                }
-            }
         }
         catch (Exception ex)
         {
@@ -651,10 +621,7 @@ public class CitiesController : ControllerBase
     private Guid GetCurrentUserId()
     {
         var userId = TryGetCurrentUserId();
-        if (!userId.HasValue)
-        {
-            throw new UnauthorizedAccessException("用户未登录");
-        }
+        if (!userId.HasValue) throw new UnauthorizedAccessException("用户未登录");
         return userId.Value;
     }
 
@@ -663,7 +630,7 @@ public class CitiesController : ControllerBase
     #region Digital Nomad Guide APIs
 
     /// <summary>
-    /// Get digital nomad guide for a city
+    ///     Get digital nomad guide for a city
     /// </summary>
     /// <param name="cityId">City ID</param>
     /// <returns>Digital nomad guide or 404 if not found</returns>
@@ -714,7 +681,7 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Save or update digital nomad guide for a city
+    ///     Save or update digital nomad guide for a city
     /// </summary>
     /// <param name="cityId">City ID</param>
     /// <param name="request">Guide data</param>
@@ -729,19 +696,17 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("💾 保存数字游民指南: cityId={CityId}, cityName={CityName}", 
+            _logger.LogInformation("💾 保存数字游民指南: cityId={CityId}, cityName={CityName}",
                 cityId, request.CityName);
 
             // 验证cityId匹配
             if (request.CityId != cityId)
-            {
                 return BadRequest(new ApiResponse<DigitalNomadGuideDto>
                 {
                     Success = false,
                     Message = "City ID in URL does not match request body",
                     Data = null
                 });
-            }
 
             // 映射到实体
             var guide = new DigitalNomadGuide
@@ -801,7 +766,7 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// Map entity to DTO
+    ///     Map entity to DTO
     /// </summary>
     private DigitalNomadGuideDto MapToDto(DigitalNomadGuide guide)
     {
@@ -845,7 +810,7 @@ public class CitiesController : ControllerBase
     #region 版主管理
 
     /// <summary>
-    /// 申请成为城市版主 (需要登录)
+    ///     申请成为城市版主 (需要登录)
     /// </summary>
     [HttpPost("moderator/apply")]
     [Authorize]
@@ -857,14 +822,12 @@ public class CitiesController : ControllerBase
             var result = await _cityService.ApplyModeratorAsync(userId, dto);
 
             if (result)
-            {
                 return Ok(new ApiResponse<bool>
                 {
                     Success = true,
                     Message = "申请成功！您已成为该城市的版主",
                     Data = true
                 });
-            }
 
             return BadRequest(new ApiResponse<bool>
             {
@@ -887,7 +850,7 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// 指定城市版主 (仅管理员)
+    ///     指定城市版主 (仅管理员)
     /// </summary>
     [HttpPost("moderator/assign")]
     [Authorize(Roles = "admin")]
@@ -898,14 +861,12 @@ public class CitiesController : ControllerBase
             var result = await _cityService.AssignModeratorAsync(dto);
 
             if (result)
-            {
                 return Ok(new ApiResponse<bool>
                 {
                     Success = true,
                     Message = "版主指定成功",
                     Data = true
                 });
-            }
 
             return BadRequest(new ApiResponse<bool>
             {
@@ -932,7 +893,7 @@ public class CitiesController : ControllerBase
     #region 城市版主管理（多版主支持）
 
     /// <summary>
-    /// 获取城市的所有版主列表
+    ///     获取城市的所有版主列表
     /// </summary>
     [HttpGet("{id}/moderators")]
     public async Task<ActionResult<ApiResponse<List<CityModeratorDto>>>> GetCityModerators(Guid id)
@@ -946,7 +907,6 @@ public class CitiesController : ControllerBase
             // 获取版主的用户信息
             var moderatorDtos = new List<CityModeratorDto>();
             foreach (var moderator in moderators)
-            {
                 // TODO: 通过 Dapr 调用 UserService 获取用户详细信息
                 // 目前先返回基本信息
                 moderatorDtos.Add(new CityModeratorDto
@@ -973,7 +933,6 @@ public class CitiesController : ControllerBase
                     CreatedAt = moderator.CreatedAt,
                     UpdatedAt = moderator.UpdatedAt
                 });
-            }
 
             return Ok(new ApiResponse<List<CityModeratorDto>>
             {
@@ -994,8 +953,8 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// 添加城市版主（仅管理员）
-    /// 自动为用户分配 moderator 角色
+    ///     添加城市版主（仅管理员）
+    ///     自动为用户分配 moderator 角色
     /// </summary>
     [HttpPost("{id}/moderators")]
     public async Task<ActionResult<ApiResponse<CityModeratorDto>>> AddCityModerator(
@@ -1006,13 +965,11 @@ public class CitiesController : ControllerBase
 
         // Gateway 已完成 token 验证，这里只验证角色权限
         if (userContext?.Role != "admin")
-        {
             return StatusCode(403, new ApiResponse<CityModeratorDto>
             {
                 Success = false,
                 Message = "需要管理员权限"
             });
-        }
 
         try
         {
@@ -1022,24 +979,20 @@ public class CitiesController : ControllerBase
             // 检查城市是否存在
             var city = await _cityService.GetCityByIdAsync(id);
             if (city == null)
-            {
                 return NotFound(new ApiResponse<CityModeratorDto>
                 {
                     Success = false,
                     Message = "城市不存在"
                 });
-            }
 
             // 检查用户是否已经是版主
             var isExisting = await _moderatorRepository.IsModeratorAsync(id, dto.UserId);
             if (isExisting)
-            {
                 return BadRequest(new ApiResponse<CityModeratorDto>
                 {
                     Success = false,
                     Message = "该用户已经是此城市的版主"
                 });
-            }
 
             // 步骤 1: 通过 Dapr 获取 moderator 角色
             _logger.LogInformation("🔍 通过 UserService API 获取 moderator 角色");
@@ -1146,7 +1099,7 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// 删除城市版主（仅管理员）
+    ///     删除城市版主（仅管理员）
     /// </summary>
     [HttpDelete("{cityId}/moderators/{userId}")]
     [Authorize]
@@ -1154,10 +1107,7 @@ public class CitiesController : ControllerBase
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
 
-        if (userContext?.Role != "admin")
-        {
-            return Forbid();
-        }
+        if (userContext?.Role != "admin") return Forbid();
 
         try
         {
@@ -1167,13 +1117,11 @@ public class CitiesController : ControllerBase
             var result = await _moderatorRepository.RemoveAsync(cityId, userId);
 
             if (!result)
-            {
                 return NotFound(new ApiResponse<bool>
                 {
                     Success = false,
                     Message = "版主记录不存在"
                 });
-            }
 
             return Ok(new ApiResponse<bool>
             {
@@ -1194,7 +1142,7 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    /// 更新城市版主权限（仅管理员）
+    ///     更新城市版主权限（仅管理员）
     /// </summary>
     [HttpPatch("{cityId}/moderators/{moderatorId}")]
     [Authorize]
@@ -1205,10 +1153,7 @@ public class CitiesController : ControllerBase
     {
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
 
-        if (userContext?.Role != "admin")
-        {
-            return Forbid();
-        }
+        if (userContext?.Role != "admin") return Forbid();
 
         try
         {
@@ -1217,13 +1162,11 @@ public class CitiesController : ControllerBase
 
             var moderator = await _moderatorRepository.GetByIdAsync(moderatorId);
             if (moderator == null || moderator.CityId != cityId)
-            {
                 return NotFound(new ApiResponse<bool>
                 {
                     Success = false,
                     Message = "版主记录不存在"
                 });
-            }
 
             // 更新权限
             if (dto.CanEditCity.HasValue) moderator.CanEditCity = dto.CanEditCity.Value;
@@ -1258,8 +1201,8 @@ public class CitiesController : ControllerBase
 }
 
 /// <summary>
-/// 简单的用户 DTO - 用于 Dapr 服务间调用
-/// 映射自 UserService.Application.DTOs.UserDto
+///     简单的用户 DTO - 用于 Dapr 服务间调用
+///     映射自 UserService.Application.DTOs.UserDto
 /// </summary>
 public class SimpleUserDto
 {
@@ -1270,8 +1213,8 @@ public class SimpleUserDto
 }
 
 /// <summary>
-/// 简单的角色 DTO - 用于 Dapr 服务间调用
-/// 映射自 UserService.Application.DTOs.RoleDto
+///     简单的角色 DTO - 用于 Dapr 服务间调用
+///     映射自 UserService.Application.DTOs.RoleDto
 /// </summary>
 public class SimpleRoleDto
 {

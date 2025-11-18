@@ -3,6 +3,7 @@
 ## 📋 概述
 
 已为 UserService 添加完整的角色管理功能:
+
 - ✅ 创建独立的 `roles` 表
 - ✅ 添加默认角色: `user` 和 `admin`
 - ✅ 在 `users` 表中添加 `role_id` 外键
@@ -95,6 +96,7 @@ curl http://localhost:5001/api/roles
 ```
 
 **预期响应:**
+
 ```json
 {
   "success": true,
@@ -136,6 +138,7 @@ curl -X POST http://localhost:5001/api/roles \
 ```
 
 **预期响应:**
+
 ```json
 {
   "success": true,
@@ -186,22 +189,27 @@ curl -X POST http://localhost:5001/api/users \
 ## 📁 创建的文件
 
 ### 模型 (Shared)
+
 - `src/Shared/Shared/Models/Role.cs` - 角色模型
 
 ### Repository
+
 - `src/Services/UserService/UserService/Repositories/IRoleRepository.cs` - 角色仓储接口
 - `src/Services/UserService/UserService/Repositories/RoleRepository.cs` - 角色仓储实现
 
 ### Controller
+
 - `src/Services/UserService/UserService/Controllers/RolesController.cs` - 角色管理 API
 
 ### Database
+
 - `src/Services/UserService/UserService/Database/migrations/002_create_roles_table.sql` - 角色表迁移脚本
 - `src/Services/UserService/UserService/Database/schema.sql` - 已更新完整架构
 
 ## 🔍 数据结构
 
 ### roles 表
+
 ```sql
 Column       | Type                        | Default
 -------------|-----------------------------|------------------
@@ -213,6 +221,7 @@ updated_at   | TIMESTAMP WITH TIME ZONE    | CURRENT_TIMESTAMP
 ```
 
 ### users 表 (新增字段)
+
 ```sql
 Column       | Type                        | Default
 -------------|-----------------------------|------------------

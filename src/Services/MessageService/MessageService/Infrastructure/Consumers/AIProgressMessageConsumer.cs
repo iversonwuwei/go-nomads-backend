@@ -6,12 +6,12 @@ using Shared.Messages;
 namespace MessageService.Infrastructure.Consumers;
 
 /// <summary>
-/// AI 进度消息消费者
+///     AI 进度消息消费者
 /// </summary>
 public class AIProgressMessageConsumer : IConsumer<AIProgressMessage>
 {
-    private readonly ISignalRNotifier _notifier;
     private readonly ILogger<AIProgressMessageConsumer> _logger;
+    private readonly ISignalRNotifier _notifier;
 
     public AIProgressMessageConsumer(
         ISignalRNotifier notifier,

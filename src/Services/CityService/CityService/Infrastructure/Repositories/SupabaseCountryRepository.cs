@@ -1,20 +1,17 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Microsoft.Extensions.Logging;
-using Supabase;
+using Postgrest;
+using Client = Supabase.Client;
 
 namespace CityService.Infrastructure.Repositories;
 
 /// <summary>
-/// 基于 Supabase 的国家仓储实现
+///     基于 Supabase 的国家仓储实现
 /// </summary>
 public class SupabaseCountryRepository : ICountryRepository
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<SupabaseCountryRepository> _logger;
+    private readonly Client _supabaseClient;
 
     public SupabaseCountryRepository(Client supabaseClient, ILogger<SupabaseCountryRepository> logger)
     {
@@ -28,8 +25,8 @@ public class SupabaseCountryRepository : ICountryRepository
         {
             var response = await _supabaseClient
                 .From<Country>()
-                .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
-                .Order("name", Postgrest.Constants.Ordering.Ascending)
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Order("name", Constants.Ordering.Ascending)
                 .Get();
 
             return response.Models;
@@ -65,7 +62,7 @@ public class SupabaseCountryRepository : ICountryRepository
         {
             var response = await _supabaseClient
                 .From<Country>()
-                .Filter("code", Postgrest.Constants.Operator.Equals, code.ToUpperInvariant())
+                .Filter("code", Constants.Operator.Equals, code.ToUpperInvariant())
                 .Single();
 
             return response;

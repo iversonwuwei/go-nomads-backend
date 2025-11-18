@@ -1,11 +1,9 @@
-using Shared.Extensions;
-using GoNomads.Shared.Extensions;
-using Dapr.Client;
-using Serilog;
-using Scalar.AspNetCore;
+using CoworkingService.Application.Services;
 using CoworkingService.Domain.Repositories;
 using CoworkingService.Infrastructure.Repositories;
-using CoworkingService.Application.Services;
+using Scalar.AspNetCore;
+using Serilog;
+using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,7 +24,7 @@ builder.Services.AddSupabase(builder.Configuration);
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
     // 使用 gRPC 端点（默认端口 50001）
-    var daprGrpcPort = builder.Configuration.GetValue<int>("Dapr:GrpcPort", 50001);
+    var daprGrpcPort = builder.Configuration.GetValue("Dapr:GrpcPort", 50001);
     var daprGrpcEndpoint = $"http://localhost:{daprGrpcPort}";
 
     daprClientBuilder.UseGrpcEndpoint(daprGrpcEndpoint);
@@ -62,8 +60,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowAll", policy =>
     {
         policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+            .AllowAnyMethod()
+            .AllowAnyHeader();
     });
 });
 

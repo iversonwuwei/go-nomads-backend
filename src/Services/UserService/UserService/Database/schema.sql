@@ -7,41 +7,42 @@
 -- ============================================
 
 -- Create roles table
-CREATE TABLE IF NOT EXISTS public.roles (
-    id VARCHAR(50) PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE,
+CREATE TABLE IF NOT EXISTS public.roles
+(
+    id          VARCHAR(50) PRIMARY KEY,
+    name        VARCHAR(50) NOT NULL UNIQUE,
     description TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Insert default roles
-INSERT INTO
-    public.roles (id, name, description)
+INSERT INTO public.roles (id, name, description)
 VALUES ('role_user', 'user', '普通用户角色'),
-    (
-        'role_admin',
+       ('role_admin',
         'admin',
-        '管理员角色'
-    )
-ON CONFLICT (name) DO NOTHING;
+        '管理员角色')
+ON CONFLICT
+    (name)
+    DO NOTHING;
 
 -- ============================================
 -- Users Table
 -- ============================================
 
 -- Create users table
-CREATE TABLE IF NOT EXISTS public.users (
-    id VARCHAR(50) PRIMARY KEY,
-    name VARCHAR(200) NOT NULL,
-    email VARCHAR(200) NOT NULL,
-    phone VARCHAR(50),
-password_hash VARCHAR(255),
-role VARCHAR(50) DEFAULT 'user' NOT NULL,
-role_id VARCHAR(50) DEFAULT 'role_user',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-CONSTRAINT fk_users_role_id FOREIGN KEY (role_id) REFERENCES public.roles (id) ON DELETE SET NULL
+CREATE TABLE IF NOT EXISTS public.users
+(
+    id            VARCHAR(50) PRIMARY KEY,
+    name          VARCHAR(200)               NOT NULL,
+    email         VARCHAR(200)               NOT NULL,
+    phone         VARCHAR(50),
+    password_hash VARCHAR(255),
+    role          VARCHAR(50) DEFAULT 'user' NOT NULL,
+    role_id       VARCHAR(50) DEFAULT 'role_user',
+    created_at    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_users_role_id FOREIGN KEY (role_id) REFERENCES public.roles (id) ON DELETE SET NULL
 );
 
 -- Create unique index on email
@@ -64,37 +65,43 @@ CREATE INDEX IF NOT EXISTS idx_users_role_id ON public.users (role_id);
 ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
 
 -- Create policy for roles table (read-only for all users)
-CREATE POLICY "Allow read access to roles" ON public.roles FOR
+CREATE
+POLICY "Allow read access to roles" ON public.roles FOR
 SELECT USING (true);
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 -- Create policy to allow all operations (adjust based on your auth requirements)
-CREATE POLICY "Allow all operations on users" ON public.users
+CREATE
+POLICY "Allow all operations on users" ON public.users
     FOR ALL
     USING (true)
-    WITH CHECK (true);
+    WITH
+CHECK (true);
 
 -- Insert sample data (optional)
 INSERT INTO public.users (id, name, email, phone, created_at, updated_at)
-VALUES 
-    ('1', 'John Doe', 'john@example.com', '123-456-7890', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    ('2', 'Jane Smith', 'jane@example.com', '098-765-4321', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-ON CONFLICT (id) DO NOTHING;
+VALUES ('1', 'John Doe', 'john@example.com', '123-456-7890', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+       ('2', 'Jane Smith', 'jane@example.com', '098-765-4321', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT
+    (id)
+    DO NOTHING;
 
 -- Create function to automatically update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_updated_at_column()
+CREATE
+OR
+REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
+BEGIN NEW.updated_at = CURRENT_TIMESTAMP;
+RETURN NEW;
 END;
 $$ language 'plpgsql';
 
 -- Create trigger to auto-update updated_at for users
 DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
 CREATE TRIGGER update_users_updated_at
-    BEFORE UPDATE ON public.users
+    BEFORE UPDATE
+    ON public.users
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
@@ -102,7 +109,8 @@ CREATE TRIGGER update_users_updated_at
 DROP TRIGGER IF EXISTS update_roles_updated_at ON public.roles;
 
 CREATE TRIGGER update_roles_updated_at
-    BEFORE UPDATE ON public.roles
+    BEFORE UPDATE
+    ON public.roles
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 

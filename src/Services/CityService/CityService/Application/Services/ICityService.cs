@@ -1,15 +1,15 @@
-using System;
-using System.Collections.Generic;
 using CityService.Application.DTOs;
 
 namespace CityService.Application.Services;
 
 /// <summary>
-/// 城市应用服务接口
+///     城市应用服务接口
 /// </summary>
 public interface ICityService
 {
-    Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize, Guid? userId = null, string? userRole = null);
+    Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize, Guid? userId = null,
+        string? userRole = null);
+
     Task<CityDto?> GetCityByIdAsync(Guid id, Guid? userId = null, string? userRole = null);
     Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null, string? userRole = null);
     Task<CityDto> CreateCityAsync(CreateCityDto createCityDto, Guid userId);
@@ -24,12 +24,12 @@ public interface ICityService
     Task<WeatherDto?> GetCityWeatherAsync(Guid id, bool includeForecast = false, int days = 7);
 
     /// <summary>
-    /// 申请成为城市版主
+    ///     申请成为城市版主
     /// </summary>
     Task<bool> ApplyModeratorAsync(Guid userId, ApplyModeratorDto dto);
 
     /// <summary>
-    /// 指定城市版主 (仅管理员)
+    ///     指定城市版主 (仅管理员)
     /// </summary>
     Task<bool> AssignModeratorAsync(AssignModeratorDto dto);
 }

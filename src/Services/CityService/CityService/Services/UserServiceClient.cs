@@ -4,7 +4,7 @@ using GoNomads.Shared.Models;
 namespace CityService.Services;
 
 /// <summary>
-/// 用户信息响应 DTO (匹配 UserService API 响应)
+///     用户信息响应 DTO (匹配 UserService API 响应)
 /// </summary>
 public class UserInfoDto
 {
@@ -14,18 +14,20 @@ public class UserInfoDto
     public string Phone { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
-    
+
     // 便捷属性:用于兼容,返回 name 或 email 前缀
     public string Username => !string.IsNullOrWhiteSpace(Name) ? Name : Email.Split('@')[0];
 }
 
 /// <summary>
-/// UserService 客户端 - 通过 Dapr Service Invocation 调用
+///     UserService 客户端 - 通过 Dapr Service Invocation 调用
 /// </summary>
 public interface IUserServiceClient
 {
     Task<UserInfoDto?> GetUserInfoAsync(string userId, CancellationToken cancellationToken = default);
-    Task<Dictionary<string, UserInfoDto>> GetUsersInfoAsync(IEnumerable<string> userIds, CancellationToken cancellationToken = default);
+
+    Task<Dictionary<string, UserInfoDto>> GetUsersInfoAsync(IEnumerable<string> userIds,
+        CancellationToken cancellationToken = default);
 }
 
 public class UserServiceClient : IUserServiceClient
@@ -46,7 +48,7 @@ public class UserServiceClient : IUserServiceClient
     }
 
     /// <summary>
-    /// 获取单个用户信息
+    ///     获取单个用户信息
     /// </summary>
     public async Task<UserInfoDto?> GetUserInfoAsync(string userId, CancellationToken cancellationToken = default)
     {
@@ -66,11 +68,9 @@ public class UserServiceClient : IUserServiceClient
                 _logger.LogInformation("✅ 成功获取用户信息: {Username}", response.Data.Username);
                 return response.Data;
             }
-            else
-            {
-                _logger.LogWarning("⚠️ 获取用户信息失败: {Message}", response?.Message ?? "Unknown error");
-                return null;
-            }
+
+            _logger.LogWarning("⚠️ 获取用户信息失败: {Message}", response?.Message ?? "Unknown error");
+            return null;
         }
         catch (Exception ex)
         {
@@ -80,7 +80,7 @@ public class UserServiceClient : IUserServiceClient
     }
 
     /// <summary>
-    /// 批量获取用户信息 (并发调用)
+    ///     批量获取用户信息 (并发调用)
     /// </summary>
     public async Task<Dictionary<string, UserInfoDto>> GetUsersInfoAsync(
         IEnumerable<string> userIds,
@@ -89,10 +89,7 @@ public class UserServiceClient : IUserServiceClient
         var result = new Dictionary<string, UserInfoDto>();
         var userIdList = userIds.Distinct().ToList();
 
-        if (userIdList.Count == 0)
-        {
-            return result;
-        }
+        if (userIdList.Count == 0) return result;
 
         try
         {
@@ -108,12 +105,8 @@ public class UserServiceClient : IUserServiceClient
             var results = await Task.WhenAll(tasks);
 
             foreach (var (userId, userInfo) in results)
-            {
                 if (userInfo != null)
-                {
                     result[userId] = userInfo;
-                }
-            }
 
             _logger.LogInformation("✅ 成功获取 {Count}/{Total} 个用户信息", result.Count, userIdList.Count);
         }

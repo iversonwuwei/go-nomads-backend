@@ -3,22 +3,21 @@ using CityService.Application.DTOs;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
 using CityService.Services;
-using Microsoft.Extensions.Logging;
 
 namespace CityService.Application.Services;
 
 /// <summary>
-/// 用户城市内容应用服务实现
+///     用户城市内容应用服务实现
 /// </summary>
 public class UserCityContentApplicationService : IUserCityContentService
 {
-    private readonly IUserCityPhotoRepository _photoRepository;
-    private readonly IUserCityExpenseRepository _expenseRepository;
-    private readonly IUserCityReviewRepository _reviewRepository;
-    private readonly IUserCityProsConsRepository _prosConsRepository;
-    private readonly IUserServiceClient _userServiceClient;
     private readonly IAmapGeocodingService _amapGeocodingService;
+    private readonly IUserCityExpenseRepository _expenseRepository;
     private readonly ILogger<UserCityContentApplicationService> _logger;
+    private readonly IUserCityPhotoRepository _photoRepository;
+    private readonly IUserCityProsConsRepository _prosConsRepository;
+    private readonly IUserCityReviewRepository _reviewRepository;
+    private readonly IUserServiceClient _userServiceClient;
 
     public UserCityContentApplicationService(
         IUserCityPhotoRepository photoRepository,
@@ -58,17 +57,13 @@ public class UserCityContentApplicationService : IUserCityContentService
         return MapPhotoToDto(created);
     }
 
-    public async Task<IEnumerable<UserCityPhotoDto>> SubmitPhotoCollectionAsync(Guid userId, SubmitCityPhotoBatchRequest request)
+    public async Task<IEnumerable<UserCityPhotoDto>> SubmitPhotoCollectionAsync(Guid userId,
+        SubmitCityPhotoBatchRequest request)
     {
         if (request.ImageUrls is null || request.ImageUrls.Count == 0)
-        {
             throw new ArgumentException("图片列表不能为空", nameof(request.ImageUrls));
-        }
 
-        if (request.ImageUrls.Count > 10)
-        {
-            throw new ArgumentException("一次最多支持上传 10 张照片", nameof(request.ImageUrls));
-        }
+        if (request.ImageUrls.Count > 10) throw new ArgumentException("一次最多支持上传 10 张照片", nameof(request.ImageUrls));
 
         _logger.LogInformation(
             "用户 {UserId} 正在为城市 {CityId} 提交 {Count} 张照片(标题: {Title})",
@@ -79,18 +74,14 @@ public class UserCityContentApplicationService : IUserCityContentService
 
         var enrichedLocation = await TryEnrichLocationAsync(request);
         if (enrichedLocation is null)
-        {
             _logger.LogInformation("未获取到 AMap 位置信息, 使用用户输入: {CityId}", request.CityId);
-        }
         else
-        {
             _logger.LogInformation(
                 "AMap 位置增强成功: {CityId} lat={Latitude}, lng={Longitude}, place={Place}",
                 request.CityId,
                 enrichedLocation.Latitude,
                 enrichedLocation.Longitude,
                 enrichedLocation.PlaceName ?? "(未知)");
-        }
 
         var photos = request.ImageUrls.Select(imageUrl => new UserCityPhoto
         {
@@ -136,10 +127,7 @@ public class UserCityContentApplicationService : IUserCityContentService
     public async Task<bool> DeletePhotoAsync(Guid userId, Guid photoId)
     {
         var deleted = await _photoRepository.DeleteAsync(photoId, userId);
-        if (deleted)
-        {
-            _logger.LogInformation("用户 {UserId} 删除了照片 {PhotoId}", userId, photoId);
-        }
+        if (deleted) _logger.LogInformation("用户 {UserId} 删除了照片 {PhotoId}", userId, photoId);
         return deleted;
     }
 
@@ -184,10 +172,7 @@ public class UserCityContentApplicationService : IUserCityContentService
     public async Task<bool> DeleteExpenseAsync(Guid userId, Guid expenseId)
     {
         var deleted = await _expenseRepository.DeleteAsync(expenseId, userId);
-        if (deleted)
-        {
-            _logger.LogInformation("用户 {UserId} 删除了费用 {ExpenseId}", userId, expenseId);
-        }
+        if (deleted) _logger.LogInformation("用户 {UserId} 删除了费用 {ExpenseId}", userId, expenseId);
         return deleted;
     }
 
@@ -250,10 +235,10 @@ public class UserCityContentApplicationService : IUserCityContentService
             // ✅ 查询该用户在该城市的所有照片
             var photos = await _photoRepository.GetByCityIdAndUserIdAsync(cityId, review.UserId);
             dto.PhotoUrls = photos.Select(p => p.ImageUrl).ToList();
-            
+
             result.Add(dto);
         }
-        
+
         return result;
     }
 
@@ -279,10 +264,7 @@ public class UserCityContentApplicationService : IUserCityContentService
     public async Task<bool> DeleteReviewAsync(Guid userId, Guid reviewId)
     {
         var deleted = await _reviewRepository.DeleteAsync(reviewId, userId);
-        if (deleted)
-        {
-            _logger.LogInformation("用户 {UserId} 删除了评论 {ReviewId}", userId, reviewId);
-        }
+        if (deleted) _logger.LogInformation("用户 {UserId} 删除了评论 {ReviewId}", userId, reviewId);
         return deleted;
     }
 
@@ -308,14 +290,13 @@ public class UserCityContentApplicationService : IUserCityContentService
     }
 
     /// <summary>
-    /// 获取城市综合费用统计 - 基于用户提交的实际费用数据计算
+    ///     获取城市综合费用统计 - 基于用户提交的实际费用数据计算
     /// </summary>
     public async Task<CityCostSummaryDto> GetCityCostSummaryAsync(string cityId)
     {
         var expenses = (await _expenseRepository.GetByCityIdAsync(cityId)).ToList();
 
         if (!expenses.Any())
-        {
             return new CityCostSummaryDto
             {
                 CityId = cityId,
@@ -331,22 +312,25 @@ public class UserCityContentApplicationService : IUserCityContentService
                 Currency = "USD",
                 UpdatedAt = DateTime.UtcNow
             };
-        }
 
         // 按分类计算平均费用
-        var accommodation = expenses.Where(e => e.Category.Equals(ExpenseCategory.Accommodation, StringComparison.OrdinalIgnoreCase))
+        var accommodation = expenses
+            .Where(e => e.Category.Equals(ExpenseCategory.Accommodation, StringComparison.OrdinalIgnoreCase))
             .Select(e => e.Amount).DefaultIfEmpty(0).Average();
 
         var food = expenses.Where(e => e.Category.Equals(ExpenseCategory.Food, StringComparison.OrdinalIgnoreCase))
             .Select(e => e.Amount).DefaultIfEmpty(0).Average();
 
-        var transportation = expenses.Where(e => e.Category.Equals(ExpenseCategory.Transport, StringComparison.OrdinalIgnoreCase))
+        var transportation = expenses
+            .Where(e => e.Category.Equals(ExpenseCategory.Transport, StringComparison.OrdinalIgnoreCase))
             .Select(e => e.Amount).DefaultIfEmpty(0).Average();
 
-        var activity = expenses.Where(e => e.Category.Equals(ExpenseCategory.Activity, StringComparison.OrdinalIgnoreCase))
+        var activity = expenses
+            .Where(e => e.Category.Equals(ExpenseCategory.Activity, StringComparison.OrdinalIgnoreCase))
             .Select(e => e.Amount).DefaultIfEmpty(0).Average();
 
-        var shopping = expenses.Where(e => e.Category.Equals(ExpenseCategory.Shopping, StringComparison.OrdinalIgnoreCase))
+        var shopping = expenses
+            .Where(e => e.Category.Equals(ExpenseCategory.Shopping, StringComparison.OrdinalIgnoreCase))
             .Select(e => e.Amount).DefaultIfEmpty(0).Average();
 
         var other = expenses.Where(e => e.Category.Equals(ExpenseCategory.Other, StringComparison.OrdinalIgnoreCase))
@@ -383,20 +367,11 @@ public class UserCityContentApplicationService : IUserCityContentService
         try
         {
             var queryParts = new List<string>();
-            if (!string.IsNullOrWhiteSpace(request.Title))
-            {
-                queryParts.Add(request.Title);
-            }
+            if (!string.IsNullOrWhiteSpace(request.Title)) queryParts.Add(request.Title);
 
-            if (!string.IsNullOrWhiteSpace(request.LocationNote))
-            {
-                queryParts.Add(request.LocationNote!);
-            }
+            if (!string.IsNullOrWhiteSpace(request.LocationNote)) queryParts.Add(request.LocationNote!);
 
-            if (queryParts.Count == 0)
-            {
-                return null;
-            }
+            if (queryParts.Count == 0) return null;
 
             var query = string.Join(" ", queryParts);
             _logger.LogDebug("调用 AMap 进行地理编码: {CityId} - {Query}", request.CityId, query);
@@ -497,15 +472,10 @@ public class UserCityContentApplicationService : IUserCityContentService
     public async Task<CityProsConsDto> UpdateProsConsAsync(Guid userId, Guid id, UpdateCityProsConsRequest request)
     {
         var existing = await _prosConsRepository.GetByIdAsync(id);
-        if (existing == null)
-        {
-            throw new Exception($"Pros & Cons with id {id} not found");
-        }
+        if (existing == null) throw new Exception($"Pros & Cons with id {id} not found");
 
         if (existing.UserId != userId)
-        {
             throw new UnauthorizedAccessException("You can only update your own Pros & Cons");
-        }
 
         existing.Text = request.Text;
         existing.IsPro = request.IsPro;

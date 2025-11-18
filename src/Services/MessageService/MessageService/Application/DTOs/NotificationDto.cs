@@ -1,7 +1,7 @@
 namespace MessageService.Application.DTOs;
 
 /// <summary>
-/// 通知响应 DTO
+///     通知响应 DTO
 /// </summary>
 public class NotificationDto
 {
@@ -18,7 +18,7 @@ public class NotificationDto
 }
 
 /// <summary>
-/// 创建通知请求 DTO
+///     创建通知请求 DTO
 /// </summary>
 public class CreateNotificationDto
 {
@@ -31,7 +31,7 @@ public class CreateNotificationDto
 }
 
 /// <summary>
-/// 发送通知给管理员请求 DTO
+///     发送通知给管理员请求 DTO
 /// </summary>
 public class SendToAdminsDto
 {
@@ -43,7 +43,7 @@ public class SendToAdminsDto
 }
 
 /// <summary>
-/// 批量标记已读请求 DTO
+///     批量标记已读请求 DTO
 /// </summary>
 public class MarkMultipleAsReadDto
 {
@@ -51,7 +51,7 @@ public class MarkMultipleAsReadDto
 }
 
 /// <summary>
-/// 通知统计 DTO
+///     通知统计 DTO
 /// </summary>
 public class NotificationStatsDto
 {

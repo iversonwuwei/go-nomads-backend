@@ -1,15 +1,14 @@
-using System.Text.Json;
 using Gateway.Services;
 
 namespace Gateway.Middleware;
 
 /// <summary>
-/// JWT 认证中间件 - 拦截请求并验证 JWT 令牌
+///     JWT 认证中间件 - 拦截请求并验证 JWT 令牌
 /// </summary>
 public class JwtAuthenticationMiddleware
 {
-    private readonly RequestDelegate _next;
     private readonly ILogger<JwtAuthenticationMiddleware> _logger;
+    private readonly RequestDelegate _next;
 
     public JwtAuthenticationMiddleware(
         RequestDelegate next,
@@ -30,13 +29,13 @@ public class JwtAuthenticationMiddleware
             if (!context.User.Identity?.IsAuthenticated ?? true)
             {
                 _logger.LogWarning(
-                    "Unauthorized access attempt to protected route: {Path} from {IP}", 
-                    path, 
+                    "Unauthorized access attempt to protected route: {Path} from {IP}",
+                    path,
                     context.Connection.RemoteIpAddress);
 
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 context.Response.ContentType = "application/json";
-                
+
                 var response = new
                 {
                     success = false,
@@ -52,18 +51,18 @@ public class JwtAuthenticationMiddleware
             if (RouteAuthorizationConfig.RequiresAdmin(path))
             {
                 var role = context.User.FindFirst("role")?.Value;
-                
+
                 if (role != "admin")
                 {
                     _logger.LogWarning(
-                        "Forbidden access attempt to admin route: {Path} by user {UserId} with role {Role}", 
-                        path, 
+                        "Forbidden access attempt to admin route: {Path} by user {UserId} with role {Role}",
+                        path,
                         context.User.FindFirst("sub")?.Value,
                         role);
 
                     context.Response.StatusCode = StatusCodes.Status403Forbidden;
                     context.Response.ContentType = "application/json";
-                    
+
                     var response = new
                     {
                         success = false,
@@ -77,8 +76,8 @@ public class JwtAuthenticationMiddleware
             }
 
             _logger.LogDebug(
-                "Authenticated request: {Path} by user {UserId}", 
-                path, 
+                "Authenticated request: {Path} by user {UserId}",
+                path,
                 context.User.FindFirst("sub")?.Value);
         }
 
@@ -87,7 +86,7 @@ public class JwtAuthenticationMiddleware
 }
 
 /// <summary>
-/// 中间件扩展方法
+///     中间件扩展方法
 /// </summary>
 public static class JwtAuthenticationMiddlewareExtensions
 {

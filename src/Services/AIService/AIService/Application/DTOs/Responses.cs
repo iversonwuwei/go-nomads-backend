@@ -1,7 +1,7 @@
 namespace AIService.Application.DTOs;
 
 /// <summary>
-/// 对话响应
+///     对话响应
 /// </summary>
 public class ConversationResponse
 {
@@ -19,7 +19,7 @@ public class ConversationResponse
 }
 
 /// <summary>
-/// 消息响应
+///     消息响应
 /// </summary>
 public class MessageResponse
 {
@@ -40,7 +40,7 @@ public class MessageResponse
 }
 
 /// <summary>
-/// AI 聊天响应
+///     AI 聊天响应
 /// </summary>
 public class ChatResponse
 {
@@ -59,7 +59,7 @@ public class ChatResponse
 }
 
 /// <summary>
-/// 分页响应
+///     分页响应
 /// </summary>
 public class PagedResponse<T>
 {
@@ -73,7 +73,7 @@ public class PagedResponse<T>
 }
 
 /// <summary>
-/// 用户统计响应
+///     用户统计响应
 /// </summary>
 public class UserStatsResponse
 {
@@ -85,7 +85,7 @@ public class UserStatsResponse
 }
 
 /// <summary>
-/// 流式响应块
+///     流式响应块
 /// </summary>
 public class StreamResponse
 {
@@ -97,7 +97,7 @@ public class StreamResponse
 }
 
 /// <summary>
-/// 旅行计划响应
+///     旅行计划响应
 /// </summary>
 public class TravelPlanResponse
 {
@@ -193,7 +193,7 @@ public class BudgetBreakdownDto
 }
 
 /// <summary>
-/// 数字游民旅游指南响应
+///     数字游民旅游指南响应
 /// </summary>
 public class TravelGuideResponse
 {
@@ -210,52 +210,52 @@ public class TravelGuideResponse
 public class BestAreaDto
 {
     /// <summary>
-    /// 区域名称
+    ///     区域名称
     /// </summary>
     public string Name { get; set; } = string.Empty;
-    
+
     /// <summary>
-    /// 区域描述
+    ///     区域描述
     /// </summary>
     public string Description { get; set; } = string.Empty;
-    
+
     /// <summary>
-    /// 娱乐评分 (1-5)
+    ///     娱乐评分 (1-5)
     /// </summary>
     public double EntertainmentScore { get; set; }
-    
+
     /// <summary>
-    /// 娱乐设施说明
+    ///     娱乐设施说明
     /// </summary>
     public string EntertainmentDescription { get; set; } = string.Empty;
-    
+
     /// <summary>
-    /// 旅游评分 (1-5)
+    ///     旅游评分 (1-5)
     /// </summary>
     public double TourismScore { get; set; }
-    
+
     /// <summary>
-    /// 旅游景点说明
+    ///     旅游景点说明
     /// </summary>
     public string TourismDescription { get; set; } = string.Empty;
-    
+
     /// <summary>
-    /// 经济评分 (1-5,越低越便宜)
+    ///     经济评分 (1-5,越低越便宜)
     /// </summary>
     public double EconomyScore { get; set; }
-    
+
     /// <summary>
-    /// 经济情况说明(生活成本)
+    ///     经济情况说明(生活成本)
     /// </summary>
     public string EconomyDescription { get; set; } = string.Empty;
-    
+
     /// <summary>
-    /// 文化评分 (1-5)
+    ///     文化评分 (1-5)
     /// </summary>
     public double CultureScore { get; set; }
-    
+
     /// <summary>
-    /// 文化特色说明
+    ///     文化特色说明
     /// </summary>
     public string CultureDescription { get; set; } = string.Empty;
 }

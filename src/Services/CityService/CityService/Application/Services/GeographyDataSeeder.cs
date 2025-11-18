@@ -1,20 +1,17 @@
-using System;
-using System.Collections.Generic;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Microsoft.Extensions.Logging;
 
 namespace CityService.Application.Services;
 
 /// <summary>
-/// 地理数据初始化服务
+///     地理数据初始化服务
 /// </summary>
 public class GeographyDataSeeder
 {
-    private readonly ICountryRepository _countryRepository;
-    private readonly IProvinceRepository _provinceRepository;
     private readonly ICityRepository _cityRepository;
+    private readonly ICountryRepository _countryRepository;
     private readonly ILogger<GeographyDataSeeder> _logger;
+    private readonly IProvinceRepository _provinceRepository;
 
     public GeographyDataSeeder(
         ICountryRepository countryRepository,
@@ -64,7 +61,6 @@ public class GeographyDataSeeder
                 _logger.LogInformation("Created province: {ProvinceName}", provinceData.Province);
 
                 foreach (var cityName in provinceData.Cities)
-                {
                     try
                     {
                         var city = new City
@@ -85,7 +81,6 @@ public class GeographyDataSeeder
                         _logger.LogWarning(ex, "Failed to create city: {CityName}", cityName);
                         result.CitiesFailed++;
                     }
-                }
             }
 
             result.Success = true;
@@ -108,7 +103,6 @@ public class GeographyDataSeeder
         var count = 0;
 
         foreach (var countryData in countryDataList)
-        {
             try
             {
                 var existing = await _countryRepository.GetCountryByCodeAsync(countryData.Code);
@@ -138,7 +132,6 @@ public class GeographyDataSeeder
             {
                 _logger.LogWarning(ex, "Failed to create country: {Name}", countryData.Name);
             }
-        }
 
         return count;
     }

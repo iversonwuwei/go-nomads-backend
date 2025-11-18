@@ -1,19 +1,19 @@
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Supabase;
-using Postgrest.Models;
+using Postgrest;
 using Postgrest.Attributes;
-using Microsoft.Extensions.Logging;
+using Postgrest.Models;
+using Client = Supabase.Client;
 
 namespace CityService.Infrastructure.Repositories;
 
 /// <summary>
-/// Supabase用户收藏城市仓储实现
+///     Supabase用户收藏城市仓储实现
 /// </summary>
 public class SupabaseUserFavoriteCityRepository : IUserFavoriteCityRepository
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<SupabaseUserFavoriteCityRepository> _logger;
+    private readonly Client _supabaseClient;
 
     public SupabaseUserFavoriteCityRepository(
         Client supabaseClient,
@@ -30,8 +30,8 @@ public class SupabaseUserFavoriteCityRepository : IUserFavoriteCityRepository
             var response = await _supabaseClient
                 .From<UserFavoriteCityModel>()
                 .Select("id")
-                .Filter("user_id", Postgrest.Constants.Operator.Equals, userId.ToString())
-                .Filter("city_id", Postgrest.Constants.Operator.Equals, cityId)
+                .Filter("user_id", Constants.Operator.Equals, userId.ToString())
+                .Filter("city_id", Constants.Operator.Equals, cityId)
                 .Single();
 
             return response != null;
@@ -55,15 +55,12 @@ public class SupabaseUserFavoriteCityRepository : IUserFavoriteCityRepository
                 // 返回已存在的记录
                 var existing = await _supabaseClient
                     .From<UserFavoriteCityModel>()
-                    .Filter("user_id", Postgrest.Constants.Operator.Equals, userId.ToString())
-                    .Filter("city_id", Postgrest.Constants.Operator.Equals, cityId)
+                    .Filter("user_id", Constants.Operator.Equals, userId.ToString())
+                    .Filter("city_id", Constants.Operator.Equals, cityId)
                     .Single();
-                
-                if (existing == null)
-                {
-                    throw new Exception("记录不存在但检查返回已存在");
-                }
-                
+
+                if (existing == null) throw new Exception("记录不存在但检查返回已存在");
+
                 return MapToEntity(existing);
             }
 
@@ -78,10 +75,7 @@ public class SupabaseUserFavoriteCityRepository : IUserFavoriteCityRepository
                 .Insert(model);
 
             var result = response.Models.FirstOrDefault();
-            if (result == null)
-            {
-                throw new Exception("添加收藏失败，返回结果为空");
-            }
+            if (result == null) throw new Exception("添加收藏失败，返回结果为空");
 
             _logger.LogInformation("收藏城市成功: UserId={UserId}, CityId={CityId}", userId, cityId);
             return MapToEntity(result);
@@ -99,8 +93,8 @@ public class SupabaseUserFavoriteCityRepository : IUserFavoriteCityRepository
         {
             await _supabaseClient
                 .From<UserFavoriteCityModel>()
-                .Filter("user_id", Postgrest.Constants.Operator.Equals, userId.ToString())
-                .Filter("city_id", Postgrest.Constants.Operator.Equals, cityId)
+                .Filter("user_id", Constants.Operator.Equals, userId.ToString())
+                .Filter("city_id", Constants.Operator.Equals, cityId)
                 .Delete();
 
             _logger.LogInformation("取消收藏成功: UserId={UserId}, CityId={CityId}", userId, cityId);
@@ -120,8 +114,8 @@ public class SupabaseUserFavoriteCityRepository : IUserFavoriteCityRepository
             var response = await _supabaseClient
                 .From<UserFavoriteCityModel>()
                 .Select("city_id")
-                .Filter("user_id", Postgrest.Constants.Operator.Equals, userId.ToString())
-                .Order("created_at", Postgrest.Constants.Ordering.Descending)
+                .Filter("user_id", Constants.Operator.Equals, userId.ToString())
+                .Order("created_at", Constants.Ordering.Descending)
                 .Get();
 
             return response.Models.Select(m => m.CityId).ToList();
@@ -134,8 +128,8 @@ public class SupabaseUserFavoriteCityRepository : IUserFavoriteCityRepository
     }
 
     public async Task<(List<UserFavoriteCity> Items, int Total)> GetUserFavoriteCitiesAsync(
-        Guid userId, 
-        int page = 1, 
+        Guid userId,
+        int page = 1,
         int pageSize = 20)
     {
         try
@@ -144,8 +138,8 @@ public class SupabaseUserFavoriteCityRepository : IUserFavoriteCityRepository
 
             var response = await _supabaseClient
                 .From<UserFavoriteCityModel>()
-                .Filter("user_id", Postgrest.Constants.Operator.Equals, userId.ToString())
-                .Order("created_at", Postgrest.Constants.Ordering.Descending)
+                .Filter("user_id", Constants.Operator.Equals, userId.ToString())
+                .Order("created_at", Constants.Ordering.Descending)
                 .Range(offset, offset + pageSize - 1)
                 .Get();
 
@@ -153,7 +147,7 @@ public class SupabaseUserFavoriteCityRepository : IUserFavoriteCityRepository
             var countResponse = await _supabaseClient
                 .From<UserFavoriteCityModel>()
                 .Select("id")
-                .Filter("user_id", Postgrest.Constants.Operator.Equals, userId.ToString())
+                .Filter("user_id", Constants.Operator.Equals, userId.ToString())
                 .Get();
 
             var items = response.Models.Select(MapToEntity).ToList();
@@ -175,7 +169,7 @@ public class SupabaseUserFavoriteCityRepository : IUserFavoriteCityRepository
             var response = await _supabaseClient
                 .From<UserFavoriteCityModel>()
                 .Select("id")
-                .Filter("city_id", Postgrest.Constants.Operator.Equals, cityId)
+                .Filter("city_id", Constants.Operator.Equals, cityId)
                 .Get();
 
             return response.Models.Count;
@@ -201,23 +195,18 @@ public class SupabaseUserFavoriteCityRepository : IUserFavoriteCityRepository
 }
 
 /// <summary>
-/// Supabase表模型
+///     Supabase表模型
 /// </summary>
 [Table("user_favorite_cities")]
 public class UserFavoriteCityModel : BaseModel
 {
-    [PrimaryKey("id", false)]
-    public Guid Id { get; set; }
+    [PrimaryKey("id")] public Guid Id { get; set; }
 
-    [Column("user_id")]
-    public Guid UserId { get; set; }
+    [Column("user_id")] public Guid UserId { get; set; }
 
-    [Column("city_id")]
-    public string CityId { get; set; } = string.Empty;
+    [Column("city_id")] public string CityId { get; set; } = string.Empty;
 
-    [Column("created_at")]
-    public DateTime CreatedAt { get; set; }
+    [Column("created_at")] public DateTime CreatedAt { get; set; }
 
-    [Column("updated_at")]
-    public DateTime UpdatedAt { get; set; }
+    [Column("updated_at")] public DateTime UpdatedAt { get; set; }
 }

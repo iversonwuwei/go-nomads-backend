@@ -1,24 +1,24 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using GoNomads.Shared.Models;
-using GoNomads.Shared.Middleware;
+using System.ComponentModel.DataAnnotations;
 using Dapr.Client;
+using GoNomads.Shared.Middleware;
+using GoNomads.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using UserService.Application.DTOs;
 using UserService.Application.Services;
-using System.ComponentModel.DataAnnotations;
 
 namespace UserService.API.Controllers;
 
 /// <summary>
-/// Users API - RESTful endpoints for user management
+///     Users API - RESTful endpoints for user management
 /// </summary>
 [ApiController]
 [Route("api/v1/users")]
 public class UsersController : ControllerBase
 {
-    private readonly IUserService _userService;
     private readonly DaprClient _daprClient;
     private readonly ILogger<UsersController> _logger;
+    private readonly IUserService _userService;
 
     public UsersController(
         IUserService userService,
@@ -31,7 +31,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 获取用户列表（分页）
+    ///     获取用户列表（分页）
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PaginatedResponse<UserDto>>>> GetUsers(
@@ -42,11 +42,9 @@ public class UsersController : ControllerBase
         // 获取用户上下文（可选，用于日志记录）
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated == true)
-        {
             _logger.LogInformation(
                 "📋 GetUsers 请求 - 认证用户: UserId={UserId}, Role={Role}, Page={Page}, PageSize={PageSize}",
                 userContext.UserId, userContext.Role, page, pageSize);
-        }
 
         // 验证并规范化分页参数
         page = Math.Max(1, page);
@@ -81,7 +79,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 搜索用户（按名称或邮箱，可筛选角色）
+    ///     搜索用户（按名称或邮箱，可筛选角色）
     /// </summary>
     [HttpGet("search")]
     public async Task<ActionResult<ApiResponse<PaginatedResponse<UserDto>>>> SearchUsers(
@@ -94,11 +92,9 @@ public class UsersController : ControllerBase
         // 获取用户上下文
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated == true)
-        {
             _logger.LogInformation(
                 "🔍 SearchUsers 请求 - 认证用户: UserId={UserId}, Role={Role}, Query={Query}, FilterRole={FilterRole}",
                 userContext.UserId, userContext.Role, q, role);
-        }
 
         // 验证并规范化分页参数
         page = Math.Max(1, page);
@@ -133,7 +129,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 根据 ID 获取用户
+    ///     根据 ID 获取用户
     /// </summary>
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<UserDto>>> GetUser(
@@ -147,13 +143,11 @@ public class UsersController : ControllerBase
             var user = await _userService.GetUserByIdAsync(id, cancellationToken);
 
             if (user == null)
-            {
                 return NotFound(new ApiResponse<UserDto>
                 {
                     Success = false,
                     Message = "User not found"
                 });
-            }
 
             return Ok(new ApiResponse<UserDto>
             {
@@ -174,7 +168,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 批量根据 ID 获取用户
+    ///     批量根据 ID 获取用户
     /// </summary>
     [HttpPost("batch")]
     [AllowAnonymous]
@@ -185,23 +179,19 @@ public class UsersController : ControllerBase
         _logger.LogInformation("🔍 批量获取用户: Count={Count}", request.UserIds?.Count ?? 0);
 
         if (request.UserIds == null || request.UserIds.Count == 0)
-        {
             return BadRequest(new ApiResponse<List<UserDto>>
             {
                 Success = false,
                 Message = "用户ID列表不能为空"
             });
-        }
 
         // 限制批量请求数量
         if (request.UserIds.Count > 100)
-        {
             return BadRequest(new ApiResponse<List<UserDto>>
             {
                 Success = false,
                 Message = "单次最多批量获取100个用户"
             });
-        }
 
         try
         {
@@ -226,7 +216,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 获取当前用户信息（使用 UserContext）
+    ///     获取当前用户信息（使用 UserContext）
     /// </summary>
     [HttpGet("me")]
     public async Task<ActionResult<ApiResponse<UserDto>>> GetCurrentUser(CancellationToken cancellationToken = default)
@@ -234,13 +224,11 @@ public class UsersController : ControllerBase
         // 从 UserContext 获取当前用户 ID
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true)
-        {
             return Unauthorized(new ApiResponse<UserDto>
             {
                 Success = false,
                 Message = "未认证用户"
             });
-        }
 
         _logger.LogInformation("🔍 获取当前用户: {UserId}", userContext.UserId);
 
@@ -249,13 +237,11 @@ public class UsersController : ControllerBase
             var user = await _userService.GetUserByIdAsync(userContext.UserId!, cancellationToken);
 
             if (user == null)
-            {
                 return NotFound(new ApiResponse<UserDto>
                 {
                     Success = false,
                     Message = "User not found"
                 });
-            }
 
             return Ok(new ApiResponse<UserDto>
             {
@@ -276,7 +262,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 创建用户（不带密码 - 通常由管理员使用）
+    ///     创建用户（不带密码 - 通常由管理员使用）
     /// </summary>
     [HttpPost]
     public async Task<ActionResult<ApiResponse<UserDto>>> CreateUser(
@@ -316,10 +302,10 @@ public class UsersController : ControllerBase
                 };
 
                 await _daprClient.PublishEventAsync(
-                    pubsubName: "pubsub",
-                    topicName: "user-created",
-                    data: userCreatedEvent,
-                    cancellationToken: cancellationToken);
+                    "pubsub",
+                    "user-created",
+                    userCreatedEvent,
+                    cancellationToken);
 
                 _logger.LogInformation("📤 Published user-created event for user {UserId}", user.Id);
             }
@@ -360,7 +346,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 更新用户信息
+    ///     更新用户信息
     /// </summary>
     [HttpPut("{id}")]
     public async Task<ActionResult<ApiResponse<UserDto>>> UpdateUser(
@@ -425,7 +411,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 更新当前用户信息（使用 UserContext）
+    ///     更新当前用户信息（使用 UserContext）
     /// </summary>
     [HttpPut("me")]
     public async Task<ActionResult<ApiResponse<UserDto>>> UpdateCurrentUser(
@@ -435,13 +421,11 @@ public class UsersController : ControllerBase
         // 从 UserContext 获取当前用户 ID
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
         if (userContext?.IsAuthenticated != true)
-        {
             return Unauthorized(new ApiResponse<UserDto>
             {
                 Success = false,
                 Message = "未认证用户"
             });
-        }
 
         _logger.LogInformation("📝 更新当前用户: {UserId}", userContext.UserId);
 
@@ -500,7 +484,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 删除用户
+    ///     删除用户
     /// </summary>
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteUser(
@@ -514,13 +498,11 @@ public class UsersController : ControllerBase
             var result = await _userService.DeleteUserAsync(id, cancellationToken);
 
             if (!result)
-            {
                 return NotFound(new ApiResponse<object>
                 {
                     Success = false,
                     Message = "User not found"
                 });
-            }
 
             // 发布用户删除事件到 Dapr Pub/Sub
             try
@@ -532,10 +514,10 @@ public class UsersController : ControllerBase
                 };
 
                 await _daprClient.PublishEventAsync(
-                    pubsubName: "pubsub",
-                    topicName: "user-deleted",
-                    data: userDeletedEvent,
-                    cancellationToken: cancellationToken);
+                    "pubsub",
+                    "user-deleted",
+                    userDeletedEvent,
+                    cancellationToken);
 
                 _logger.LogInformation("📤 Published user-deleted event for user {UserId}", id);
             }
@@ -562,7 +544,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 更改用户角色
+    ///     更改用户角色
     /// </summary>
     [HttpPatch("{id}/role")]
     public async Task<ActionResult<ApiResponse<UserDto>>> ChangeUserRole(
@@ -573,7 +555,8 @@ public class UsersController : ControllerBase
         // Gateway 已完成 token 验证，这里只获取用户信息用于日志
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
 
-        _logger.LogInformation("🔄 更改用户角色: UserId={UserId}, RoleId={RoleId}, OperatorId={OperatorId}, OperatorRole={OperatorRole}",
+        _logger.LogInformation(
+            "🔄 更改用户角色: UserId={UserId}, RoleId={RoleId}, OperatorId={OperatorId}, OperatorRole={OperatorRole}",
             id, request.RoleId, userContext?.UserId, userContext?.Role);
 
         if (!ModelState.IsValid)
@@ -618,7 +601,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 批量更改用户角色
+    ///     批量更改用户角色
     /// </summary>
     [HttpPatch("batch/role")]
     public async Task<ActionResult<ApiResponse<BatchChangeRoleResult>>> BatchChangeUserRole(
@@ -628,7 +611,8 @@ public class UsersController : ControllerBase
         // Gateway 已完成 token 验证，这里只获取用户信息用于日志
         var userContext = UserContextMiddleware.GetUserContext(HttpContext);
 
-        _logger.LogInformation("🔄 批量更改用户角色: UserCount={Count}, RoleId={RoleId}, OperatorId={OperatorId}, OperatorRole={OperatorRole}",
+        _logger.LogInformation(
+            "🔄 批量更改用户角色: UserCount={Count}, RoleId={RoleId}, OperatorId={OperatorId}, OperatorRole={OperatorRole}",
             request.UserIds?.Count ?? 0, request.RoleId, userContext?.UserId, userContext?.Role);
 
         if (!ModelState.IsValid)
@@ -643,23 +627,19 @@ public class UsersController : ControllerBase
         }
 
         if (request.UserIds == null || request.UserIds.Count == 0)
-        {
             return BadRequest(new ApiResponse<BatchChangeRoleResult>
             {
                 Success = false,
                 Message = "用户ID列表不能为空"
             });
-        }
 
         // 限制批量操作数量
         if (request.UserIds.Count > 100)
-        {
             return BadRequest(new ApiResponse<BatchChangeRoleResult>
             {
                 Success = false,
                 Message = "单次最多批量更改100个用户角色"
             });
-        }
 
         try
         {
@@ -669,7 +649,6 @@ public class UsersController : ControllerBase
             var errors = new List<string>();
 
             foreach (var userId in request.UserIds)
-            {
                 try
                 {
                     var user = await _userService.ChangeUserRoleAsync(userId, request.RoleId, cancellationToken);
@@ -682,7 +661,6 @@ public class UsersController : ControllerBase
                     errors.Add($"用户 {userId}: {ex.Message}");
                     _logger.LogWarning(ex, "⚠️ 更改用户 {UserId} 角色失败", userId);
                 }
-            }
 
             var result = new BatchChangeRoleResult
             {
@@ -693,7 +671,6 @@ public class UsersController : ControllerBase
             };
 
             if (failedCount > 0)
-            {
                 return Ok(new ApiResponse<BatchChangeRoleResult>
                 {
                     Success = false,
@@ -701,7 +678,6 @@ public class UsersController : ControllerBase
                     Data = result,
                     Errors = errors
                 });
-            }
 
             return Ok(new ApiResponse<BatchChangeRoleResult>
             {
@@ -722,7 +698,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 健康检查端点
+    ///     健康检查端点
     /// </summary>
     [HttpGet("health")]
     public ActionResult<object> HealthCheck()
@@ -731,7 +707,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 获取用户的产品列表（通过 Dapr 调用 ProductService）
+    ///     获取用户的产品列表（通过 Dapr 调用 ProductService）
     /// </summary>
     [HttpGet("{userId}/products")]
     public async Task<ActionResult<ApiResponse<object>>> GetUserProducts(
@@ -745,20 +721,18 @@ public class UsersController : ControllerBase
             // 验证用户是否存在
             var exists = await _userService.UserExistsAsync(userId, cancellationToken);
             if (!exists)
-            {
                 return NotFound(new ApiResponse<object>
                 {
                     Success = false,
                     Message = "User not found"
                 });
-            }
 
             // 使用 Dapr 服务调用 ProductService
             var products = await _daprClient.InvokeMethodAsync<object>(
-                httpMethod: HttpMethod.Get,
-                appId: "product-service",
-                methodName: $"/api/products/user/{userId}",
-                cancellationToken: cancellationToken);
+                HttpMethod.Get,
+                "product-service",
+                $"/api/products/user/{userId}",
+                cancellationToken);
 
             return Ok(new ApiResponse<object>
             {
@@ -780,7 +754,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// 使用 Dapr State Store 缓存用户数据
+    ///     使用 Dapr State Store 缓存用户数据
     /// </summary>
     [HttpGet("{id}/cached")]
     public async Task<ActionResult<ApiResponse<UserDto>>> GetCachedUser(
@@ -793,8 +767,8 @@ public class UsersController : ControllerBase
         {
             // 尝试从 Dapr State Store 获取缓存
             var cachedUser = await _daprClient.GetStateAsync<UserDto>(
-                storeName: "statestore",
-                key: $"user:{id}",
+                "statestore",
+                $"user:{id}",
                 cancellationToken: cancellationToken);
 
             if (cachedUser != null)
@@ -813,19 +787,17 @@ public class UsersController : ControllerBase
             var user = await _userService.GetUserByIdAsync(id, cancellationToken);
 
             if (user == null)
-            {
                 return NotFound(new ApiResponse<UserDto>
                 {
                     Success = false,
                     Message = "User not found"
                 });
-            }
 
             // 保存到缓存（5分钟过期）
             await _daprClient.SaveStateAsync(
-                storeName: "statestore",
-                key: $"user:{id}",
-                value: user,
+                "statestore",
+                $"user:{id}",
+                user,
                 metadata: new Dictionary<string, string>
                 {
                     { "ttlInSeconds", "300" }
@@ -857,39 +829,35 @@ public class UsersController : ControllerBase
 #region Request DTOs
 
 /// <summary>
-/// 创建用户请求 DTO
+///     创建用户请求 DTO
 /// </summary>
 public class CreateUserRequest
 {
-    [Required(ErrorMessage = "姓名不能为空")]
-    public string Name { get; set; } = string.Empty;
+    [Required(ErrorMessage = "姓名不能为空")] public string Name { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "邮箱不能为空")]
     [EmailAddress(ErrorMessage = "邮箱格式不正确")]
     public string Email { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "手机号不能为空")]
-    public string Phone { get; set; } = string.Empty;
+    [Required(ErrorMessage = "手机号不能为空")] public string Phone { get; set; } = string.Empty;
 }
 
 /// <summary>
-/// 更新用户请求 DTO
+///     更新用户请求 DTO
 /// </summary>
 public class UpdateUserRequest
 {
-    [Required(ErrorMessage = "姓名不能为空")]
-    public string Name { get; set; } = string.Empty;
+    [Required(ErrorMessage = "姓名不能为空")] public string Name { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "邮箱不能为空")]
     [EmailAddress(ErrorMessage = "邮箱格式不正确")]
     public string Email { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "手机号不能为空")]
-    public string Phone { get; set; } = string.Empty;
+    [Required(ErrorMessage = "手机号不能为空")] public string Phone { get; set; } = string.Empty;
 }
 
 /// <summary>
-/// 批量获取用户请求 DTO
+///     批量获取用户请求 DTO
 /// </summary>
 public class BatchUserIdsRequest
 {
@@ -898,28 +866,26 @@ public class BatchUserIdsRequest
 }
 
 /// <summary>
-/// 更改用户角色请求 DTO
+///     更改用户角色请求 DTO
 /// </summary>
 public class ChangeUserRoleRequest
 {
-    [Required(ErrorMessage = "角色ID不能为空")]
-    public string RoleId { get; set; } = string.Empty;
+    [Required(ErrorMessage = "角色ID不能为空")] public string RoleId { get; set; } = string.Empty;
 }
 
 /// <summary>
-/// 批量更改用户角色请求 DTO
+///     批量更改用户角色请求 DTO
 /// </summary>
 public class BatchChangeUserRoleRequest
 {
     [Required(ErrorMessage = "用户ID列表不能为空")]
     public List<string> UserIds { get; set; } = new();
 
-    [Required(ErrorMessage = "角色ID不能为空")]
-    public string RoleId { get; set; } = string.Empty;
+    [Required(ErrorMessage = "角色ID不能为空")] public string RoleId { get; set; } = string.Empty;
 }
 
 /// <summary>
-/// 批量更改用户角色结果 DTO
+///     批量更改用户角色结果 DTO
 /// </summary>
 public class BatchChangeRoleResult
 {
@@ -934,7 +900,7 @@ public class BatchChangeRoleResult
 #region Event DTOs
 
 /// <summary>
-/// 用户创建事件 DTO
+///     用户创建事件 DTO
 /// </summary>
 public class UserCreatedEvent
 {
@@ -945,7 +911,7 @@ public class UserCreatedEvent
 }
 
 /// <summary>
-/// 用户删除事件 DTO
+///     用户删除事件 DTO
 /// </summary>
 public class UserDeletedEvent
 {

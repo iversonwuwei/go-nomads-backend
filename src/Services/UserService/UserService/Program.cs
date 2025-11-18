@@ -1,15 +1,15 @@
-using Dapr.Client;
-using Scalar.AspNetCore;
-using Prometheus;
-using Shared.Extensions;
+using System.Text;
 using GoNomads.Shared.Extensions;
 using GoNomads.Shared.Security;
-using UserService.Domain.Repositories;
-using UserService.Infrastructure.Repositories;
-using UserService.Application.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
+using Prometheus;
+using Scalar.AspNetCore;
+using Shared.Extensions;
+using UserService.Application.Services;
+using UserService.Domain.Repositories;
+using UserService.Infrastructure.Repositories;
+using UserService.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,8 +26,8 @@ builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 // Register Application Services
 builder.Services.AddScoped<IUserService, UserApplicationService>();
 builder.Services.AddScoped<IAuthService, AuthApplicationService>();
-builder.Services.AddScoped<ISkillService, UserService.Infrastructure.Services.SkillService>();
-builder.Services.AddScoped<IInterestService, UserService.Infrastructure.Services.InterestService>();
+builder.Services.AddScoped<ISkillService, SkillService>();
+builder.Services.AddScoped<IInterestService, InterestService>();
 
 // 配置 DaprClient 连接到 Dapr sidecar
 // Dapr sidecar 与应用共享网络命名空间，通过 localhost 访问
@@ -46,24 +46,24 @@ var jwtSecret = jwtSettings["Secret"] ?? throw new InvalidOperationException("JW
 var key = Encoding.UTF8.GetBytes(jwtSecret);
 
 builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(key),
-        ValidateIssuer = true,
-        ValidIssuer = jwtSettings["Issuer"],
-        ValidateAudience = true,
-        ValidAudience = jwtSettings["Audience"],
-        ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero
-    };
-});
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(key),
+            ValidateIssuer = true,
+            ValidIssuer = jwtSettings["Issuer"],
+            ValidateAudience = true,
+            ValidAudience = jwtSettings["Audience"],
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+    });
 
 builder.Services.AddAuthorization();
 
@@ -100,7 +100,8 @@ app.UseUserContext();
 app.MapControllers();
 
 // Add health check endpoint
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "UserService", timestamp = DateTime.UtcNow }));
+app.MapGet("/health",
+    () => Results.Ok(new { status = "healthy", service = "UserService", timestamp = DateTime.UtcNow }));
 
 // Map Prometheus metrics endpoint
 app.MapMetrics();
@@ -109,4 +110,3 @@ app.MapMetrics();
 await app.RegisterWithConsulAsync();
 
 app.Run();
-

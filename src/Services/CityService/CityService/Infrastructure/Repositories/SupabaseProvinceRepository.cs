@@ -1,20 +1,17 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Microsoft.Extensions.Logging;
-using Supabase;
+using Postgrest;
+using Client = Supabase.Client;
 
 namespace CityService.Infrastructure.Repositories;
 
 /// <summary>
-/// 基于 Supabase 的省份仓储实现
+///     基于 Supabase 的省份仓储实现
 /// </summary>
 public class SupabaseProvinceRepository : IProvinceRepository
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<SupabaseProvinceRepository> _logger;
+    private readonly Client _supabaseClient;
 
     public SupabaseProvinceRepository(Client supabaseClient, ILogger<SupabaseProvinceRepository> logger)
     {
@@ -28,8 +25,8 @@ public class SupabaseProvinceRepository : IProvinceRepository
         {
             var response = await _supabaseClient
                 .From<Province>()
-                .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
-                .Order("name", Postgrest.Constants.Ordering.Ascending)
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Order("name", Constants.Ordering.Ascending)
                 .Get();
 
             return response.Models;
@@ -47,9 +44,9 @@ public class SupabaseProvinceRepository : IProvinceRepository
         {
             var response = await _supabaseClient
                 .From<Province>()
-                .Filter("country_id", Postgrest.Constants.Operator.Equals, countryId.ToString())
-                .Filter("is_active", Postgrest.Constants.Operator.Equals, "true")
-                .Order("name", Postgrest.Constants.Ordering.Ascending)
+                .Filter("country_id", Constants.Operator.Equals, countryId.ToString())
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Order("name", Constants.Ordering.Ascending)
                 .Get();
 
             return response.Models;

@@ -1,8 +1,7 @@
+using System.Text.Json;
 using CityService.Application.Services;
 using GoNomads.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
-using System.Collections.Generic;
-using System.Text.Json;
 
 namespace CityService.API.Controllers;
 
@@ -10,8 +9,8 @@ namespace CityService.API.Controllers;
 [Route("api/v1/admin/geography")]
 public class GeographyAdminController : ControllerBase
 {
-    private readonly GeographyDataSeeder _seeder;
     private readonly ILogger<GeographyAdminController> _logger;
+    private readonly GeographyDataSeeder _seeder;
 
     public GeographyAdminController(
         GeographyDataSeeder seeder,
@@ -22,24 +21,23 @@ public class GeographyAdminController : ControllerBase
     }
 
     /// <summary>
-    /// 导入中国省市数据
+    ///     导入中国省市数据
     /// </summary>
     [HttpPost("seed/china-provinces")]
-    public async Task<ActionResult<ApiResponse<SeedResult>>> SeedChinaProvinces([FromBody] List<ProvinceData> provinceDataList)
+    public async Task<ActionResult<ApiResponse<SeedResult>>> SeedChinaProvinces(
+        [FromBody] List<ProvinceData> provinceDataList)
     {
         try
         {
             var result = await _seeder.SeedChinaProvincesAndCitiesAsync(provinceDataList);
 
             if (result.Success)
-            {
                 return Ok(new ApiResponse<SeedResult>
                 {
                     Success = true,
                     Message = "Data seeded successfully",
                     Data = result
                 });
-            }
 
             return BadRequest(new ApiResponse<SeedResult>
             {
@@ -64,7 +62,7 @@ public class GeographyAdminController : ControllerBase
     }
 
     /// <summary>
-    /// 批量导入国家数据
+    ///     批量导入国家数据
     /// </summary>
     [HttpPost("seed/countries")]
     public async Task<ActionResult<ApiResponse<int>>> SeedCountries([FromBody] List<CountryData> countryDataList)
@@ -93,7 +91,7 @@ public class GeographyAdminController : ControllerBase
     }
 
     /// <summary>
-    /// 使用预定义的中国省市数据进行初始化
+    ///     使用预定义的中国省市数据进行初始化
     /// </summary>
     [HttpPost("seed/china-default")]
     public async Task<ActionResult<ApiResponse<SeedResult>>> SeedChinaDefault()
@@ -104,14 +102,12 @@ public class GeographyAdminController : ControllerBase
             var result = await _seeder.SeedChinaProvincesAndCitiesAsync(chinaData);
 
             if (result.Success)
-            {
                 return Ok(new ApiResponse<SeedResult>
                 {
                     Success = true,
                     Message = "China provinces and cities seeded successfully",
                     Data = result
                 });
-            }
 
             return BadRequest(new ApiResponse<SeedResult>
             {
@@ -137,7 +133,7 @@ public class GeographyAdminController : ControllerBase
 
     private List<ProvinceData> GetChinaProvincesCitiesData()
     {
-                var jsonData = @"[
+        var jsonData = @"[
     { ""province"": ""北京市"", ""cities"": [""北京市""] },
     { ""province"": ""天津市"", ""cities"": [""天津市""] },
     { ""province"": ""河北省"", ""cities"": [""石家庄市"", ""唐山市"", ""秦皇岛市"", ""邯郸市"", ""邢台市"", ""保定市"", ""张家口市"", ""承德市"", ""沧州市"", ""廊坊市"", ""衡水市""] },

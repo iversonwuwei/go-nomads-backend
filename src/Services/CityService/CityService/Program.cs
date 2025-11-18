@@ -1,18 +1,19 @@
+using System.Text;
 using CityService.Application.Abstractions.Services;
 using CityService.Application.Services;
 using CityService.Domain.Repositories;
-using CityService.Infrastructure.Repositories;
 using CityService.Infrastructure.Integrations.Geocoding;
 using CityService.Infrastructure.Integrations.Weather;
+using CityService.Infrastructure.Repositories;
 using CityService.Services;
+using GoNomads.Shared.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
+using Microsoft.OpenApi.Models;
+using Scalar.AspNetCore;
 using Serilog;
 using Shared.Extensions;
-using GoNomads.Shared.Extensions;
-using Dapr.Client;
-using Scalar.AspNetCore;
+using IUserCityContentService = CityService.Application.Services.IUserCityContentService;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,7 +38,7 @@ builder.Services.AddOpenApi(options =>
     options.AddDocumentTransformer((document, context, cancellationToken) =>
     {
         // 配置正确的服务器 URL
-        document.Servers = new List<Microsoft.OpenApi.Models.OpenApiServer>
+        document.Servers = new List<OpenApiServer>
         {
             new() { Url = "http://localhost:8002", Description = "Local Development" }
         };
@@ -59,23 +60,23 @@ var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JWT SecretKey not configured");
 
 builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtSettings["Issuer"],
-        ValidAudience = jwtSettings["Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
-    };
-});
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtSettings["Issuer"],
+            ValidAudience = jwtSettings["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
+        };
+    });
 
 builder.Services.AddAuthorization();
 
@@ -85,8 +86,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowAll", builder =>
     {
         builder.AllowAnyOrigin()
-               .AllowAnyMethod()
-               .AllowAnyHeader();
+            .AllowAnyMethod()
+            .AllowAnyHeader();
     });
 });
 
@@ -105,7 +106,7 @@ builder.Services.AddScoped<ICityModeratorRepository, CityModeratorRepository>();
 
 // Application Services
 builder.Services.AddScoped<ICityService, CityApplicationService>();
-builder.Services.AddScoped<CityService.Application.Services.IUserCityContentService, UserCityContentApplicationService>();
+builder.Services.AddScoped<IUserCityContentService, UserCityContentApplicationService>();
 builder.Services.AddScoped<IUserFavoriteCityService, UserFavoriteCityService>();
 builder.Services.AddScoped<IGeoNamesImportService, GeoNamesImportService>();
 builder.Services.AddScoped<IDigitalNomadGuideService, DigitalNomadGuideService>();
@@ -144,7 +145,8 @@ app.UseAuthorization();
 app.MapControllers();
 
 // Health check endpoint
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "CityService", timestamp = DateTime.UtcNow }));
+app.MapGet("/health",
+    () => Results.Ok(new { status = "healthy", service = "CityService", timestamp = DateTime.UtcNow }));
 
 Log.Information("City Service starting on port 8002...");
 

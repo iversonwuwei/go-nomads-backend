@@ -5,17 +5,14 @@ using Postgrest.Models;
 namespace CityService.Domain.Entities;
 
 /// <summary>
-/// 用户上传的城市费用实体
+///     用户上传的城市费用实体
 /// </summary>
 [Table("user_city_expenses")]
 public class UserCityExpense : BaseModel
 {
-    [PrimaryKey("id", false)]
-    public Guid Id { get; set; }
+    [PrimaryKey("id")] public Guid Id { get; set; }
 
-    [Required]
-    [Column("user_id")]
-    public Guid UserId { get; set; }
+    [Required] [Column("user_id")] public Guid UserId { get; set; }
 
     [Required]
     [MaxLength(50)]
@@ -27,9 +24,7 @@ public class UserCityExpense : BaseModel
     [Column("category")]
     public string Category { get; set; } = string.Empty;
 
-    [Required]
-    [Column("amount")]
-    public decimal Amount { get; set; }
+    [Required] [Column("amount")] public decimal Amount { get; set; }
 
     [Required]
     [MaxLength(10)]
@@ -40,12 +35,9 @@ public class UserCityExpense : BaseModel
     [Column("description")]
     public string? Description { get; set; }
 
-    [Column("date")]
-    public DateTime Date { get; set; }
+    [Column("date")] public DateTime Date { get; set; }
 
-    [Column("created_at")]
-    public DateTime CreatedAt { get; set; }
+    [Column("created_at")] public DateTime CreatedAt { get; set; }
 
-    [Column("updated_at")]
-    public DateTime? UpdatedAt { get; set; }
+    [Column("updated_at")] public DateTime? UpdatedAt { get; set; }
 }

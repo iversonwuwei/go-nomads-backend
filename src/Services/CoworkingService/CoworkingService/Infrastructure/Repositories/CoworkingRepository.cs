@@ -1,17 +1,18 @@
 using CoworkingService.Domain.Entities;
 using CoworkingService.Domain.Repositories;
-using Supabase;
+using Postgrest;
+using Client = Supabase.Client;
 
 namespace CoworkingService.Infrastructure.Repositories;
 
 /// <summary>
-/// CoworkingSpace 仓储实现 - Supabase
-/// 实现领域层定义的仓储接口
+///     CoworkingSpace 仓储实现 - Supabase
+///     实现领域层定义的仓储接口
 /// </summary>
 public class CoworkingRepository : ICoworkingRepository
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<CoworkingRepository> _logger;
+    private readonly Client _supabaseClient;
 
     public CoworkingRepository(Client supabaseClient, ILogger<CoworkingRepository> logger)
     {
@@ -23,7 +24,7 @@ public class CoworkingRepository : ICoworkingRepository
     {
         try
         {
-            _logger.LogInformation("📝 准备创建 Coworking: Name={Name}, Address={Address}", 
+            _logger.LogInformation("📝 准备创建 Coworking: Name={Name}, Address={Address}",
                 coworkingSpace.Name, coworkingSpace.Address);
 
             // 使用 Upsert 替代 Insert 以获取完整返回
@@ -40,29 +41,26 @@ public class CoworkingRepository : ICoworkingRepository
                 throw new InvalidOperationException("创建共享办公空间失败：无返回数据");
             }
 
-            _logger.LogInformation("🔍 返回的数据: Id={Id}, Name={Name}, Address={Address}", 
+            _logger.LogInformation("🔍 返回的数据: Id={Id}, Name={Name}, Address={Address}",
                 created.Id, created.Name ?? "null", created.Address ?? "null");
 
             // 如果返回的数据不完整，尝试重新查询
             if (created.Id == Guid.Empty || string.IsNullOrEmpty(created.Name))
             {
                 _logger.LogWarning("⚠️  返回数据不完整，尝试按时间戳查询最新记录");
-                
+
                 // 按创建时间倒序查询，获取最新的一条
                 var queryResponse = await _supabaseClient
                     .From<CoworkingSpace>()
-                    .Order("created_at", Postgrest.Constants.Ordering.Descending)
+                    .Order("created_at", Constants.Ordering.Descending)
                     .Limit(1)
                     .Get();
 
                 _logger.LogInformation("📊 查询响应: ModelCount={Count}", queryResponse.Models?.Count ?? 0);
 
                 created = queryResponse.Models?.FirstOrDefault();
-                if (created == null)
-                {
-                    throw new InvalidOperationException("创建后无法查询到记录");
-                }
-                
+                if (created == null) throw new InvalidOperationException("创建后无法查询到记录");
+
                 _logger.LogInformation("🔍 查询到的数据: Id={Id}, Name={Name}", created.Id, created.Name);
             }
 
@@ -103,10 +101,7 @@ public class CoworkingRepository : ICoworkingRepository
                 .Update(coworkingSpace);
 
             var updated = response.Models.FirstOrDefault();
-            if (updated == null)
-            {
-                throw new InvalidOperationException("更新共享办公空间失败");
-            }
+            if (updated == null) throw new InvalidOperationException("更新共享办公空间失败");
 
             _logger.LogInformation("✅ Supabase 更新成功: {Id}", updated.Id);
             return updated;
@@ -124,7 +119,7 @@ public class CoworkingRepository : ICoworkingRepository
         {
             await _supabaseClient
                 .From<CoworkingSpace>()
-                .Filter("id", Postgrest.Constants.Operator.Equals, id.ToString())
+                .Filter("id", Constants.Operator.Equals, id.ToString())
                 .Delete();
 
             _logger.LogInformation("✅ Supabase 删除成功: {Id}", id);
@@ -146,16 +141,16 @@ public class CoworkingRepository : ICoworkingRepository
         {
             // 应用分页
             var offset = (page - 1) * pageSize;
-            
+
             List<CoworkingSpace> items;
-            
+
             // 根据不同的过滤条件构建查询
             if (isActive.HasValue && cityId.HasValue)
             {
                 var response = await _supabaseClient
                     .From<CoworkingSpace>()
                     .Where(x => x.IsActive == isActive.Value && x.CityId == cityId.Value)
-                    .Order(x => x.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                    .Order(x => x.CreatedAt, Constants.Ordering.Descending)
                     .Range(offset, offset + pageSize - 1)
                     .Get();
                 items = response.Models.ToList();
@@ -165,7 +160,7 @@ public class CoworkingRepository : ICoworkingRepository
                 var response = await _supabaseClient
                     .From<CoworkingSpace>()
                     .Where(x => x.IsActive == isActive.Value)
-                    .Order(x => x.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                    .Order(x => x.CreatedAt, Constants.Ordering.Descending)
                     .Range(offset, offset + pageSize - 1)
                     .Get();
                 items = response.Models.ToList();
@@ -175,7 +170,7 @@ public class CoworkingRepository : ICoworkingRepository
                 var response = await _supabaseClient
                     .From<CoworkingSpace>()
                     .Where(x => x.CityId == cityId.Value)
-                    .Order(x => x.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                    .Order(x => x.CreatedAt, Constants.Ordering.Descending)
                     .Range(offset, offset + pageSize - 1)
                     .Get();
                 items = response.Models.ToList();
@@ -184,7 +179,7 @@ public class CoworkingRepository : ICoworkingRepository
             {
                 var response = await _supabaseClient
                     .From<CoworkingSpace>()
-                    .Order(x => x.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                    .Order(x => x.CreatedAt, Constants.Ordering.Descending)
                     .Range(offset, offset + pageSize - 1)
                     .Get();
                 items = response.Models.ToList();
@@ -209,7 +204,7 @@ public class CoworkingRepository : ICoworkingRepository
             var response = await _supabaseClient
                 .From<CoworkingSpace>()
                 .Where(x => x.CityId == cityId && x.IsActive)
-                .Order(x => x.Rating, Postgrest.Constants.Ordering.Descending)
+                .Order(x => x.Rating, Constants.Ordering.Descending)
                 .Get();
 
             return response.Models;
@@ -235,11 +230,9 @@ public class CoworkingRepository : ICoworkingRepository
 
             // 客户端过滤（Supabase 文本搜索限制）
             if (!string.IsNullOrWhiteSpace(searchTerm))
-            {
                 spaces = spaces.Where(s =>
                     (s.Name != null && s.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) ||
                     (s.Address != null && s.Address.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));
-            }
 
             // 应用分页
             spaces = spaces
@@ -271,7 +264,6 @@ public class CoworkingRepository : ICoworkingRepository
             var spaces = response.Models.AsEnumerable();
 
             if (minPrice.HasValue && maxPrice.HasValue)
-            {
                 spaces = priceType switch
                 {
                     "day" => spaces.Where(x => x.PricePerDay >= minPrice && x.PricePerDay <= maxPrice),
@@ -279,7 +271,6 @@ public class CoworkingRepository : ICoworkingRepository
                     "month" => spaces.Where(x => x.PricePerMonth >= minPrice && x.PricePerMonth <= maxPrice),
                     _ => spaces
                 };
-            }
 
             return spaces.ToList();
         }
@@ -297,7 +288,7 @@ public class CoworkingRepository : ICoworkingRepository
             var response = await _supabaseClient
                 .From<CoworkingSpace>()
                 .Where(x => x.IsActive)
-                .Order(x => x.Rating, Postgrest.Constants.Ordering.Descending)
+                .Order(x => x.Rating, Constants.Ordering.Descending)
                 .Limit(limit)
                 .Get();
 
@@ -330,12 +321,8 @@ public class CoworkingRepository : ICoworkingRepository
 
             // 确保所有城市都在结果中(没有 Coworking 的城市返回 0)
             foreach (var cityId in cityIds)
-            {
                 if (!result.ContainsKey(cityId))
-                {
                     result[cityId] = 0;
-                }
-            }
 
             _logger.LogInformation("成功统计 {Count} 个城市的 Coworking 数量", result.Count);
             return result;

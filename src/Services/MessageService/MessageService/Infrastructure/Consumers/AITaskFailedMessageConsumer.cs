@@ -1,17 +1,19 @@
 using MassTransit;
+using MessageService.Application.DTOs;
 using MessageService.Application.Services;
 using Microsoft.Extensions.Logging;
 using Shared.Messages;
+using AIProgressMessage = MessageService.Application.DTOs.AIProgressMessage;
 
 namespace MessageService.Infrastructure.Consumers;
 
 /// <summary>
-/// AI 任务失败消息消费者
+///     AI 任务失败消息消费者
 /// </summary>
 public class AITaskFailedMessageConsumer : IConsumer<AITaskFailedMessage>
 {
-    private readonly ISignalRNotifier _notifier;
     private readonly ILogger<AITaskFailedMessageConsumer> _logger;
+    private readonly ISignalRNotifier _notifier;
 
     public AITaskFailedMessageConsumer(
         ISignalRNotifier notifier,
@@ -46,7 +48,7 @@ public class AITaskFailedMessageConsumer : IConsumer<AITaskFailedMessage>
             await _notifier.SendTaskFailedAsync(message.TaskId, message.UserId, message.ErrorMessage);
 
             // 发送进度消息（失败状态）
-            var progressMessage = new Application.DTOs.AIProgressMessage
+            var progressMessage = new AIProgressMessage
             {
                 TaskId = message.TaskId,
                 UserId = message.UserId,
@@ -60,7 +62,7 @@ public class AITaskFailedMessageConsumer : IConsumer<AITaskFailedMessage>
             await _notifier.SendAIProgressAsync(message.UserId, progressMessage);
 
             // 发送任务失败通知
-            var notification = new Application.DTOs.NotificationMessage
+            var notification = new NotificationMessage
             {
                 UserId = message.UserId,
                 Type = "error",

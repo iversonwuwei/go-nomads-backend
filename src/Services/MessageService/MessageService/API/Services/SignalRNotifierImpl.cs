@@ -6,13 +6,13 @@ using Microsoft.AspNetCore.SignalR;
 namespace MessageService.API.Services;
 
 /// <summary>
-/// SignalR 推送服务实现
+///     SignalR 推送服务实现
 /// </summary>
 public class SignalRNotifierImpl : ISignalRNotifier
 {
     private readonly IHubContext<AIProgressHub> _aiProgressHub;
-    private readonly IHubContext<NotificationHub> _notificationHub;
     private readonly ILogger<SignalRNotifierImpl> _logger;
+    private readonly IHubContext<NotificationHub> _notificationHub;
 
     public SignalRNotifierImpl(
         IHubContext<AIProgressHub> aiProgressHub,

@@ -1,15 +1,14 @@
+using System.Text;
 using Consul;
-using Dapr.Client;
-using Gateway.Services;
 using Gateway.Middleware;
-using Yarp.ReverseProxy.Configuration;
-using Scalar.AspNetCore;
-using Prometheus;
-using Shared.Extensions;
+using Gateway.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using System.Threading.RateLimiting;
+using Prometheus;
+using Scalar.AspNetCore;
+using Shared.Extensions;
+using Yarp.ReverseProxy.Configuration;
+using RouteConfig = Yarp.ReverseProxy.Configuration.RouteConfig;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,7 +25,7 @@ builder.Services.AddDaprClient(daprClientBuilder =>
 {
     // 使用 gRPC 端点（默认端口 50001）
     // 在 container sidecar 模式下，Gateway 和 Dapr 共享网络命名空间，使用 localhost
-    var daprGrpcPort = builder.Configuration.GetValue<int>("Dapr:GrpcPort", 50001);
+    var daprGrpcPort = builder.Configuration.GetValue("Dapr:GrpcPort", 50001);
     var daprGrpcEndpoint = $"http://localhost:{daprGrpcPort}";
 
     daprClientBuilder.UseGrpcEndpoint(daprGrpcEndpoint);
@@ -42,57 +41,56 @@ var jwtIssuer = builder.Configuration["Jwt:Issuer"];
 var jwtAudience = builder.Configuration["Jwt:Audience"];
 
 if (string.IsNullOrEmpty(jwtSecret))
-{
     throw new InvalidOperationException("JWT Secret is not configured. Please set Jwt:Secret in appsettings.json");
-}
 
 builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.RequireHttpsMetadata = false;
-    options.SaveToken = true;
-    
-    // Supabase 使用 HS256 算法签名,需要用 JWT Secret 验证
-    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
     {
-        KeyId = "TD8wsInnx6ikLidH" // 设置 KeyId 以匹配 token header 中的 kid
-    };
-    
-    options.TokenValidationParameters = new TokenValidationParameters
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
     {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = key,
-        ValidateIssuer = builder.Configuration.GetValue<bool>("Jwt:ValidateIssuer", true),
-        ValidIssuer = jwtIssuer,
-        ValidateAudience = builder.Configuration.GetValue<bool>("Jwt:ValidateAudience", true),
-        ValidAudience = jwtAudience,
-        ValidateLifetime = builder.Configuration.GetValue<bool>("Jwt:ValidateLifetime", true),
-        ClockSkew = TimeSpan.FromMinutes(5)
-    };
+        options.RequireHttpsMetadata = false;
+        options.SaveToken = true;
 
-    options.Events = new JwtBearerEvents
-    {
-        OnAuthenticationFailed = context =>
+        // Supabase 使用 HS256 算法签名,需要用 JWT Secret 验证
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
         {
-            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-            logger.LogWarning("❌ JWT Authentication failed: {Error}", context.Exception.Message);
-            return Task.CompletedTask;
-        },
-        OnTokenValidated = context =>
+            KeyId = "TD8wsInnx6ikLidH" // 设置 KeyId 以匹配 token header 中的 kid
+        };
+
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-            var userId = context.Principal?.FindFirst("sub")?.Value;
-            var email = context.Principal?.FindFirst("email")?.Value;
-            var role = context.Principal?.FindFirst("role")?.Value;
-            logger.LogInformation("✅ JWT Token validated - UserId: {UserId}, Email: {Email}, Role: {Role}", userId, email, role);
-            return Task.CompletedTask;
-        }
-    };
-});
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = key,
+            ValidateIssuer = builder.Configuration.GetValue("Jwt:ValidateIssuer", true),
+            ValidIssuer = jwtIssuer,
+            ValidateAudience = builder.Configuration.GetValue("Jwt:ValidateAudience", true),
+            ValidAudience = jwtAudience,
+            ValidateLifetime = builder.Configuration.GetValue("Jwt:ValidateLifetime", true),
+            ClockSkew = TimeSpan.FromMinutes(5)
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                logger.LogWarning("❌ JWT Authentication failed: {Error}", context.Exception.Message);
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                var userId = context.Principal?.FindFirst("sub")?.Value;
+                var email = context.Principal?.FindFirst("email")?.Value;
+                var role = context.Principal?.FindFirst("role")?.Value;
+                logger.LogInformation("✅ JWT Token validated - UserId: {UserId}, Email: {Email}, Role: {Role}", userId,
+                    email, role);
+                return Task.CompletedTask;
+            }
+        };
+    });
 
 builder.Services.AddAuthorization();
 
@@ -103,7 +101,7 @@ builder.Services.AddRateLimiter(RateLimitConfig.ConfigureRateLimiter);
 builder.Services.AddSingleton<IProxyConfigProvider, ConsulProxyConfigProvider>();
 builder.Services.AddSingleton<JwtAuthenticationTransform>();
 builder.Services.AddReverseProxy()
-    .LoadFromMemory(Array.Empty<Yarp.ReverseProxy.Configuration.RouteConfig>(), Array.Empty<Yarp.ReverseProxy.Configuration.ClusterConfig>())
+    .LoadFromMemory(Array.Empty<RouteConfig>(), Array.Empty<ClusterConfig>())
     .AddTransforms<JwtAuthenticationTransform>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi

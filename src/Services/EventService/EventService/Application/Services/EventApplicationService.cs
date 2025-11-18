@@ -6,16 +6,16 @@ using EventService.Infrastructure.GrpcClients;
 namespace EventService.Application.Services;
 
 /// <summary>
-/// Event 应用服务实现
+///     Event 应用服务实现
 /// </summary>
 public class EventApplicationService : IEventService
 {
-    private readonly IEventRepository _eventRepository;
-    private readonly IEventParticipantRepository _participantRepository;
-    private readonly IEventFollowerRepository _followerRepository;
     private readonly ICityGrpcClient _cityGrpcClient;
-    private readonly IUserGrpcClient _userGrpcClient;
+    private readonly IEventRepository _eventRepository;
+    private readonly IEventFollowerRepository _followerRepository;
     private readonly ILogger<EventApplicationService> _logger;
+    private readonly IEventParticipantRepository _participantRepository;
+    private readonly IUserGrpcClient _userGrpcClient;
 
     public EventApplicationService(
         IEventRepository eventRepository,
@@ -39,23 +39,23 @@ public class EventApplicationService : IEventService
 
         // 使用领域工厂方法创建实体
         var @event = Event.Create(
-            title: request.Title,
-            organizerId: organizerId,
-            startTime: request.StartTime,
-            description: request.Description,
-            cityId: request.CityId,
-            location: request.Location,
-            address: request.Address,
-            imageUrl: request.ImageUrl,
-            images: request.Images?.ToArray(),
-            category: request.Category,
-            endTime: request.EndTime,
-            maxParticipants: request.MaxParticipants,
-            locationType: request.LocationType,
-            meetingLink: request.MeetingLink,
-            latitude: request.Latitude,
-            longitude: request.Longitude,
-            tags: request.Tags?.ToArray());
+            request.Title,
+            organizerId,
+            request.StartTime,
+            request.Description,
+            request.CityId,
+            request.Location,
+            request.Address,
+            request.ImageUrl,
+            request.Images?.ToArray(),
+            request.Category,
+            request.EndTime,
+            request.MaxParticipants,
+            request.LocationType,
+            request.MeetingLink,
+            request.Latitude,
+            request.Longitude,
+            request.Tags?.ToArray());
 
         // 持久化
         var createdEvent = await _eventRepository.CreateAsync(@event);
@@ -66,10 +66,7 @@ public class EventApplicationService : IEventService
     public async Task<EventResponse> GetEventAsync(Guid id, Guid? userId = null)
     {
         var @event = await _eventRepository.GetByIdAsync(id);
-        if (@event == null)
-        {
-            throw new KeyNotFoundException($"Event {id} 不存在");
-        }
+        if (@event == null) throw new KeyNotFoundException($"Event {id} 不存在");
 
         var response = MapToResponse(@event);
 
@@ -79,12 +76,14 @@ public class EventApplicationService : IEventService
             // 暂时不使用 follower 功能,只检查参与状态
             response.IsFollowing = false;
             response.IsParticipant = await _participantRepository.IsParticipantAsync(id, userId.Value);
-            
+
             // 判断当前用户是否是活动组织者
             response.IsOrganizer = response.OrganizerId == userId.Value;
-            
-            _logger.LogInformation("👥 用户 {UserId} 是否参与了活动 {EventId}: {IsParticipant}", userId.Value, id, response.IsParticipant);
-            _logger.LogInformation("👥 用户 {UserId} 是否是活动 {EventId} 的组织者: {IsOrganizer}", userId.Value, id, response.IsOrganizer);
+
+            _logger.LogInformation("👥 用户 {UserId} 是否参与了活动 {EventId}: {IsParticipant}", userId.Value, id,
+                response.IsParticipant);
+            _logger.LogInformation("👥 用户 {UserId} 是否是活动 {EventId} 的组织者: {IsOrganizer}", userId.Value, id,
+                response.IsOrganizer);
         }
 
         // 暂时将关注者数量设为 0
@@ -92,25 +91,21 @@ public class EventApplicationService : IEventService
 
         // 获取参与者列表
         var participants = await GetParticipantsAsync(id);
-        
+
         // 🔧 为参与者填充用户信息（通过 gRPC 调用 UserService）
         if (participants.Any())
         {
             var userIds = participants.Select(p => p.UserId).Distinct().ToList();
             _logger.LogInformation("📞 通过 gRPC 获取 {Count} 个参与者的完整用户信息", userIds.Count);
-            
+
             try
             {
                 var users = await _userGrpcClient.GetUsersInfoByIdsAsync(userIds);
-                
+
                 foreach (var participant in participants)
-                {
                     if (users.TryGetValue(participant.UserId, out var userInfo))
-                    {
                         participant.User = userInfo;
-                    }
-                }
-                
+
                 _logger.LogInformation("✅ 成功为 {Count} 个参与者填充用户信息", participants.Count(p => p.User != null));
             }
             catch (Exception ex)
@@ -119,7 +114,7 @@ public class EventApplicationService : IEventService
                 // 不抛出异常，返回不完整的数据
             }
         }
-        
+
         response.Participants = participants.ToList();
 
         // 🔧 修正参与者数量:使用实际参与者列表的长度,确保数据准确
@@ -134,31 +129,28 @@ public class EventApplicationService : IEventService
     public async Task<EventResponse> UpdateEventAsync(Guid id, UpdateEventRequest request, Guid userId)
     {
         var @event = await _eventRepository.GetByIdAsync(id);
-        if (@event == null)
-        {
-            throw new KeyNotFoundException($"Event {id} 不存在");
-        }
+        if (@event == null) throw new KeyNotFoundException($"Event {id} 不存在");
 
         // 使用领域方法更新（包含权限验证）
         @event.Update(
-            userId: userId,
-            title: request.Title,
-            description: request.Description,
-            cityId: request.CityId,
-            location: request.Location,
-            address: request.Address,
-            imageUrl: request.ImageUrl,
-            images: request.Images?.ToArray(),
-            category: request.Category,
-            startTime: request.StartTime,
-            endTime: request.EndTime,
-            maxParticipants: request.MaxParticipants,
-            status: request.Status,
-            locationType: request.LocationType,
-            meetingLink: request.MeetingLink,
-            latitude: request.Latitude,
-            longitude: request.Longitude,
-            tags: request.Tags?.ToArray());
+            userId,
+            request.Title,
+            request.Description,
+            request.CityId,
+            request.Location,
+            request.Address,
+            request.ImageUrl,
+            request.Images?.ToArray(),
+            request.Category,
+            request.StartTime,
+            request.EndTime,
+            request.MaxParticipants,
+            request.Status,
+            request.LocationType,
+            request.MeetingLink,
+            request.Latitude,
+            request.Longitude,
+            request.Tags?.ToArray());
 
         var updatedEvent = await _eventRepository.UpdateAsync(@event);
 
@@ -166,21 +158,15 @@ public class EventApplicationService : IEventService
     }
 
     /// <summary>
-    /// 取消活动
+    ///     取消活动
     /// </summary>
     public async Task<EventResponse> CancelEventAsync(Guid id, Guid userId)
     {
         var @event = await _eventRepository.GetByIdAsync(id);
-        if (@event == null)
-        {
-            throw new KeyNotFoundException($"Event {id} 不存在");
-        }
+        if (@event == null) throw new KeyNotFoundException($"Event {id} 不存在");
 
         // 验证权限：只有组织者可以取消
-        if (@event.OrganizerId != userId)
-        {
-            throw new UnauthorizedAccessException("只有组织者可以取消活动");
-        }
+        if (@event.OrganizerId != userId) throw new UnauthorizedAccessException("只有组织者可以取消活动");
 
         // 使用领域方法取消
         @event.Cancel(userId);
@@ -216,16 +202,137 @@ public class EventApplicationService : IEventService
         }
 
         // 如果有用户ID,批量检查参与状态
-        if (userId.HasValue)
-        {
-            await EnrichEventParticipationStatusAsync(responses, userId.Value);
-        }
+        if (userId.HasValue) await EnrichEventParticipationStatusAsync(responses, userId.Value);
 
         return (responses, total);
     }
 
+    public async Task<ParticipantResponse> JoinEventAsync(Guid eventId, Guid userId, JoinEventRequest request)
+    {
+        _logger.LogInformation("👥 用户 {UserId} 申请参加 Event {EventId}", userId, eventId);
+
+        // 检查 Event 是否存在
+        var @event = await _eventRepository.GetByIdAsync(eventId);
+        if (@event == null) throw new KeyNotFoundException($"Event {eventId} 不存在");
+
+        // 检查是否已参加
+        if (await _participantRepository.IsParticipantAsync(eventId, userId))
+            throw new InvalidOperationException("您已经参加了这个 Event");
+
+        // 检查是否可以参加（领域逻辑）
+        if (!@event.CanJoin()) throw new InvalidOperationException("Event 已满员或状态不允许参加");
+
+        // 创建参与记录
+        var participant = EventParticipant.Create(eventId, userId);
+        var createdParticipant = await _participantRepository.CreateAsync(participant);
+
+        // 更新参与人数（领域逻辑）
+        @event.AddParticipant();
+        await _eventRepository.UpdateAsync(@event);
+
+        return MapToParticipantResponse(createdParticipant);
+    }
+
+    public async Task LeaveEventAsync(Guid eventId, Guid userId)
+    {
+        _logger.LogInformation("👋 用户 {UserId} 取消参加 Event {EventId}", userId, eventId);
+
+        // 查找参与记录
+        var participant = await _participantRepository.GetAsync(eventId, userId);
+        if (participant == null) throw new KeyNotFoundException("您未参加此 Event");
+
+        // 删除参与记录
+        await _participantRepository.DeleteAsync(participant.Id);
+
+        // 更新参与人数
+        var @event = await _eventRepository.GetByIdAsync(eventId);
+        if (@event != null)
+        {
+            @event.RemoveParticipant();
+            await _eventRepository.UpdateAsync(@event);
+        }
+    }
+
+    public async Task<FollowerResponse> FollowEventAsync(Guid eventId, Guid userId, FollowEventRequest request)
+    {
+        _logger.LogInformation("⭐ 用户 {UserId} 关注 Event {EventId}", userId, eventId);
+
+        // 检查 Event 是否存在
+        if (!await _eventRepository.ExistsAsync(eventId)) throw new KeyNotFoundException($"Event {eventId} 不存在");
+
+        // 检查是否已关注
+        if (await _followerRepository.IsFollowingAsync(eventId, userId))
+            throw new InvalidOperationException("您已经关注了这个 Event");
+
+        // 创建关注记录
+        var follower = EventFollower.Create(eventId, userId, request.NotificationEnabled);
+        var createdFollower = await _followerRepository.CreateAsync(follower);
+
+        return MapToFollowerResponse(createdFollower);
+    }
+
+    public async Task UnfollowEventAsync(Guid eventId, Guid userId)
+    {
+        _logger.LogInformation("💔 用户 {UserId} 取消关注 Event {EventId}", userId, eventId);
+
+        // 查找关注记录
+        var follower = await _followerRepository.GetAsync(eventId, userId);
+        if (follower == null) throw new KeyNotFoundException("您未关注此 Event");
+
+        // 删除关注记录
+        await _followerRepository.DeleteAsync(follower.Id);
+    }
+
+    public async Task<List<ParticipantResponse>> GetParticipantsAsync(Guid eventId)
+    {
+        var participants = await _participantRepository.GetByEventIdAsync(eventId);
+        return participants.Select(MapToParticipantResponse).ToList();
+    }
+
+    public async Task<List<FollowerResponse>> GetFollowersAsync(Guid eventId)
+    {
+        var followers = await _followerRepository.GetByEventIdAsync(eventId);
+        return followers.Select(MapToFollowerResponse).ToList();
+    }
+
+    public async Task<List<EventResponse>> GetUserCreatedEventsAsync(Guid userId)
+    {
+        var events = await _eventRepository.GetByOrganizerIdAsync(userId);
+        return events.Select(MapToResponse).ToList();
+    }
+
+    public async Task<List<EventResponse>> GetUserJoinedEventsAsync(Guid userId)
+    {
+        var participants = await _participantRepository.GetByUserIdAsync(userId);
+        var eventIds = participants.Select(p => p.EventId).ToList();
+
+        var events = new List<Event>();
+        foreach (var eventId in eventIds)
+        {
+            var @event = await _eventRepository.GetByIdAsync(eventId);
+            if (@event != null) events.Add(@event);
+        }
+
+        return events.Select(MapToResponse).ToList();
+    }
+
+    public async Task<List<EventResponse>> GetUserFollowingEventsAsync(Guid userId)
+    {
+        var followers = await _followerRepository.GetByUserIdAsync(userId);
+        var eventIds = followers.Select(f => f.EventId).ToList();
+
+        var events = new List<Event>();
+        foreach (var eventId in eventIds)
+        {
+            var @event = await _eventRepository.GetByIdAsync(eventId);
+            if (@event != null) events.Add(@event);
+        }
+
+        return events.Select(MapToResponse).ToList();
+    }
+
     /// <summary>
-    /// 为事件列表填充关联数据（城市、组织者信息）
+    ///     为事件列表填充关联数据（城市、组织者信息）
     /// </summary>
     private async Task EnrichEventResponsesWithRelatedDataAsync(List<EventResponse> responses)
     {
@@ -271,15 +378,10 @@ public class EventApplicationService : IEventService
             {
                 // 填充城市信息
                 if (response.CityId.HasValue && cities.TryGetValue(response.CityId.Value, out var cityInfo))
-                {
                     response.City = cityInfo;
-                }
 
                 // 填充组织者信息
-                if (users.TryGetValue(response.OrganizerId, out var organizerInfo))
-                {
-                    response.Organizer = organizerInfo;
-                }
+                if (users.TryGetValue(response.OrganizerId, out var organizerInfo)) response.Organizer = organizerInfo;
             }
 
             _logger.LogInformation("✅ 已为 {Count} 个事件填充关联数据（城市: {CityCount}, 组织者: {OrganizerCount}）",
@@ -293,16 +395,13 @@ public class EventApplicationService : IEventService
     }
 
     /// <summary>
-    /// 批量填充事件参与状态
+    ///     批量填充事件参与状态
     /// </summary>
     private async Task EnrichEventParticipationStatusAsync(List<EventResponse> responses, Guid userId)
     {
         _logger.LogInformation("👥 开始为 {Count} 个事件填充参与状态，用户ID: {UserId}", responses.Count, userId);
 
-        if (!responses.Any())
-        {
-            return;
-        }
+        if (!responses.Any()) return;
 
         try
         {
@@ -311,8 +410,10 @@ public class EventApplicationService : IEventService
             {
                 response.IsParticipant = await _participantRepository.IsParticipantAsync(response.Id, userId);
                 response.IsOrganizer = response.OrganizerId == userId;
-                _logger.LogInformation("👥 用户 {UserId} 是否参与了活动 {EventId}: {IsParticipant}", userId, response.Id, response.IsParticipant);
-                _logger.LogInformation("👥 用户 {UserId} 是否是活动 {EventId} 的组织者: {IsOrganizer}", userId, response.Id, response.IsOrganizer);
+                _logger.LogInformation("👥 用户 {UserId} 是否参与了活动 {EventId}: {IsParticipant}", userId, response.Id,
+                    response.IsParticipant);
+                _logger.LogInformation("👥 用户 {UserId} 是否是活动 {EventId} 的组织者: {IsOrganizer}", userId, response.Id,
+                    response.IsOrganizer);
             }
 
             var participatedCount = responses.Count(r => r.IsParticipant);
@@ -324,155 +425,6 @@ public class EventApplicationService : IEventService
         {
             _logger.LogError(ex, "❌ 填充参与状态失败");
         }
-    }
-
-    public async Task<ParticipantResponse> JoinEventAsync(Guid eventId, Guid userId, JoinEventRequest request)
-    {
-        _logger.LogInformation("👥 用户 {UserId} 申请参加 Event {EventId}", userId, eventId);
-
-        // 检查 Event 是否存在
-        var @event = await _eventRepository.GetByIdAsync(eventId);
-        if (@event == null)
-        {
-            throw new KeyNotFoundException($"Event {eventId} 不存在");
-        }
-
-        // 检查是否已参加
-        if (await _participantRepository.IsParticipantAsync(eventId, userId))
-        {
-            throw new InvalidOperationException("您已经参加了这个 Event");
-        }
-
-        // 检查是否可以参加（领域逻辑）
-        if (!@event.CanJoin())
-        {
-            throw new InvalidOperationException("Event 已满员或状态不允许参加");
-        }
-
-        // 创建参与记录
-        var participant = EventParticipant.Create(eventId, userId);
-        var createdParticipant = await _participantRepository.CreateAsync(participant);
-
-        // 更新参与人数（领域逻辑）
-        @event.AddParticipant();
-        await _eventRepository.UpdateAsync(@event);
-
-        return MapToParticipantResponse(createdParticipant);
-    }
-
-    public async Task LeaveEventAsync(Guid eventId, Guid userId)
-    {
-        _logger.LogInformation("👋 用户 {UserId} 取消参加 Event {EventId}", userId, eventId);
-
-        // 查找参与记录
-        var participant = await _participantRepository.GetAsync(eventId, userId);
-        if (participant == null)
-        {
-            throw new KeyNotFoundException("您未参加此 Event");
-        }
-
-        // 删除参与记录
-        await _participantRepository.DeleteAsync(participant.Id);
-
-        // 更新参与人数
-        var @event = await _eventRepository.GetByIdAsync(eventId);
-        if (@event != null)
-        {
-            @event.RemoveParticipant();
-            await _eventRepository.UpdateAsync(@event);
-        }
-    }
-
-    public async Task<FollowerResponse> FollowEventAsync(Guid eventId, Guid userId, FollowEventRequest request)
-    {
-        _logger.LogInformation("⭐ 用户 {UserId} 关注 Event {EventId}", userId, eventId);
-
-        // 检查 Event 是否存在
-        if (!await _eventRepository.ExistsAsync(eventId))
-        {
-            throw new KeyNotFoundException($"Event {eventId} 不存在");
-        }
-
-        // 检查是否已关注
-        if (await _followerRepository.IsFollowingAsync(eventId, userId))
-        {
-            throw new InvalidOperationException("您已经关注了这个 Event");
-        }
-
-        // 创建关注记录
-        var follower = EventFollower.Create(eventId, userId, request.NotificationEnabled);
-        var createdFollower = await _followerRepository.CreateAsync(follower);
-
-        return MapToFollowerResponse(createdFollower);
-    }
-
-    public async Task UnfollowEventAsync(Guid eventId, Guid userId)
-    {
-        _logger.LogInformation("💔 用户 {UserId} 取消关注 Event {EventId}", userId, eventId);
-
-        // 查找关注记录
-        var follower = await _followerRepository.GetAsync(eventId, userId);
-        if (follower == null)
-        {
-            throw new KeyNotFoundException("您未关注此 Event");
-        }
-
-        // 删除关注记录
-        await _followerRepository.DeleteAsync(follower.Id);
-    }
-
-    public async Task<List<ParticipantResponse>> GetParticipantsAsync(Guid eventId)
-    {
-        var participants = await _participantRepository.GetByEventIdAsync(eventId);
-        return participants.Select(MapToParticipantResponse).ToList();
-    }
-
-    public async Task<List<FollowerResponse>> GetFollowersAsync(Guid eventId)
-    {
-        var followers = await _followerRepository.GetByEventIdAsync(eventId);
-        return followers.Select(MapToFollowerResponse).ToList();
-    }
-
-    public async Task<List<EventResponse>> GetUserCreatedEventsAsync(Guid userId)
-    {
-        var events = await _eventRepository.GetByOrganizerIdAsync(userId);
-        return events.Select(MapToResponse).ToList();
-    }
-
-    public async Task<List<EventResponse>> GetUserJoinedEventsAsync(Guid userId)
-    {
-        var participants = await _participantRepository.GetByUserIdAsync(userId);
-        var eventIds = participants.Select(p => p.EventId).ToList();
-
-        var events = new List<Event>();
-        foreach (var eventId in eventIds)
-        {
-            var @event = await _eventRepository.GetByIdAsync(eventId);
-            if (@event != null)
-            {
-                events.Add(@event);
-            }
-        }
-
-        return events.Select(MapToResponse).ToList();
-    }
-
-    public async Task<List<EventResponse>> GetUserFollowingEventsAsync(Guid userId)
-    {
-        var followers = await _followerRepository.GetByUserIdAsync(userId);
-        var eventIds = followers.Select(f => f.EventId).ToList();
-
-        var events = new List<Event>();
-        foreach (var eventId in eventIds)
-        {
-            var @event = await _eventRepository.GetByIdAsync(eventId);
-            if (@event != null)
-            {
-                events.Add(@event);
-            }
-        }
-
-        return events.Select(MapToResponse).ToList();
     }
 
     #region Mapping Methods

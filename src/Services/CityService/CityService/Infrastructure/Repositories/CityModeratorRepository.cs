@@ -1,17 +1,17 @@
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Supabase;
+using Postgrest;
 using Client = Supabase.Client;
 
 namespace CityService.Infrastructure.Repositories;
 
 /// <summary>
-/// 城市版主仓储实现
+///     城市版主仓储实现
 /// </summary>
 public class CityModeratorRepository : ICityModeratorRepository
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<CityModeratorRepository> _logger;
+    private readonly Client _supabaseClient;
 
     public CityModeratorRepository(
         Client supabaseClient,
@@ -31,13 +31,10 @@ public class CityModeratorRepository : ICityModeratorRepository
                 .From<CityModerator>()
                 .Where(m => m.CityId == cityId);
 
-            if (activeOnly)
-            {
-                query = query.Where(m => m.IsActive == true);
-            }
+            if (activeOnly) query = query.Where(m => m.IsActive == true);
 
             var response = await query
-                .Order(m => m.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                .Order(m => m.CreatedAt, Constants.Ordering.Descending)
                 .Get();
 
             _logger.LogInformation("✅ 找到 {Count} 个版主", response.Models.Count);
@@ -51,14 +48,11 @@ public class CityModeratorRepository : ICityModeratorRepository
     }
 
     /// <summary>
-    /// 批量获取多个城市的版主（优化 N+1 查询）
+    ///     批量获取多个城市的版主（优化 N+1 查询）
     /// </summary>
     public async Task<List<CityModerator>> GetByCityIdsAsync(List<Guid> cityIds, bool activeOnly = true)
     {
-        if (cityIds == null || cityIds.Count == 0)
-        {
-            return new List<CityModerator>();
-        }
+        if (cityIds == null || cityIds.Count == 0) return new List<CityModerator>();
 
         _logger.LogDebug("📋 批量查询城市版主 - CityIds: {Count} 个, ActiveOnly: {ActiveOnly}",
             cityIds.Count, activeOnly);
@@ -82,10 +76,7 @@ public class CityModeratorRepository : ICityModeratorRepository
                 var batchTasks = batch.Select(cityId => GetByCityIdAsync(cityId, activeOnly));
                 var batchResults = await Task.WhenAll(batchTasks);
 
-                foreach (var result in batchResults)
-                {
-                    allModerators.AddRange(result);
-                }
+                foreach (var result in batchResults) allModerators.AddRange(result);
             }
 
             _logger.LogInformation("✅ 批量查询完成: 找到 {Count} 个版主", allModerators.Count);
@@ -108,13 +99,10 @@ public class CityModeratorRepository : ICityModeratorRepository
                 .From<CityModerator>()
                 .Where(m => m.UserId == userId);
 
-            if (activeOnly)
-            {
-                query = query.Where(m => m.IsActive == true);
-            }
+            if (activeOnly) query = query.Where(m => m.IsActive == true);
 
             var response = await query
-                .Order(m => m.CreatedAt, Postgrest.Constants.Ordering.Descending)
+                .Order(m => m.CreatedAt, Constants.Ordering.Descending)
                 .Get();
 
             _logger.LogInformation("✅ 找到 {Count} 个城市", response.Models.Count);
@@ -153,7 +141,7 @@ public class CityModeratorRepository : ICityModeratorRepository
 
     public async Task<CityModerator> AddAsync(CityModerator moderator)
     {
-        _logger.LogInformation("➕ 添加版主 - CityId: {CityId}, UserId: {UserId}", 
+        _logger.LogInformation("➕ 添加版主 - CityId: {CityId}, UserId: {UserId}",
             moderator.CityId, moderator.UserId);
 
         try
@@ -167,10 +155,7 @@ public class CityModeratorRepository : ICityModeratorRepository
                 .Insert(moderator);
 
             var inserted = response.Models.FirstOrDefault();
-            if (inserted == null)
-            {
-                throw new Exception("插入版主记录失败");
-            }
+            if (inserted == null) throw new Exception("插入版主记录失败");
 
             _logger.LogInformation("✅ 版主添加成功 - Id: {Id}", inserted.Id);
             return inserted;
@@ -222,7 +207,7 @@ public class CityModeratorRepository : ICityModeratorRepository
             {
                 moderator.IsActive = false;
                 moderator.UpdatedAt = DateTime.UtcNow;
-                
+
                 await _supabaseClient
                     .From<CityModerator>()
                     .Where(m => m.Id == moderator.Id)

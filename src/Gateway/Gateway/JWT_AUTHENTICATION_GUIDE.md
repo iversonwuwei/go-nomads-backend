@@ -3,6 +3,7 @@
 ## 📋 概述
 
 Gateway 现在会在转发请求前验证 JWT token:
+
 - ✅ **有效 token**: 提取用户信息,添加到请求头,转发到后端服务
 - ❌ **无效 token**: 返回 401,不转发请求
 - ❌ **缺失 token**: 返回 401,不转发请求
@@ -66,6 +67,7 @@ curl http://localhost:5000/api/users
 ```
 
 **预期结果**: ❌ 401 Unauthorized
+
 ```json
 {
   "success": false,
@@ -83,6 +85,7 @@ curl http://localhost:5000/api/users \
 ```
 
 **预期结果**: ❌ 401 Unauthorized
+
 ```json
 {
   "success": false,
@@ -124,6 +127,7 @@ curl -X POST http://localhost:5000/api/users \
 **预期结果**: ✅ 200 OK - 正常返回数据
 
 Gateway 会自动添加以下请求头到后端服务:
+
 ```
 X-User-Id: <用户ID>
 X-User-Email: <用户邮箱>
@@ -188,6 +192,7 @@ docker logs gateway -f
 ```
 
 日志示例:
+
 ```
 🔓 Public paths configured: /health, /metrics, /api/users/login, ...
 ⚪ Public path: /api/users/login - Skipping authentication
@@ -209,6 +214,7 @@ docker logs gateway -f
 ### 问题: 始终返回 401
 
 **检查项**:
+
 1. Token 是否正确复制 (没有多余空格)
 2. Token 是否过期
 3. `appsettings.json` 中 JWT 配置是否正确
@@ -217,6 +223,7 @@ docker logs gateway -f
 ### 问题: 公开路径也返回 401
 
 **检查项**:
+
 1. 确认路径在 `PublicPaths` 配置中
 2. 检查路径拼写 (注意大小写)
 3. 重启 Gateway 确保配置生效
@@ -224,6 +231,7 @@ docker logs gateway -f
 ### 问题: 后端服务获取不到用户信息
 
 **检查项**:
+
 1. 确认后端服务使用了 `UseUserContext()` 中间件
 2. 检查 Gateway 是否正确添加了 `X-User-*` 请求头
 3. 查看后端服务日志

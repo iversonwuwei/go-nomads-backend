@@ -1,17 +1,17 @@
+using AIService.API.Hubs;
 using AIService.Application.Services;
 using AIService.Domain.Repositories;
+using AIService.Infrastructure.Cache;
 using AIService.Infrastructure.GrpcClients;
 using AIService.Infrastructure.Repositories;
-using Dapr.Client;
 using GoNomads.Shared.Extensions;
+using MassTransit;
+using Microsoft.OpenApi.Models;
 using Microsoft.SemanticKernel;
 using Prometheus;
 using Scalar.AspNetCore;
 using Serilog;
 using Shared.Extensions;
-using AIService.Infrastructure.Cache;
-using AIService.API.Hubs;
-using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,23 +49,23 @@ try
 
 #pragma warning disable SKEXP0010
     var kernelBuilder = Kernel.CreateBuilder();
-    
+
     // 创建配置了超时和连接设置的 HttpClient for Qwen API
     var handler = new HttpClientHandler
     {
         ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
         MaxConnectionsPerServer = 10
     };
-    
+
     var httpClient = new HttpClient(handler)
     {
         Timeout = TimeSpan.FromMinutes(3) // 3 分钟超时
     };
     httpClient.DefaultRequestHeaders.Add("User-Agent", "GoNomads-AIService/1.0");
     httpClient.DefaultRequestHeaders.ConnectionClose = false; // 保持连接
-    
+
     kernelBuilder.AddOpenAIChatCompletion(
-        modelId: defaultModelId,
+        defaultModelId,
         apiKey: qwenApiKey,
         endpoint: new Uri(qwenBaseUrl),
         httpClient: httpClient);
@@ -116,7 +116,7 @@ Log.Information("✅ MassTransit、缓存服务已注册");
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
     // 使用 gRPC 端点（默认端口 50001）
-    var daprGrpcPort = builder.Configuration.GetValue<int>("Dapr:GrpcPort", 50001);
+    var daprGrpcPort = builder.Configuration.GetValue("Dapr:GrpcPort", 50001);
     var daprGrpcEndpoint = $"http://localhost:{daprGrpcPort}";
 
     daprClientBuilder.UseGrpcEndpoint(daprGrpcEndpoint);
@@ -135,17 +135,17 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(builder =>
     {
         builder.AllowAnyOrigin()
-               .AllowAnyMethod()
-               .AllowAnyHeader();
+            .AllowAnyMethod()
+            .AllowAnyHeader();
     });
-    
+
     // SignalR 需要更宽松的 CORS 策略
     options.AddPolicy("SignalRPolicy", builder =>
     {
         builder.WithOrigins("http://localhost:5000", "http://localhost:8009")
-               .AllowAnyMethod()
-               .AllowAnyHeader()
-               .AllowCredentials(); // SignalR 需要允许凭据
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials(); // SignalR 需要允许凭据
     });
 });
 
@@ -155,16 +155,16 @@ builder.Services.AddOpenApi(options =>
     options.AddDocumentTransformer((document, context, cancellationToken) =>
     {
         // 配置正确的服务器 URL
-        document.Servers = new List<Microsoft.OpenApi.Models.OpenApiServer>
+        document.Servers = new List<OpenApiServer>
         {
             new() { Url = "http://localhost:8009", Description = "Local Development" }
         };
-        
+
         // 添加 API 信息
         document.Info.Title = "AI Service API";
         document.Info.Description = "Go Nomads AI 聊天服务 - 基于 Qwen 大模型和 Semantic Kernel";
         document.Info.Version = "v1.0";
-        
+
         return Task.CompletedTask;
     });
 });
@@ -208,13 +208,13 @@ app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 
 // Add health check endpoint
-app.MapGet("/health", () => 
+app.MapGet("/health", () =>
 {
     var defaultModel = builder.Configuration["SemanticKernel:DefaultModel"] ?? "qwen-plus";
-    return Results.Ok(new 
-    { 
-        status = "healthy", 
-        service = "AIService", 
+    return Results.Ok(new
+    {
+        status = "healthy",
+        service = "AIService",
         timestamp = DateTime.UtcNow,
         version = "1.0.0",
         semantic_kernel = "enabled",
@@ -227,14 +227,14 @@ app.MapGet("/health", () =>
 app.MapGet("/health/ai", () =>
 {
     var defaultModel = builder.Configuration["SemanticKernel:DefaultModel"] ?? "qwen-plus";
-    return Results.Ok(new 
-    { 
-        status = "healthy", 
+    return Results.Ok(new
+    {
+        status = "healthy",
         ai_service = "connected",
         model = defaultModel,
         provider = "Qwen",
         max_tokens = 32000,
-        timestamp = DateTime.UtcNow 
+        timestamp = DateTime.UtcNow
     });
 });
 

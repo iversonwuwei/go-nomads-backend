@@ -1,13 +1,11 @@
-using System;
-using CityService.DTOs;
-using Microsoft.Extensions.Logging;
-using Npgsql;
 using System.Data;
+using CityService.DTOs;
+using Npgsql;
 
 namespace CityService.Services;
 
 /// <summary>
-/// 用户城市内容服务（照片、费用、评论）
+///     用户城市内容服务（照片、费用、评论）
 /// </summary>
 public interface IUserCityContentService
 {
@@ -41,9 +39,53 @@ public class UserCityContentService : IUserCityContentService
     public UserCityContentService(IConfiguration configuration, ILogger<UserCityContentService> logger)
     {
         _connectionString = configuration.GetConnectionString("SupabaseDb")
-            ?? throw new InvalidOperationException("SupabaseDb connection string not found");
+                            ?? throw new InvalidOperationException("SupabaseDb connection string not found");
         _logger = logger;
     }
+
+    #region 统计相关
+
+    public async Task<CityUserContentStatsDto> GetCityStatsAsync(string cityId)
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        var sql = @"
+            SELECT 
+                @CityId as city_id,
+                COUNT(DISTINCT p.user_id) as photo_contributors,
+                COUNT(DISTINCT e.user_id) as expense_contributors,
+                COUNT(DISTINCT r.user_id) as review_contributors,
+                COUNT(p.id) as photo_count,
+                COUNT(e.id) as expense_count,
+                COUNT(r.id) as review_count,
+                COALESCE(AVG(r.rating), 0) as average_rating
+            FROM (SELECT @CityId as city_id) c
+            LEFT JOIN user_city_photos p ON c.city_id = p.city_id
+            LEFT JOIN user_city_expenses e ON c.city_id = e.city_id
+            LEFT JOIN user_city_reviews r ON c.city_id = r.city_id";
+
+        await using var cmd = new NpgsqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("CityId", cityId);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+            return new CityUserContentStatsDto
+            {
+                CityId = cityId,
+                PhotoContributors = reader.GetInt32(reader.GetOrdinal("photo_contributors")),
+                ExpenseContributors = reader.GetInt32(reader.GetOrdinal("expense_contributors")),
+                ReviewContributors = reader.GetInt32(reader.GetOrdinal("review_contributors")),
+                PhotoCount = reader.GetInt32(reader.GetOrdinal("photo_count")),
+                ExpenseCount = reader.GetInt32(reader.GetOrdinal("expense_count")),
+                ReviewCount = reader.GetInt32(reader.GetOrdinal("review_count")),
+                AverageRating = reader.GetDouble(reader.GetOrdinal("average_rating"))
+            };
+
+        return new CityUserContentStatsDto { CityId = cityId };
+    }
+
+    #endregion
 
     #region 照片相关
 
@@ -66,10 +108,7 @@ public class UserCityContentService : IUserCityContentService
         cmd.Parameters.AddWithValue("TakenAt", (object?)request.TakenAt ?? DBNull.Value);
 
         await using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
-        {
-            return MapPhotoFromReader(reader);
-        }
+        if (await reader.ReadAsync()) return MapPhotoFromReader(reader);
 
         throw new Exception("Failed to add photo");
     }
@@ -90,10 +129,7 @@ public class UserCityContentService : IUserCityContentService
 
         var photos = new List<UserCityPhotoDto>();
         await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            photos.Add(MapPhotoFromReader(reader));
-        }
+        while (await reader.ReadAsync()) photos.Add(MapPhotoFromReader(reader));
 
         return photos;
     }
@@ -110,10 +146,7 @@ public class UserCityContentService : IUserCityContentService
 
         var photos = new List<UserCityPhotoDto>();
         await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            photos.Add(MapPhotoFromReader(reader));
-        }
+        while (await reader.ReadAsync()) photos.Add(MapPhotoFromReader(reader));
 
         return photos;
     }
@@ -156,10 +189,7 @@ public class UserCityContentService : IUserCityContentService
         cmd.Parameters.AddWithValue("Date", request.Date);
 
         await using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
-        {
-            return MapExpenseFromReader(reader);
-        }
+        if (await reader.ReadAsync()) return MapExpenseFromReader(reader);
 
         throw new Exception("Failed to add expense");
     }
@@ -180,10 +210,7 @@ public class UserCityContentService : IUserCityContentService
 
         var expenses = new List<UserCityExpenseDto>();
         await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            expenses.Add(MapExpenseFromReader(reader));
-        }
+        while (await reader.ReadAsync()) expenses.Add(MapExpenseFromReader(reader));
 
         return expenses;
     }
@@ -200,10 +227,7 @@ public class UserCityContentService : IUserCityContentService
 
         var expenses = new List<UserCityExpenseDto>();
         await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            expenses.Add(MapExpenseFromReader(reader));
-        }
+        while (await reader.ReadAsync()) expenses.Add(MapExpenseFromReader(reader));
 
         return expenses;
     }
@@ -252,10 +276,7 @@ public class UserCityContentService : IUserCityContentService
         cmd.Parameters.AddWithValue("VisitDate", (object?)request.VisitDate ?? DBNull.Value);
 
         await using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
-        {
-            return MapReviewFromReader(reader);
-        }
+        if (await reader.ReadAsync()) return MapReviewFromReader(reader);
 
         throw new Exception("Failed to upsert review");
     }
@@ -272,10 +293,7 @@ public class UserCityContentService : IUserCityContentService
 
         var reviews = new List<UserCityReviewDto>();
         await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            reviews.Add(MapReviewFromReader(reader));
-        }
+        while (await reader.ReadAsync()) reviews.Add(MapReviewFromReader(reader));
 
         return reviews;
     }
@@ -292,10 +310,7 @@ public class UserCityContentService : IUserCityContentService
         cmd.Parameters.AddWithValue("CityId", cityId);
 
         await using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
-        {
-            return MapReviewFromReader(reader);
-        }
+        if (await reader.ReadAsync()) return MapReviewFromReader(reader);
 
         return null;
     }
@@ -316,52 +331,6 @@ public class UserCityContentService : IUserCityContentService
 
     #endregion
 
-    #region 统计相关
-
-    public async Task<CityUserContentStatsDto> GetCityStatsAsync(string cityId)
-    {
-        await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
-
-        var sql = @"
-            SELECT 
-                @CityId as city_id,
-                COUNT(DISTINCT p.user_id) as photo_contributors,
-                COUNT(DISTINCT e.user_id) as expense_contributors,
-                COUNT(DISTINCT r.user_id) as review_contributors,
-                COUNT(p.id) as photo_count,
-                COUNT(e.id) as expense_count,
-                COUNT(r.id) as review_count,
-                COALESCE(AVG(r.rating), 0) as average_rating
-            FROM (SELECT @CityId as city_id) c
-            LEFT JOIN user_city_photos p ON c.city_id = p.city_id
-            LEFT JOIN user_city_expenses e ON c.city_id = e.city_id
-            LEFT JOIN user_city_reviews r ON c.city_id = r.city_id";
-
-        await using var cmd = new NpgsqlCommand(sql, connection);
-        cmd.Parameters.AddWithValue("CityId", cityId);
-
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
-        {
-            return new CityUserContentStatsDto
-            {
-                CityId = cityId,
-                PhotoContributors = reader.GetInt32(reader.GetOrdinal("photo_contributors")),
-                ExpenseContributors = reader.GetInt32(reader.GetOrdinal("expense_contributors")),
-                ReviewContributors = reader.GetInt32(reader.GetOrdinal("review_contributors")),
-                PhotoCount = reader.GetInt32(reader.GetOrdinal("photo_count")),
-                ExpenseCount = reader.GetInt32(reader.GetOrdinal("expense_count")),
-                ReviewCount = reader.GetInt32(reader.GetOrdinal("review_count")),
-                AverageRating = reader.GetDouble(reader.GetOrdinal("average_rating"))
-            };
-        }
-
-        return new CityUserContentStatsDto { CityId = cityId };
-    }
-
-    #endregion
-
     #region Helper Methods
 
     private UserCityPhotoDto MapPhotoFromReader(NpgsqlDataReader reader)
@@ -372,14 +341,20 @@ public class UserCityContentService : IUserCityContentService
             UserId = reader.GetGuid(reader.GetOrdinal("user_id")),
             CityId = reader.GetString(reader.GetOrdinal("city_id")),
             ImageUrl = reader.GetString(reader.GetOrdinal("image_url")),
-            Caption = reader.IsDBNull(reader.GetOrdinal("caption")) ? null : reader.GetString(reader.GetOrdinal("caption")),
+            Caption = reader.IsDBNull(reader.GetOrdinal("caption"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("caption")),
             Description = TryGetString(reader, "description"),
-            Location = reader.IsDBNull(reader.GetOrdinal("location")) ? null : reader.GetString(reader.GetOrdinal("location")),
+            Location = reader.IsDBNull(reader.GetOrdinal("location"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("location")),
             PlaceName = TryGetString(reader, "place_name"),
             Address = TryGetString(reader, "address"),
             Latitude = TryGetDouble(reader, "latitude"),
             Longitude = TryGetDouble(reader, "longitude"),
-            TakenAt = reader.IsDBNull(reader.GetOrdinal("taken_at")) ? null : reader.GetDateTime(reader.GetOrdinal("taken_at")),
+            TakenAt = reader.IsDBNull(reader.GetOrdinal("taken_at"))
+                ? null
+                : reader.GetDateTime(reader.GetOrdinal("taken_at")),
             CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at"))
         };
     }
@@ -401,12 +376,8 @@ public class UserCityContentService : IUserCityContentService
     private static bool HasColumn(IDataRecord record, string columnName)
     {
         for (var i = 0; i < record.FieldCount; i++)
-        {
             if (record.GetName(i).Equals(columnName, StringComparison.OrdinalIgnoreCase))
-            {
                 return true;
-            }
-        }
 
         return false;
     }
@@ -421,7 +392,9 @@ public class UserCityContentService : IUserCityContentService
             Category = reader.GetString(reader.GetOrdinal("category")),
             Amount = reader.GetDecimal(reader.GetOrdinal("amount")),
             Currency = reader.GetString(reader.GetOrdinal("currency")),
-            Description = reader.IsDBNull(reader.GetOrdinal("description")) ? null : reader.GetString(reader.GetOrdinal("description")),
+            Description = reader.IsDBNull(reader.GetOrdinal("description"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("description")),
             Date = reader.GetDateTime(reader.GetOrdinal("date")),
             CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at"))
         };
@@ -437,7 +410,9 @@ public class UserCityContentService : IUserCityContentService
             Rating = reader.GetInt32(reader.GetOrdinal("rating")),
             Title = reader.GetString(reader.GetOrdinal("title")),
             Content = reader.GetString(reader.GetOrdinal("content")),
-            VisitDate = reader.IsDBNull(reader.GetOrdinal("visit_date")) ? null : reader.GetDateTime(reader.GetOrdinal("visit_date")),
+            VisitDate = reader.IsDBNull(reader.GetOrdinal("visit_date"))
+                ? null
+                : reader.GetDateTime(reader.GetOrdinal("visit_date")),
             CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
             UpdatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at"))
         };

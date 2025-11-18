@@ -1,20 +1,20 @@
+using System.ComponentModel.DataAnnotations;
+using GoNomads.Shared.DTOs;
 using MessageService.Application.DTOs;
 using MessageService.Application.Services;
 using Microsoft.AspNetCore.Mvc;
-using GoNomads.Shared.DTOs;
-using System.ComponentModel.DataAnnotations;
 
 namespace MessageService.API.Controllers;
 
 /// <summary>
-/// 通知 API - RESTful endpoints for notification management
+///     通知 API - RESTful endpoints for notification management
 /// </summary>
 [ApiController]
 [Route("api/v1/notifications")]
 public class NotificationsController : ControllerBase
 {
-    private readonly INotificationService _notificationService;
     private readonly ILogger<NotificationsController> _logger;
+    private readonly INotificationService _notificationService;
 
     public NotificationsController(
         INotificationService notificationService,
@@ -25,17 +25,17 @@ public class NotificationsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取用户通知列表（支持筛选）
+    ///     获取用户通知列表（支持筛选）
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PaginatedNotificationsResponse>>> GetNotifications(
-        [FromQuery, Required] string userId,
+        [FromQuery] [Required] string userId,
         [FromQuery] bool? isRead = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("📋 获取通知列表: UserId={UserId}, IsRead={IsRead}, Page={Page}", 
+        _logger.LogInformation("📋 获取通知列表: UserId={UserId}, IsRead={IsRead}, Page={Page}",
             userId, isRead, page);
 
         try
@@ -68,11 +68,11 @@ public class NotificationsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取未读通知数量
+    ///     获取未读通知数量
     /// </summary>
     [HttpGet("unread/count")]
     public async Task<ActionResult<ApiResponse<NotificationStatsDto>>> GetUnreadCount(
-        [FromQuery, Required] string userId,
+        [FromQuery] [Required] string userId,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("🔢 获取未读数量: UserId={UserId}", userId);
@@ -103,14 +103,14 @@ public class NotificationsController : ControllerBase
     }
 
     /// <summary>
-    /// 创建通知
+    ///     创建通知
     /// </summary>
     [HttpPost]
     public async Task<ActionResult<ApiResponse<NotificationDto>>> CreateNotification(
         [FromBody] CreateNotificationDto request,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("📝 创建通知: UserId={UserId}, Type={Type}", 
+        _logger.LogInformation("📝 创建通知: UserId={UserId}, Type={Type}",
             request.UserId, request.Type);
 
         if (!ModelState.IsValid)
@@ -147,14 +147,14 @@ public class NotificationsController : ControllerBase
     }
 
     /// <summary>
-    /// 发送通知给所有管理员
+    ///     发送通知给所有管理员
     /// </summary>
     [HttpPost("admins")]
     public async Task<ActionResult<ApiResponse<List<NotificationDto>>>> SendToAdmins(
         [FromBody] SendToAdminsDto request,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("📢 发送通知给管理员: Type={Type}, Title={Title}", 
+        _logger.LogInformation("📢 发送通知给管理员: Type={Type}, Title={Title}",
             request.Type, request.Title);
 
         if (!ModelState.IsValid)
@@ -191,7 +191,7 @@ public class NotificationsController : ControllerBase
     }
 
     /// <summary>
-    /// 标记通知为已读
+    ///     标记通知为已读
     /// </summary>
     [HttpPut("{id}/read")]
     public async Task<ActionResult<ApiResponse<object>>> MarkAsRead(
@@ -205,13 +205,11 @@ public class NotificationsController : ControllerBase
             var result = await _notificationService.MarkAsReadAsync(id, cancellationToken);
 
             if (!result)
-            {
                 return NotFound(new ApiResponse<object>
                 {
                     Success = false,
                     Message = "通知不存在"
                 });
-            }
 
             return Ok(new ApiResponse<object>
             {
@@ -231,15 +229,15 @@ public class NotificationsController : ControllerBase
     }
 
     /// <summary>
-    /// 批量标记通知为已读
+    ///     批量标记通知为已读
     /// </summary>
     [HttpPut("read/batch")]
     public async Task<ActionResult<ApiResponse<object>>> MarkMultipleAsRead(
-        [FromQuery, Required] string userId,
+        [FromQuery] [Required] string userId,
         [FromBody] MarkMultipleAsReadDto request,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("✅ 批量标记已读: UserId={UserId}, Count={Count}", 
+        _logger.LogInformation("✅ 批量标记已读: UserId={UserId}, Count={Count}",
             userId, request.NotificationIds?.Count ?? 0);
 
         if (!ModelState.IsValid)
@@ -256,13 +254,11 @@ public class NotificationsController : ControllerBase
         try
         {
             if (request.NotificationIds == null || request.NotificationIds.Count == 0)
-            {
                 return BadRequest(new ApiResponse<object>
                 {
                     Success = false,
                     Message = "通知ID列表不能为空"
                 });
-            }
 
             var count = await _notificationService.MarkMultipleAsReadAsync(
                 userId, request.NotificationIds, cancellationToken);
@@ -285,11 +281,11 @@ public class NotificationsController : ControllerBase
     }
 
     /// <summary>
-    /// 标记所有通知为已读
+    ///     标记所有通知为已读
     /// </summary>
     [HttpPut("read/all")]
     public async Task<ActionResult<ApiResponse<object>>> MarkAllAsRead(
-        [FromQuery, Required] string userId,
+        [FromQuery] [Required] string userId,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("✅ 标记所有通知已读: UserId={UserId}", userId);
@@ -316,7 +312,7 @@ public class NotificationsController : ControllerBase
     }
 
     /// <summary>
-    /// 删除通知
+    ///     删除通知
     /// </summary>
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteNotification(
@@ -330,13 +326,11 @@ public class NotificationsController : ControllerBase
             var result = await _notificationService.DeleteNotificationAsync(id, cancellationToken);
 
             if (!result)
-            {
                 return NotFound(new ApiResponse<object>
                 {
                     Success = false,
                     Message = "通知不存在"
                 });
-            }
 
             return Ok(new ApiResponse<object>
             {
@@ -359,7 +353,7 @@ public class NotificationsController : ControllerBase
 #region Response DTOs
 
 /// <summary>
-/// 分页通知响应 DTO
+///     分页通知响应 DTO
 /// </summary>
 public class PaginatedNotificationsResponse
 {

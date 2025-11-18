@@ -1,20 +1,18 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using System.Net.Security;
 using Microsoft.Extensions.Options;
 using Shared.Configuration;
+using Shared.Services;
 using Supabase;
-using System.Net.Security;
 
 namespace Shared.Extensions;
 
 /// <summary>
-/// Supabase 服务扩展
+///     Supabase 服务扩展
 /// </summary>
 public static class SupabaseServiceExtensions
 {
     /// <summary>
-    /// 添加 Supabase 客户端到服务容器
+    ///     添加 Supabase 客户端到服务容器
     /// </summary>
     /// <param name="services">服务集合</param>
     /// <param name="configuration">配置</param>
@@ -31,10 +29,8 @@ public static class SupabaseServiceExtensions
         // 验证配置
         var settings = configuration.GetSection(configSection).Get<SupabaseSettings>();
         if (settings == null || !settings.IsValid())
-        {
             throw new InvalidOperationException(
                 settings?.GetValidationError() ?? "Supabase configuration is missing");
-        }
 
         // 注册 Supabase 客户端（单例模式）
         services.AddSingleton<Client>(provider =>
@@ -58,13 +54,13 @@ public static class SupabaseServiceExtensions
                     // 在开发环境可以忽略证书错误
                     if (sslPolicyErrors == SslPolicyErrors.None)
                         return true;
-                    
+
                     logger.LogWarning("SSL Certificate validation failed: {Errors}", sslPolicyErrors);
                     // 对于 Supabase 官方服务，建议返回 true
                     return true;
                 }
             };
-            
+
             var httpClient = new HttpClient(httpHandler)
             {
                 Timeout = TimeSpan.FromSeconds(30)
@@ -81,7 +77,7 @@ public static class SupabaseServiceExtensions
             };
 
             var client = new Client(options.Url, activeKey, supabaseOptions);
-            
+
             // 初始化客户端
             try
             {
@@ -98,7 +94,7 @@ public static class SupabaseServiceExtensions
         });
 
         // 注册作用域的 Supabase 客户端（每个请求创建一个，自动设置用户 token）
-        services.AddScoped<Shared.Services.ScopedSupabaseClient>();
+        services.AddScoped<ScopedSupabaseClient>();
 
         // 注册 HttpContextAccessor（ScopedSupabaseClient 需要）
         services.AddHttpContextAccessor();
@@ -107,7 +103,7 @@ public static class SupabaseServiceExtensions
     }
 
     /// <summary>
-    /// 添加 Supabase 客户端到服务容器（使用自定义配置）
+    ///     添加 Supabase 客户端到服务容器（使用自定义配置）
     /// </summary>
     /// <param name="services">服务集合</param>
     /// <param name="configureSettings">配置委托</param>
@@ -119,10 +115,7 @@ public static class SupabaseServiceExtensions
         var settings = new SupabaseSettings();
         configureSettings(settings);
 
-        if (!settings.IsValid())
-        {
-            throw new InvalidOperationException(settings.GetValidationError());
-        }
+        if (!settings.IsValid()) throw new InvalidOperationException(settings.GetValidationError());
 
         // 注册配置
         services.Configure(configureSettings);
@@ -144,12 +137,12 @@ public static class SupabaseServiceExtensions
                 {
                     if (sslPolicyErrors == SslPolicyErrors.None)
                         return true;
-                    
+
                     logger.LogWarning("SSL Certificate validation failed: {Errors}", sslPolicyErrors);
                     return true;
                 }
             };
-            
+
             var httpClient = new HttpClient(httpHandler)
             {
                 Timeout = TimeSpan.FromSeconds(30)
@@ -166,7 +159,7 @@ public static class SupabaseServiceExtensions
             };
 
             var client = new Client(settings.Url, activeKey, supabaseOptions);
-            
+
             try
             {
                 client.InitializeAsync().Wait();
@@ -185,7 +178,7 @@ public static class SupabaseServiceExtensions
     }
 
     /// <summary>
-    /// 从环境变量添加 Supabase 客户端
+    ///     从环境变量添加 Supabase 客户端
     /// </summary>
     /// <param name="services">服务集合</param>
     /// <param name="urlEnvVar">URL 环境变量名，默认为 "Supabase__Url"</param>
@@ -200,14 +193,10 @@ public static class SupabaseServiceExtensions
         var key = Environment.GetEnvironmentVariable(keyEnvVar);
 
         if (string.IsNullOrWhiteSpace(url))
-        {
             throw new InvalidOperationException($"Environment variable '{urlEnvVar}' is not set");
-        }
 
         if (string.IsNullOrWhiteSpace(key))
-        {
             throw new InvalidOperationException($"Environment variable '{keyEnvVar}' is not set");
-        }
 
         return services.AddSupabase(settings =>
         {

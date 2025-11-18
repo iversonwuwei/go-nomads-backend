@@ -1,3 +1,4 @@
+using Consul;
 using MassTransit;
 using MessageService.API.Hubs;
 using MessageService.API.Services;
@@ -6,10 +7,11 @@ using MessageService.Application.Services;
 using MessageService.Domain.Repositories;
 using MessageService.Infrastructure.Consumers;
 using MessageService.Infrastructure.Repositories;
-using Serilog;
-using Consul;
+using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
+using Serilog;
 using Shared.Extensions;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,7 +32,7 @@ builder.Services.AddOpenApi(options =>
     options.AddDocumentTransformer((document, context, cancellationToken) =>
     {
         // 配置正确的服务器 URL
-        document.Servers = new List<Microsoft.OpenApi.Models.OpenApiServer>
+        document.Servers = new List<OpenApiServer>
         {
             new() { Url = "http://localhost:5005", Description = "Local Development" }
         };
@@ -57,11 +59,9 @@ builder.Services.AddScoped<INotificationService, NotificationApplicationService>
 
 // 配置 SignalR + Redis Backplane
 builder.Services.AddSignalR()
-    .AddStackExchangeRedis(builder.Configuration.GetConnectionString("Redis") 
-        ?? "localhost:6379", options =>
-    {
-        options.Configuration.ChannelPrefix = StackExchange.Redis.RedisChannel.Literal("MessageService");
-    });
+    .AddStackExchangeRedis(builder.Configuration.GetConnectionString("Redis")
+                           ?? "localhost:6379",
+        options => { options.Configuration.ChannelPrefix = RedisChannel.Literal("MessageService"); });
 
 // 配置 MassTransit + RabbitMQ
 builder.Services.AddMassTransit(x =>
@@ -70,7 +70,7 @@ builder.Services.AddMassTransit(x =>
     x.AddConsumer<AIProgressConsumer>();
     x.AddConsumer<NotificationConsumer>();
     x.AddConsumer<AITaskConsumer>();
-    
+
     // 注册新的 AI 消息消费者
     x.AddConsumer<AIProgressMessageConsumer>();
     x.AddConsumer<AITaskCompletedMessageConsumer>();
@@ -79,7 +79,7 @@ builder.Services.AddMassTransit(x =>
     x.UsingRabbitMq((context, cfg) =>
     {
         var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
-        
+
         cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
         {
             h.Username(rabbitMqConfig["Username"] ?? "guest");
@@ -90,7 +90,7 @@ builder.Services.AddMassTransit(x =>
         cfg.Message<AIProgressMessage>(x => x.SetEntityName("ai.progress.exchange"));
         cfg.Message<NotificationMessage>(x => x.SetEntityName("notifications.exchange"));
         cfg.Message<AITaskMessage>(x => x.SetEntityName("ai.tasks.exchange"));
-        
+
         // ⚠️ 不要自定义 Exchange 名称，使用 MassTransit 默认命名：Shared.Messages:AIProgressMessage
         // 这样才能与 AIService 的发布匹配
         // cfg.Message<Shared.Messages.AIProgressMessage>(x => x.SetEntityName("ai.realtime.progress.exchange"));
@@ -150,9 +150,9 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFlutter", policy =>
     {
         policy.WithOrigins("http://localhost:5173", "http://localhost:8080")
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -232,7 +232,7 @@ lifetime.ApplicationStopping.Register(async () =>
     }
 });
 
-Log.Information("MessageService 启动成功，监听端口: {Port}", 
+Log.Information("MessageService 启动成功，监听端口: {Port}",
     builder.Configuration["ASPNETCORE_URLS"] ?? "http://+:8080");
 
 app.Run();

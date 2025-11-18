@@ -6,12 +6,12 @@ using Microsoft.Extensions.Logging;
 namespace MessageService.Infrastructure.Consumers;
 
 /// <summary>
-/// 通知消息消费者
+///     通知消息消费者
 /// </summary>
 public class NotificationConsumer : IConsumer<NotificationMessage>
 {
-    private readonly ISignalRNotifier _notifier;
     private readonly ILogger<NotificationConsumer> _logger;
+    private readonly ISignalRNotifier _notifier;
 
     public NotificationConsumer(ISignalRNotifier notifier, ILogger<NotificationConsumer> logger)
     {
@@ -22,7 +22,7 @@ public class NotificationConsumer : IConsumer<NotificationMessage>
     public async Task Consume(ConsumeContext<NotificationMessage> context)
     {
         var message = context.Message;
-        
+
         _logger.LogInformation("收到通知消息: UserId={UserId}, Type={Type}, Title={Title}",
             message.UserId, message.Type, message.Title);
 

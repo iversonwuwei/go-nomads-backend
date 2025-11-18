@@ -6,12 +6,12 @@ using Microsoft.Extensions.Logging;
 namespace MessageService.Infrastructure.Consumers;
 
 /// <summary>
-/// AI 进度消息消费者
+///     AI 进度消息消费者
 /// </summary>
 public class AIProgressConsumer : IConsumer<AIProgressMessage>
 {
-    private readonly ISignalRNotifier _notifier;
     private readonly ILogger<AIProgressConsumer> _logger;
+    private readonly ISignalRNotifier _notifier;
 
     public AIProgressConsumer(ISignalRNotifier notifier, ILogger<AIProgressConsumer> logger)
     {
@@ -22,7 +22,7 @@ public class AIProgressConsumer : IConsumer<AIProgressMessage>
     public async Task Consume(ConsumeContext<AIProgressMessage> context)
     {
         var message = context.Message;
-        
+
         _logger.LogInformation("收到 AI 进度消息: TaskId={TaskId}, UserId={UserId}, Progress={Progress}%",
             message.TaskId, message.UserId, message.Progress);
 

@@ -1,18 +1,18 @@
+using System.Text.Json;
 using MessageService.Application.DTOs;
 using MessageService.Domain.Entities;
 using MessageService.Domain.Repositories;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 
 namespace MessageService.Application.Services;
 
 /// <summary>
-/// 通知应用服务实现
+///     通知应用服务实现
 /// </summary>
 public class NotificationApplicationService : INotificationService
 {
-    private readonly INotificationRepository _repository;
     private readonly ILogger<NotificationApplicationService> _logger;
+    private readonly INotificationRepository _repository;
 
     public NotificationApplicationService(
         INotificationRepository repository,
@@ -94,10 +94,7 @@ public class NotificationApplicationService : INotificationService
 
     public async Task<bool> MarkAsReadAsync(string notificationId, CancellationToken cancellationToken = default)
     {
-        if (!Guid.TryParse(notificationId, out var id))
-        {
-            return false;
-        }
+        if (!Guid.TryParse(notificationId, out var id)) return false;
 
         return await _repository.MarkAsReadAsync(id, cancellationToken);
     }
@@ -121,12 +118,10 @@ public class NotificationApplicationService : INotificationService
         return await _repository.MarkAllAsReadAsync(userId, cancellationToken);
     }
 
-    public async Task<bool> DeleteNotificationAsync(string notificationId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteNotificationAsync(string notificationId,
+        CancellationToken cancellationToken = default)
     {
-        if (!Guid.TryParse(notificationId, out var id))
-        {
-            return false;
-        }
+        if (!Guid.TryParse(notificationId, out var id)) return false;
 
         return await _repository.DeleteAsync(id, cancellationToken);
     }
@@ -135,7 +130,6 @@ public class NotificationApplicationService : INotificationService
     {
         Dictionary<string, object>? metadata = null;
         if (!string.IsNullOrEmpty(notification.Metadata))
-        {
             try
             {
                 metadata = JsonSerializer.Deserialize<Dictionary<string, object>>(notification.Metadata);
@@ -144,7 +138,6 @@ public class NotificationApplicationService : INotificationService
             {
                 // 忽略 JSON 解析错误
             }
-        }
 
         return new NotificationDto
         {

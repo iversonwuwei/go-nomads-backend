@@ -1,23 +1,20 @@
 using System.Text.Json;
 using System.Web;
 using CityService.Application.DTOs;
-using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 
 namespace CityService.Application.Services;
 
 /// <summary>
-/// GeoNames 数据导入服务实现
+///     GeoNames 数据导入服务实现
 /// </summary>
 public class GeoNamesImportService : IGeoNamesImportService
 {
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IGeoNamesCityRepository _geoNamesCityRepository;
-    private readonly ILogger<GeoNamesImportService> _logger;
-    private readonly string _geoNamesUsername;
     private const string GeoNamesBaseUrl = "http://api.geonames.org";
+    private readonly IGeoNamesCityRepository _geoNamesCityRepository;
+    private readonly string _geoNamesUsername;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILogger<GeoNamesImportService> _logger;
 
     public GeoNamesImportService(
         IHttpClientFactory httpClientFactory,
@@ -28,15 +25,15 @@ public class GeoNamesImportService : IGeoNamesImportService
         _httpClientFactory = httpClientFactory;
         _geoNamesCityRepository = geoNamesCityRepository;
         _logger = logger;
-        _geoNamesUsername = configuration["GeoNames:Username"] 
-            ?? throw new InvalidOperationException("GeoNames username not configured");
+        _geoNamesUsername = configuration["GeoNames:Username"]
+                            ?? throw new InvalidOperationException("GeoNames username not configured");
     }
 
     /// <summary>
-    /// 从 GeoNames 导入城市数据
+    ///     从 GeoNames 导入城市数据
     /// </summary>
     public async Task<GeoNamesImportResult> ImportCitiesAsync(
-        GeoNamesImportOptions options, 
+        GeoNamesImportOptions options,
         CancellationToken cancellationToken = default)
     {
         var result = new GeoNamesImportResult
@@ -89,9 +86,9 @@ public class GeoNamesImportService : IGeoNamesImportService
     }
 
     /// <summary>
-    /// 搜索 GeoNames 城市 (预览)
+    ///     搜索 GeoNames 城市 (预览)
     /// </summary>
-    public async Task<List<DTOs.GeoNamesCity>> SearchCitiesAsync(string query, int maxRows = 10)
+    public async Task<List<GeoNamesCity>> SearchCitiesAsync(string query, int maxRows = 10)
     {
         try
         {
@@ -108,7 +105,7 @@ public class GeoNamesImportService : IGeoNamesImportService
             var content = await response.Content.ReadAsStringAsync();
             var searchResult = JsonSerializer.Deserialize<GeoNamesSearchResponse>(content);
 
-            return searchResult?.Geonames ?? new List<DTOs.GeoNamesCity>();
+            return searchResult?.Geonames ?? new List<GeoNamesCity>();
         }
         catch (Exception ex)
         {
@@ -118,9 +115,9 @@ public class GeoNamesImportService : IGeoNamesImportService
     }
 
     /// <summary>
-    /// 根据城市名和国家获取 GeoNames 信息
+    ///     根据城市名和国家获取 GeoNames 信息
     /// </summary>
-    public async Task<DTOs.GeoNamesCity?> GetCityByNameAsync(string cityName, string countryCode)
+    public async Task<GeoNamesCity?> GetCityByNameAsync(string cityName, string countryCode)
     {
         try
         {
@@ -150,19 +147,19 @@ public class GeoNamesImportService : IGeoNamesImportService
     #region Private Methods
 
     /// <summary>
-    /// 从 GeoNames 获取城市列表
+    ///     从 GeoNames 获取城市列表
     /// </summary>
-    private async Task<List<DTOs.GeoNamesCity>> FetchCitiesFromGeoNamesAsync(
+    private async Task<List<GeoNamesCity>> FetchCitiesFromGeoNamesAsync(
         GeoNamesImportOptions options,
         CancellationToken cancellationToken)
     {
-        var allCities = new List<DTOs.GeoNamesCity>();
+        var allCities = new List<GeoNamesCity>();
         var client = _httpClientFactory.CreateClient();
 
         // 如果指定了国家列表
         var countries = options.CountryCodes ?? GetDefaultCountryCodes();
-        
-        _logger.LogInformation("准备从 {Count} 个国家获取城市数据: {Countries}", 
+
+        _logger.LogInformation("准备从 {Count} 个国家获取城市数据: {Countries}",
             countries.Count, string.Join(", ", countries));
 
         foreach (var countryCode in countries)
@@ -172,7 +169,7 @@ public class GeoNamesImportService : IGeoNamesImportService
             try
             {
                 _logger.LogInformation("开始获取 {Country} 的城市数据", countryCode);
-                
+
                 var startRow = 0;
                 var maxRows = 1000; // GeoNames 每次最多返回 1000 条
                 var hasMore = true;
@@ -181,13 +178,13 @@ public class GeoNamesImportService : IGeoNamesImportService
                 {
                     var url = BuildSearchUrl(countryCode, options, startRow, maxRows);
                     _logger.LogInformation("请求 GeoNames API: {Url}", url);
-                    
+
                     var response = await client.GetAsync(url, cancellationToken);
                     response.EnsureSuccessStatusCode();
 
                     var content = await response.Content.ReadAsStringAsync(cancellationToken);
                     _logger.LogDebug("GeoNames 响应: {Content}", content.Substring(0, Math.Min(500, content.Length)));
-                    
+
                     var searchResult = JsonSerializer.Deserialize<GeoNamesSearchResponse>(content);
 
                     if (searchResult?.Geonames != null && searchResult.Geonames.Any())
@@ -196,21 +193,18 @@ public class GeoNamesImportService : IGeoNamesImportService
                         var filteredCities = searchResult.Geonames
                             .Where(c => c.Population >= options.MinPopulation)
                             .ToList();
-                        
+
                         allCities.AddRange(filteredCities);
-                        
+
                         if (searchResult.Geonames.Count < maxRows)
-                        {
                             hasMore = false;
-                        }
                         else
-                        {
                             startRow += maxRows;
-                        }
 
                         _logger.LogInformation(
-                            "从 {Country} 获取 {Count} 个城市 (过滤后 {Filtered} 个，人口 >= {MinPop})，总计: {Total}", 
-                            countryCode, searchResult.Geonames.Count, filteredCities.Count, options.MinPopulation, allCities.Count);
+                            "从 {Country} 获取 {Count} 个城市 (过滤后 {Filtered} 个，人口 >= {MinPop})，总计: {Total}",
+                            countryCode, searchResult.Geonames.Count, filteredCities.Count, options.MinPopulation,
+                            allCities.Count);
                     }
                     else
                     {
@@ -232,13 +226,13 @@ public class GeoNamesImportService : IGeoNamesImportService
     }
 
     /// <summary>
-    /// 构建搜索 URL
+    ///     构建搜索 URL
     /// </summary>
     private string BuildSearchUrl(string countryCode, GeoNamesImportOptions options, int startRow, int maxRows)
     {
         // GeoNames API 不直接支持自定义人口过滤
         // 我们先获取所有城市,然后在代码中过滤人口
-        
+
         var url = $"{GeoNamesBaseUrl}/searchJSON?" +
                   $"country={countryCode}&" +
                   $"featureClass={options.FeatureClass}&" +
@@ -246,19 +240,16 @@ public class GeoNamesImportService : IGeoNamesImportService
                   $"startRow={startRow}&" +
                   $"username={_geoNamesUsername}";
 
-        if (options.FeatureCodes.Any())
-        {
-            url += $"&featureCode={string.Join(",", options.FeatureCodes)}";
-        }
+        if (options.FeatureCodes.Any()) url += $"&featureCode={string.Join(",", options.FeatureCodes)}";
 
         return url;
     }
 
     /// <summary>
-    /// 处理一批城市
+    ///     处理一批城市
     /// </summary>
     private async Task ProcessBatchAsync(
-        List<DTOs.GeoNamesCity> batch,
+        List<GeoNamesCity> batch,
         GeoNamesImportOptions options,
         GeoNamesImportResult result,
         CancellationToken cancellationToken)
@@ -281,10 +272,10 @@ public class GeoNamesImportService : IGeoNamesImportService
     }
 
     /// <summary>
-    /// 处理单个城市
+    ///     处理单个城市
     /// </summary>
     private async Task ProcessSingleCityAsync(
-        DTOs.GeoNamesCity geoCity,
+        GeoNamesCity geoCity,
         GeoNamesImportOptions options,
         GeoNamesImportResult result)
     {
@@ -292,7 +283,7 @@ public class GeoNamesImportService : IGeoNamesImportService
         {
             // 映射到实体
             var entity = MapToGeoNamesCityEntity(geoCity);
-            
+
             // Upsert (如果存在则更新,否则创建)
             await _geoNamesCityRepository.UpsertAsync(entity);
             result.SuccessCount++;
@@ -308,7 +299,7 @@ public class GeoNamesImportService : IGeoNamesImportService
     }
 
     /// <summary>
-    /// 获取国家代码
+    ///     获取国家代码
     /// </summary>
     private string GetCountryCode(string countryName)
     {
@@ -324,7 +315,7 @@ public class GeoNamesImportService : IGeoNamesImportService
             { "Mexico", "MX" },
             { "Vietnam", "VN" },
             { "Japan", "JP" },
-            { "South Korea", "KR" },
+            { "South Korea", "KR" }
             // 添加更多映射...
         };
 
@@ -332,7 +323,7 @@ public class GeoNamesImportService : IGeoNamesImportService
     }
 
     /// <summary>
-    /// 获取默认的国家代码列表（数字游民热门国家）
+    ///     获取默认的国家代码列表（数字游民热门国家）
     /// </summary>
     private List<string> GetDefaultCountryCodes()
     {
@@ -372,14 +363,14 @@ public class GeoNamesImportService : IGeoNamesImportService
             "CR", // 哥斯达黎加
             "ZA", // 南非
             "MA", // 摩洛哥
-            "EG", // 埃及
+            "EG" // 埃及
         };
     }
 
     /// <summary>
-    /// 映射 DTO 到实体
+    ///     映射 DTO 到实体
     /// </summary>
-    private Domain.Entities.GeoNamesCity MapToGeoNamesCityEntity(DTOs.GeoNamesCity dto)
+    private Domain.Entities.GeoNamesCity MapToGeoNamesCityEntity(GeoNamesCity dto)
     {
         return new Domain.Entities.GeoNamesCity
         {

@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CityService.API.Controllers;
 
 /// <summary>
-/// GeoNames 数据导入管理
+///     GeoNames 数据导入管理
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -26,7 +26,7 @@ public class GeoNamesController : ControllerBase
     }
 
     /// <summary>
-    /// 从 GeoNames 导入城市数据
+    ///     从 GeoNames 导入城市数据
     /// </summary>
     /// <param name="options">导入选项</param>
     [HttpPost("import")]
@@ -36,9 +36,9 @@ public class GeoNamesController : ControllerBase
         try
         {
             _logger.LogInformation("开始导入 GeoNames 城市数据");
-            
+
             var result = await _geoNamesService.ImportCitiesAsync(options);
-            
+
             return Ok(new ApiResponse<GeoNamesImportResult>
             {
                 Success = true,
@@ -59,7 +59,7 @@ public class GeoNamesController : ControllerBase
     }
 
     /// <summary>
-    /// 搜索 GeoNames 城市 (预览)
+    ///     搜索 GeoNames 城市 (预览)
     /// </summary>
     /// <param name="query">搜索关键词</param>
     /// <param name="maxRows">最大返回数量</param>
@@ -72,16 +72,14 @@ public class GeoNamesController : ControllerBase
         try
         {
             if (string.IsNullOrWhiteSpace(query))
-            {
                 return BadRequest(new ApiResponse<List<GeoNamesCity>>
                 {
                     Success = false,
                     Message = "搜索关键词不能为空"
                 });
-            }
 
             var cities = await _geoNamesService.SearchCitiesAsync(query, maxRows);
-            
+
             return Ok(new ApiResponse<List<GeoNamesCity>>
             {
                 Success = true,
@@ -102,7 +100,7 @@ public class GeoNamesController : ControllerBase
     }
 
     /// <summary>
-    /// 根据城市名和国家获取 GeoNames 信息
+    ///     根据城市名和国家获取 GeoNames 信息
     /// </summary>
     [HttpGet("city/{cityName}")]
     [AllowAnonymous]
@@ -113,16 +111,14 @@ public class GeoNamesController : ControllerBase
         try
         {
             var city = await _geoNamesService.GetCityByNameAsync(cityName, countryCode);
-            
+
             if (city == null)
-            {
                 return NotFound(new ApiResponse<GeoNamesCity>
                 {
                     Success = false,
                     Message = $"未找到城市: {cityName}"
                 });
-            }
-            
+
             return Ok(new ApiResponse<GeoNamesCity>
             {
                 Success = true,
@@ -143,7 +139,7 @@ public class GeoNamesController : ControllerBase
     }
 
     /// <summary>
-    /// 批量导入特定国家的城市
+    ///     批量导入特定国家的城市
     /// </summary>
     [HttpPost("import/country/{countryCode}")]
     public async Task<ActionResult<ApiResponse<GeoNamesImportResult>>> ImportCountryCities(
@@ -153,16 +149,16 @@ public class GeoNamesController : ControllerBase
         try
         {
             _logger.LogInformation("开始导入 {CountryCode} 的城市数据", countryCode);
-            
+
             var options = new GeoNamesImportOptions
             {
                 CountryCodes = new List<string> { countryCode.ToUpper() },
                 MinPopulation = minPopulation,
                 OverwriteExisting = false
             };
-            
+
             var result = await _geoNamesService.ImportCitiesAsync(options);
-            
+
             return Ok(new ApiResponse<GeoNamesImportResult>
             {
                 Success = true,

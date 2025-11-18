@@ -1,10 +1,9 @@
-using System.Collections.Generic;
 using CityService.Application.DTOs;
 
 namespace CityService.Application.Abstractions.Services;
 
 /// <summary>
-/// Defines read-only access to external weather data providers.
+///     Defines read-only access to external weather data providers.
 /// </summary>
 public interface IWeatherService
 {

@@ -5,7 +5,7 @@ using Postgrest.Models;
 namespace UserService.Domain.Entities;
 
 /// <summary>
-/// Role 实体
+///     Role 实体
 /// </summary>
 [Table("roles")]
 public class Role : BaseModel
@@ -18,27 +18,20 @@ public class Role : BaseModel
         UpdatedAt = DateTime.UtcNow;
     }
 
-    [PrimaryKey("id", false)]
-    [Column("id")]
-    public string Id { get; set; } = string.Empty;
+    [PrimaryKey("id")] [Column("id")] public string Id { get; set; } = string.Empty;
 
-    [Required]
-    [Column("name")]
-    public string Name { get; set; } = string.Empty;
+    [Required] [Column("name")] public string Name { get; set; } = string.Empty;
 
-    [Column("description")]
-    public string? Description { get; set; }
+    [Column("description")] public string? Description { get; set; }
 
-    [Column("created_at")]
-    public DateTime CreatedAt { get; set; }
+    [Column("created_at")] public DateTime CreatedAt { get; set; }
 
-    [Column("updated_at")]
-    public DateTime UpdatedAt { get; set; }
+    [Column("updated_at")] public DateTime UpdatedAt { get; set; }
 
     #region 工厂方法
 
     /// <summary>
-    /// 创建角色
+    ///     创建角色
     /// </summary>
     public static Role Create(string name, string? description = null)
     {
@@ -60,7 +53,7 @@ public class Role : BaseModel
     #region 领域方法
 
     /// <summary>
-    /// 更新角色信息
+    ///     更新角色信息
     /// </summary>
     public void Update(string name, string? description = null)
     {

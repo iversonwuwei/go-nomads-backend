@@ -1,6 +1,5 @@
-using Dapr.Client;
-using Scalar.AspNetCore;
 using Prometheus;
+using Scalar.AspNetCore;
 using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,8 +21,8 @@ app.MapScalarApiReference(options =>
 {
     options
         .WithTitle("Product Service API")
-        .WithTheme(Scalar.AspNetCore.ScalarTheme.Mars)
-        .WithDefaultHttpClient(Scalar.AspNetCore.ScalarTarget.CSharp, Scalar.AspNetCore.ScalarClient.HttpClient);
+        .WithTheme(ScalarTheme.Mars)
+        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
 });
 
 app.UseRouting();
@@ -35,7 +34,8 @@ app.UseHttpMetrics();
 app.MapControllers();
 
 // Add health check endpoint
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "ProductService", timestamp = DateTime.UtcNow }));
+app.MapGet("/health",
+    () => Results.Ok(new { status = "healthy", service = "ProductService", timestamp = DateTime.UtcNow }));
 
 // Map Prometheus metrics endpoint
 app.MapMetrics();

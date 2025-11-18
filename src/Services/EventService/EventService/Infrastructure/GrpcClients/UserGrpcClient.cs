@@ -5,13 +5,13 @@ using GoNomads.Shared.Models;
 namespace EventService.Infrastructure.GrpcClients;
 
 /// <summary>
-/// User Service gRPC 客户端实现（通过 Dapr）
+///     User Service gRPC 客户端实现（通过 Dapr）
 /// </summary>
 public class UserGrpcClient : IUserGrpcClient
 {
+    private const string UserServiceAppId = "user-service";
     private readonly DaprClient _daprClient;
     private readonly ILogger<UserGrpcClient> _logger;
-    private const string UserServiceAppId = "user-service";
 
     public UserGrpcClient(DaprClient daprClient, ILogger<UserGrpcClient> logger)
     {
@@ -63,10 +63,7 @@ public class UserGrpcClient : IUserGrpcClient
         var result = new Dictionary<Guid, OrganizerInfo>();
         var uniqueUserIds = userIds.Distinct().Where(id => id != Guid.Empty).ToList();
 
-        if (!uniqueUserIds.Any())
-        {
-            return result;
-        }
+        if (!uniqueUserIds.Any()) return result;
 
         _logger.LogInformation("👥 批量获取用户信息: Count={Count}", uniqueUserIds.Count);
 
@@ -80,12 +77,8 @@ public class UserGrpcClient : IUserGrpcClient
         var users = await Task.WhenAll(tasks);
 
         foreach (var (userId, userInfo) in users)
-        {
             if (userInfo != null)
-            {
                 result[userId] = userInfo;
-            }
-        }
 
         _logger.LogInformation("✅ 批量获取用户信息完成: 请求={Requested}, 成功={Success}",
             uniqueUserIds.Count, result.Count);
@@ -100,10 +93,7 @@ public class UserGrpcClient : IUserGrpcClient
         var result = new Dictionary<Guid, UserInfo>();
         var uniqueUserIds = userIds.Distinct().Where(id => id != Guid.Empty).ToList();
 
-        if (!uniqueUserIds.Any())
-        {
-            return result;
-        }
+        if (!uniqueUserIds.Any()) return result;
 
         _logger.LogInformation("👥 批量获取完整用户信息（含 Avatar 和 Phone）: Count={Count}", uniqueUserIds.Count);
 
@@ -136,7 +126,7 @@ public class UserGrpcClient : IUserGrpcClient
                 }
 
                 _logger.LogWarning("⚠️ UserService 返回空数据或失败: UserId={UserId}", userId);
-                return (userId, (UserInfo?)null);
+                return (userId, null);
             }
             catch (Exception ex)
             {
@@ -148,12 +138,8 @@ public class UserGrpcClient : IUserGrpcClient
         var users = await Task.WhenAll(tasks);
 
         foreach (var (userId, userInfo) in users)
-        {
             if (userInfo != null)
-            {
                 result[userId] = userInfo;
-            }
-        }
 
         _logger.LogInformation("✅ 批量获取完整用户信息完成: 请求={Requested}, 成功={Success}",
             uniqueUserIds.Count, result.Count);
@@ -163,7 +149,7 @@ public class UserGrpcClient : IUserGrpcClient
 }
 
 /// <summary>
-/// UserService 返回的 DTO(映射)
+///     UserService 返回的 DTO(映射)
 /// </summary>
 internal class UserDto
 {

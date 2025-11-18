@@ -1,119 +1,88 @@
-using System.ComponentModel.DataAnnotations;
 using Postgrest.Attributes;
 using Postgrest.Models;
 
 namespace CoworkingService.Domain.Entities;
 
 /// <summary>
-/// CoworkingSpace 聚合根 - 共享办公空间领域实体
-/// 封装业务规则和领域逻辑
+///     CoworkingSpace 聚合根 - 共享办公空间领域实体
+///     封装业务规则和领域逻辑
 /// </summary>
 [Table("coworking_spaces")]
 public class CoworkingSpace : BaseModel
 {
-    [PrimaryKey("id", false)]
-    public Guid Id { get; set; }
-
-    [Column("name")]
-    public string Name { get; set; } = string.Empty;
-
-    [Column("city_id")]
-    public Guid? CityId { get; set; }
-
-    [Column("address")]
-    public string Address { get; set; } = string.Empty;
-
-    [Column("description")]
-    public string? Description { get; set; }
-
-    [Column("image_url")]
-    public string? ImageUrl { get; set; }
-
-    [Column("images")]
-    public string[]? Images { get; set; }
-
-    [Column("price_per_day")]
-    public decimal? PricePerDay { get; set; }
-
-    [Column("price_per_month")]
-    public decimal? PricePerMonth { get; set; }
-
-    [Column("price_per_hour")]
-    public decimal? PricePerHour { get; set; }
-
-    [Column("currency")]
-    public string Currency { get; set; } = "USD";
-
-    [Column("rating")]
-    public decimal Rating { get; set; } = 0;
-
-    [Column("review_count")]
-    public int ReviewCount { get; set; } = 0;
-
-    [Column("wifi_speed")]
-    public decimal? WifiSpeed { get; set; }
-
-    [Column("has_meeting_room")]
-    public bool HasMeetingRoom { get; set; }
-
-    [Column("has_coffee")]
-    public bool HasCoffee { get; set; }
-
-    [Column("has_parking")]
-    public bool HasParking { get; set; }
-
-    [Column("has_24_7_access")]
-    public bool Has247Access { get; set; }
-
-    [Column("amenities")]
-    public string[]? Amenities { get; set; }
-
-    [Column("capacity")]
-    public int? Capacity { get; set; }
-
-    [Column("location")]
-    public string? Location { get; set; }
-
-    [Column("latitude")]
-    public decimal? Latitude { get; set; }
-
-    [Column("longitude")]
-    public decimal? Longitude { get; set; }
-
-    [Column("phone")]
-    public string? Phone { get; set; }
-
-    [Column("email")]
-    public string? Email { get; set; }
-
-    [Column("website")]
-    public string? Website { get; set; }
-
-    [Column("opening_hours")]
-    public string? OpeningHours { get; set; }
-
-    [Column("is_active")]
-    public bool IsActive { get; set; } = true;
-
-    [Column("created_by")]
-    public Guid? CreatedBy { get; set; }
-
-    [Column("updated_by")]
-    public Guid? UpdatedBy { get; set; }
-
-    [Column("created_at")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    [Column("updated_at")]
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
     /// <summary>
-    /// 公共无参构造函数 (ORM 需要)
+    ///     公共无参构造函数 (ORM 需要)
     /// </summary>
-    public CoworkingSpace() { }
+    public CoworkingSpace()
+    {
+    }
+
+    [PrimaryKey("id")] public Guid Id { get; set; }
+
+    [Column("name")] public string Name { get; set; } = string.Empty;
+
+    [Column("city_id")] public Guid? CityId { get; set; }
+
+    [Column("address")] public string Address { get; set; } = string.Empty;
+
+    [Column("description")] public string? Description { get; set; }
+
+    [Column("image_url")] public string? ImageUrl { get; set; }
+
+    [Column("images")] public string[]? Images { get; set; }
+
+    [Column("price_per_day")] public decimal? PricePerDay { get; set; }
+
+    [Column("price_per_month")] public decimal? PricePerMonth { get; set; }
+
+    [Column("price_per_hour")] public decimal? PricePerHour { get; set; }
+
+    [Column("currency")] public string Currency { get; set; } = "USD";
+
+    [Column("rating")] public decimal Rating { get; set; }
+
+    [Column("review_count")] public int ReviewCount { get; set; }
+
+    [Column("wifi_speed")] public decimal? WifiSpeed { get; set; }
+
+    [Column("has_meeting_room")] public bool HasMeetingRoom { get; set; }
+
+    [Column("has_coffee")] public bool HasCoffee { get; set; }
+
+    [Column("has_parking")] public bool HasParking { get; set; }
+
+    [Column("has_24_7_access")] public bool Has247Access { get; set; }
+
+    [Column("amenities")] public string[]? Amenities { get; set; }
+
+    [Column("capacity")] public int? Capacity { get; set; }
+
+    [Column("location")] public string? Location { get; set; }
+
+    [Column("latitude")] public decimal? Latitude { get; set; }
+
+    [Column("longitude")] public decimal? Longitude { get; set; }
+
+    [Column("phone")] public string? Phone { get; set; }
+
+    [Column("email")] public string? Email { get; set; }
+
+    [Column("website")] public string? Website { get; set; }
+
+    [Column("opening_hours")] public string? OpeningHours { get; set; }
+
+    [Column("is_active")] public bool IsActive { get; set; } = true;
+
+    [Column("created_by")] public Guid? CreatedBy { get; set; }
+
+    [Column("updated_by")] public Guid? UpdatedBy { get; set; }
+
+    [Column("created_at")] public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [Column("updated_at")] public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
-    /// 工厂方法 - 创建新的共享办公空间
+    ///     工厂方法 - 创建新的共享办公空间
     /// </summary>
     public static CoworkingSpace Create(
         string name,
@@ -196,7 +165,7 @@ public class CoworkingSpace : BaseModel
     }
 
     /// <summary>
-    /// 领域方法 - 更新共享办公空间信息
+    ///     领域方法 - 更新共享办公空间信息
     /// </summary>
     public void Update(
         string name,
@@ -272,7 +241,7 @@ public class CoworkingSpace : BaseModel
     }
 
     /// <summary>
-    /// 领域方法 - 添加评分
+    ///     领域方法 - 添加评分
     /// </summary>
     public void AddReview(decimal rating)
     {
@@ -287,7 +256,7 @@ public class CoworkingSpace : BaseModel
     }
 
     /// <summary>
-    /// 领域方法 - 停用空间
+    ///     领域方法 - 停用空间
     /// </summary>
     public void Deactivate(Guid? updatedBy = null)
     {
@@ -297,7 +266,7 @@ public class CoworkingSpace : BaseModel
     }
 
     /// <summary>
-    /// 领域方法 - 激活空间
+    ///     领域方法 - 激活空间
     /// </summary>
     public void Activate(Guid? updatedBy = null)
     {
@@ -307,16 +276,16 @@ public class CoworkingSpace : BaseModel
     }
 
     /// <summary>
-    /// 领域查询 - 检查是否可预订
+    ///     领域查询 - 检查是否可预订
     /// </summary>
     public bool CanBook()
     {
-        return IsActive && 
+        return IsActive &&
                (PricePerDay.HasValue || PricePerMonth.HasValue || PricePerHour.HasValue);
     }
 
     /// <summary>
-    /// 领域查询 - 检查是否有特定设施
+    ///     领域查询 - 检查是否有特定设施
     /// </summary>
     public bool HasAmenity(string amenity)
     {
@@ -324,7 +293,7 @@ public class CoworkingSpace : BaseModel
     }
 
     /// <summary>
-    /// 领域查询 - 计算指定类型的价格
+    ///     领域查询 - 计算指定类型的价格
     /// </summary>
     public decimal? GetPrice(string priceType)
     {

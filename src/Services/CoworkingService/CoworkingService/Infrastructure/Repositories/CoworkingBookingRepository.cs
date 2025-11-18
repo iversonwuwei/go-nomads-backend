@@ -1,17 +1,18 @@
 using CoworkingService.Domain.Entities;
 using CoworkingService.Domain.Repositories;
-using Supabase;
+using Postgrest;
+using Client = Supabase.Client;
 
 namespace CoworkingService.Infrastructure.Repositories;
 
 /// <summary>
-/// CoworkingBooking 仓储实现 - Supabase
-/// 实现预订相关的数据访问
+///     CoworkingBooking 仓储实现 - Supabase
+///     实现预订相关的数据访问
 /// </summary>
 public class CoworkingBookingRepository : ICoworkingBookingRepository
 {
-    private readonly Client _supabaseClient;
     private readonly ILogger<CoworkingBookingRepository> _logger;
+    private readonly Client _supabaseClient;
 
     public CoworkingBookingRepository(Client supabaseClient, ILogger<CoworkingBookingRepository> logger)
     {
@@ -28,10 +29,7 @@ public class CoworkingBookingRepository : ICoworkingBookingRepository
                 .Insert(booking);
 
             var created = response.Models.FirstOrDefault();
-            if (created == null)
-            {
-                throw new InvalidOperationException("创建预订失败");
-            }
+            if (created == null) throw new InvalidOperationException("创建预订失败");
 
             _logger.LogInformation("✅ Supabase 创建预订成功: {Id}", created.Id);
             return created;
@@ -70,10 +68,7 @@ public class CoworkingBookingRepository : ICoworkingBookingRepository
                 .Update(booking);
 
             var updated = response.Models.FirstOrDefault();
-            if (updated == null)
-            {
-                throw new InvalidOperationException("更新预订失败");
-            }
+            if (updated == null) throw new InvalidOperationException("更新预订失败");
 
             _logger.LogInformation("✅ Supabase 更新预订成功: {Id}", updated.Id);
             return updated;
@@ -91,7 +86,7 @@ public class CoworkingBookingRepository : ICoworkingBookingRepository
         {
             await _supabaseClient
                 .From<CoworkingBooking>()
-                .Filter("id", Postgrest.Constants.Operator.Equals, id.ToString())
+                .Filter("id", Constants.Operator.Equals, id.ToString())
                 .Delete();
 
             _logger.LogInformation("✅ Supabase 删除预订成功: {Id}", id);
@@ -110,7 +105,7 @@ public class CoworkingBookingRepository : ICoworkingBookingRepository
             var response = await _supabaseClient
                 .From<CoworkingBooking>()
                 .Where(x => x.UserId == userId)
-                .Order(x => x.BookingDate, Postgrest.Constants.Ordering.Descending)
+                .Order(x => x.BookingDate, Constants.Ordering.Descending)
                 .Get();
 
             return response.Models;
@@ -129,7 +124,7 @@ public class CoworkingBookingRepository : ICoworkingBookingRepository
             var response = await _supabaseClient
                 .From<CoworkingBooking>()
                 .Where(x => x.CoworkingId == coworkingId)
-                .Order(x => x.BookingDate, Postgrest.Constants.Ordering.Descending)
+                .Order(x => x.BookingDate, Constants.Ordering.Descending)
                 .Get();
 
             return response.Models;
@@ -148,7 +143,7 @@ public class CoworkingBookingRepository : ICoworkingBookingRepository
             var response = await _supabaseClient
                 .From<CoworkingBooking>()
                 .Where(x => x.UserId == userId && x.Status == status)
-                .Order(x => x.BookingDate, Postgrest.Constants.Ordering.Descending)
+                .Order(x => x.BookingDate, Constants.Ordering.Descending)
                 .Get();
 
             return response.Models;
@@ -171,8 +166,8 @@ public class CoworkingBookingRepository : ICoworkingBookingRepository
             var response = await _supabaseClient
                 .From<CoworkingBooking>()
                 .Where(x => x.CoworkingId == coworkingId &&
-                           x.BookingDate == bookingDate &&
-                           x.Status != "cancelled")
+                            x.BookingDate == bookingDate &&
+                            x.Status != "cancelled")
                 .Get();
 
             if (!response.Models.Any())
@@ -182,14 +177,10 @@ public class CoworkingBookingRepository : ICoworkingBookingRepository
             if (startTime.HasValue && endTime.HasValue)
             {
                 foreach (var booking in response.Models)
-                {
                     if (booking.StartTime.HasValue && booking.EndTime.HasValue)
-                    {
                         // 检查时间重叠
                         if (startTime < booking.EndTime && endTime > booking.StartTime)
                             return true;
-                    }
-                }
             }
             else
             {

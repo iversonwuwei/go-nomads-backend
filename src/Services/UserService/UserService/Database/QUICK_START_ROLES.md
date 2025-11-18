@@ -3,11 +3,13 @@
 ## ✅ 已完成的工作
 
 ### 1. 数据库层面
+
 - ✅ 创建 `roles` 表,包含默认角色: `user` 和 `admin`
 - ✅ 在 `users` 表添加 `role_id` 外键字段
 - ✅ 创建迁移脚本: `002_create_roles_table.sql`
 
 ### 2. 代码层面
+
 - ✅ 创建 `Role` 模型类 (`Shared/Models/Role.cs`)
 - ✅ 创建 `RoleRepository` 接口和实现
 - ✅ 创建 `RolesController` API 控制器
@@ -92,16 +94,19 @@ cd deployment && ./deploy-services-local.sh
 ### 2. 测试角色 API
 
 **获取所有角色:**
+
 ```bash
 curl http://localhost:5001/api/roles
 ```
 
 **获取单个角色:**
+
 ```bash
 curl http://localhost:5001/api/roles/role_admin
 ```
 
 **创建新角色:**
+
 ```bash
 curl -X POST http://localhost:5001/api/roles \
   -H "Content-Type: application/json" \
@@ -125,12 +130,12 @@ curl -X POST http://localhost:5001/api/users \
 
 ## 📚 API 端点
 
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/api/roles` | 获取所有角色 |
-| GET | `/api/roles/{id}` | 获取单个角色 |
-| POST | `/api/roles` | 创建新角色 |
-| PUT | `/api/roles/{id}` | 更新角色 |
+| 方法     | 路径                | 描述              |
+|--------|-------------------|-----------------|
+| GET    | `/api/roles`      | 获取所有角色          |
+| GET    | `/api/roles/{id}` | 获取单个角色          |
+| POST   | `/api/roles`      | 创建新角色           |
+| PUT    | `/api/roles/{id}` | 更新角色            |
 | DELETE | `/api/roles/{id}` | 删除角色 (不能删除默认角色) |
 
 ## 📖 更多文档
@@ -142,6 +147,7 @@ curl -X POST http://localhost:5001/api/users \
 ## 🎯 总结
 
 现在您的系统有:
+
 1. ✅ 密码认证 (`password_hash` 字段)
 2. ✅ 角色管理 (`roles` 表 + `role_id` 外键)
 3. ✅ 默认角色: `user` 和 `admin`

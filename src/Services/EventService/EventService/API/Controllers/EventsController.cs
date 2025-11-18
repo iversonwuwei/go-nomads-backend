@@ -1,26 +1,24 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using EventService.Application.Services;
+using System.Text.Json;
+using Dapr.Client;
 using EventService.Application.DTOs;
+using EventService.Application.Services;
 using GoNomads.Shared.Middleware;
 using GoNomads.Shared.Models;
-using System.Collections.Generic;
-using System.Linq;
-using Dapr.Client;
-using System.Text.Json;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace EventService.API.Controllers;
 
 /// <summary>
-/// Events API - RESTful endpoints for event management
+///     Events API - RESTful endpoints for event management
 /// </summary>
 [ApiController]
 [Route("api/v1/events")]
 public class EventsController : ControllerBase
 {
+    private readonly DaprClient _daprClient;
     private readonly IEventService _eventService;
     private readonly ILogger<EventsController> _logger;
-    private readonly DaprClient _daprClient;
 
     public EventsController(IEventService eventService, ILogger<EventsController> logger, DaprClient daprClient)
     {
@@ -30,7 +28,7 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// 创建 Event
+    ///     创建 Event
     /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(ApiResponse<EventResponse>), StatusCodes.Status201Created)]
@@ -46,21 +44,19 @@ public class EventsController : ControllerBase
             // 从 UserContext 获取当前用户信息
             var userContext = UserContextMiddleware.GetUserContext(HttpContext);
             if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-            {
                 return Unauthorized(new ApiResponse<EventResponse>
                 {
                     Success = false,
                     Message = "用户未认证",
                     Errors = new List<string> { "用户未认证" }
                 });
-            }
 
             _logger.LogInformation("🔍 用户上下文: UserId={UserId}, Length={Length}",
                 userContext.UserId, userContext.UserId.Length);
 
             var organizerId = Guid.Parse(userContext.UserId);
             var response = await _eventService.CreateEventAsync(request, organizerId);
-            
+
             _logger.LogInformation("✅ 用户 {UserId} 成功创建 Event {EventId}", organizerId, response.Id);
             return CreatedAtAction(
                 nameof(GetEvent),
@@ -85,7 +81,7 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取 Event 详情
+    ///     获取 Event 详情
     /// </summary>
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(ApiResponse<EventResponse>), StatusCodes.Status200OK)]
@@ -97,11 +93,9 @@ public class EventsController : ControllerBase
             // 从 UserContext 获取当前用户信息（可选，用于判断关注/参与状态）
             var userContext = UserContextMiddleware.GetUserContext(HttpContext);
             Guid? userId = null;
-            
+
             if (userContext?.IsAuthenticated == true && !string.IsNullOrEmpty(userContext.UserId))
-            {
                 userId = Guid.Parse(userContext.UserId);
-            }
 
             var response = await _eventService.GetEventAsync(id, userId);
             return Ok(new ApiResponse<EventResponse>
@@ -133,7 +127,7 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取 Event 列表
+    ///     获取 Event 列表
     /// </summary>
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -167,7 +161,7 @@ public class EventsController : ControllerBase
             }
             else
             {
-                _logger.LogWarning("⚠️ GetEvents: 未认证用户或 UserId 为空。IsAuthenticated={IsAuth}, UserId={UserId}", 
+                _logger.LogWarning("⚠️ GetEvents: 未认证用户或 UserId 为空。IsAuthenticated={IsAuth}, UserId={UserId}",
                     userContext?.IsAuthenticated, userContext?.UserId);
             }
 
@@ -198,32 +192,31 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// 更新 Event
+    ///     更新 Event
     /// </summary>
     [HttpPut("{id}")]
     [ProducesResponseType(typeof(ApiResponse<EventResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiResponse<EventResponse>>> UpdateEvent(Guid id, [FromBody] UpdateEventRequest request)
+    public async Task<ActionResult<ApiResponse<EventResponse>>> UpdateEvent(Guid id,
+        [FromBody] UpdateEventRequest request)
     {
         try
         {
             // 从 UserContext 获取当前用户信息
             var userContext = UserContextMiddleware.GetUserContext(HttpContext);
             if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-            {
                 return Unauthorized(new ApiResponse<EventResponse>
                 {
                     Success = false,
                     Message = "用户未认证",
                     Errors = new List<string> { "用户未认证" }
                 });
-            }
 
             var userId = Guid.Parse(userContext.UserId);
             var response = await _eventService.UpdateEventAsync(id, request, userId);
-            
+
             _logger.LogInformation("✅ 用户 {UserId} 成功更新 Event {EventId}", userId, id);
             return Ok(new ApiResponse<EventResponse>
             {
@@ -263,7 +256,7 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// 取消活动
+    ///     取消活动
     /// </summary>
     [HttpPost("{id}/cancel")]
     [ProducesResponseType(typeof(ApiResponse<EventResponse>), StatusCodes.Status200OK)]
@@ -277,18 +270,16 @@ public class EventsController : ControllerBase
             // 从 UserContext 获取当前用户信息
             var userContext = UserContextMiddleware.GetUserContext(HttpContext);
             if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-            {
                 return Unauthorized(new ApiResponse<EventResponse>
                 {
                     Success = false,
                     Message = "用户未认证",
                     Errors = new List<string> { "用户未认证" }
                 });
-            }
 
             var userId = Guid.Parse(userContext.UserId);
             var response = await _eventService.CancelEventAsync(id, userId);
-            
+
             _logger.LogInformation("✅ 用户 {UserId} 成功取消活动 {EventId}", userId, id);
             return Ok(new ApiResponse<EventResponse>
             {
@@ -337,32 +328,31 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// 参加 Event
+    ///     参加 Event
     /// </summary>
     [HttpPost("{id}/join")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiResponse<ParticipantResponse>>> JoinEvent(Guid id, [FromBody] JoinEventRequest request)
+    public async Task<ActionResult<ApiResponse<ParticipantResponse>>> JoinEvent(Guid id,
+        [FromBody] JoinEventRequest request)
     {
         try
         {
             // 从 UserContext 获取当前用户信息
             var userContext = UserContextMiddleware.GetUserContext(HttpContext);
             if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-            {
                 return Unauthorized(new ApiResponse<ParticipantResponse>
                 {
                     Success = false,
                     Message = "用户未认证",
                     Errors = new List<string> { "用户未认证" }
                 });
-            }
 
             var userId = Guid.Parse(userContext.UserId);
             var response = await _eventService.JoinEventAsync(id, userId, request);
-            
+
             _logger.LogInformation("✅ 用户 {UserId} 成功参加 Event {EventId}", userId, id);
             return Ok(new ApiResponse<ParticipantResponse>
             {
@@ -402,7 +392,7 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// 取消参加 Event
+    ///     取消参加 Event
     /// </summary>
     [HttpDelete("{id}/join")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -415,18 +405,16 @@ public class EventsController : ControllerBase
             // 从 UserContext 获取当前用户信息
             var userContext = UserContextMiddleware.GetUserContext(HttpContext);
             if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-            {
                 return Unauthorized(new ApiResponse<bool>
                 {
                     Success = false,
                     Message = "用户未认证",
                     Errors = new List<string> { "用户未认证" }
                 });
-            }
 
             var userId = Guid.Parse(userContext.UserId);
             await _eventService.LeaveEventAsync(id, userId);
-            
+
             _logger.LogInformation("✅ 用户 {UserId} 成功取消参加 Event {EventId}", userId, id);
             return Ok(new ApiResponse<bool>
             {
@@ -457,32 +445,31 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// 关注 Event
+    ///     关注 Event
     /// </summary>
     [HttpPost("{id}/follow")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiResponse<FollowerResponse>>> FollowEvent(Guid id, [FromBody] FollowEventRequest request)
+    public async Task<ActionResult<ApiResponse<FollowerResponse>>> FollowEvent(Guid id,
+        [FromBody] FollowEventRequest request)
     {
         try
         {
             // 从 UserContext 获取当前用户信息
             var userContext = UserContextMiddleware.GetUserContext(HttpContext);
             if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-            {
                 return Unauthorized(new ApiResponse<FollowerResponse>
                 {
                     Success = false,
                     Message = "用户未认证",
                     Errors = new List<string> { "用户未认证" }
                 });
-            }
 
             var userId = Guid.Parse(userContext.UserId);
             var response = await _eventService.FollowEventAsync(id, userId, request);
-            
+
             _logger.LogInformation("✅ 用户 {UserId} 成功关注 Event {EventId}", userId, id);
             return Ok(new ApiResponse<FollowerResponse>
             {
@@ -522,7 +509,7 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// 取消关注 Event
+    ///     取消关注 Event
     /// </summary>
     [HttpDelete("{id}/follow")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -535,18 +522,16 @@ public class EventsController : ControllerBase
             // 从 UserContext 获取当前用户信息
             var userContext = UserContextMiddleware.GetUserContext(HttpContext);
             if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-            {
                 return Unauthorized(new ApiResponse<bool>
                 {
                     Success = false,
                     Message = "用户未认证",
                     Errors = new List<string> { "用户未认证" }
                 });
-            }
 
             var userId = Guid.Parse(userContext.UserId);
             await _eventService.UnfollowEventAsync(id, userId);
-            
+
             _logger.LogInformation("✅ 用户 {UserId} 成功取消关注 Event {EventId}", userId, id);
             return Ok(new ApiResponse<bool>
             {
@@ -577,7 +562,7 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取 Event 参与者列表
+    ///     获取 Event 参与者列表
     /// </summary>
     [HttpGet("{id}/participants")]
     [AllowAnonymous]
@@ -587,20 +572,18 @@ public class EventsController : ControllerBase
         try
         {
             var participants = await _eventService.GetParticipantsAsync(id);
-            
+
             if (!participants.Any())
-            {
                 return Ok(new ApiResponse<IEnumerable<ParticipantResponse>>
                 {
                     Success = true,
                     Message = "参与者列表为空",
                     Data = participants
                 });
-            }
 
             // 提取所有 userId
             var userIds = participants.Select(p => p.UserId.ToString()).ToList();
-            
+
             _logger.LogInformation("📋 获取 {Count} 个参与者的用户详细信息", userIds.Count);
 
             try
@@ -615,27 +598,22 @@ public class EventsController : ControllerBase
                 );
 
                 // 解析响应
-                if (userServiceResponse.TryGetProperty("success", out var successProp) && 
-                    successProp.GetBoolean() && 
+                if (userServiceResponse.TryGetProperty("success", out var successProp) &&
+                    successProp.GetBoolean() &&
                     userServiceResponse.TryGetProperty("data", out var dataProp))
                 {
                     var users = dataProp.EnumerateArray();
                     var userMap = new Dictionary<string, JsonElement>();
-                    
+
                     foreach (var user in users)
-                    {
                         if (user.TryGetProperty("id", out var idProp))
-                        {
                             userMap[idProp.GetString() ?? ""] = user;
-                        }
-                    }
-                    
+
                     // 填充用户详细信息
                     foreach (var participant in participants)
                     {
                         var userIdStr = participant.UserId.ToString();
                         if (userMap.TryGetValue(userIdStr, out var user))
-                        {
                             participant.User = new UserInfo
                             {
                                 Id = user.TryGetProperty("id", out var userId) ? userId.GetString() ?? "" : "",
@@ -644,10 +622,9 @@ public class EventsController : ControllerBase
                                 Avatar = user.TryGetProperty("avatar", out var avatar) ? avatar.GetString() : null,
                                 Phone = user.TryGetProperty("phone", out var phone) ? phone.GetString() : null
                             };
-                        }
                     }
-                    
-                    _logger.LogInformation("✅ 成功填充 {Count}/{Total} 个用户详细信息", 
+
+                    _logger.LogInformation("✅ 成功填充 {Count}/{Total} 个用户详细信息",
                         userMap.Count, participants.Count());
                 }
                 else
@@ -681,7 +658,7 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取 Event 关注者列表
+    ///     获取 Event 关注者列表
     /// </summary>
     [HttpGet("{id}/followers")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -710,7 +687,7 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取当前用户创建的 Event 列表
+    ///     获取当前用户创建的 Event 列表
     /// </summary>
     [HttpGet("me/created")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -722,18 +699,16 @@ public class EventsController : ControllerBase
             // 从 UserContext 获取当前用户信息
             var userContext = UserContextMiddleware.GetUserContext(HttpContext);
             if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-            {
                 return Unauthorized(new ApiResponse<IEnumerable<EventResponse>>
                 {
                     Success = false,
                     Message = "用户未认证",
                     Errors = new List<string> { "用户未认证" }
                 });
-            }
 
             var userId = Guid.Parse(userContext.UserId);
             var events = await _eventService.GetUserCreatedEventsAsync(userId);
-            
+
             _logger.LogInformation("✅ 获取用户 {UserId} 创建的 Event 列表，共 {Count} 个", userId, events.Count);
             return Ok(new ApiResponse<IEnumerable<EventResponse>>
             {
@@ -755,7 +730,7 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取当前用户参加的 Event 列表
+    ///     获取当前用户参加的 Event 列表
     /// </summary>
     [HttpGet("me/joined")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -767,18 +742,16 @@ public class EventsController : ControllerBase
             // 从 UserContext 获取当前用户信息
             var userContext = UserContextMiddleware.GetUserContext(HttpContext);
             if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-            {
                 return Unauthorized(new ApiResponse<IEnumerable<EventResponse>>
                 {
                     Success = false,
                     Message = "用户未认证",
                     Errors = new List<string> { "用户未认证" }
                 });
-            }
 
             var userId = Guid.Parse(userContext.UserId);
             var events = await _eventService.GetUserJoinedEventsAsync(userId);
-            
+
             _logger.LogInformation("✅ 获取用户 {UserId} 参加的 Event 列表，共 {Count} 个", userId, events.Count);
             return Ok(new ApiResponse<IEnumerable<EventResponse>>
             {
@@ -800,7 +773,7 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取当前用户关注的 Event 列表
+    ///     获取当前用户关注的 Event 列表
     /// </summary>
     [HttpGet("me/following")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -812,18 +785,16 @@ public class EventsController : ControllerBase
             // 从 UserContext 获取当前用户信息
             var userContext = UserContextMiddleware.GetUserContext(HttpContext);
             if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-            {
                 return Unauthorized(new ApiResponse<IEnumerable<EventResponse>>
                 {
                     Success = false,
                     Message = "用户未认证",
                     Errors = new List<string> { "用户未认证" }
                 });
-            }
 
             var userId = Guid.Parse(userContext.UserId);
             var events = await _eventService.GetUserFollowingEventsAsync(userId);
-            
+
             _logger.LogInformation("✅ 获取用户 {UserId} 关注的 Event 列表，共 {Count} 个", userId, events.Count);
             return Ok(new ApiResponse<IEnumerable<EventResponse>>
             {

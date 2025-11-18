@@ -1,9 +1,7 @@
-using System.Collections.Generic;
-
 namespace CityService.DTOs;
 
 /// <summary>
-/// 用户城市照片 DTO
+///     用户城市照片 DTO
 /// </summary>
 public class UserCityPhotoDto
 {
@@ -23,7 +21,7 @@ public class UserCityPhotoDto
 }
 
 /// <summary>
-/// 添加照片请求
+///     添加照片请求
 /// </summary>
 public class AddCityPhotoRequest
 {
@@ -35,7 +33,7 @@ public class AddCityPhotoRequest
 }
 
 /// <summary>
-/// 批量提交照片请求
+///     批量提交照片请求
 /// </summary>
 public class SubmitCityPhotoBatchRequest
 {
@@ -47,7 +45,7 @@ public class SubmitCityPhotoBatchRequest
 }
 
 /// <summary>
-/// 用户城市费用 DTO
+///     用户城市费用 DTO
 /// </summary>
 public class UserCityExpenseDto
 {
@@ -63,7 +61,7 @@ public class UserCityExpenseDto
 }
 
 /// <summary>
-/// 添加费用请求
+///     添加费用请求
 /// </summary>
 public class AddCityExpenseRequest
 {
@@ -76,7 +74,7 @@ public class AddCityExpenseRequest
 }
 
 /// <summary>
-/// 用户城市评论 DTO
+///     用户城市评论 DTO
 /// </summary>
 public class UserCityReviewDto
 {
@@ -94,7 +92,7 @@ public class UserCityReviewDto
 }
 
 /// <summary>
-/// 添加/更新评论请求
+///     添加/更新评论请求
 /// </summary>
 public class UpsertCityReviewRequest
 {
@@ -106,7 +104,7 @@ public class UpsertCityReviewRequest
 }
 
 /// <summary>
-/// 城市用户内容统计
+///     城市用户内容统计
 /// </summary>
 public class CityUserContentStatsDto
 {
@@ -121,7 +119,7 @@ public class CityUserContentStatsDto
 }
 
 /// <summary>
-/// 费用分类枚举
+///     费用分类枚举
 /// </summary>
 public static class ExpenseCategory
 {

@@ -1,16 +1,15 @@
 using Dapr.Client;
-using System.Text.Json;
 
 namespace AIService.Infrastructure.GrpcClients;
 
 /// <summary>
-/// 用户服务 gRPC 客户端实现 (通过 Dapr Service Invocation)
+///     用户服务 gRPC 客户端实现 (通过 Dapr Service Invocation)
 /// </summary>
 public class UserGrpcClient : IUserGrpcClient
 {
+    private const string UserServiceName = "user-service";
     private readonly DaprClient _daprClient;
     private readonly ILogger<UserGrpcClient> _logger;
-    private const string UserServiceName = "user-service";
 
     public UserGrpcClient(DaprClient daprClient, ILogger<UserGrpcClient> logger)
     {
@@ -59,10 +58,7 @@ public class UserGrpcClient : IUserGrpcClient
     {
         var result = new Dictionary<Guid, UserInfo>();
 
-        if (!userIds.Any())
-        {
-            return result;
-        }
+        if (!userIds.Any()) return result;
 
         try
         {
@@ -78,12 +74,8 @@ public class UserGrpcClient : IUserGrpcClient
             var results = await Task.WhenAll(tasks);
 
             foreach (var item in results)
-            {
                 if (item.UserInfo != null)
-                {
                     result[item.UserId] = item.UserInfo;
-                }
-            }
 
             _logger.LogInformation("✅ 成功获取 {SuccessCount}/{TotalCount} 个用户信息",
                 result.Count, userIds.Count);
@@ -123,8 +115,8 @@ public class UserGrpcClient : IUserGrpcClient
     private class UserDto
     {
         public Guid Id { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
+        public string Name { get; } = string.Empty;
+        public string Email { get; } = string.Empty;
         public string? Avatar { get; set; }
         public string? Phone { get; set; }
     }

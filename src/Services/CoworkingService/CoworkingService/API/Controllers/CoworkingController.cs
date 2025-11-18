@@ -1,13 +1,13 @@
-using Microsoft.AspNetCore.Mvc;
-using CoworkingService.Application.Services;
 using CoworkingService.Application.DTOs;
+using CoworkingService.Application.Services;
 using GoNomads.Shared.DTOs;
+using Microsoft.AspNetCore.Mvc;
 
 namespace CoworkingService.API.Controllers;
 
 /// <summary>
-/// Coworking 空间 API 控制器
-/// 薄控制器 - 只负责 HTTP 请求/响应处理
+///     Coworking 空间 API 控制器
+///     薄控制器 - 只负责 HTTP 请求/响应处理
 /// </summary>
 [ApiController]
 [Route("api/v1/coworking")]
@@ -25,7 +25,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 获取所有 Coworking 空间列表（分页）
+    ///     获取所有 Coworking 空间列表（分页）
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PaginatedCoworkingSpacesResponse>), StatusCodes.Status200OK)]
@@ -52,7 +52,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 根据城市ID获取 Coworking 空间列表（分页）
+    ///     根据城市ID获取 Coworking 空间列表（分页）
     /// </summary>
     [HttpGet("city/{cityId}")]
     [ProducesResponseType(typeof(ApiResponse<PaginatedCoworkingSpacesResponse>), StatusCodes.Status200OK)]
@@ -63,7 +63,7 @@ public class CoworkingController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("获取城市 {CityId} 的 Coworking 空间列表, Page={Page}, PageSize={PageSize}", 
+            _logger.LogInformation("获取城市 {CityId} 的 Coworking 空间列表, Page={Page}, PageSize={PageSize}",
                 cityId, page, pageSize);
 
             var result = await _coworkingService.GetCoworkingSpacesAsync(page, pageSize, cityId);
@@ -82,7 +82,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 根据 ID 获取单个 Coworking 空间
+    ///     根据 ID 获取单个 Coworking 空间
     /// </summary>
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(ApiResponse<CoworkingSpaceResponse>), StatusCodes.Status200OK)]
@@ -113,7 +113,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 创建新的 Coworking 空间
+    ///     创建新的 Coworking 空间
     /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(ApiResponse<CoworkingSpaceResponse>), StatusCodes.Status201Created)]
@@ -148,7 +148,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 更新 Coworking 空间
+    ///     更新 Coworking 空间
     /// </summary>
     [HttpPut("{id}")]
     [ProducesResponseType(typeof(ApiResponse<CoworkingSpaceResponse>), StatusCodes.Status200OK)]
@@ -188,7 +188,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 删除 Coworking 空间
+    ///     删除 Coworking 空间
     /// </summary>
     [HttpDelete("{id}")]
     [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
@@ -219,7 +219,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 搜索 Coworking 空间
+    ///     搜索 Coworking 空间
     /// </summary>
     [HttpGet("search")]
     [ProducesResponseType(typeof(ApiResponse<List<CoworkingSpaceResponse>>), StatusCodes.Status200OK)]
@@ -246,7 +246,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 获取评分最高的 Coworking 空间
+    ///     获取评分最高的 Coworking 空间
     /// </summary>
     [HttpGet("top-rated")]
     [ProducesResponseType(typeof(ApiResponse<List<CoworkingSpaceResponse>>), StatusCodes.Status200OK)]
@@ -271,7 +271,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 批量获取多个城市的 Coworking 空间数量
+    ///     批量获取多个城市的 Coworking 空间数量
     /// </summary>
     [HttpGet("count-by-cities")]
     [ProducesResponseType(typeof(ApiResponse<Dictionary<Guid, int>>), StatusCodes.Status200OK)]
@@ -283,11 +283,9 @@ public class CoworkingController : ControllerBase
         {
             // 解析城市 ID 列表 (格式: "id1,id2,id3")
             if (string.IsNullOrWhiteSpace(cityIds))
-            {
                 return BadRequest(ApiResponse<object>.ErrorResponse(
                     "参数无效",
                     new List<string> { "cityIds 参数不能为空" }));
-            }
 
             var cityIdList = cityIds
                 .Split(',', StringSplitOptions.RemoveEmptyEntries)
@@ -295,11 +293,9 @@ public class CoworkingController : ControllerBase
                 .ToList();
 
             if (cityIdList.Count == 0)
-            {
                 return BadRequest(ApiResponse<object>.ErrorResponse(
                     "参数无效",
                     new List<string> { "至少需要提供一个城市 ID" }));
-            }
 
             var result = await _coworkingService.GetCoworkingCountByCitiesAsync(cityIdList);
 
@@ -325,7 +321,7 @@ public class CoworkingController : ControllerBase
     #region Booking Endpoints
 
     /// <summary>
-    /// 创建预订
+    ///     创建预订
     /// </summary>
     [HttpPost("{coworkingId}/bookings")]
     [ProducesResponseType(typeof(ApiResponse<CoworkingBookingResponse>), StatusCodes.Status201Created)]
@@ -376,7 +372,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 获取预订详情
+    ///     获取预订详情
     /// </summary>
     [HttpGet("bookings/{id}")]
     [ProducesResponseType(typeof(ApiResponse<CoworkingBookingResponse>), StatusCodes.Status200OK)]
@@ -407,7 +403,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 取消预订
+    ///     取消预订
     /// </summary>
     [HttpPost("bookings/{id}/cancel")]
     [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
@@ -453,7 +449,7 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    /// 获取用户的预订列表
+    ///     获取用户的预订列表
     /// </summary>
     [HttpGet("bookings/user/{userId}")]
     [ProducesResponseType(typeof(ApiResponse<List<CoworkingBookingResponse>>), StatusCodes.Status200OK)]

@@ -1,7 +1,7 @@
 namespace MessageService.Application.DTOs;
 
 /// <summary>
-/// AI 任务消息
+///     AI 任务消息
 /// </summary>
 public class AITaskMessage
 {
@@ -13,7 +13,7 @@ public class AITaskMessage
 }
 
 /// <summary>
-/// AI 进度消息
+///     AI 进度消息
 /// </summary>
 public class AIProgressMessage
 {
@@ -28,7 +28,7 @@ public class AIProgressMessage
 }
 
 /// <summary>
-/// 通用通知消息
+///     通用通知消息
 /// </summary>
 public class NotificationMessage
 {
@@ -41,7 +41,7 @@ public class NotificationMessage
 }
 
 /// <summary>
-/// 事件更新消息
+///     事件更新消息
 /// </summary>
 public class EventUpdateMessage
 {

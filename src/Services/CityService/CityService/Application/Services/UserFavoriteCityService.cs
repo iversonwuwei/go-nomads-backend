@@ -4,7 +4,7 @@ using CityService.Domain.Repositories;
 namespace CityService.Application.Services;
 
 /// <summary>
-/// 用户收藏城市应用服务接口
+///     用户收藏城市应用服务接口
 /// </summary>
 public interface IUserFavoriteCityService
 {
@@ -16,12 +16,12 @@ public interface IUserFavoriteCityService
 }
 
 /// <summary>
-/// 用户收藏城市应用服务实现
+///     用户收藏城市应用服务实现
 /// </summary>
 public class UserFavoriteCityService : IUserFavoriteCityService
 {
-    private readonly IUserFavoriteCityRepository _repository;
     private readonly ILogger<UserFavoriteCityService> _logger;
+    private readonly IUserFavoriteCityRepository _repository;
 
     public UserFavoriteCityService(
         IUserFavoriteCityRepository repository,
@@ -33,20 +33,14 @@ public class UserFavoriteCityService : IUserFavoriteCityService
 
     public async Task<bool> IsCityFavoritedAsync(Guid userId, string cityId)
     {
-        if (string.IsNullOrWhiteSpace(cityId))
-        {
-            throw new ArgumentException("城市ID不能为空", nameof(cityId));
-        }
+        if (string.IsNullOrWhiteSpace(cityId)) throw new ArgumentException("城市ID不能为空", nameof(cityId));
 
         return await _repository.IsCityFavoritedAsync(userId, cityId);
     }
 
     public async Task<UserFavoriteCity> AddFavoriteCityAsync(Guid userId, string cityId)
     {
-        if (string.IsNullOrWhiteSpace(cityId))
-        {
-            throw new ArgumentException("城市ID不能为空", nameof(cityId));
-        }
+        if (string.IsNullOrWhiteSpace(cityId)) throw new ArgumentException("城市ID不能为空", nameof(cityId));
 
         _logger.LogInformation("用户添加收藏城市: UserId={UserId}, CityId={CityId}", userId, cityId);
         return await _repository.AddFavoriteCityAsync(userId, cityId);
@@ -54,10 +48,7 @@ public class UserFavoriteCityService : IUserFavoriteCityService
 
     public async Task<bool> RemoveFavoriteCityAsync(Guid userId, string cityId)
     {
-        if (string.IsNullOrWhiteSpace(cityId))
-        {
-            throw new ArgumentException("城市ID不能为空", nameof(cityId));
-        }
+        if (string.IsNullOrWhiteSpace(cityId)) throw new ArgumentException("城市ID不能为空", nameof(cityId));
 
         _logger.LogInformation("用户取消收藏城市: UserId={UserId}, CityId={CityId}", userId, cityId);
         return await _repository.RemoveFavoriteCityAsync(userId, cityId);
@@ -69,8 +60,8 @@ public class UserFavoriteCityService : IUserFavoriteCityService
     }
 
     public async Task<(List<UserFavoriteCity> Items, int Total)> GetUserFavoriteCitiesAsync(
-        Guid userId, 
-        int page, 
+        Guid userId,
+        int page,
         int pageSize)
     {
         if (page < 1) page = 1;

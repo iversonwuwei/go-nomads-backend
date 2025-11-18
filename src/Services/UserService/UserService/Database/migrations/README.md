@@ -1,15 +1,18 @@
 # 数据库迁移指南
 
 ## 概述
+
 本目录包含 UserService 数据库的迁移脚本,用于逐步更新 Supabase 数据库结构。
 
 ## 迁移列表
 
 ### 001_add_password_and_role.sql
+
 **日期**: 2024-10-21  
 **描述**: 添加密码认证和用户角色支持
 
 **变更内容**:
+
 - 添加 `password_hash` 字段 (VARCHAR(255)) - 存储 BCrypt 哈希后的密码
 - 添加 `role` 字段 (VARCHAR(50)) - 存储用户角色,默认值为 'user'
 - 创建 `role` 字段的索引以提高查询性能
@@ -40,6 +43,7 @@ psql $SUPABASE_DB_URL -f migrations/001_add_password_and_role.sql
 ### 方法 3: 使用数据库客户端工具
 
 使用 DBeaver, TablePlus, pgAdmin 等工具:
+
 1. 连接到您的 Supabase 数据库
 2. 打开 `migrations/001_add_password_and_role.sql` 文件
 3. 执行 SQL 脚本
@@ -82,6 +86,7 @@ DROP INDEX IF EXISTS idx_users_role;
 ## 注意事项
 
 ⚠️ **重要提醒**:
+
 - 在生产环境执行迁移前,请先在测试环境测试
 - 建议在低流量时段执行迁移
 - 执行前请备份数据库
@@ -91,6 +96,7 @@ DROP INDEX IF EXISTS idx_users_role;
 ## 后续步骤
 
 迁移完成后:
+
 1. 重启 UserService 服务
 2. 测试用户注册功能 (POST /api/users/register)
 3. 测试用户创建功能 (POST /api/users)
