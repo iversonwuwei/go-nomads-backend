@@ -47,7 +47,8 @@ public class CoworkingCommentRepository : ICoworkingCommentRepository
         {
             var response = await _supabaseClient
                 .From<CoworkingComment>()
-                .Where(x => x.Id == id && x.IsActive)
+                .Filter("id", Constants.Operator.Equals, id.ToString())
+                .Filter("is_active", Constants.Operator.Equals, "true")
                 .Single();
 
             return response;
@@ -67,12 +68,13 @@ public class CoworkingCommentRepository : ICoworkingCommentRepository
 
             var response = await _supabaseClient
                 .From<CoworkingComment>()
-                .Where(x => x.CoworkingId == coworkingId && x.IsActive)
+                .Filter("coworking_id", Constants.Operator.Equals, coworkingId.ToString())
+                .Filter("is_active", Constants.Operator.Equals, "true")
                 .Order(x => x.CreatedAt, Constants.Ordering.Descending)
                 .Range(offset, offset + pageSize - 1)
                 .Get();
 
-            return response.Models;
+            return response?.Models ?? new List<CoworkingComment>();
         }
         catch (Exception ex)
         {
@@ -87,10 +89,11 @@ public class CoworkingCommentRepository : ICoworkingCommentRepository
         {
             var response = await _supabaseClient
                 .From<CoworkingComment>()
-                .Where(x => x.CoworkingId == coworkingId && x.IsActive)
+                .Filter("coworking_id", Constants.Operator.Equals, coworkingId.ToString())
+                .Filter("is_active", Constants.Operator.Equals, "true")
                 .Get();
 
-            return response.Models.Count;
+            return response?.Models?.Count ?? 0;
         }
         catch (Exception ex)
         {
