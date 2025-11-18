@@ -12,14 +12,17 @@ public class CoworkingApplicationService : ICoworkingService
 {
     private readonly ICoworkingBookingRepository _bookingRepository;
     private readonly ICoworkingRepository _coworkingRepository;
+    private readonly ICoworkingVerificationRepository _verificationRepository;
     private readonly ILogger<CoworkingApplicationService> _logger;
 
     public CoworkingApplicationService(
         ICoworkingRepository coworkingRepository,
+        ICoworkingVerificationRepository verificationRepository,
         ICoworkingBookingRepository bookingRepository,
         ILogger<CoworkingApplicationService> logger)
     {
         _coworkingRepository = coworkingRepository;
+        _verificationRepository = verificationRepository;
         _bookingRepository = bookingRepository;
         _logger = logger;
     }
@@ -33,6 +36,8 @@ public class CoworkingApplicationService : ICoworkingService
         try
         {
             // 1. 使用领域工厂方法创建实体
+            var desiredStatus = CoworkingVerificationStatus.Unverified;
+
             var coworkingSpace = CoworkingSpace.Create(
                 request.Name,
                 request.Address,
@@ -57,7 +62,8 @@ public class CoworkingApplicationService : ICoworkingService
                 request.Email,
                 request.Website,
                 request.OpeningHours,
-                request.CreatedBy);
+                request.CreatedBy,
+                desiredStatus);
 
             // 2. 通过仓储持久化
             var created = await _coworkingRepository.CreateAsync(coworkingSpace);
@@ -81,7 +87,8 @@ public class CoworkingApplicationService : ICoworkingService
         var coworkingSpace = await _coworkingRepository.GetByIdAsync(id);
         if (coworkingSpace == null) throw new KeyNotFoundException($"未找到 ID 为 {id} 的共享办公空间");
 
-        return MapToResponse(coworkingSpace);
+        var votes = await _verificationRepository.GetVerificationCountAsync(id);
+        return MapToResponse(coworkingSpace, votes);
     }
 
     public async Task<CoworkingSpaceResponse> UpdateCoworkingSpaceAsync(
@@ -128,13 +135,36 @@ public class CoworkingApplicationService : ICoworkingService
 
             _logger.LogInformation("✅ 共享办公空间更新成功: {Id}", id);
 
-            return MapToResponse(updated);
+            var votes = await _verificationRepository.GetVerificationCountAsync(id);
+            return MapToResponse(updated, votes);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ 更新共享办公空间失败: {Id}", id);
             throw;
         }
+    }
+
+    public async Task<CoworkingSpaceResponse> UpdateVerificationStatusAsync(
+        Guid id,
+        UpdateCoworkingVerificationStatusRequest request)
+    {
+        _logger.LogInformation("更新 Coworking 认证状态: {Id} -> {Status}", id, request.VerificationStatus);
+
+        if (!CoworkingVerificationStatus.IsValid(request.VerificationStatus))
+            throw new ArgumentException("认证状态必须为 verified 或 unverified", nameof(request.VerificationStatus));
+
+        var coworkingSpace = await _coworkingRepository.GetByIdAsync(id)
+                               ?? throw new KeyNotFoundException($"未找到 ID 为 {id} 的共享办公空间");
+
+        var votesBeforeUpdate = await _verificationRepository.GetVerificationCountAsync(id);
+        if (request.VerificationStatus == CoworkingVerificationStatus.Verified && votesBeforeUpdate <= 3)
+            throw new InvalidOperationException("至少需要超过 3 个不同用户的认证才能通过审核");
+
+        coworkingSpace.SetVerificationStatus(request.VerificationStatus, request.UpdatedBy);
+
+        var updated = await _coworkingRepository.UpdateAsync(coworkingSpace);
+        return MapToResponse(updated, votesBeforeUpdate);
     }
 
     public async Task DeleteCoworkingSpaceAsync(Guid id)
@@ -166,10 +196,12 @@ public class CoworkingApplicationService : ICoworkingService
             page, pageSize, cityId);
 
         var (items, totalCount) = await _coworkingRepository.GetListAsync(page, pageSize, cityId);
+        var verificationCounts = await _verificationRepository.GetCountsByCoworkingIdsAsync(items.Select(i => i.Id));
 
         return new PaginatedCoworkingSpacesResponse
         {
-            Items = items.Select(MapToResponse).ToList(),
+            Items = items.Select(space =>
+                MapToResponse(space, verificationCounts.TryGetValue(space.Id, out var votes) ? votes : 0)).ToList(),
             TotalCount = totalCount,
             Page = page,
             PageSize = pageSize
@@ -184,7 +216,9 @@ public class CoworkingApplicationService : ICoworkingService
         _logger.LogInformation("搜索共享办公空间: SearchTerm={SearchTerm}", searchTerm);
 
         var spaces = await _coworkingRepository.SearchAsync(searchTerm, page, pageSize);
-        return spaces.Select(MapToResponse).ToList();
+        var verificationCounts = await _verificationRepository.GetCountsByCoworkingIdsAsync(spaces.Select(s => s.Id));
+        return spaces.Select(space =>
+            MapToResponse(space, verificationCounts.TryGetValue(space.Id, out var votes) ? votes : 0)).ToList();
     }
 
     public async Task<List<CoworkingSpaceResponse>> GetTopRatedCoworkingSpacesAsync(int limit = 10)
@@ -192,7 +226,9 @@ public class CoworkingApplicationService : ICoworkingService
         _logger.LogInformation("获取评分最高的共享办公空间: Limit={Limit}", limit);
 
         var spaces = await _coworkingRepository.GetTopRatedAsync(limit);
-        return spaces.Select(MapToResponse).ToList();
+        var verificationCounts = await _verificationRepository.GetCountsByCoworkingIdsAsync(spaces.Select(s => s.Id));
+        return spaces.Select(space =>
+            MapToResponse(space, verificationCounts.TryGetValue(space.Id, out var votes) ? votes : 0)).ToList();
     }
 
     public async Task<Dictionary<Guid, int>> GetCoworkingCountByCitiesAsync(List<Guid> cityIds)
@@ -205,6 +241,30 @@ public class CoworkingApplicationService : ICoworkingService
 
         _logger.LogInformation("成功获取 {Count} 个城市的 Coworking 统计", result.Count);
         return result;
+    }
+
+    public async Task<CoworkingSpaceResponse> SubmitVerificationAsync(Guid id, Guid userId)
+    {
+        var coworkingSpace = await _coworkingRepository.GetByIdAsync(id)
+                               ?? throw new KeyNotFoundException($"未找到 ID 为 {id} 的共享办公空间");
+
+        if (coworkingSpace.CreatedBy.HasValue && coworkingSpace.CreatedBy.Value == userId)
+            throw new InvalidOperationException("创建者不能为自己的 Coworking 认证");
+
+        var alreadyVerified = await _verificationRepository.HasUserVerifiedAsync(id, userId);
+        if (alreadyVerified) throw new InvalidOperationException("您已提交过认证");
+
+        await _verificationRepository.AddAsync(CoworkingVerification.Create(id, userId));
+
+        var votes = await _verificationRepository.GetVerificationCountAsync(id);
+
+        if (coworkingSpace.VerificationStatus == CoworkingVerificationStatus.Unverified && votes > 3)
+        {
+            coworkingSpace.SetVerificationStatus(CoworkingVerificationStatus.Verified, userId);
+            coworkingSpace = await _coworkingRepository.UpdateAsync(coworkingSpace);
+        }
+
+        return MapToResponse(coworkingSpace, votes);
     }
 
     #endregion
@@ -369,13 +429,14 @@ public class CoworkingApplicationService : ICoworkingService
     /// <summary>
     ///     映射实体到响应 DTO
     /// </summary>
-    private CoworkingSpaceResponse MapToResponse(CoworkingSpace space)
+    private CoworkingSpaceResponse MapToResponse(CoworkingSpace space, int verificationVotes = 0)
     {
         return new CoworkingSpaceResponse
         {
             Id = space.Id,
             Name = space.Name,
             CityId = space.CityId,
+            CreatedBy = space.CreatedBy,
             Address = space.Address,
             Description = space.Description,
             ImageUrl = space.ImageUrl,
@@ -400,8 +461,11 @@ public class CoworkingApplicationService : ICoworkingService
             Website = space.Website,
             OpeningHours = space.OpeningHours,
             IsActive = space.IsActive,
+            VerificationStatus = space.VerificationStatus,
+            VerificationVotes = verificationVotes,
             CreatedAt = space.CreatedAt,
-            UpdatedAt = space.UpdatedAt
+            UpdatedAt = space.UpdatedAt,
+            IsOwner = false
         };
     }
 

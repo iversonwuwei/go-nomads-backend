@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Prometheus;
 using Scalar.AspNetCore;
-using Shared.Extensions;
+using GoNomads.Shared.Extensions;
 using Yarp.ReverseProxy.Configuration;
 using RouteConfig = Yarp.ReverseProxy.Configuration.RouteConfig;
 

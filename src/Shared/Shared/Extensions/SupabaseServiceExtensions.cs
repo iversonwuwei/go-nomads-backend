@@ -4,7 +4,7 @@ using Shared.Configuration;
 using Shared.Services;
 using Supabase;
 
-namespace Shared.Extensions;
+namespace GoNomads.Shared.Extensions;
 
 /// <summary>
 ///     Supabase 服务扩展

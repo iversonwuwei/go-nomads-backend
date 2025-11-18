@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
 using Dapr.Client;
 using EventService.Application.DTOs;
 using GoNomads.Shared.Models;
@@ -10,6 +13,8 @@ namespace EventService.Infrastructure.GrpcClients;
 public class CityGrpcClient : ICityGrpcClient
 {
     private const string CityServiceAppId = "city-service";
+    private const string CityLookupEndpoint = "api/v1/cities/lookup";
+    private const int LookupBatchSize = 50;
     private readonly DaprClient _daprClient;
     private readonly ILogger<CityGrpcClient> _logger;
 
@@ -21,39 +26,18 @@ public class CityGrpcClient : ICityGrpcClient
 
     public async Task<CityInfo?> GetCityByIdAsync(Guid cityId, CancellationToken cancellationToken = default)
     {
-        try
+        if (cityId == Guid.Empty)
         {
-            _logger.LogInformation("🌍 通过 Dapr 调用 CityService 获取城市信息: CityId={CityId}", cityId);
-
-            // 使用 Dapr Service Invocation 调用 CityService
-            var response = await _daprClient.InvokeMethodAsync<ApiResponse<CityDto>>(
-                HttpMethod.Get,
-                CityServiceAppId,
-                $"api/v1/cities/{cityId}",
-                cancellationToken);
-
-            if (response?.Success == true && response.Data != null)
-            {
-                var cityDto = response.Data;
-                return new CityInfo
-                {
-                    Id = cityDto.Id,
-                    Name = cityDto.Name,
-                    Country = cityDto.Country,
-                    Region = cityDto.Region,
-                    ImageUrl = cityDto.ImageUrl,
-                    TimeZone = cityDto.TimeZone
-                };
-            }
-
-            _logger.LogWarning("⚠️ CityService 返回空数据或失败: CityId={CityId}", cityId);
+            _logger.LogWarning("⚠️ 无效的城市 ID");
             return null;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ 调用 CityService 失败: CityId={CityId}", cityId);
-            return null;
-        }
+
+        var cities = await GetCitiesByIdsAsync(new[] { cityId }, cancellationToken);
+        if (cities.TryGetValue(cityId, out var cityInfo))
+            return cityInfo;
+
+        _logger.LogWarning("⚠️ CityService 返回空数据或失败: CityId={CityId}", cityId);
+        return null;
     }
 
     public async Task<Dictionary<Guid, CityInfo>> GetCitiesByIdsAsync(
@@ -61,30 +45,69 @@ public class CityGrpcClient : ICityGrpcClient
         CancellationToken cancellationToken = default)
     {
         var result = new Dictionary<Guid, CityInfo>();
-        var uniqueCityIds = cityIds.Distinct().Where(id => id != Guid.Empty).ToList();
 
-        if (!uniqueCityIds.Any()) return result;
+        if (cityIds == null)
+            return result;
+
+        var uniqueCityIds = cityIds
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        if (!uniqueCityIds.Any())
+            return result;
 
         _logger.LogInformation("🌍 批量获取城市信息: Count={Count}", uniqueCityIds.Count);
 
-        // 并行获取城市信息
-        var tasks = uniqueCityIds.Select(async cityId =>
+        foreach (var batch in uniqueCityIds.Chunk(LookupBatchSize))
         {
-            var cityInfo = await GetCityByIdAsync(cityId, cancellationToken);
-            return (cityId, cityInfo);
-        });
+            var payload = new CityLookupRequest(batch.ToList());
+            try
+            {
+                var response = await _daprClient.InvokeMethodAsync<CityLookupRequest, ApiResponse<List<CityDto>>>(
+                    HttpMethod.Post,
+                    CityServiceAppId,
+                    CityLookupEndpoint,
+                    payload,
+                    cancellationToken);
 
-        var cities = await Task.WhenAll(tasks);
-
-        foreach (var (cityId, cityInfo) in cities)
-            if (cityInfo != null)
-                result[cityId] = cityInfo;
+                if (response?.Success == true && response.Data != null)
+                {
+                    foreach (var cityDto in response.Data)
+                        result[cityDto.Id] = MapToCityInfo(cityDto);
+                }
+                else
+                {
+                    _logger.LogWarning("⚠️ City lookup failed for batch size {BatchSize}", batch.Length);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ City lookup request failed for batch size {BatchSize}", batch.Length);
+            }
+        }
 
         _logger.LogInformation("✅ 批量获取城市信息完成: 请求={Requested}, 成功={Success}",
-            uniqueCityIds.Count, result.Count);
+            uniqueCityIds.Count,
+            result.Count);
 
         return result;
     }
+
+    private static CityInfo MapToCityInfo(CityDto cityDto)
+    {
+        return new CityInfo
+        {
+            Id = cityDto.Id,
+            Name = cityDto.Name,
+            Country = cityDto.Country,
+            Region = cityDto.Region,
+            ImageUrl = cityDto.ImageUrl,
+            TimeZone = cityDto.TimeZone
+        };
+    }
+
+    private sealed record CityLookupRequest(List<Guid> CityIds);
 }
 
 /// <summary>

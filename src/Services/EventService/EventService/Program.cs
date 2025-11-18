@@ -7,7 +7,6 @@ using Microsoft.OpenApi.Models;
 using Prometheus;
 using Scalar.AspNetCore;
 using Serilog;
-using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Prometheus;
 using Scalar.AspNetCore;
-using Shared.Extensions;
 using UserService.Application.Services;
 using UserService.Domain.Repositories;
 using UserService.Infrastructure.Repositories;

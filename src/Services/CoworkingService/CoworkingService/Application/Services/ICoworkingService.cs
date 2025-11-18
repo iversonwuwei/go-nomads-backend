@@ -55,6 +55,16 @@ public interface ICoworkingService
     Task<Dictionary<Guid, int>> GetCoworkingCountByCitiesAsync(List<Guid> cityIds);
 
     /// <summary>
+    ///     普通用户提交认证投票
+    /// </summary>
+    Task<CoworkingSpaceResponse> SubmitVerificationAsync(Guid id, Guid userId);
+
+    /// <summary>
+    ///     更新 Coworking 空间的认证状态
+    /// </summary>
+    Task<CoworkingSpaceResponse> UpdateVerificationStatusAsync(Guid id, UpdateCoworkingVerificationStatusRequest request);
+
+    /// <summary>
     ///     创建预订
     /// </summary>
     Task<CoworkingBookingResponse> CreateBookingAsync(CreateBookingRequest request);

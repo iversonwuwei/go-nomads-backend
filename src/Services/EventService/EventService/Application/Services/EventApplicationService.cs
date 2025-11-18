@@ -194,12 +194,8 @@ public class EventApplicationService : IEventService
         // 批量获取关联数据
         await EnrichEventResponsesWithRelatedDataAsync(responses);
 
-        // 🔧 修正参与者数量:批量查询每个事件的实际参与者数量
-        foreach (var response in responses)
-        {
-            var participantCount = await _participantRepository.CountByEventIdAsync(response.Id);
-            response.CurrentParticipants = participantCount;
-        }
+        // 🔧 保持 current_participants 来自 events 表，避免 N+1 查询
+        // 如果后续需要校准，可在后台任务中同步 event_participants 表与该字段。
 
         // 如果有用户ID,批量检查参与状态
         if (userId.HasValue) await EnrichEventParticipationStatusAsync(responses, userId.Value);

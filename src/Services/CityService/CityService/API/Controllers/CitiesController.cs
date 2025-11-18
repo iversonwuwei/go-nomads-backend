@@ -103,6 +103,49 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
+    ///     批量根据 ID 获取城市信息
+    /// </summary>
+    [HttpPost("lookup")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<List<CityDto>>>> GetCitiesByIds([FromBody] CityBatchRequest request)
+    {
+        if (request.CityIds == null || request.CityIds.Count == 0)
+            return BadRequest(new ApiResponse<List<CityDto>>
+            {
+                Success = false,
+                Message = "CityIds cannot be empty"
+            });
+
+        if (request.CityIds.Count > 100)
+            return BadRequest(new ApiResponse<List<CityDto>>
+            {
+                Success = false,
+                Message = "Up to 100 cityIds are allowed per request"
+            });
+
+        try
+        {
+            var cities = await _cityService.GetCitiesByIdsAsync(request.CityIds);
+            return Ok(new ApiResponse<List<CityDto>>
+            {
+                Success = true,
+                Message = "Cities retrieved successfully",
+                Data = cities.ToList()
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error performing city lookup");
+            return StatusCode(500, new ApiResponse<List<CityDto>>
+            {
+                Success = false,
+                Message = "An error occurred while retrieving cities",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
     ///     Get recommended cities
     ///     GET /api/v1/cities/recommended?count=10
     /// </summary>

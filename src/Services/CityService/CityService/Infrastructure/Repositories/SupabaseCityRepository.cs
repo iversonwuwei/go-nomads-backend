@@ -173,4 +173,19 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
 
         return response.Models;
     }
+
+    public async Task<IEnumerable<City>> GetByIdsAsync(IEnumerable<Guid> cityIds)
+    {
+        var idList = cityIds?.Where(id => id != Guid.Empty).Distinct().ToList();
+        if (idList == null || idList.Count == 0) return Enumerable.Empty<City>();
+
+        var filterValue = $"({string.Join(',', idList)})";
+
+        var response = await SupabaseClient
+            .From<City>()
+            .Filter("id", Constants.Operator.In, filterValue)
+            .Get();
+
+        return response.Models;
+    }
 }

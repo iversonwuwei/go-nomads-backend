@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using CoworkingService.Domain.Entities;
 
 namespace CoworkingService.Application.DTOs;
 
@@ -10,6 +12,7 @@ public class CoworkingSpaceResponse
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public Guid? CityId { get; set; }
+    public Guid? CreatedBy { get; set; }
     public string Address { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? ImageUrl { get; set; }
@@ -34,8 +37,11 @@ public class CoworkingSpaceResponse
     public string? Website { get; set; }
     public string? OpeningHours { get; set; }
     public bool IsActive { get; set; }
+    public string VerificationStatus { get; set; } = CoworkingVerificationStatus.Unverified;
+    public int VerificationVotes { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public bool IsOwner { get; set; }
 }
 
 /// <summary>
@@ -95,6 +101,9 @@ public class CreateCoworkingSpaceRequest
     public string? OpeningHours { get; set; }
 
     public Guid? CreatedBy { get; set; }
+
+    [JsonIgnore]
+    public string VerificationStatus { get; set; } = CoworkingVerificationStatus.Unverified;
 }
 
 /// <summary>
@@ -145,6 +154,19 @@ public class UpdateCoworkingSpaceRequest
 
     public string? OpeningHours { get; set; }
 
+    public Guid? UpdatedBy { get; set; }
+}
+
+/// <summary>
+///     更新 Coworking 认证状态请求 DTO
+/// </summary>
+public class UpdateCoworkingVerificationStatusRequest
+{
+    [Required(ErrorMessage = "状态不能为空")]
+    [RegularExpression("^(verified|unverified)$", ErrorMessage = "状态必须是 verified 或 unverified")]
+    public string VerificationStatus { get; set; } = CoworkingVerificationStatus.Unverified;
+
+    [JsonIgnore]
     public Guid? UpdatedBy { get; set; }
 }
 

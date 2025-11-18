@@ -1,7 +1,10 @@
 using CoworkingService.Application.DTOs;
 using CoworkingService.Application.Services;
+using CoworkingService.Domain.Entities;
 using GoNomads.Shared.DTOs;
+using GoNomads.Shared.Middleware;
 using Microsoft.AspNetCore.Mvc;
+using SharedModels = GoNomads.Shared.Models;
 
 namespace CoworkingService.API.Controllers;
 
@@ -36,7 +39,10 @@ public class CoworkingController : ControllerBase
     {
         try
         {
+            var userContext = GetUserContext();
+            var userId = TryGetUserId(userContext);
             var result = await _coworkingService.GetCoworkingSpacesAsync(page, pageSize, cityId);
+            ApplyOwnershipFlag(result, userId);
 
             return Ok(ApiResponse<PaginatedCoworkingSpacesResponse>.SuccessResponse(
                 result,
@@ -66,7 +72,10 @@ public class CoworkingController : ControllerBase
             _logger.LogInformation("获取城市 {CityId} 的 Coworking 空间列表, Page={Page}, PageSize={PageSize}",
                 cityId, page, pageSize);
 
+            var userContext = GetUserContext();
+            var userId = TryGetUserId(userContext);
             var result = await _coworkingService.GetCoworkingSpacesAsync(page, pageSize, cityId);
+            ApplyOwnershipFlag(result, userId);
 
             return Ok(ApiResponse<PaginatedCoworkingSpacesResponse>.SuccessResponse(
                 result,
@@ -91,7 +100,10 @@ public class CoworkingController : ControllerBase
     {
         try
         {
+            var userContext = GetUserContext();
+            var userId = TryGetUserId(userContext);
             var result = await _coworkingService.GetCoworkingSpaceAsync(id);
+            ApplyOwnershipFlag(result, userId);
 
             return Ok(ApiResponse<CoworkingSpaceResponse>.SuccessResponse(
                 result,
@@ -123,7 +135,15 @@ public class CoworkingController : ControllerBase
     {
         try
         {
+            var userContext = GetUserContext();
+            var userId = TryGetUserId(userContext);
+            if (!userId.HasValue)
+                return Unauthorized(ApiResponse<object>.ErrorResponse("需要登录", new List<string> { "未检测到用户信息" }));
+
+            request.CreatedBy = userId.Value;
+
             var result = await _coworkingService.CreateCoworkingSpaceAsync(request);
+            ApplyOwnershipFlag(result, userId);
 
             return CreatedAtAction(
                 nameof(GetCoworkingSpace),
@@ -160,7 +180,12 @@ public class CoworkingController : ControllerBase
     {
         try
         {
+            var userContext = GetUserContext();
+            var userId = TryGetUserId(userContext);
+            request.UpdatedBy = userId;
+
             var result = await _coworkingService.UpdateCoworkingSpaceAsync(id, request);
+            ApplyOwnershipFlag(result, userId);
 
             return Ok(ApiResponse<CoworkingSpaceResponse>.SuccessResponse(
                 result,
@@ -230,7 +255,10 @@ public class CoworkingController : ControllerBase
     {
         try
         {
+            var userContext = GetUserContext();
+            var userId = TryGetUserId(userContext);
             var result = await _coworkingService.SearchCoworkingSpacesAsync(searchTerm, page, pageSize);
+            ApplyOwnershipFlag(result, userId);
 
             return Ok(ApiResponse<List<CoworkingSpaceResponse>>.SuccessResponse(
                 result,
@@ -255,7 +283,10 @@ public class CoworkingController : ControllerBase
     {
         try
         {
+            var userContext = GetUserContext();
+            var userId = TryGetUserId(userContext);
             var result = await _coworkingService.GetTopRatedCoworkingSpacesAsync(limit);
+            ApplyOwnershipFlag(result, userId);
 
             return Ok(ApiResponse<List<CoworkingSpaceResponse>>.SuccessResponse(
                 result,
@@ -315,6 +346,79 @@ public class CoworkingController : ControllerBase
             return StatusCode(500, ApiResponse<object>.ErrorResponse(
                 "获取失败",
                 new List<string> { ex.Message }));
+        }
+    }
+
+    /// <summary>
+    ///     用户提交 Coworking 认证
+    /// </summary>
+    [HttpPost("{id}/verifications")]
+    [ProducesResponseType(typeof(ApiResponse<CoworkingSpaceResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<CoworkingSpaceResponse>>> VerifyCoworking(Guid id)
+    {
+        try
+        {
+            var userContext = GetUserContext();
+            var userId = TryGetUserId(userContext);
+            if (!userId.HasValue)
+                return Unauthorized(ApiResponse<object>.ErrorResponse("需要登录", new List<string> { "未检测到用户信息" }));
+
+            var result = await _coworkingService.SubmitVerificationAsync(id, userId.Value);
+            ApplyOwnershipFlag(result, userId);
+
+            return Ok(ApiResponse<CoworkingSpaceResponse>.SuccessResponse(
+                result,
+                "认证提交成功"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse("认证失败", new List<string> { ex.Message }));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse("未找到 Coworking", new List<string> { ex.Message }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "提交 Coworking 认证失败: {Id}", id);
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("认证失败", new List<string> { ex.Message }));
+        }
+    }
+
+    /// <summary>
+    ///     管理员 / 城市版主更新认证状态
+    /// </summary>
+    [HttpPut("{id}/verification-status")]
+    [ProducesResponseType(typeof(ApiResponse<CoworkingSpaceResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<CoworkingSpaceResponse>>> UpdateVerificationStatus(
+        Guid id,
+        [FromBody] UpdateCoworkingVerificationStatusRequest request)
+    {
+        var userContext = GetUserContext();
+        if (!HasAdminPrivileges(userContext) && !HasModeratorPrivileges(userContext))
+            return Forbid();
+
+        var userId = TryGetUserId(userContext);
+        request.UpdatedBy = userId;
+
+        try
+        {
+            var result = await _coworkingService.UpdateVerificationStatusAsync(id, request);
+            ApplyOwnershipFlag(result, userId);
+            return Ok(ApiResponse<CoworkingSpaceResponse>.SuccessResponse(result, "认证状态已更新"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse("未找到 Coworking", new List<string> { ex.Message }));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse("状态无效", new List<string> { ex.Message }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "更新认证状态失败: {Id}", id);
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("更新认证状态失败", new List<string> { ex.Message }));
         }
     }
 
@@ -470,6 +574,75 @@ public class CoworkingController : ControllerBase
                 "获取预订列表失败",
                 new List<string> { ex.Message }));
         }
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    private SharedModels.UserContext? GetUserContext()
+    {
+        try
+        {
+            return UserContextMiddleware.GetUserContext(HttpContext);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static Guid? TryGetUserId(SharedModels.UserContext? context)
+    {
+        if (context == null || string.IsNullOrWhiteSpace(context.UserId)) return null;
+        return Guid.TryParse(context.UserId, out var userId) ? userId : null;
+    }
+
+    private static bool HasAdminPrivileges(SharedModels.UserContext? context)
+    {
+         return context?.Role != null &&
+             context.Role.Equals(SharedModels.Role.RoleNames.Admin, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasModeratorPrivileges(SharedModels.UserContext? context)
+    {
+        if (context?.Role == null) return false;
+        return context.Role.Equals("city_moderator", StringComparison.OrdinalIgnoreCase) ||
+               context.Role.Equals("moderator", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void ApplyOwnershipFlag(CoworkingSpaceResponse? response, Guid? currentUserId)
+    {
+        if (response == null)
+        {
+            return;
+        }
+
+        response.IsOwner = currentUserId.HasValue && response.CreatedBy.HasValue &&
+                           response.CreatedBy.Value == currentUserId.Value;
+    }
+
+    private static void ApplyOwnershipFlag(IEnumerable<CoworkingSpaceResponse>? responses, Guid? currentUserId)
+    {
+        if (responses == null)
+        {
+            return;
+        }
+
+        foreach (var response in responses)
+        {
+            ApplyOwnershipFlag(response, currentUserId);
+        }
+    }
+
+    private static void ApplyOwnershipFlag(PaginatedCoworkingSpacesResponse? response, Guid? currentUserId)
+    {
+        if (response?.Items == null)
+        {
+            return;
+        }
+
+        ApplyOwnershipFlag(response.Items, currentUserId);
     }
 
     #endregion

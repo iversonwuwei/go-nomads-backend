@@ -1,6 +1,6 @@
 using Prometheus;
 using Scalar.AspNetCore;
-using Shared.Extensions;
+using GoNomads.Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 

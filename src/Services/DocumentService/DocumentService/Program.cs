@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using Prometheus;
 using Scalar.AspNetCore;
-using Shared.Extensions;
+using GoNomads.Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 

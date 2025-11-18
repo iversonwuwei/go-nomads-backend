@@ -73,6 +73,8 @@ public class CoworkingSpace : BaseModel
 
     [Column("is_active")] public bool IsActive { get; set; } = true;
 
+    [Column("verification_status")] public string VerificationStatus { get; set; } = CoworkingVerificationStatus.Unverified;
+
     [Column("created_by")] public Guid? CreatedBy { get; set; }
 
     [Column("updated_by")] public Guid? UpdatedBy { get; set; }
@@ -108,7 +110,8 @@ public class CoworkingSpace : BaseModel
         string? email = null,
         string? website = null,
         string? openingHours = null,
-        Guid? createdBy = null)
+        Guid? createdBy = null,
+        string? verificationStatus = null)
     {
         // 业务规则验证
         if (string.IsNullOrWhiteSpace(name))
@@ -128,6 +131,16 @@ public class CoworkingSpace : BaseModel
 
         if (capacity.HasValue && capacity.Value <= 0)
             throw new ArgumentException("容量必须大于 0", nameof(capacity));
+
+        var normalizedStatus = CoworkingVerificationStatus.Unverified;
+        if (!string.IsNullOrWhiteSpace(verificationStatus))
+        {
+            var requestedStatus = CoworkingVerificationStatus.Normalize(verificationStatus);
+            if (requestedStatus == CoworkingVerificationStatus.Verified)
+                normalizedStatus = CoworkingVerificationStatus.Unverified;
+            else
+                normalizedStatus = requestedStatus;
+        }
 
         return new CoworkingSpace
         {
@@ -160,7 +173,8 @@ public class CoworkingSpace : BaseModel
             IsActive = true,
             CreatedBy = createdBy,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
+            VerificationStatus = normalizedStatus
         };
     }
 
@@ -271,6 +285,19 @@ public class CoworkingSpace : BaseModel
     public void Activate(Guid? updatedBy = null)
     {
         IsActive = true;
+        UpdatedBy = updatedBy;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    ///     领域方法 - 更新认证状态
+    /// </summary>
+    public void SetVerificationStatus(string verificationStatus, Guid? updatedBy = null)
+    {
+        if (!CoworkingVerificationStatus.IsValid(verificationStatus))
+            throw new ArgumentException("认证状态必须为 verified 或 unverified", nameof(verificationStatus));
+
+        VerificationStatus = CoworkingVerificationStatus.Normalize(verificationStatus);
         UpdatedBy = updatedBy;
         UpdatedAt = DateTime.UtcNow;
     }

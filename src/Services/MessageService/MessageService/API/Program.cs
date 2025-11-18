@@ -10,7 +10,7 @@ using MessageService.Infrastructure.Repositories;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using Serilog;
-using Shared.Extensions;
+using GoNomads.Shared.Extensions;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);

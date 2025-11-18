@@ -17,4 +17,5 @@ public interface ICityRepository
     Task<int> GetTotalCountAsync();
     Task<IEnumerable<City>> GetRecommendedAsync(int count);
     Task<IEnumerable<City>> GetByCountryAsync(string countryName);
+    Task<IEnumerable<City>> GetByIdsAsync(IEnumerable<Guid> cityIds);
 }

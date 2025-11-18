@@ -1,9 +1,9 @@
 using CoworkingService.Application.Services;
 using CoworkingService.Domain.Repositories;
 using CoworkingService.Infrastructure.Repositories;
+using GoNomads.Shared.Extensions;
 using Scalar.AspNetCore;
 using Serilog;
-using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,6 +41,7 @@ builder.Services.AddDaprClient(daprClientBuilder =>
 // Infrastructure Layer - 仓储实现
 builder.Services.AddScoped<ICoworkingRepository, CoworkingRepository>();
 builder.Services.AddScoped<ICoworkingBookingRepository, CoworkingBookingRepository>();
+builder.Services.AddScoped<ICoworkingVerificationRepository, CoworkingVerificationRepository>();
 
 // Application Layer - 应用服务
 builder.Services.AddScoped<ICoworkingService, CoworkingApplicationService>();
@@ -83,6 +84,7 @@ app.MapScalarApiReference(options =>
 app.UseCors("AllowAll");
 app.UseSerilogRequestLogging();
 app.UseRouting();
+app.UseUserContext();
 app.MapControllers();
 app.MapHealthChecks("/health");
 

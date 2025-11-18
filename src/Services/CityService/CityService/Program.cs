@@ -12,7 +12,6 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using Serilog;
-using Shared.Extensions;
 using IUserCityContentService = CityService.Application.Services.IUserCityContentService;
 
 var builder = WebApplication.CreateBuilder(args);

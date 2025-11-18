@@ -3,7 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 
-namespace Shared.Extensions;
+namespace GoNomads.Shared.Extensions;
 
 /// <summary>
 ///     Consul 服务自动注册扩展

@@ -307,6 +307,23 @@ public class CityApplicationService : ICityService
         }
     }
 
+    public async Task<IEnumerable<CityDto>> GetCitiesByIdsAsync(IEnumerable<Guid> cityIds)
+    {
+        var normalized = cityIds?
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        if (normalized == null || normalized.Count == 0)
+        {
+            _logger.LogWarning("[CityBatch] 请求的城市ID列表为空或无效");
+            return Enumerable.Empty<CityDto>();
+        }
+
+        var cities = await _cityRepository.GetByIdsAsync(normalized);
+        return cities.Select(MapToDto).ToList();
+    }
+
     public async Task<WeatherDto?> GetCityWeatherAsync(Guid id, bool includeForecast = false, int days = 7)
     {
         var city = await _cityRepository.GetByIdAsync(id);
