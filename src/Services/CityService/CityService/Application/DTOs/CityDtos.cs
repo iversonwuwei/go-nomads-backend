@@ -52,6 +52,16 @@ public class CityDto : BaseDtoWithUserContext
     public int CoworkingCount { get; set; }
 
     /// <summary>
+    ///     评分数量（评论数）
+    /// </summary>
+    public int ReviewCount { get; set; }
+
+    /// <summary>
+    ///     平均花费（社区花费统计）
+    /// </summary>
+    public decimal? AverageCost { get; set; }
+
+    /// <summary>
     ///     当前用户是否已收藏该城市
     ///     注意: 此字段需要在查询时根据当前用户动态填充
     /// </summary>
@@ -296,3 +306,118 @@ public class UpdateCityModeratorDto
 
     [MaxLength(500)] public string? Notes { get; set; }
 }
+
+#region City Rating DTOs
+
+/// <summary>
+/// 城市评分项响应 DTO
+/// </summary>
+public class CityRatingCategoryDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? NameEn { get; set; }
+    public string? Description { get; set; }
+    public string? Icon { get; set; }
+    public bool IsDefault { get; set; }
+    public int DisplayOrder { get; set; }
+    public Guid? CreatedBy { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+/// <summary>
+/// 创建评分项请求 DTO
+/// </summary>
+public class CreateCityRatingCategoryDto
+{
+    [Required(ErrorMessage = "评分项名称不能为空")]
+    [MaxLength(100, ErrorMessage = "评分项名称不能超过100字符")]
+    public string Name { get; set; } = string.Empty;
+
+    [MaxLength(100, ErrorMessage = "英文名称不能超过100字符")]
+    public string? NameEn { get; set; }
+
+    [MaxLength(500, ErrorMessage = "描述不能超过500字符")]
+    public string? Description { get; set; }
+
+    [MaxLength(50, ErrorMessage = "图标名称不能超过50字符")]
+    public string? Icon { get; set; }
+
+    public int DisplayOrder { get; set; }
+}
+
+/// <summary>
+/// 更新评分项请求 DTO
+/// </summary>
+public class UpdateCityRatingCategoryDto
+{
+    [Required(ErrorMessage = "评分项名称不能为空")]
+    [MaxLength(100, ErrorMessage = "评分项名称不能超过100字符")]
+    public string Name { get; set; } = string.Empty;
+
+    [MaxLength(100, ErrorMessage = "英文名称不能超过100字符")]
+    public string? NameEn { get; set; }
+
+    [MaxLength(500, ErrorMessage = "描述不能超过500字符")]
+    public string? Description { get; set; }
+
+    [MaxLength(50, ErrorMessage = "图标名称不能超过50字符")]
+    public string? Icon { get; set; }
+}
+
+/// <summary>
+/// 用户评分响应 DTO
+/// </summary>
+public class CityRatingDto
+{
+    public Guid Id { get; set; }
+    public Guid CityId { get; set; }
+    public Guid UserId { get; set; }
+    public Guid CategoryId { get; set; }
+    public int Rating { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+}
+
+/// <summary>
+/// 提交评分请求 DTO
+/// </summary>
+public class SubmitCityRatingDto
+{
+    [Required]
+    public Guid CategoryId { get; set; }
+
+    [Required]
+    [Range(0, 5, ErrorMessage = "评分必须在0-5之间")]
+    public int Rating { get; set; }
+}
+
+/// <summary>
+/// 城市评分统计 DTO
+/// </summary>
+public class CityRatingStatisticsDto
+{
+    public Guid CategoryId { get; set; }
+    public string CategoryName { get; set; } = string.Empty;
+    public string? CategoryNameEn { get; set; }
+    public string? Icon { get; set; }
+    public int DisplayOrder { get; set; }
+    public int RatingCount { get; set; }
+    public double AverageRating { get; set; }
+    public int? UserRating { get; set; } // 当前用户的评分
+}
+
+/// <summary>
+/// 城市完整评分信息 DTO
+/// </summary>
+public class CityRatingInfoDto
+{
+    public List<CityRatingCategoryDto> Categories { get; set; } = new();
+    public List<CityRatingStatisticsDto> Statistics { get; set; } = new();
+    /// <summary>
+    /// 城市总得分（所有评分项的加权平均）
+    /// </summary>
+    public double OverallScore { get; set; }
+}
+
+#endregion

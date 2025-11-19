@@ -179,11 +179,10 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         var idList = cityIds?.Where(id => id != Guid.Empty).Distinct().ToList();
         if (idList == null || idList.Count == 0) return Enumerable.Empty<City>();
 
-        var filterValue = $"({string.Join(',', idList)})";
-
+        // Postgrest In operator 需要传递 List，不是字符串
         var response = await SupabaseClient
             .From<City>()
-            .Filter("id", Constants.Operator.In, filterValue)
+            .Filter("id", Constants.Operator.In, idList)
             .Get();
 
         return response.Models;

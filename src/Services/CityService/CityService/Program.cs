@@ -102,6 +102,8 @@ builder.Services.AddScoped<IUserFavoriteCityRepository, SupabaseUserFavoriteCity
 builder.Services.AddScoped<IGeoNamesCityRepository, SupabaseGeoNamesCityRepository>();
 builder.Services.AddScoped<IDigitalNomadGuideRepository, SupabaseDigitalNomadGuideRepository>();
 builder.Services.AddScoped<ICityModeratorRepository, CityModeratorRepository>();
+builder.Services.AddScoped<ICityRatingCategoryRepository, CityRatingCategoryRepository>();
+builder.Services.AddScoped<ICityRatingRepository, CityRatingRepository>();
 
 // Application Services
 builder.Services.AddScoped<ICityService, CityApplicationService>();
