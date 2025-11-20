@@ -97,4 +97,61 @@ public class SupabaseUserCityProsConsRepository : SupabaseRepositoryBase<CityPro
             return false;
         }
     }
+
+    public async Task<CityProsConsVote?> GetUserVoteAsync(Guid prosConsId, Guid userId)
+    {
+        try
+        {
+            var response = await SupabaseClient
+                .From<CityProsConsVote>()
+                .Where(x => x.ProsConsId == prosConsId)
+                .Where(x => x.VoterUserId == userId)
+                .Single();
+
+            return response;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<CityProsConsVote> AddVoteAsync(CityProsConsVote vote)
+    {
+        vote.CreatedAt = DateTime.UtcNow;
+
+        var response = await SupabaseClient
+            .From<CityProsConsVote>()
+            .Insert(vote);
+
+        return response.Models.First();
+    }
+
+    public async Task<bool> DeleteVoteAsync(Guid voteId)
+    {
+        try
+        {
+            await SupabaseClient
+                .From<CityProsConsVote>()
+                .Where(x => x.Id == voteId)
+                .Delete();
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "删除投票失败: {VoteId}", voteId);
+            return false;
+        }
+    }
+
+    public async Task<CityProsConsVote> UpdateVoteAsync(CityProsConsVote vote)
+    {
+        var response = await SupabaseClient
+            .From<CityProsConsVote>()
+            .Where(x => x.Id == vote.Id)
+            .Update(vote);
+
+        return response.Models.First();
+    }
 }

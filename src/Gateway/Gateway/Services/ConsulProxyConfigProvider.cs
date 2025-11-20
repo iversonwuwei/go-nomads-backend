@@ -297,10 +297,11 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             {
                 // Specific paths first (higher priority, lower order number)
                 ("/api/v1/user-favorite-cities/{**catch-all}", 1),
-                ("/api/v1/cities/{cityId}/user-content/{**catch-all}", 2),
-                ("/api/v1/cities/{**catch-all}", 3),
-                ("/api/v1/countries/{**catch-all}", 4),
-                ("/api/v1/provinces/{**catch-all}", 5)
+                ("/api/v1/user-content/pros-cons/{**catch-all}", 2), // Pros & Cons voting endpoint
+                ("/api/v1/cities/{cityId}/user-content/{**catch-all}", 3),
+                ("/api/v1/cities/{**catch-all}", 4),
+                ("/api/v1/countries/{**catch-all}", 5),
+                ("/api/v1/provinces/{**catch-all}", 6)
             },
             "user-service" => new List<(string, int)>
             {

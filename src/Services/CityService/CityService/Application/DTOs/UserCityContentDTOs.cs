@@ -278,6 +278,11 @@ public class CityProsConsDto
     public int Downvotes { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    
+    /// <summary>
+    ///     当前用户的投票状态：null=未登录/未投票, true=已点赞, false=已点踩
+    /// </summary>
+    public bool? CurrentUserVoted { get; set; }
 }
 
 /// <summary>
@@ -306,6 +311,14 @@ public class UpdateCityProsConsRequest
     public string Text { get; set; } = string.Empty;
 
     [Required] public bool IsPro { get; set; } // true = 优点, false = 挑战
+}
+
+/// <summary>
+///     投票请求
+/// </summary>
+public class VoteProsConsRequest
+{
+    [Required] public bool IsUpvote { get; set; } // true = 点赞, false = 点踩
 }
 
 #endregion

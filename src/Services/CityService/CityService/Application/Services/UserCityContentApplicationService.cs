@@ -463,10 +463,26 @@ public class UserCityContentApplicationService : IUserCityContentService
         return MapProsConsToDto(created);
     }
 
-    public async Task<List<CityProsConsDto>> GetCityProsConsAsync(string cityId, bool? isPro = null)
+    public async Task<List<CityProsConsDto>> GetCityProsConsAsync(string cityId, Guid? userId = null, bool? isPro = null)
     {
         var prosConsList = await _prosConsRepository.GetByCityIdAsync(cityId, isPro);
-        return prosConsList.Select(MapProsConsToDto).ToList();
+        var dtoList = new List<CityProsConsDto>();
+
+        foreach (var prosCons in prosConsList)
+        {
+            var dto = MapProsConsToDto(prosCons);
+            
+            // 如果提供了userId，查询用户的投票状态
+            if (userId.HasValue)
+            {
+                var userVote = await _prosConsRepository.GetUserVoteAsync(prosCons.Id, userId.Value);
+                dto.CurrentUserVoted = userVote?.IsUpvote;
+            }
+            
+            dtoList.Add(dto);
+        }
+
+        return dtoList;
     }
 
     public async Task<CityProsConsDto> UpdateProsConsAsync(Guid userId, Guid id, UpdateCityProsConsRequest request)
@@ -487,6 +503,48 @@ public class UserCityContentApplicationService : IUserCityContentService
     public async Task<bool> DeleteProsConsAsync(Guid userId, Guid id)
     {
         return await _prosConsRepository.DeleteAsync(id, userId);
+    }
+
+    public async Task VoteProsConsAsync(Guid userId, Guid prosConsId, bool isUpvote)
+    {
+        // 1. 验证 Pros & Cons 是否存在
+        var prosCons = await _prosConsRepository.GetByIdAsync(prosConsId);
+        if (prosCons == null)
+        {
+            throw new KeyNotFoundException($"Pros & Cons with id {prosConsId} not found");
+        }
+
+        // 2. 检查用户是否已投票
+        var existingVote = await _prosConsRepository.GetUserVoteAsync(prosConsId, userId);
+        
+        if (existingVote != null)
+        {
+            // 如果用户已投相同类型的票，则取消投票（删除记录）
+            if (existingVote.IsUpvote == isUpvote)
+            {
+                await _prosConsRepository.DeleteVoteAsync(existingVote.Id);
+                return;
+            }
+            // 如果用户投了不同类型的票，则更新投票类型
+            else
+            {
+                existingVote.IsUpvote = isUpvote;
+                await _prosConsRepository.UpdateVoteAsync(existingVote);
+                return;
+            }
+        }
+
+        // 3. 创建新投票记录
+        var vote = new CityProsConsVote
+        {
+            Id = Guid.NewGuid(),
+            ProsConsId = prosConsId,
+            VoterUserId = userId,
+            IsUpvote = isUpvote,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _prosConsRepository.AddVoteAsync(vote);
     }
 
     private static CityProsConsDto MapProsConsToDto(CityProsCons prosCons)

@@ -612,7 +612,15 @@ public class UserCityContentController : ControllerBase
     {
         try
         {
-            var prosConsList = await _contentService.GetCityProsConsAsync(cityId, isPro);
+            // 获取当前用户ID（如果已登录）
+            Guid? userId = null;
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            if (userContext?.IsAuthenticated == true && !string.IsNullOrEmpty(userContext.UserId))
+            {
+                userId = Guid.Parse(userContext.UserId);
+            }
+
+            var prosConsList = await _contentService.GetCityProsConsAsync(cityId, userId, isPro);
 
             return Ok(new ApiResponse<List<CityProsConsDto>>
             {
@@ -727,4 +735,84 @@ public class UserCityContentController : ControllerBase
     }
 
     #endregion
+}
+
+/// <summary>
+///     用户内容投票 API（独立路由，不含 cityId）
+/// </summary>
+[ApiController]
+[Route("api/v1/user-content/pros-cons")]
+public class ProsConsVoteController : ControllerBase
+{
+    private readonly IUserCityContentService _contentService;
+    private readonly ILogger<ProsConsVoteController> _logger;
+
+    public ProsConsVoteController(
+        IUserCityContentService contentService,
+        ILogger<ProsConsVoteController> logger)
+    {
+        _contentService = contentService;
+        _logger = logger;
+    }
+
+    private Guid GetUserId()
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+            throw new UnauthorizedAccessException("用户未认证");
+
+        return Guid.Parse(userContext.UserId);
+    }
+
+    /// <summary>
+    ///     为 Pros & Cons 投票
+    ///     POST /api/v1/user-content/pros-cons/{id}/vote
+    /// </summary>
+    [HttpPost("{id}/vote")]
+    public async Task<ActionResult<ApiResponse<object>>> VoteProsCons(
+        Guid id,
+        [FromBody] VoteProsConsRequest request)
+    {
+        try
+        {
+            var userId = GetUserId();
+            await _contentService.VoteProsConsAsync(userId, id, request.IsUpvote);
+
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "投票成功"
+            });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("已投票"))
+        {
+            _logger.LogWarning("用户重复投票: UserId={UserId}, ProsConsId={Id}", GetUserId(), id);
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "你已经为该条目投过票啦",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "未授权投票: {Id}", id);
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "未授权",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "投票失败: {Id}", id);
+            return StatusCode(500, new ApiResponse<object>
+            {
+                Success = false,
+                Message = "投票失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
 }
