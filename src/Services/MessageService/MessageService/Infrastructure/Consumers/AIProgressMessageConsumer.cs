@@ -37,9 +37,8 @@ public class AIProgressMessageConsumer : IConsumer<AIProgressMessage>
                 TaskId = message.TaskId,
                 UserId = message.UserId,
                 Progress = message.Progress,
-                Status = "processing",
+                Status = message.Status, // 使用消息中的 Status 字段
                 CurrentStep = message.Message,
-                Completed = message.Completed, // 映射 Completed 字段
                 Timestamp = message.Timestamp
             };
 

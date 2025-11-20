@@ -1016,7 +1016,7 @@ public class ChatController : ControllerBase
                                 Message = message,
                                 TaskType = "travel-plan",
                                 CurrentStage = message,
-                                Completed = progress >= 100, // 进度100%时标记为完成
+                                Status = progress >= 100 ? "completed" : "processing", // 进度100%时标记为 completed
                                 Timestamp = DateTime.UtcNow
                             });
 
@@ -1410,7 +1410,7 @@ public class ChatController : ControllerBase
                                 Message = message,
                                 TaskType = "digital-nomad-guide",
                                 CurrentStage = message,
-                                Completed = progress >= 100, // 进度100%时标记为完成
+                                Status = progress >= 100 ? "completed" : "processing", // 进度100%时标记为 completed
                                 Timestamp = DateTime.UtcNow
                             });
 

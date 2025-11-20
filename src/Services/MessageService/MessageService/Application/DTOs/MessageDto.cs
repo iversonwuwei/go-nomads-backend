@@ -20,11 +20,10 @@ public class AIProgressMessage
     public string TaskId { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
     public int Progress { get; set; } // 0-100
-    public string Status { get; set; } = string.Empty; // "processing" | "completed" | "failed"
+    public string Status { get; set; } = string.Empty; // "queued" | "processing" | "completed" | "failed"
     public string CurrentStep { get; set; } = string.Empty;
     public string? Result { get; set; } // JSON 结果
     public string? Error { get; set; }
-    public bool Completed { get; set; } = false; // 是否已完成
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }
 

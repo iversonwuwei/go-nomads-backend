@@ -36,9 +36,9 @@ public class AIProgressMessage
     public string? CurrentStage { get; set; }
 
     /// <summary>
-    ///     任务是否已完成（100%且后端确认）
+    ///     任务状态: queued, processing, completed, failed
     /// </summary>
-    public bool Completed { get; set; } = false;
+    public required string Status { get; set; }
 
     /// <summary>
     ///     时间戳
