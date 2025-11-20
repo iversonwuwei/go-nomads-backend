@@ -39,6 +39,7 @@ public class AIProgressMessageConsumer : IConsumer<AIProgressMessage>
                 Progress = message.Progress,
                 Status = "processing",
                 CurrentStep = message.Message,
+                Completed = message.Completed, // 映射 Completed 字段
                 Timestamp = message.Timestamp
             };
 

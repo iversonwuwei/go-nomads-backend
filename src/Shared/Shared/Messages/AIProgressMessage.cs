@@ -36,6 +36,11 @@ public class AIProgressMessage
     public string? CurrentStage { get; set; }
 
     /// <summary>
+    ///     任务是否已完成（100%且后端确认）
+    /// </summary>
+    public bool Completed { get; set; } = false;
+
+    /// <summary>
     ///     时间戳
     /// </summary>
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;

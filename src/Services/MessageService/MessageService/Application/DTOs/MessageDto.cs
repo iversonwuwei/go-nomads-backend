@@ -24,6 +24,7 @@ public class AIProgressMessage
     public string CurrentStep { get; set; } = string.Empty;
     public string? Result { get; set; } // JSON 结果
     public string? Error { get; set; }
+    public bool Completed { get; set; } = false; // 是否已完成
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }
 
