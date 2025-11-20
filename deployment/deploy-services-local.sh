@@ -407,13 +407,23 @@ main() {
         "ai-service"
     echo ""
     
+    # 部署 CacheService
+    deploy_service_local \
+        "cache-service" \
+        "src/Services/CacheService/CacheService" \
+        "8010" \
+        "CacheService.dll" \
+        "3512" \
+        "cache-service"
+    echo ""
+    
     # 部署 MessageService
     deploy_service_local \
         "message-service" \
         "src/Services/MessageService/MessageService/API" \
         "5005" \
         "MessageService.dll" \
-        "3510" \
+        "3511" \
         "message-service"
     echo ""
     
@@ -431,13 +441,14 @@ main() {
     echo -e "  ${GREEN}Event Service:    http://localhost:8005${NC}"
     echo -e "  ${GREEN}Coworking Service: http://localhost:8006${NC}"
     echo -e "  ${GREEN}AI Service:       http://localhost:8009${NC}"
+    echo -e "  ${GREEN}Cache Service:    http://localhost:8010${NC}"
     echo -e "  ${GREEN}Message Service:  http://localhost:5005${NC}"
     echo -e "  ${GREEN}Message Swagger:  http://localhost:5005/swagger${NC}"
     echo ""
     echo -e "${BLUE}Dapr 配置:${NC}"
     echo -e "  ${GREEN}模式:             Container Sidecar (共享网络命名空间)${NC}"
     echo -e "  ${GREEN}gRPC 端口:        50001 (通过 DAPR_GRPC_PORT 环境变量)${NC}"
-    echo -e "  ${GREEN}HTTP 端口:        3500-3505 (各服务独立端口)${NC}"
+    echo -e "  ${GREEN}HTTP 端口:        3500-3511 (各服务独立端口)${NC}"
     echo ""
     echo -e "${BLUE}基础设施:${NC}"
     echo -e "  ${GREEN}Consul UI:        http://localhost:8500${NC}"

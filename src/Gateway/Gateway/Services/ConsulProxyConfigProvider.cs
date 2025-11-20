@@ -303,6 +303,11 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                 ("/api/v1/countries/{**catch-all}", 5),
                 ("/api/v1/provinces/{**catch-all}", 6)
             },
+            "cache-service" => new List<(string, int)>
+            {
+                // Cache Service endpoints for score caching
+                ("/api/v1/cache/{**catch-all}", 1)
+            },
             "user-service" => new List<(string, int)>
             {
                 ("/api/v1/auth/{**catch-all}", 1),

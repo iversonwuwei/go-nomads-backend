@@ -58,11 +58,14 @@ public class CityApplicationService : ICityService
         // 并行填充数据
         var weatherTask = EnrichCitiesWithWeatherAsync(cityDtos);
         var moderatorTask = EnrichCitiesWithModeratorInfoAsync(cityDtos);
+        var ratingsAndCostsTask = EnrichCitiesWithRatingsAndCostsAsync(cityDtos);
         var favoriteTask = userId.HasValue
             ? EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value)
             : Task.CompletedTask;
 
-        await Task.WhenAll(weatherTask, moderatorTask, favoriteTask);
+        // 等待所有任务完成（即使某些任务失败，其他任务也会继续执行）
+        var allTasks = new[] { weatherTask, moderatorTask, ratingsAndCostsTask, favoriteTask };
+        await Task.WhenAll(allTasks.Select(t => t.ContinueWith(_ => { })));
 
         // 设置用户上下文
         foreach (var cityDto in cityDtos) cityDto.SetUserContext(userId, userRole);
@@ -128,7 +131,9 @@ public class CityApplicationService : ICityService
             ? EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value)
             : Task.CompletedTask;
 
-        await Task.WhenAll(weatherTask, moderatorTask, ratingsAndCostsTask, favoriteTask);
+        // 等待所有任务完成（即使某些任务失败，其他任务也会继续执行）
+        var allTasks = new[] { weatherTask, moderatorTask, ratingsAndCostsTask, favoriteTask };
+        await Task.WhenAll(allTasks.Select(t => t.ContinueWith(_ => { })));
 
         // 设置用户上下文
         foreach (var cityDto in cityDtos) cityDto.SetUserContext(userId, userRole);
@@ -505,71 +510,98 @@ public class CityApplicationService : ICityService
     {
         if (cities.Count == 0) return;
 
+        _logger.LogInformation("🔧 开始批量填充评分和花费信息: {Count} 个城市", cities.Count);
+
         try
         {
-            var connectionString = _configuration.GetConnectionString("DefaultConnection");
             var cityIds = cities.Select(c => c.Id).ToList();
 
-            await using var connection = new NpgsqlConnection(connectionString);
-            await connection.OpenAsync();
-
-            // 批量查询评分数量
-            var ratingCountsQuery = @"
-                SELECT city_id, COUNT(DISTINCT user_id) as count
-                FROM city_ratings
-                WHERE city_id = ANY(@cityIds)
-                GROUP BY city_id";
-
-            var ratingCounts = new Dictionary<Guid, int>();
-            using (var command = new NpgsqlCommand(ratingCountsQuery, connection))
-            {
-                command.Parameters.AddWithValue("cityIds", cityIds.ToArray());
-                await using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    var cityId = reader.GetGuid(0);
-                    var count = Convert.ToInt32(reader.GetInt64(1));
-                    ratingCounts[cityId] = count;
-                }
-            }
-
-            // 批量查询平均花费
-            var avgCostsQuery = @"
-                SELECT city_id, AVG(total) as avg_cost
-                FROM user_city_expenses
-                WHERE city_id = ANY(@cityIds)
-                GROUP BY city_id";
-
-            var avgCosts = new Dictionary<string, decimal>();
-            using (var command = new NpgsqlCommand(avgCostsQuery, connection))
-            {
-                command.Parameters.AddWithValue("cityIds", cityIds.Select(id => id.ToString()).ToArray());
-                await using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    var cityId = reader.GetString(0);
-                    var avgCost = reader.GetDecimal(1);
-                    avgCosts[cityId] = avgCost;
-                }
-            }
+            // 🆕 通过 CacheService 批量获取城市总评分
+            var overallScores = await GetCityScoresFromCacheServiceAsync(cityIds);
 
             // 填充数据
             foreach (var city in cities)
             {
-                city.ReviewCount = ratingCounts.GetValueOrDefault(city.Id, 0);
-                city.AverageCost = avgCosts.GetValueOrDefault(city.Id.ToString());
+                city.OverallScore = overallScores.GetValueOrDefault(city.Id);
 
-                _logger.LogDebug("📊 城市 {CityName}({CityId}): ReviewCount={ReviewCount}, AverageCost={AverageCost}",
-                    city.Name, city.Id, city.ReviewCount, city.AverageCost);
+                _logger.LogDebug("📊 城市 {CityName}({CityId}): OverallScore={OverallScore}",
+                    city.Name, city.Id, city.OverallScore);
             }
 
-            _logger.LogInformation("💰 批量填充评分和花费信息完成: {Count} 个城市, 评分数据: {RatingCount} 个, 花费数据: {CostCount} 个",
-                cities.Count, ratingCounts.Count, avgCosts.Count);
+            _logger.LogInformation("💰 批量填充评分和花费信息完成: {Count} 个城市, 总评分: {ScoreCount} 个",
+                cities.Count, overallScores.Count);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "批量填充评分和花费信息失败");
         }
+    }
+
+    /// <summary>
+    /// 通过 CacheService 批量获取城市总评分 (Dapr Service Invocation)
+    /// </summary>
+    private async Task<Dictionary<Guid, decimal>> GetCityScoresFromCacheServiceAsync(List<Guid> cityIds)
+    {
+        var scores = new Dictionary<Guid, decimal>();
+
+        if (cityIds.Count == 0) return scores;
+
+        try
+        {
+            _logger.LogDebug("🔍 通过 CacheService 批量获取城市评分: {Count} 个城市", cityIds.Count);
+
+            // 转换为字符串 ID
+            var cityIdStrings = cityIds.Select(id => id.ToString()).ToList();
+
+            // 调用 CacheService 的批量获取接口
+            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchScoreResponse>(
+                HttpMethod.Post,
+                "cache-service",
+                "api/v1/cache/scores/city/batch",
+                cityIdStrings
+            );
+
+            if (response?.Scores != null)
+            {
+                foreach (var score in response.Scores)
+                {
+                    if (Guid.TryParse(score.EntityId, out var cityId))
+                    {
+                        scores[cityId] = (decimal)score.OverallScore;
+                    }
+                }
+
+                _logger.LogInformation("✅ 成功获取城市评分: {Count} 个, 缓存命中: {CachedCount}, 实时计算: {CalculatedCount}",
+                    response.Scores.Count, response.CachedCount, response.CalculatedCount);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 从 CacheService 获取评分失败,将使用空评分");
+        }
+
+        return scores;
+    }
+
+    /// <summary>
+    /// CacheService 批量响应模型
+    /// </summary>
+    private class BatchScoreResponse
+    {
+        public List<ScoreItem> Scores { get; set; } = new();
+        public int TotalCount { get; set; }
+        public int CachedCount { get; set; }
+        public int CalculatedCount { get; set; }
+    }
+
+    /// <summary>
+    /// CacheService 评分项模型
+    /// </summary>
+    private class ScoreItem
+    {
+        public string EntityId { get; set; } = string.Empty;
+        public double OverallScore { get; set; }
+        public bool FromCache { get; set; }
     }
 
     private async Task EnrichCitiesWithWeatherAsync(List<CityDto> cities)
@@ -811,7 +843,7 @@ public class CityApplicationService : ICityService
                 else
                 {
                     _logger.LogError(ex, "获取用户信息失败（已达最大重试次数）: UserId={UserId}", userId);
-                    return null;
+                    return null; // 返回 null 而不是抛出异常
                 }
             }
 

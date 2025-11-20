@@ -1,6 +1,7 @@
 using CityService.Application.DTOs;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
+using Dapr.Client;
 using GoNomads.Shared.Models;
 using GoNomads.Shared.Middleware;
 using Microsoft.AspNetCore.Authorization;
@@ -16,15 +17,18 @@ public class CityRatingsController : ControllerBase
 {
     private readonly ICityRatingCategoryRepository _categoryRepository;
     private readonly ICityRatingRepository _ratingRepository;
+    private readonly DaprClient _daprClient;
     private readonly ILogger<CityRatingsController> _logger;
 
     public CityRatingsController(
         ICityRatingCategoryRepository categoryRepository,
         ICityRatingRepository ratingRepository,
+        DaprClient daprClient,
         ILogger<CityRatingsController> logger)
     {
         _categoryRepository = categoryRepository;
         _ratingRepository = ratingRepository;
+        _daprClient = daprClient;
         _logger = logger;
     }
 
@@ -216,6 +220,9 @@ public class CityRatingsController : ControllerBase
                 CreatedAt = rating.CreatedAt,
                 UpdatedAt = rating.UpdatedAt
             };
+
+            // 重新计算并更新城市评分缓存
+            await UpdateCityScoreCacheAsync(cityId);
 
             return Ok(new ApiResponse<CityRatingDto>
             {
@@ -455,6 +462,66 @@ public class CityRatingsController : ControllerBase
                 Message = "删除评分项失败",
                 Errors = new List<string> { ex.Message }
             });
+        }
+    }
+
+    /// <summary>
+    /// 使城市评分缓存失效 (调用 CacheService)
+    /// </summary>
+    /// <summary>
+    /// 重新计算并更新城市评分缓存
+    /// </summary>
+    private async Task UpdateCityScoreCacheAsync(Guid cityId)
+    {
+        try
+        {
+            _logger.LogInformation("重新计算城市评分: CityId={CityId}", cityId);
+
+            // 1. 获取所有评分项和统计数据
+            var categories = await _categoryRepository.GetAllActiveAsync();
+            var averageRatings = await _ratingRepository.GetCityAverageRatingsAsync(cityId);
+            var allCityRatings = await _ratingRepository.GetCityRatingsAsync(cityId);
+
+            // 2. 计算每个评分项的统计数据
+            var ratingCounts = allCityRatings
+                .GroupBy(r => r.CategoryId)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            var statistics = categories.Select(c => new
+            {
+                CategoryId = c.Id,
+                CategoryName = c.Name,
+                CategoryNameEn = c.NameEn,
+                RatingCount = ratingCounts.GetValueOrDefault(c.Id, 0),
+                AverageRating = averageRatings.GetValueOrDefault(c.Id, 0)
+            }).ToList();
+
+            // 3. 计算总评分
+            var overallScore = statistics.Any(s => s.RatingCount > 0)
+                ? Math.Round(statistics.Where(s => s.RatingCount > 0).Average(s => s.AverageRating), 1)
+                : 0.0;
+
+            // 4. 通过 Dapr 调用 CacheService 保存评分
+            var requestBody = new
+            {
+                overallScore = overallScore,
+                statistics = System.Text.Json.JsonSerializer.Serialize(statistics)
+            };
+
+            await _daprClient.InvokeMethodAsync(
+                HttpMethod.Put,
+                "cache-service",
+                $"api/v1/cache/scores/city/{cityId}",
+                requestBody
+            );
+
+            _logger.LogInformation("✅ 城市评分已更新到缓存: CityId={CityId}, OverallScore={OverallScore}",
+                cityId, overallScore);
+        }
+        catch (Exception ex)
+        {
+            // 缓存更新失败不影响主流程,只记录日志
+            _logger.LogWarning(ex, "更新城市评分缓存时发生错误: CityId={CityId}", cityId);
         }
     }
 }
