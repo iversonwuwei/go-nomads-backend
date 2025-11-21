@@ -1,5 +1,5 @@
 using System.Data;
-using CityService.DTOs;
+using CityService.Application.DTOs;
 using Npgsql;
 
 namespace CityService.Services;
@@ -20,6 +20,7 @@ public interface IUserCityContentService
     Task<List<UserCityExpenseDto>> GetCityExpensesAsync(string cityId, Guid? userId = null);
     Task<List<UserCityExpenseDto>> GetUserExpensesAsync(Guid userId);
     Task<bool> DeleteExpenseAsync(Guid userId, Guid expenseId);
+    Task<ExpenseStatisticsDto> GetExpenseStatisticsAsync(string cityId);
 
     // 评论相关
     Task<UserCityReviewDto> UpsertReviewAsync(Guid userId, UpsertCityReviewRequest request);
@@ -79,7 +80,7 @@ public class UserCityContentService : IUserCityContentService
                 PhotoCount = reader.GetInt32(reader.GetOrdinal("photo_count")),
                 ExpenseCount = reader.GetInt32(reader.GetOrdinal("expense_count")),
                 ReviewCount = reader.GetInt32(reader.GetOrdinal("review_count")),
-                AverageRating = reader.GetDouble(reader.GetOrdinal("average_rating"))
+                AverageRating = (decimal)reader.GetDouble(reader.GetOrdinal("average_rating"))
             };
 
         return new CityUserContentStatsDto { CityId = cityId };
@@ -244,6 +245,70 @@ public class UserCityContentService : IUserCityContentService
         cmd.Parameters.AddWithValue("UserId", userId);
 
         return await cmd.ExecuteNonQueryAsync() > 0;
+    }
+
+    public async Task<ExpenseStatisticsDto> GetExpenseStatisticsAsync(string cityId)
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        // 查询各分类的平均费用
+        var categorySql = @"
+            SELECT 
+                category,
+                AVG(amount) as average_cost
+            FROM user_city_expenses 
+            WHERE city_id = @CityId
+            GROUP BY category";
+
+        await using var categoryCmd = new NpgsqlCommand(categorySql, connection);
+        categoryCmd.Parameters.AddWithValue("CityId", cityId);
+
+        var categoryCosts = new Dictionary<string, decimal>();
+        await using (var reader = await categoryCmd.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                var category = reader.GetString(0);
+                var avgCost = reader.GetDecimal(1);
+                categoryCosts[category] = avgCost;
+            }
+        }
+
+        // 查询统计信息
+        var statsSql = @"
+            SELECT 
+                COUNT(DISTINCT user_id) as contributor_count,
+                COUNT(*) as total_expense_count
+            FROM user_city_expenses 
+            WHERE city_id = @CityId";
+
+        await using var statsCmd = new NpgsqlCommand(statsSql, connection);
+        statsCmd.Parameters.AddWithValue("CityId", cityId);
+
+        await using var statsReader = await statsCmd.ExecuteReaderAsync();
+        if (await statsReader.ReadAsync())
+        {
+            return new ExpenseStatisticsDto
+            {
+                TotalAverageCost = categoryCosts.Values.Sum(),
+                CategoryCosts = categoryCosts,
+                ContributorCount = statsReader.GetInt32(0),
+                TotalExpenseCount = statsReader.GetInt32(1),
+                Currency = "USD",
+                UpdatedAt = DateTime.UtcNow
+            };
+        }
+
+        return new ExpenseStatisticsDto
+        {
+            TotalAverageCost = 0,
+            CategoryCosts = new Dictionary<string, decimal>(),
+            ContributorCount = 0,
+            TotalExpenseCount = 0,
+            Currency = "USD",
+            UpdatedAt = DateTime.UtcNow
+        };
     }
 
     #endregion

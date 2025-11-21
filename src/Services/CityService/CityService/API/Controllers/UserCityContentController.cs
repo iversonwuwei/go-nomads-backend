@@ -550,6 +550,39 @@ public class UserCityContentController : ControllerBase
 
     #endregion
 
+    #region 费用统计 API (供 CacheService 调用)
+
+    /// <summary>
+    ///     获取城市费用统计 (用于缓存服务)
+    ///     GET /api/v1/cities/{cityId}/expenses/statistics
+    /// </summary>
+    [HttpGet("/api/v1/cities/{cityId}/expenses/statistics")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ExpenseStatisticsDto>> GetExpenseStatistics(string cityId)
+    {
+        try
+        {
+            var statistics = await _contentService.GetExpenseStatisticsAsync(cityId);
+
+            return Ok(statistics);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取城市费用统计失败: {CityId}", cityId);
+            return StatusCode(500, new ExpenseStatisticsDto
+            {
+                TotalAverageCost = 0,
+                CategoryCosts = new Dictionary<string, decimal>(),
+                ContributorCount = 0,
+                TotalExpenseCount = 0,
+                Currency = "CNY",
+                UpdatedAt = DateTime.UtcNow
+            });
+        }
+    }
+
+    #endregion
+
     #region Pros & Cons API
 
     /// <summary>

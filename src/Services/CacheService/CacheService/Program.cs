@@ -65,6 +65,7 @@ builder.Services.AddCors(options =>
 
 // 注册 Domain Repositories
 builder.Services.AddScoped<IScoreCacheRepository, RedisScoreCacheRepository>();
+builder.Services.AddScoped<ICostCacheRepository, RedisCostCacheRepository>();
 
 // 注册 Infrastructure 集成客户端
 builder.Services.AddScoped<ICityServiceClient, CityServiceClient>();
@@ -72,6 +73,7 @@ builder.Services.AddScoped<ICoworkingServiceClient, CoworkingServiceClient>();
 
 // 注册 Application Services
 builder.Services.AddScoped<IScoreCacheService, ScoreCacheApplicationService>();
+builder.Services.AddScoped<ICostCacheService, CostCacheApplicationService>();
 
 var app = builder.Build();
 

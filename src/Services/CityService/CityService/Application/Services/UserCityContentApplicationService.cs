@@ -18,6 +18,7 @@ public class UserCityContentApplicationService : IUserCityContentService
     private readonly IUserCityProsConsRepository _prosConsRepository;
     private readonly IUserCityReviewRepository _reviewRepository;
     private readonly IUserServiceClient _userServiceClient;
+    private readonly ICacheServiceClient _cacheServiceClient;
 
     public UserCityContentApplicationService(
         IUserCityPhotoRepository photoRepository,
@@ -25,6 +26,7 @@ public class UserCityContentApplicationService : IUserCityContentService
         IUserCityReviewRepository reviewRepository,
         IUserCityProsConsRepository prosConsRepository,
         IUserServiceClient userServiceClient,
+        ICacheServiceClient cacheServiceClient,
         IAmapGeocodingService amapGeocodingService,
         ILogger<UserCityContentApplicationService> logger)
     {
@@ -33,6 +35,7 @@ public class UserCityContentApplicationService : IUserCityContentService
         _reviewRepository = reviewRepository;
         _prosConsRepository = prosConsRepository;
         _userServiceClient = userServiceClient;
+        _cacheServiceClient = cacheServiceClient;
         _amapGeocodingService = amapGeocodingService;
         _logger = logger;
     }
@@ -151,6 +154,24 @@ public class UserCityContentApplicationService : IUserCityContentService
         var created = await _expenseRepository.CreateAsync(expense);
         _logger.LogInformation("用户 {UserId} 为城市 {CityId} 添加了费用 {ExpenseId}", userId, request.CityId, created.Id);
 
+        // 异步更新费用缓存(不等待,避免阻塞)
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var statistics = await GetExpenseStatisticsAsync(request.CityId);
+                await _cacheServiceClient.UpdateCityCostCacheAsync(
+                    request.CityId,
+                    statistics.TotalAverageCost,
+                    System.Text.Json.JsonSerializer.Serialize(statistics)
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update cost cache after adding expense for city {CityId}", request.CityId);
+            }
+        });
+
         return MapExpenseToDto(created);
     }
 
@@ -171,8 +192,36 @@ public class UserCityContentApplicationService : IUserCityContentService
 
     public async Task<bool> DeleteExpenseAsync(Guid userId, Guid expenseId)
     {
+        // 先获取费用信息以便知道城市ID
+        var expense = await _expenseRepository.GetByIdAsync(expenseId);
+        var cityId = expense?.CityId;
+
         var deleted = await _expenseRepository.DeleteAsync(expenseId, userId);
-        if (deleted) _logger.LogInformation("用户 {UserId} 删除了费用 {ExpenseId}", userId, expenseId);
+        if (deleted)
+        {
+            _logger.LogInformation("用户 {UserId} 删除了费用 {ExpenseId}", userId, expenseId);
+
+            // 异步更新费用缓存
+            if (!string.IsNullOrEmpty(cityId))
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var statistics = await GetExpenseStatisticsAsync(cityId);
+                        await _cacheServiceClient.UpdateCityCostCacheAsync(
+                            cityId,
+                            statistics.TotalAverageCost,
+                            System.Text.Json.JsonSerializer.Serialize(statistics)
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to update cost cache after deleting expense for city {CityId}", cityId);
+                    }
+                });
+            }
+        }
         return deleted;
     }
 
@@ -354,6 +403,58 @@ public class UserCityContentApplicationService : IUserCityContentService
             ContributorCount = contributorCount,
             TotalExpenseCount = expenses.Count,
             Currency = "USD", // TODO: 支持多币种转换
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
+
+    /// <summary>
+    ///     获取城市费用统计信息 - 用于缓存服务计算平均费用
+    /// </summary>
+    public async Task<ExpenseStatisticsDto> GetExpenseStatisticsAsync(string cityId)
+    {
+        var expenses = (await _expenseRepository.GetByCityIdAsync(cityId)).ToList();
+
+        if (!expenses.Any())
+        {
+            return new ExpenseStatisticsDto
+            {
+                TotalAverageCost = 0,
+                CategoryCosts = new Dictionary<string, decimal>(),
+                ContributorCount = 0,
+                TotalExpenseCount = 0,
+                Currency = "USD",
+                UpdatedAt = DateTime.UtcNow
+            };
+        }
+
+        // 按分类计算平均费用
+        var categoryCosts = new Dictionary<string, decimal>();
+
+        foreach (var category in ExpenseCategory.All)
+        {
+            var categoryExpenses = expenses
+                .Where(e => e.Category.Equals(category, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (categoryExpenses.Any())
+            {
+                categoryCosts[category] = categoryExpenses.Select(e => e.Amount).Average();
+            }
+        }
+
+        // 计算总平均费用（所有分类的平均值之和）
+        var totalAverageCost = categoryCosts.Values.Sum();
+
+        // 统计贡献用户数
+        var contributorCount = expenses.Select(e => e.UserId).Distinct().Count();
+
+        return new ExpenseStatisticsDto
+        {
+            TotalAverageCost = totalAverageCost,
+            CategoryCosts = categoryCosts,
+            ContributorCount = contributorCount,
+            TotalExpenseCount = expenses.Count,
+            Currency = "USD",
             UpdatedAt = DateTime.UtcNow
         };
     }

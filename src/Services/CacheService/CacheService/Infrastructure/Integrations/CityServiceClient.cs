@@ -85,6 +85,86 @@ public class CityServiceClient : ICityServiceClient
         result = (await Task.WhenAll(tasks)).ToList();
         return result;
     }
+
+    public async Task<CityCostDto> CalculateCityCostAsync(string cityId)
+    {
+        try
+        {
+            _logger.LogInformation("Calling CityService to calculate cost for city {CityId}", cityId);
+
+            // 调用 CityService 的费用统计接口
+            var response = await _daprClient.InvokeMethodAsync<CityCostStatsResponse>(
+                HttpMethod.Get,
+                CityServiceAppId,
+                $"api/v1/cities/{cityId}/expenses/statistics"
+            );
+
+            if (response == null || response.TotalAverageCost == 0)
+            {
+                _logger.LogWarning("No expense statistics found for city {CityId}", cityId);
+                return new CityCostDto
+                {
+                    CityId = cityId,
+                    AverageCost = 0,
+                    Statistics = null
+                };
+            }
+
+            // 将完整的统计信息序列化为 JSON 字符串
+            var statisticsJson = JsonSerializer.Serialize(new
+            {
+                response.TotalAverageCost,
+                response.CategoryCosts,
+                response.ContributorCount,
+                response.TotalExpenseCount,
+                response.Currency,
+                response.UpdatedAt
+            });
+
+            return new CityCostDto
+            {
+                CityId = cityId,
+                AverageCost = response.TotalAverageCost,
+                Statistics = statisticsJson
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating city cost for city {CityId}", cityId);
+            // 返回默认值而不是抛出异常
+            return new CityCostDto
+            {
+                CityId = cityId,
+                AverageCost = 0,
+                Statistics = null
+            };
+        }
+    }
+
+    public async Task<List<CityCostDto>> CalculateCityCostsBatchAsync(IEnumerable<string> cityIds)
+    {
+        var result = new List<CityCostDto>();
+        var cityIdList = cityIds.ToList();
+
+        _logger.LogInformation("Calculating batch city costs for {Count} cities", cityIdList.Count);
+
+        // 并发调用多个城市的费用计算
+        var tasks = cityIdList.Select(async cityId =>
+        {
+            try
+            {
+                return await CalculateCityCostAsync(cityId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error calculating cost for city {CityId} in batch", cityId);
+                return new CityCostDto { CityId = cityId, AverageCost = 0 };
+            }
+        });
+
+        result = (await Task.WhenAll(tasks)).ToList();
+        return result;
+    }
 }
 
 /// <summary>
@@ -93,6 +173,19 @@ public class CityServiceClient : ICityServiceClient
 internal class CityRatingStatsResponse
 {
     public List<CategoryStatistics>? Statistics { get; set; }
+}
+
+/// <summary>
+/// CityService 费用统计响应
+/// </summary>
+internal class CityCostStatsResponse
+{
+    public decimal TotalAverageCost { get; set; }
+    public Dictionary<string, decimal> CategoryCosts { get; set; } = new();
+    public int ContributorCount { get; set; }
+    public int TotalExpenseCount { get; set; }
+    public string Currency { get; set; } = "USD";
+    public DateTime UpdatedAt { get; set; }
 }
 
 internal class CategoryStatistics

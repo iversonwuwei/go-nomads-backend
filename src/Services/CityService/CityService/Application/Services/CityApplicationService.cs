@@ -519,17 +519,21 @@ public class CityApplicationService : ICityService
             // 🆕 通过 CacheService 批量获取城市总评分
             var overallScores = await GetCityScoresFromCacheServiceAsync(cityIds);
 
+            // 🆕 通过 CacheService 批量获取城市平均费用
+            var averageCosts = await GetCityCostsFromCacheServiceAsync(cityIds);
+
             // 填充数据
             foreach (var city in cities)
             {
                 city.OverallScore = overallScores.GetValueOrDefault(city.Id);
+                city.AverageCost = averageCosts.GetValueOrDefault(city.Id);
 
-                _logger.LogDebug("📊 城市 {CityName}({CityId}): OverallScore={OverallScore}",
-                    city.Name, city.Id, city.OverallScore);
+                _logger.LogDebug("📊 城市 {CityName}({CityId}): OverallScore={OverallScore}, AverageCost={AverageCost}",
+                    city.Name, city.Id, city.OverallScore, city.AverageCost);
             }
 
-            _logger.LogInformation("💰 批量填充评分和花费信息完成: {Count} 个城市, 总评分: {ScoreCount} 个",
-                cities.Count, overallScores.Count);
+            _logger.LogInformation("💰 批量填充评分和花费信息完成: {Count} 个城市, 总评分: {ScoreCount} 个, 费用: {CostCount} 个",
+                cities.Count, overallScores.Count, averageCosts.Count);
         }
         catch (Exception ex)
         {
@@ -584,6 +588,52 @@ public class CityApplicationService : ICityService
     }
 
     /// <summary>
+    /// 通过 CacheService 批量获取城市平均费用 (Dapr Service Invocation)
+    /// </summary>
+    private async Task<Dictionary<Guid, decimal>> GetCityCostsFromCacheServiceAsync(List<Guid> cityIds)
+    {
+        var costs = new Dictionary<Guid, decimal>();
+
+        if (cityIds.Count == 0) return costs;
+
+        try
+        {
+            _logger.LogDebug("🔍 通过 CacheService 批量获取城市费用: {Count} 个城市", cityIds.Count);
+
+            // 转换为字符串 ID
+            var cityIdStrings = cityIds.Select(id => id.ToString()).ToList();
+
+            // 调用 CacheService 的批量获取接口
+            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchCostResponse>(
+                HttpMethod.Post,
+                "cache-service",
+                "api/v1/cache/costs/city/batch",
+                cityIdStrings
+            );
+
+            if (response?.Costs != null)
+            {
+                foreach (var cost in response.Costs)
+                {
+                    if (Guid.TryParse(cost.EntityId, out var cityId))
+                    {
+                        costs[cityId] = cost.AverageCost;
+                    }
+                }
+
+                _logger.LogInformation("✅ 成功获取城市费用: {Count} 个, 缓存命中: {CachedCount}, 实时计算: {CalculatedCount}",
+                    response.Costs.Count, response.CachedCount, response.CalculatedCount);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 从 CacheService 获取费用失败,将使用空费用");
+        }
+
+        return costs;
+    }
+
+    /// <summary>
     /// CacheService 批量响应模型
     /// </summary>
     private class BatchScoreResponse
@@ -601,6 +651,27 @@ public class CityApplicationService : ICityService
     {
         public string EntityId { get; set; } = string.Empty;
         public double OverallScore { get; set; }
+        public bool FromCache { get; set; }
+    }
+
+    /// <summary>
+    /// CacheService 费用批量响应模型
+    /// </summary>
+    private class BatchCostResponse
+    {
+        public List<CostItem> Costs { get; set; } = new();
+        public int TotalCount { get; set; }
+        public int CachedCount { get; set; }
+        public int CalculatedCount { get; set; }
+    }
+
+    /// <summary>
+    /// CacheService 费用项模型
+    /// </summary>
+    private class CostItem
+    {
+        public string EntityId { get; set; } = string.Empty;
+        public decimal AverageCost { get; set; }
         public bool FromCache { get; set; }
     }
 

@@ -49,6 +49,7 @@ public interface IUserCityContentService
 
     Task<CityUserContentStatsDto> GetCityStatsAsync(string cityId);
     Task<CityCostSummaryDto> GetCityCostSummaryAsync(string cityId);
+    Task<ExpenseStatisticsDto> GetExpenseStatisticsAsync(string cityId);
 
     #endregion
 }

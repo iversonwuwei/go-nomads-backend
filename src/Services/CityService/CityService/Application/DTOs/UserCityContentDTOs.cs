@@ -173,6 +173,9 @@ public class CityUserContentStatsDto
     public int ExpenseCount { get; set; }
     public int ReviewCount { get; set; }
     public decimal? AverageRating { get; set; }
+    public int PhotoContributors { get; set; }
+    public int ExpenseContributors { get; set; }
+    public int ReviewContributors { get; set; }
 }
 
 /// <summary>
@@ -237,6 +240,45 @@ public class CityCostSummaryDto
 
     /// <summary>
     ///     数据更新时间
+    /// </summary>
+    public DateTime UpdatedAt { get; set; }
+}
+
+/// <summary>
+///     费用统计 DTO - 用于 CacheService
+/// </summary>
+/// <summary>
+///     费用统计信息 - 用于费用缓存
+/// </summary>
+public class ExpenseStatisticsDto
+{
+    /// <summary>
+    ///     总平均费用（所有分类平均费用之和）
+    /// </summary>
+    public decimal TotalAverageCost { get; set; }
+
+    /// <summary>
+    ///     各分类的平均费用
+    /// </summary>
+    public Dictionary<string, decimal> CategoryCosts { get; set; } = new();
+
+    /// <summary>
+    ///     贡献用户数
+    /// </summary>
+    public int ContributorCount { get; set; }
+
+    /// <summary>
+    ///     费用记录总数
+    /// </summary>
+    public int TotalExpenseCount { get; set; }
+
+    /// <summary>
+    ///     货币单位
+    /// </summary>
+    public string Currency { get; set; } = "USD";
+
+    /// <summary>
+    ///     统计数据更新时间
     /// </summary>
     public DateTime UpdatedAt { get; set; }
 }

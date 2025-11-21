@@ -51,8 +51,9 @@ builder.Services.AddSupabase(builder.Configuration);
 // 配置 DaprClient
 builder.Services.AddDaprClient();
 
-// 注册 UserService 客户端
+// 注册服务客户端
 builder.Services.AddScoped<IUserServiceClient, UserServiceClient>();
+builder.Services.AddScoped<ICacheServiceClient, CacheServiceClient>();
 
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
