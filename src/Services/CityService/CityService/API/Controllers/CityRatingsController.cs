@@ -140,6 +140,22 @@ public class CityRatingsController : ControllerBase
                 OverallScore = overallScore
             };
 
+            // 🔧 如果城市有评分数据,确保缓存已初始化
+            if (allCityRatings.Any())
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await EnsureCityScoreCacheInitializedAsync(cityId, statistics);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "后台初始化城市评分缓存失败: CityId={CityId}", cityId);
+                    }
+                });
+            }
+
             return Ok(new ApiResponse<CityRatingInfoDto>
             {
                 Success = true,
@@ -155,6 +171,58 @@ public class CityRatingsController : ControllerBase
                 Message = "获取城市评分信息失败",
                 Errors = new List<string> { ex.Message }
             });
+        }
+    }
+
+    /// <summary>
+    /// 获取城市评分统计信息 (供 CacheService 调用)
+    /// GET /api/v1/cities/{cityId}/ratings/statistics
+    /// </summary>
+    [HttpGet("statistics")]
+    [ProducesResponseType(typeof(CityRatingStatisticsResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<CityRatingStatisticsResponse>> GetRatingStatistics(
+        [FromRoute] string cityId)
+    {
+        try
+        {
+            // 尝试解析为 Guid,如果失败则作为字符串 ID 处理
+            Guid cityGuid;
+            if (!Guid.TryParse(cityId, out cityGuid))
+            {
+                // 如果不是 Guid,可能是城市的字符串标识符,需要先查询城市
+                // 这里暂时返回空统计,因为我们需要 Guid 来查询评分
+                return Ok(new CityRatingStatisticsResponse
+                {
+                    Statistics = new List<CategoryStatistics>()
+                });
+            }
+
+            var categories = await _categoryRepository.GetAllActiveAsync();
+            var averageRatings = await _ratingRepository.GetCityAverageRatingsAsync(cityGuid);
+            var allCityRatings = await _ratingRepository.GetCityRatingsAsync(cityGuid);
+
+            var ratingCounts = allCityRatings
+                .GroupBy(r => r.CategoryId)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            var statistics = categories.Select(c => new CategoryStatistics
+            {
+                CategoryId = c.Id,
+                CategoryName = c.Name,
+                CategoryNameEn = c.NameEn,
+                RatingCount = ratingCounts.GetValueOrDefault(c.Id, 0),
+                AverageRating = averageRatings.GetValueOrDefault(c.Id, 0)
+            }).ToList();
+
+            return Ok(new CityRatingStatisticsResponse
+            {
+                Statistics = statistics
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取城市评分统计失败: CityId={CityId}", cityId);
+            return StatusCode(500, new { error = "获取评分统计失败" });
         }
     }
 
@@ -523,5 +591,81 @@ public class CityRatingsController : ControllerBase
             // 缓存更新失败不影响主流程,只记录日志
             _logger.LogWarning(ex, "更新城市评分缓存时发生错误: CityId={CityId}", cityId);
         }
+    }
+
+    /// <summary>
+    /// 确保城市评分缓存已初始化 (如果有评分但缓存未初始化,则初始化)
+    /// </summary>
+    private async Task EnsureCityScoreCacheInitializedAsync(Guid cityId, List<CityRatingStatisticsDto> statistics)
+    {
+        try
+        {
+            // 检查缓存是否存在
+            var cacheCheckResponse = await _daprClient.InvokeMethodAsync<ScoreCacheCheckResponse>(
+                HttpMethod.Get,
+                "cache-service",
+                $"api/v1/cache/scores/city/{cityId}"
+            );
+
+            // 如果缓存不存在或评分为0,但实际有评分数据,则初始化缓存
+            if ((cacheCheckResponse == null || cacheCheckResponse.OverallScore == 0) && 
+                statistics.Any(s => s.RatingCount > 0))
+            {
+                _logger.LogInformation("🔧 检测到城市有评分但缓存未初始化,开始初始化缓存: CityId={CityId}", cityId);
+                
+                var overallScore = Math.Round(
+                    statistics.Where(s => s.RatingCount > 0).Average(s => s.AverageRating), 1);
+
+                var requestBody = new
+                {
+                    overallScore = overallScore,
+                    statistics = System.Text.Json.JsonSerializer.Serialize(statistics)
+                };
+
+                await _daprClient.InvokeMethodAsync(
+                    HttpMethod.Put,
+                    "cache-service",
+                    $"api/v1/cache/scores/city/{cityId}",
+                    requestBody
+                );
+
+                _logger.LogInformation("✅ 城市评分缓存初始化完成: CityId={CityId}, OverallScore={OverallScore}",
+                    cityId, overallScore);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "确保城市评分缓存初始化时发生错误: CityId={CityId}", cityId);
+        }
+    }
+
+    /// <summary>
+    /// 评分缓存检查响应模型
+    /// </summary>
+    private class ScoreCacheCheckResponse
+    {
+        public string EntityId { get; set; } = string.Empty;
+        public decimal OverallScore { get; set; }
+        public bool FromCache { get; set; }
+    }
+
+    /// <summary>
+    /// 城市评分统计响应 (供 CacheService 调用)
+    /// </summary>
+    public class CityRatingStatisticsResponse
+    {
+        public List<CategoryStatistics> Statistics { get; set; } = new();
+    }
+
+    /// <summary>
+    /// 分类统计信息
+    /// </summary>
+    public class CategoryStatistics
+    {
+        public Guid CategoryId { get; set; }
+        public string CategoryName { get; set; } = string.Empty;
+        public string? CategoryNameEn { get; set; }
+        public int RatingCount { get; set; }
+        public double AverageRating { get; set; }
     }
 }

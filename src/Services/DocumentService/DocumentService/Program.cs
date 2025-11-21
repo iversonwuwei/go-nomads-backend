@@ -15,8 +15,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<ServiceConfiguration>(
     builder.Configuration.GetSection("Services"));
 
-// Add services to the container
-builder.Services.AddDaprClient();
+// Add services to the container - 配置 Dapr 使用 gRPC
+var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50001";
+builder.Services.AddDaprClient(daprClientBuilder =>
+{
+    daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
+});
 builder.Services.AddControllers().AddDapr();
 
 // Configure OpenAPI with enhanced documentation

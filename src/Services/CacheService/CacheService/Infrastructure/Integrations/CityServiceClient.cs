@@ -43,9 +43,10 @@ public class CityServiceClient : ICityServiceClient
             }
 
             // 计算总评分 (有评分的分类的平均分)
-            var overallScore = response.Statistics
-                .Where(s => s.RatingCount > 0)
-                .Average(s => s.AverageRating);
+            var ratingsWithData = response.Statistics.Where(s => s.RatingCount > 0).ToList();
+            var overallScore = ratingsWithData.Any() 
+                ? ratingsWithData.Average(s => s.AverageRating)
+                : 0.0;
 
             return new CityScoreDto
             {
@@ -57,7 +58,13 @@ public class CityServiceClient : ICityServiceClient
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calculating city score for city {CityId}", cityId);
-            throw;
+            // 返回默认值而不是抛出异常
+            return new CityScoreDto
+            {
+                CityId = cityId,
+                OverallScore = 0,
+                Statistics = null
+            };
         }
     }
 
@@ -190,8 +197,8 @@ internal class CityCostStatsResponse
 
 internal class CategoryStatistics
 {
-    public int CategoryId { get; set; }
+    public Guid CategoryId { get; set; }
     public string CategoryName { get; set; } = string.Empty;
-    public decimal AverageRating { get; set; }
+    public double AverageRating { get; set; }
     public int RatingCount { get; set; }
 }

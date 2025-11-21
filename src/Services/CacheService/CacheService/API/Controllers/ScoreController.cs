@@ -129,6 +129,24 @@ public class ScoreController : ControllerBase
     }
 
     /// <summary>
+    /// 保存/更新共享办公空间评分到缓存
+    /// </summary>
+    [HttpPut("coworking/{coworkingId}")]
+    public async Task<ActionResult> SaveCoworkingScore(string coworkingId, [FromBody] SaveScoreRequest request)
+    {
+        try
+        {
+            await _scoreCacheService.SaveCoworkingScoreAsync(coworkingId, request.OverallScore, request.Statistics);
+            return Ok(new { message = $"Coworking score saved for coworkingId: {coworkingId}", overallScore = request.OverallScore });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving coworking score for coworkingId: {CoworkingId}", coworkingId);
+            return StatusCode(500, new { error = "Failed to save coworking score" });
+        }
+    }
+
+    /// <summary>
     /// 使城市评分缓存失效
     /// </summary>
     [HttpDelete("city/{cityId}")]
@@ -207,6 +225,29 @@ public class ScoreController : ControllerBase
         {
             _logger.LogError(ex, "Error invalidating batch coworking score cache");
             return StatusCode(500, new { error = "Failed to invalidate batch coworking score cache" });
+        }
+    }
+
+    /// <summary>
+    /// 清理所有零值的城市评分缓存 (管理接口)
+    /// </summary>
+    [HttpPost("city/cleanup-zero-scores")]
+    public async Task<ActionResult> CleanupZeroCityScores()
+    {
+        try
+        {
+            var cleanedCount = await _scoreCacheService.CleanupZeroScoresAsync();
+            return Ok(new 
+            { 
+                message = "Cleanup completed", 
+                cleanedCount = cleanedCount,
+                description = "Removed city score caches with zero or negative overall scores"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error cleaning up zero city score caches");
+            return StatusCode(500, new { error = "Failed to cleanup zero score caches" });
         }
     }
 }

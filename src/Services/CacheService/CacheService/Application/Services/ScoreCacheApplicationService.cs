@@ -58,22 +58,31 @@ public class ScoreCacheApplicationService : IScoreCacheService
         // 从 CityService 计算
         var score = await _cityServiceClient.CalculateCityScoreAsync(cityId);
         
-        // 存入缓存
-        var scoreCache = new ScoreCache(
-            ScoreEntityType.City, 
-            cityId, 
-            score.OverallScore, 
-            _cacheTtl,
-            score.Statistics != null ? JsonSerializer.Serialize(score.Statistics) : null
-        );
-        await _cacheRepository.SetAsync(scoreCache);
+        // 🔧 只有当评分大于0时才缓存,避免缓存接口调用失败的0值
+        if (score.OverallScore > 0)
+        {
+            // 存入缓存
+            var scoreCache = new ScoreCache(
+                ScoreEntityType.City, 
+                cityId, 
+                score.OverallScore, 
+                _cacheTtl,
+                score.Statistics != null ? JsonSerializer.Serialize(score.Statistics) : null
+            );
+            await _cacheRepository.SetAsync(scoreCache);
+            _logger.LogInformation("✅ Cached city score: {CityId}, Score: {Score}", cityId, score.OverallScore);
+        }
+        else
+        {
+            _logger.LogWarning("⚠️ Not caching zero score for city {CityId}, may indicate API failure", cityId);
+        }
 
         return new ScoreResponseDto
         {
             EntityId = cityId,
             OverallScore = score.OverallScore,
             FromCache = false,
-            Statistics = scoreCache.Statistics
+            Statistics = score.Statistics != null ? JsonSerializer.Serialize(score.Statistics) : null
         };
     }
 
@@ -128,13 +137,22 @@ public class ScoreCacheApplicationService : IScoreCacheService
                     Statistics = score.Statistics != null ? JsonSerializer.Serialize(score.Statistics) : null
                 });
 
-                newCaches.Add(new ScoreCache(
-                    ScoreEntityType.City,
-                    score.CityId,
-                    score.OverallScore,
-                    _cacheTtl,
-                    score.Statistics != null ? JsonSerializer.Serialize(score.Statistics) : null
-                ));
+                // 🔧 只有当评分大于0时才缓存,避免缓存接口调用失败的0值
+                if (score.OverallScore > 0)
+                {
+                    newCaches.Add(new ScoreCache(
+                        ScoreEntityType.City,
+                        score.CityId,
+                        score.OverallScore,
+                        _cacheTtl,
+                        score.Statistics != null ? JsonSerializer.Serialize(score.Statistics) : null
+                    ));
+                }
+                else
+                {
+                    _logger.LogWarning("⚠️ Not caching zero score for city {CityId}, may indicate API failure", score.CityId);
+                }
+                
                 result.CalculatedCount++;
             }
 
@@ -142,6 +160,7 @@ public class ScoreCacheApplicationService : IScoreCacheService
             if (newCaches.Any())
             {
                 await _cacheRepository.SetBatchAsync(newCaches);
+                _logger.LogInformation("Set {Count} score caches in batch", newCaches.Count);
             }
         }
 
@@ -155,7 +174,7 @@ public class ScoreCacheApplicationService : IScoreCacheService
         var scoreCache = new ScoreCache(
             ScoreEntityType.City,
             cityId,
-            (decimal)overallScore,  // 转换为 decimal
+            overallScore,
             _cacheTtl,
             statistics
         );
@@ -277,6 +296,22 @@ public class ScoreCacheApplicationService : IScoreCacheService
         return result;
     }
 
+    public async Task SaveCoworkingScoreAsync(string coworkingId, double overallScore, string? statistics = null)
+    {
+        _logger.LogInformation("Saving coworking score: CoworkingId={CoworkingId}, OverallScore={OverallScore}", coworkingId, overallScore);
+
+        var scoreCache = new ScoreCache(
+            ScoreEntityType.Coworking,
+            coworkingId,
+            overallScore,
+            _cacheTtl,
+            statistics
+        );
+
+        await _cacheRepository.SetAsync(scoreCache);
+        _logger.LogInformation("✅ Coworking score saved to cache: CoworkingId={CoworkingId}, OverallScore={OverallScore}", coworkingId, overallScore);
+    }
+
     public async Task InvalidateCityScoreAsync(string cityId)
     {
         _logger.LogInformation("Invalidating city score cache for cityId: {CityId}", cityId);
@@ -301,5 +336,50 @@ public class ScoreCacheApplicationService : IScoreCacheService
         var coworkingIdList = coworkingIds.ToList();
         _logger.LogInformation("Invalidating coworking score cache for {Count} coworkings", coworkingIdList.Count);
         await _cacheRepository.InvalidateBatchAsync(ScoreEntityType.Coworking, coworkingIdList);
+    }
+
+    public async Task<int> CleanupZeroScoresAsync()
+    {
+        _logger.LogInformation("Starting cleanup of zero city score caches");
+        
+        try
+        {
+            // 获取所有城市评分缓存键
+            var allKeys = await _cacheRepository.GetAllKeysAsync(ScoreEntityType.City);
+            _logger.LogInformation("Found {Count} total city score cache keys", allKeys.Count);
+
+            var keysToDelete = new List<string>();
+
+            // 检查每个缓存值
+            foreach (var key in allKeys)
+            {
+                var cityId = key.Replace("score:city:", "");
+                var cache = await _cacheRepository.GetAsync(ScoreEntityType.City, cityId);
+                
+                if (cache != null && cache.OverallScore <= 0)
+                {
+                    keysToDelete.Add(cityId);
+                    _logger.LogInformation("Found zero score cache for city {CityId}: {Score}", 
+                        cityId, cache.OverallScore);
+                }
+            }
+
+            if (keysToDelete.Any())
+            {
+                await _cacheRepository.InvalidateBatchAsync(ScoreEntityType.City, keysToDelete);
+                _logger.LogWarning("🧹 Cleaned up {Count} zero score caches", keysToDelete.Count);
+            }
+            else
+            {
+                _logger.LogInformation("No zero score caches found to clean up");
+            }
+
+            return keysToDelete.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during zero score cleanup");
+            throw;
+        }
     }
 }

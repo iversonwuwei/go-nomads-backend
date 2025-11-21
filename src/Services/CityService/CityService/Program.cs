@@ -48,8 +48,12 @@ builder.Services.AddOpenApi(options =>
 // 添加 Supabase 客户端
 builder.Services.AddSupabase(builder.Configuration);
 
-// 配置 DaprClient
-builder.Services.AddDaprClient();
+// 配置 DaprClient - 使用 gRPC 端点
+var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50001";
+builder.Services.AddDaprClient(daprClientBuilder =>
+{
+    daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
+});
 
 // 注册服务客户端
 builder.Services.AddScoped<IUserServiceClient, UserServiceClient>();

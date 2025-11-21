@@ -6,7 +6,7 @@ namespace CacheService.Infrastructure.Integrations;
 public class CityScoreDto
 {
     public string CityId { get; set; } = string.Empty;
-    public decimal OverallScore { get; set; }
+    public double OverallScore { get; set; }
     public object? Statistics { get; set; }
 }
 

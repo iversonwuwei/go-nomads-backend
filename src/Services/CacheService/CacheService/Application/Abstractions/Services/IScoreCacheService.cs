@@ -34,6 +34,11 @@ public interface IScoreCacheService
     Task<BatchScoreResponseDto> GetCoworkingScoresBatchAsync(IEnumerable<string> coworkingIds);
 
     /// <summary>
+    /// 保存/更新共享办公空间评分到缓存
+    /// </summary>
+    Task SaveCoworkingScoreAsync(string coworkingId, double overallScore, string? statistics = null);
+
+    /// <summary>
     /// 使城市评分缓存失效
     /// </summary>
     Task InvalidateCityScoreAsync(string cityId);
@@ -52,4 +57,10 @@ public interface IScoreCacheService
     /// 批量使共享办公空间评分缓存失效
     /// </summary>
     Task InvalidateCoworkingScoresBatchAsync(IEnumerable<string> coworkingIds);
+
+    /// <summary>
+    /// 清理所有零值的城市评分缓存
+    /// </summary>
+    /// <returns>清理的缓存数量</returns>
+    Task<int> CleanupZeroScoresAsync();
 }

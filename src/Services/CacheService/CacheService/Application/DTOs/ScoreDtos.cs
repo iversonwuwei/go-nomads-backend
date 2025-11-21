@@ -6,7 +6,7 @@ namespace CacheService.Application.DTOs;
 public class ScoreResponseDto
 {
     public string EntityId { get; set; } = string.Empty;
-    public decimal OverallScore { get; set; }
+    public double OverallScore { get; set; }
     public bool FromCache { get; set; }
     public string? Statistics { get; set; }
 }

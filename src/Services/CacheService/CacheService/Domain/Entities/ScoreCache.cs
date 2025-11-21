@@ -23,7 +23,7 @@ public class ScoreCache
     /// <summary>
     /// 总评分
     /// </summary>
-    public decimal OverallScore { get; private set; }
+    public double OverallScore { get; private set; }
 
     /// <summary>
     /// 缓存创建时间
@@ -46,7 +46,7 @@ public class ScoreCache
         EntityId = string.Empty;
     }
 
-    public ScoreCache(ScoreEntityType entityType, string entityId, decimal overallScore, TimeSpan ttl, string? statistics = null)
+    public ScoreCache(ScoreEntityType entityType, string entityId, double overallScore, TimeSpan ttl, string? statistics = null)
     {
         EntityType = entityType;
         EntityId = entityId;
@@ -60,7 +60,7 @@ public class ScoreCache
     /// <summary>
     /// 更新分数
     /// </summary>
-    public void UpdateScore(decimal newScore, TimeSpan ttl, string? statistics = null)
+    public void UpdateScore(double newScore, TimeSpan ttl, string? statistics = null)
     {
         OverallScore = newScore;
         Statistics = statistics;

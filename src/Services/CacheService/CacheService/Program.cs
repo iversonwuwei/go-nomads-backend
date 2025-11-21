@@ -49,8 +49,12 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     return ConnectionMultiplexer.Connect(configuration);
 });
 
-// 配置 DaprClient
-builder.Services.AddDaprClient();
+// 配置 DaprClient - 使用 gRPC 端点
+var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50001";
+builder.Services.AddDaprClient(daprClientBuilder =>
+{
+    daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
+});
 
 // CORS
 builder.Services.AddCors(options =>

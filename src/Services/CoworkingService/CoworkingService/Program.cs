@@ -4,6 +4,7 @@ using CoworkingService.Infrastructure.Repositories;
 using GoNomads.Shared.Extensions;
 using Scalar.AspNetCore;
 using Serilog;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,14 +44,27 @@ builder.Services.AddScoped<ICoworkingRepository, CoworkingRepository>();
 builder.Services.AddScoped<ICoworkingBookingRepository, CoworkingBookingRepository>();
 builder.Services.AddScoped<ICoworkingVerificationRepository, CoworkingVerificationRepository>();
 builder.Services.AddScoped<ICoworkingCommentRepository, CoworkingCommentRepository>();
+builder.Services.AddScoped<ICoworkingReviewRepository, CoworkingReviewRepository>();
 
 // Application Layer - 应用服务
 builder.Services.AddScoped<ICoworkingService, CoworkingApplicationService>();
+builder.Services.AddScoped<ICoworkingReviewService, CoworkingReviewService>();
+
+// External Services - 外部服务客户端
+builder.Services.AddScoped<CoworkingService.Services.ICacheServiceClient, CoworkingService.Services.CacheServiceClient>();
+builder.Services.AddScoped<CoworkingService.Services.IUserServiceClient, CoworkingService.Services.UserServiceClient>();
 
 // Domain Layer 不需要注册（纯 POCO）
 
 // 添加控制器
-builder.Services.AddControllers().AddDapr();
+builder.Services.AddControllers()
+    .AddDapr()
+    .AddJsonOptions(options =>
+    {
+        // 配置 JSON 序列化为 camelCase（默认行为，但显式配置更清晰）
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+    });
 
 // 添加 OpenAPI
 builder.Services.AddEndpointsApiExplorer();

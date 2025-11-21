@@ -76,6 +76,6 @@ public class CoworkingServiceClient : ICoworkingServiceClient
 internal class CoworkingDetailResponse
 {
     public string Id { get; set; } = string.Empty;
-    public decimal Rating { get; set; }
+    public double Rating { get; set; }
     public int ReviewCount { get; set; }
 }

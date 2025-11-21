@@ -4,8 +4,12 @@ using GoNomads.Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 配置 DaprClient (通过环境变量 DAPR_GRPC_PORT 使用 gRPC)
-builder.Services.AddDaprClient();
+// 配置 DaprClient - 使用 gRPC 端点
+var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50001";
+builder.Services.AddDaprClient(daprClientBuilder =>
+{
+    daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
+});
 builder.Services.AddControllers().AddDapr();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi

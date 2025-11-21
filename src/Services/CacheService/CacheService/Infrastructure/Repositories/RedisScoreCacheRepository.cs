@@ -177,6 +177,24 @@ public class RedisScoreCacheRepository : IScoreCacheRepository
             return false;
         }
     }
+
+    public async Task<List<string>> GetAllKeysAsync(ScoreEntityType entityType)
+    {
+        try
+        {
+            var pattern = $"score:{entityType.ToString().ToLower()}:*";
+            var server = _redis.GetServer(_redis.GetEndPoints().First());
+            var keys = server.Keys(pattern: pattern).ToList();
+            
+            _logger.LogInformation("Found {Count} keys matching pattern {Pattern}", keys.Count, pattern);
+            return keys.Select(k => k.ToString()).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all keys for {EntityType}", entityType);
+            return new List<string>();
+        }
+    }
 }
 
 /// <summary>
@@ -184,7 +202,7 @@ public class RedisScoreCacheRepository : IScoreCacheRepository
 /// </summary>
 internal class ScoreCacheData
 {
-    public decimal OverallScore { get; set; }
+    public double OverallScore { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime ExpiresAt { get; set; }
     public string? Statistics { get; set; }

@@ -32,10 +32,12 @@ builder.Services.AddScoped<IInterestService, InterestService>();
 // Dapr sidecar 与应用共享网络命名空间，通过 localhost 访问
 // 使用 gRPC 端点（性能更好：2-3x 吞吐量，30-50% 更小的负载）
 // 
-// Dapr 环境变量:
-// - DAPR_GRPC_ENDPOINT: gRPC 端点 URL (默认: http://127.0.0.1:50001)
-// - DAPR_HTTP_ENDPOINT: HTTP 端点 URL (默认: http://127.0.0.1:3500)
-builder.Services.AddDaprClient();
+// Dapr 配置 - 使用 gRPC 端点
+var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50001";
+builder.Services.AddDaprClient(daprClientBuilder =>
+{
+    daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
+});
 
 builder.Services.AddControllers().AddDapr();
 

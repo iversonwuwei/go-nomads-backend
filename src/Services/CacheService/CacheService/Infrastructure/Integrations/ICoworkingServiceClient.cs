@@ -6,7 +6,7 @@ namespace CacheService.Infrastructure.Integrations;
 public class CoworkingScoreDto
 {
     public string Id { get; set; } = string.Empty;
-    public decimal Rating { get; set; }
+    public double Rating { get; set; }
     public int ReviewCount { get; set; }
 }
 

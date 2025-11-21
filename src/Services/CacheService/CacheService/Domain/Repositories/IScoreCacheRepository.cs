@@ -41,4 +41,9 @@ public interface IScoreCacheRepository
     /// 检查缓存是否存在
     /// </summary>
     Task<bool> ExistsAsync(ScoreEntityType entityType, string entityId);
+
+    /// <summary>
+    /// 获取所有指定类型的缓存键
+    /// </summary>
+    Task<List<string>> GetAllKeysAsync(ScoreEntityType entityType);
 }
