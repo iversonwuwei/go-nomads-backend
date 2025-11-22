@@ -82,6 +82,8 @@ docker-compose.override.yml
 # Build Output & Publish Directory
 # ============================================================
 publish/
+published/
+deployment/published/
 dist/
 out/
 

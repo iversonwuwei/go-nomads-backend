@@ -1,4 +1,3 @@
-using System.Net.Security;
 using Microsoft.Extensions.Options;
 using Shared.Configuration;
 using Shared.Services;
@@ -43,28 +42,6 @@ public static class SupabaseServiceExtensions
                 "Initializing Supabase client with URL: {Url} (key type: {KeyType})",
                 options.Url,
                 string.IsNullOrWhiteSpace(options.ServiceRoleKey) ? "anon" : "service_role");
-
-            // 配置 HttpClient 以处理 SSL 和超时
-            var httpHandler = new HttpClientHandler
-            {
-                // 对于生产环境的 Supabase，通常不需要禁用证书验证
-                // 但如果遇到 SSL 问题，可以临时使用此选项
-                ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) =>
-                {
-                    // 在开发环境可以忽略证书错误
-                    if (sslPolicyErrors == SslPolicyErrors.None)
-                        return true;
-
-                    logger.LogWarning("SSL Certificate validation failed: {Errors}", sslPolicyErrors);
-                    // 对于 Supabase 官方服务，建议返回 true
-                    return true;
-                }
-            };
-
-            var httpClient = new HttpClient(httpHandler)
-            {
-                Timeout = TimeSpan.FromSeconds(30)
-            };
 
             var supabaseOptions = new SupabaseOptions
             {
@@ -129,24 +106,6 @@ public static class SupabaseServiceExtensions
                 "Initializing Supabase client with URL: {Url} (key type: {KeyType})",
                 settings.Url,
                 string.IsNullOrWhiteSpace(settings.ServiceRoleKey) ? "anon" : "service_role");
-
-            // 配置 HttpClient 以处理 SSL 和超时
-            var httpHandler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) =>
-                {
-                    if (sslPolicyErrors == SslPolicyErrors.None)
-                        return true;
-
-                    logger.LogWarning("SSL Certificate validation failed: {Errors}", sslPolicyErrors);
-                    return true;
-                }
-            };
-
-            var httpClient = new HttpClient(httpHandler)
-            {
-                Timeout = TimeSpan.FromSeconds(30)
-            };
 
             var supabaseOptions = new SupabaseOptions
             {

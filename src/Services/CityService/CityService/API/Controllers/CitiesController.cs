@@ -8,6 +8,9 @@ using GoNomads.Shared.Middleware;
 using GoNomads.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Postgrest.Attributes;
+using Postgrest.Models;
+using Supabase;
 
 namespace CityService.API.Controllers;
 
@@ -23,18 +26,21 @@ public class CitiesController : ControllerBase
     private readonly IDigitalNomadGuideService _guideService;
     private readonly ILogger<CitiesController> _logger;
     private readonly ICityModeratorRepository _moderatorRepository;
+    private readonly Client _supabaseClient;
 
     public CitiesController(
         ICityService cityService,
         IDigitalNomadGuideService guideService,
         ICityModeratorRepository moderatorRepository,
         DaprClient daprClient,
+        Client supabaseClient,
         ILogger<CitiesController> logger)
     {
         _cityService = cityService;
         _guideService = guideService;
         _moderatorRepository = moderatorRepository;
         _daprClient = daprClient;
+        _supabaseClient = supabaseClient;
         _logger = logger;
     }
 
@@ -569,7 +575,7 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    ///     通过 Dapr 调用 CoworkingService 批量获取城市的 coworking 数量
+    ///     直接从数据库查询城市的 coworking 数量（避免跨服务HTTP调用）
     /// </summary>
     private async Task EnrichCitiesWithCoworkingCountAsync(List<CityDto> cities)
     {
@@ -577,45 +583,59 @@ public class CitiesController : ControllerBase
 
         try
         {
+            _logger.LogInformation("开始统计 {CityCount} 个城市的 Coworking 数量", cities.Count);
+
             // 收集所有城市 ID
-            var cityIds = string.Join(",", cities.Select(c => c.Id));
+            var cityIds = cities.Select(c => c.Id).ToList();
 
-            // 调用 CoworkingService 的批量查询接口 (返回 ApiResponse 包装)
-            var apiResponse = await _daprClient.InvokeMethodAsync<ApiResponse<Dictionary<Guid, int>>>(
-                HttpMethod.Get,
-                "coworking-service",
-                $"api/v1/coworking/count-by-cities?cityIds={cityIds}");
+            // 直接查询 coworking_spaces 表
+            var response = await _supabaseClient
+                .From<CoworkingSpaceDto>()
+                .Where(x => x.IsActive == true)
+                .Get();
 
-            // 检查响应是否成功
-            if (apiResponse?.Success == true && apiResponse.Data != null)
+            // 过滤出目标城市，并按城市ID分组统计
+            var countByCity = response.Models
+                .Where(x => x.CityId.HasValue && cityIds.Contains(x.CityId.Value))
+                .GroupBy(x => x.CityId!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            // 填充每个城市的 coworking 数量
+            foreach (var city in cities)
             {
-                // 填充每个城市的 coworking 数量
-                foreach (var city in cities)
-                    if (apiResponse.Data.TryGetValue(city.Id, out var count))
-                        city.CoworkingCount = count;
-                    else
-                        city.CoworkingCount = 0;
-
-                _logger.LogInformation(
-                    "成功从 CoworkingService 获取 {CityCount} 个城市的 Coworking 数量",
-                    cities.Count);
+                city.CoworkingCount = countByCity.TryGetValue(city.Id, out var count) ? count : 0;
             }
-            else
-            {
-                _logger.LogWarning(
-                    "CoworkingService 返回非成功结果: {Message}",
-                    apiResponse?.Message ?? "响应为空");
 
-                // 设置默认值
-                foreach (var city in cities) city.CoworkingCount = 0;
-            }
+            _logger.LogInformation(
+                "成功统计 {CityCount} 个城市的 Coworking 数量，其中 {ActiveCount} 个城市有空间",
+                cities.Count,
+                countByCity.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "调用 CoworkingService 获取 Coworking 数量失败，使用默认值 0");
-            // 容错: 如果调用失败，将所有城市的 CoworkingCount 设为 0
-            foreach (var city in cities) city.CoworkingCount = 0;
+            _logger.LogWarning(ex, "统计 Coworking 数量失败，使用默认值 0");
+            // 容错: 如果查询失败，将所有城市的 CoworkingCount 设为 0
+            foreach (var city in cities)
+            {
+                city.CoworkingCount = 0;
+            }
         }
+    }
+
+    /// <summary>
+    ///     Coworking 空间 DTO（用于统计数量）
+    /// </summary>
+    [Table("coworking_spaces")]
+    private class CoworkingSpaceDto : BaseModel
+    {
+        [PrimaryKey("id")]
+        public Guid Id { get; set; }
+
+        [Column("city_id")]
+        public Guid? CityId { get; set; }
+
+        [Column("is_active")]
+        public bool IsActive { get; set; }
     }
 
     #region Helper Methods

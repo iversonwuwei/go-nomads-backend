@@ -301,39 +301,6 @@ public class CoworkingRepository : ICoworkingRepository
         }
     }
 
-    public async Task<Dictionary<Guid, int>> GetCountByCitiesAsync(List<Guid> cityIds)
-    {
-        try
-        {
-            _logger.LogInformation("批量获取城市 Coworking 数量: {Count} 个城市", cityIds.Count);
-
-            // 获取所有活跃的 Coworking 空间
-            var response = await _supabaseClient
-                .From<CoworkingSpace>()
-                .Where(x => x.IsActive == true)
-                .Get();
-
-            // 按城市分组统计
-            var result = response.Models
-                .Where(x => x.CityId.HasValue && cityIds.Contains(x.CityId.Value))
-                .GroupBy(x => x.CityId!.Value)
-                .ToDictionary(g => g.Key, g => g.Count());
-
-            // 确保所有城市都在结果中(没有 Coworking 的城市返回 0)
-            foreach (var cityId in cityIds)
-                if (!result.ContainsKey(cityId))
-                    result[cityId] = 0;
-
-            _logger.LogInformation("成功统计 {Count} 个城市的 Coworking 数量", result.Count);
-            return result;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ 批量获取城市 Coworking 数量失败");
-            throw;
-        }
-    }
-
     public async Task<bool> ExistsAsync(Guid id)
     {
         try

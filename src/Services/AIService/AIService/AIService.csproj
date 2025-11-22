@@ -19,8 +19,7 @@
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.10"/>
         <PackageReference Include="Scalar.AspNetCore" Version="1.2.42"/>
 
-        <!-- 数据库和缓存 -->
-        <PackageReference Include="postgrest-csharp" Version="3.5.1"/>
+<!-- 数据库和缓存 -->
         <PackageReference Include="supabase-csharp" Version="0.16.2"/>
         <PackageReference Include="StackExchange.Redis" Version="2.7.33"/>
 

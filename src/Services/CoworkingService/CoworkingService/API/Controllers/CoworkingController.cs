@@ -302,54 +302,6 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    ///     批量获取多个城市的 Coworking 空间数量
-    /// </summary>
-    [HttpGet("count-by-cities")]
-    [ProducesResponseType(typeof(ApiResponse<Dictionary<Guid, int>>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<ApiResponse<Dictionary<Guid, int>>>> GetCoworkingCountByCities(
-        [FromQuery] string cityIds)
-    {
-        try
-        {
-            // 解析城市 ID 列表 (格式: "id1,id2,id3")
-            if (string.IsNullOrWhiteSpace(cityIds))
-                return BadRequest(ApiResponse<object>.ErrorResponse(
-                    "参数无效",
-                    new List<string> { "cityIds 参数不能为空" }));
-
-            var cityIdList = cityIds
-                .Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(id => Guid.Parse(id.Trim()))
-                .ToList();
-
-            if (cityIdList.Count == 0)
-                return BadRequest(ApiResponse<object>.ErrorResponse(
-                    "参数无效",
-                    new List<string> { "至少需要提供一个城市 ID" }));
-
-            var result = await _coworkingService.GetCoworkingCountByCitiesAsync(cityIdList);
-
-            return Ok(ApiResponse<Dictionary<Guid, int>>.SuccessResponse(
-                result,
-                $"成功获取 {result.Count} 个城市的 Coworking 空间数量"));
-        }
-        catch (FormatException ex)
-        {
-            return BadRequest(ApiResponse<object>.ErrorResponse(
-                "城市 ID 格式无效",
-                new List<string> { ex.Message }));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "批量获取城市 Coworking 空间数量失败");
-            return StatusCode(500, ApiResponse<object>.ErrorResponse(
-                "获取失败",
-                new List<string> { ex.Message }));
-        }
-    }
-
-    /// <summary>
     ///     用户提交 Coworking 认证
     /// </summary>
     [HttpPost("{id}/verifications")]

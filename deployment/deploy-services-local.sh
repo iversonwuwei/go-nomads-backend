@@ -227,6 +227,7 @@ deploy_service_local() {
         -e DAPR_GRPC_PORT="50001" \
         -e DAPR_HTTP_PORT="$dapr_http_port" \
         -e Consul__Address="http://go-nomads-consul:7500" \
+        -e DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=true \
         -e HTTP_PROXY= \
         -e HTTPS_PROXY= \
         -e NO_PROXY= \
