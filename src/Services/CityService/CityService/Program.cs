@@ -2,9 +2,11 @@ using System.Text;
 using CityService.Application.Abstractions.Services;
 using CityService.Application.Services;
 using CityService.Domain.Repositories;
+using CityService.Infrastructure.Auth;
 using CityService.Infrastructure.Integrations.Geocoding;
 using CityService.Infrastructure.Integrations.Weather;
 using CityService.Infrastructure.Repositories;
+using CityService.Infrastructure.Services;
 using CityService.Services;
 using GoNomads.Shared.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -109,6 +111,7 @@ builder.Services.AddScoped<IDigitalNomadGuideRepository, SupabaseDigitalNomadGui
 builder.Services.AddScoped<ICityModeratorRepository, CityModeratorRepository>();
 builder.Services.AddScoped<ICityRatingCategoryRepository, CityRatingCategoryRepository>();
 builder.Services.AddScoped<ICityRatingRepository, CityRatingRepository>();
+builder.Services.AddScoped<IWeatherCacheRepository, WeatherCacheRepository>();
 
 // Application Services
 builder.Services.AddScoped<ICityService, CityApplicationService>();
@@ -118,8 +121,11 @@ builder.Services.AddScoped<IGeoNamesImportService, GeoNamesImportService>();
 builder.Services.AddScoped<IDigitalNomadGuideService, DigitalNomadGuideService>();
 builder.Services.AddScoped<GeographyDataSeeder>();
 
-// 添加内存缓存
+// 添加内存缓存 - 用于天气数据缓存
 builder.Services.AddMemoryCache();
+
+// 注册后台天气刷新服务
+builder.Services.AddHostedService<WeatherCacheRefreshService>();
 
 // 注册天气服务
 builder.Services.AddHttpClient<IWeatherService, WeatherService>();
@@ -138,6 +144,8 @@ app.MapScalarApiReference(options =>
         .WithEndpointPrefix("/scalar/{documentName}");
 });
 
+// 后台服务已通过 HostedService 运行
+
 app.UseSerilogRequestLogging();
 
 app.UseCors("AllowAll");
@@ -153,6 +161,9 @@ app.MapControllers();
 // Health check endpoint
 app.MapGet("/health",
     () => Results.Ok(new { status = "healthy", service = "CityService", timestamp = DateTime.UtcNow }));
+
+// 天气缓存刷新服务已通过 BackgroundService 自动运行
+Log.Information("Weather cache refresh service enabled (refresh every 30 minutes)");
 
 Log.Information("City Service starting on port 8002...");
 

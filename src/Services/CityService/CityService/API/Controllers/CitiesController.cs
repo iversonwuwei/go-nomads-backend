@@ -48,6 +48,7 @@ public class CitiesController : ControllerBase
     ///     Get all cities with pagination and optional search
     /// </summary>
     [HttpGet]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<PaginatedResponse<CityDto>>>> GetCities(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
@@ -156,6 +157,7 @@ public class CitiesController : ControllerBase
     ///     GET /api/v1/cities/recommended?count=10
     /// </summary>
     [HttpGet("recommended")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<IEnumerable<CityDto>>>> GetRecommendedCities([FromQuery] int count = 10)
     {
         try
@@ -186,6 +188,7 @@ public class CitiesController : ControllerBase
     ///     GET /api/v1/cities?countryId={guid}
     /// </summary>
     [HttpGet("by-country/{countryId:guid}")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<IEnumerable<CitySummaryDto>>>> GetCitiesByCountryId(Guid countryId)
     {
         try
@@ -215,6 +218,7 @@ public class CitiesController : ControllerBase
     ///     GET /api/v1/cities/grouped-by-country
     /// </summary>
     [HttpGet("grouped-by-country")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<IEnumerable<CountryCitiesDto>>>> GetCitiesGroupedByCountry()
     {
         try
@@ -245,6 +249,7 @@ public class CitiesController : ControllerBase
     ///     Note: Consider moving to separate /api/v1/countries endpoint
     /// </summary>
     [HttpGet("countries")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<IEnumerable<CountryDto>>>> GetAllCountries()
     {
         try
@@ -273,6 +278,7 @@ public class CitiesController : ControllerBase
     ///     Search cities with filters
     /// </summary>
     [HttpGet("search")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<IEnumerable<CityDto>>>> SearchCities([FromQuery] CitySearchDto searchDto)
     {
         try
@@ -303,6 +309,7 @@ public class CitiesController : ControllerBase
     ///     Get city by ID
     /// </summary>
     [HttpGet("{id:guid}")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<CityDto>>> GetCity(Guid id)
     {
         try
@@ -341,6 +348,7 @@ public class CitiesController : ControllerBase
     ///     Get city statistics
     /// </summary>
     [HttpGet("{id:guid}/statistics")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<CityStatisticsDto>>> GetCityStatistics(Guid id)
     {
         try
@@ -378,6 +386,7 @@ public class CitiesController : ControllerBase
     ///     GET /api/v1/cities/{id}/weather
     /// </summary>
     [HttpGet("{id:guid}/weather")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<WeatherDto>>> GetCityWeather(
         Guid id,
         [FromQuery] bool includeForecast = false,

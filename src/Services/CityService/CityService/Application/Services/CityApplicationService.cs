@@ -675,56 +675,65 @@ public class CityApplicationService : ICityService
         public bool FromCache { get; set; }
     }
 
+    /// <summary>
+    ///     批量填充城市天气信息（优化版：使用批量API和缓存）
+    /// </summary>
     private async Task EnrichCitiesWithWeatherAsync(List<CityDto> cities)
     {
         if (cities.Count == 0) return;
 
         try
         {
-            // 优化策略：分批处理，避免并发过高
-            const int batchSize = 10; // 每批处理 10 个城市
-            var batches = cities
-                .Select((city, index) => new { city, index })
-                .GroupBy(x => x.index / batchSize)
-                .Select(g => g.Select(x => x.city).ToList())
-                .ToList();
-
-            _logger.LogDebug("🌦️ 开始批量填充天气信息: {TotalCities} 个城市, {BatchCount} 批次",
-                cities.Count, batches.Count);
-
+            _logger.LogInformation("🌦️ 开始批量填充天气信息: {TotalCities} 个城市", cities.Count);
             var stopwatch = Stopwatch.StartNew();
 
-            foreach (var batch in batches)
+            // 准备坐标字典（优先使用坐标，更精确）
+            var cityCoordinates = cities
+                .Where(c => c.Latitude.HasValue && c.Longitude.HasValue)
+                .ToDictionary(
+                    c => c.Id,
+                    c => (c.Latitude!.Value, c.Longitude!.Value, c.Name)
+                );
+
+            // 批量获取有坐标的城市天气
+            Dictionary<Guid, WeatherDto?> weatherByCoord = new();
+            if (cityCoordinates.Count > 0)
             {
-                // 每批次并发处理
-                var weatherTasks = batch.Select(async city =>
+                weatherByCoord = await _weatherService.GetWeatherForCitiesByCoordinatesAsync(cityCoordinates);
+            }
+
+            // 填充有坐标的城市
+            foreach (var city in cities.Where(c => cityCoordinates.ContainsKey(c.Id)))
+            {
+                if (weatherByCoord.TryGetValue(city.Id, out var weather))
                 {
-                    try
-                    {
-                        if (city.Latitude.HasValue && city.Longitude.HasValue)
-                        {
-                            city.Weather = await _weatherService.GetWeatherByCoordinatesAsync(
-                                city.Latitude.Value,
-                                city.Longitude.Value);
-                        }
-                        else
-                        {
-                            // 优先使用英文名称获取天气
-                            var cityName = !string.IsNullOrWhiteSpace(city.NameEn) ? city.NameEn : city.Name;
-                            city.Weather = await _weatherService.GetWeatherByCityNameAsync(cityName);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "获取城市天气失败: {CityName}", city.Name);
-                        city.Weather = null; // 优雅降级
-                    }
-                });
+                    city.Weather = weather;
+                }
+            }
 
-                await Task.WhenAll(weatherTasks);
+            // 处理没有坐标的城市（使用城市名称）
+            var citiesWithoutCoords = cities
+                .Where(c => !c.Latitude.HasValue || !c.Longitude.HasValue)
+                .ToList();
 
-                // 批次间略微延迟，避免 API 频率限制
-                if (batches.IndexOf(batch) < batches.Count - 1) await Task.Delay(100); // 100ms 延迟
+            if (citiesWithoutCoords.Count > 0)
+            {
+                var cityNames = citiesWithoutCoords
+                    .Select(c => !string.IsNullOrWhiteSpace(c.NameEn) ? c.NameEn : c.Name)
+                    .ToList();
+
+                var weatherByName = await _weatherService.GetWeatherForCitiesAsync(cityNames);
+
+                for (int i = 0; i < citiesWithoutCoords.Count; i++)
+                {
+                    var city = citiesWithoutCoords[i];
+                    var cityName = !string.IsNullOrWhiteSpace(city.NameEn) ? city.NameEn : city.Name;
+
+                    if (weatherByName.TryGetValue(cityName, out var weather))
+                    {
+                        city.Weather = weather;
+                    }
+                }
             }
 
             stopwatch.Stop();
@@ -737,6 +746,7 @@ public class CityApplicationService : ICityService
         catch (Exception ex)
         {
             _logger.LogError(ex, "批量获取天气信息失败");
+            // 优雅降级：失败时不影响其他数据
         }
     }
 

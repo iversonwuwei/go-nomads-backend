@@ -2,6 +2,8 @@ using System.Net;
 using System.Text.Json;
 using CityService.Application.Abstractions.Services;
 using CityService.Application.DTOs;
+using CityService.Domain.Entities;
+using CityService.Domain.Repositories;
 using CityService.Infrastructure.Integrations.Weather.Models;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -16,29 +18,34 @@ public class WeatherService : IWeatherService
     private readonly string _baseUrl;
     private readonly IMemoryCache _cache;
     private readonly TimeSpan _cacheDuration;
+    private readonly TimeSpan _dbCacheDuration;
     private readonly IConfiguration _configuration;
     private readonly string _forecastBaseUrl;
     private readonly HttpClient _httpClient;
     private readonly ILogger<WeatherService> _logger;
     private readonly string _oneCallApiKey;
+    private readonly IWeatherCacheRepository _weatherCacheRepo;
 
     public WeatherService(
         HttpClient httpClient,
         IConfiguration configuration,
         IMemoryCache cache,
-        ILogger<WeatherService> logger)
+        ILogger<WeatherService> logger,
+        IWeatherCacheRepository weatherCacheRepository)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _cache = cache;
         _logger = logger;
+        _weatherCacheRepo = weatherCacheRepository;
 
         _apiKey = configuration["Weather:ApiKey"] ??
                   throw new InvalidOperationException("Weather API Key is not configured");
         _baseUrl = configuration["Weather:BaseUrl"] ?? "https://api.openweathermap.org/data/2.5";
         _forecastBaseUrl = configuration["Weather:ForecastBaseUrl"] ?? "https://api.openweathermap.org/data/3.0";
         _oneCallApiKey = configuration["Weather:OneCallApiKey"] ?? _apiKey;
-        _cacheDuration = TimeSpan.Parse(configuration["Weather:CacheDuration"] ?? "00:10:00");
+        _cacheDuration = TimeSpan.Parse(configuration["Weather:CacheDuration"] ?? "00:30:00");
+        _dbCacheDuration = TimeSpan.Parse(configuration["Weather:DbCacheDuration"] ?? "01:00:00");
     }
 
     public async Task<WeatherDto?> GetWeatherByCityNameAsync(string cityName, string? countryCode = null)
@@ -96,11 +103,14 @@ public class WeatherService : IWeatherService
         {
             var cacheKey = $"weather_coord_{latitude}_{longitude}";
 
+            // Layer 1: 检查内存缓存
             if (_cache.TryGetValue(cacheKey, out WeatherDto? cachedWeather))
             {
-                _logger.LogInformation("Returning cached weather for coordinates ({Lat}, {Lon})", latitude, longitude);
+                _logger.LogDebug("✅ [L1 Cache Hit] Memory cache for coordinates ({Lat}, {Lon})", latitude, longitude);
                 return cachedWeather;
             }
+
+            // Layer 2: 检查数据库缓存（通过坐标查找不支持，跳过此步）
 
             var language = _configuration["Weather:Language"] ?? "zh_cn";
             var url = $"{_baseUrl}/weather?lat={latitude}&lon={longitude}&appid={_apiKey}&units=metric&lang={language}";
@@ -139,19 +149,168 @@ public class WeatherService : IWeatherService
         }
     }
 
+    /// <summary>
+    ///     批量获取城市天气（优化版：使用缓存和限流）
+    /// </summary>
     public async Task<Dictionary<string, WeatherDto?>> GetWeatherForCitiesAsync(List<string> cityNames)
     {
         var result = new Dictionary<string, WeatherDto?>();
+        var citiesToFetch = new List<string>();
 
-        var tasks = cityNames.Select(async city =>
+        // 第一步：从缓存中获取
+        foreach (var city in cityNames)
         {
-            var weather = await GetWeatherByCityNameAsync(city);
-            return new { City = city, Weather = weather };
-        });
+            var cacheKey = $"weather_{city}_".ToLowerInvariant();
+            if (_cache.TryGetValue(cacheKey, out WeatherDto? cachedWeather))
+            {
+                result[city] = cachedWeather;
+                _logger.LogDebug("Cache hit for {City}", city);
+            }
+            else
+            {
+                citiesToFetch.Add(city);
+            }
+        }
 
-        var responses = await Task.WhenAll(tasks);
+        if (citiesToFetch.Count == 0)
+        {
+            _logger.LogInformation("All {Count} cities served from cache", cityNames.Count);
+            return result;
+        }
 
-        foreach (var item in responses) result[item.City] = item.Weather;
+        _logger.LogInformation("Fetching weather for {Count} cities from API (cache miss)", citiesToFetch.Count);
+
+        // 第二步：分批从 API 获取（避免过载）
+        const int batchSize = 10;
+        var batches = citiesToFetch
+            .Select((city, index) => new { city, index })
+            .GroupBy(x => x.index / batchSize)
+            .Select(g => g.Select(x => x.city).ToList())
+            .ToList();
+
+        foreach (var batch in batches)
+        {
+            var tasks = batch.Select(async city =>
+            {
+                var weather = await GetWeatherByCityNameAsync(city);
+                return new { City = city, Weather = weather };
+            });
+
+            var responses = await Task.WhenAll(tasks);
+
+            foreach (var item in responses)
+            {
+                result[item.City] = item.Weather;
+            }
+
+            // 批次间延迟，避免 API 频率限制
+            if (batches.IndexOf(batch) < batches.Count - 1)
+            {
+                await Task.Delay(100);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    ///     批量获取城市天气（通过坐标，优化版）
+    /// </summary>
+    public async Task<Dictionary<Guid, WeatherDto?>> GetWeatherForCitiesByCoordinatesAsync(
+        Dictionary<Guid, (double Lat, double Lon, string Name)> cityCoordinates)
+    {
+        var result = new Dictionary<Guid, WeatherDto?>();
+        var citiesToFetch = new Dictionary<Guid, (double, double, string)>();
+
+        // Layer 1: 检查数据库缓存（批量查询）
+        var cityIds = cityCoordinates.Keys.ToList();
+        var dbCaches = await _weatherCacheRepo.GetValidCacheByIdsAsync(cityIds);
+
+        _logger.LogDebug("🔍 [L1 DB Cache] 查询 {Total} 个城市，命中 {Hit} 个",
+            cityIds.Count, dbCaches.Count);
+
+        foreach (var kvp in cityCoordinates)
+        {
+            var cityId = kvp.Key;
+            var (lat, lon, name) = kvp.Value;
+
+            if (dbCaches.TryGetValue(cityId, out var dbCache))
+            {
+                var weatherDto = MapFromDbCache(dbCache);
+                result[cityId] = weatherDto;
+
+                // 同时写入内存缓存
+                var memKey = $"weather_coord_{lat}_{lon}";
+                _cache.Set(memKey, weatherDto, _cacheDuration);
+
+                _logger.LogDebug("✅ [L1 DB Cache Hit] {CityName} ({Lat}, {Lon})", name, lat, lon);
+            }
+            else
+            {
+                // Layer 2: 检查内存缓存
+                var cacheKey = $"weather_coord_{lat}_{lon}";
+                if (_cache.TryGetValue(cacheKey, out WeatherDto? memCached))
+                {
+                    result[cityId] = memCached;
+                    _logger.LogDebug("✅ [L2 Memory Cache Hit] {CityName}", name);
+                }
+                else
+                {
+                    citiesToFetch[cityId] = (lat, lon, name);
+                }
+            }
+        }
+
+        if (citiesToFetch.Count == 0)
+        {
+            _logger.LogInformation("✅ All {Count} cities served from cache (DB:{DBCount}, Memory:{MemCount})",
+                cityCoordinates.Count, dbCaches.Count, cityCoordinates.Count - dbCaches.Count);
+            return result;
+        }
+
+        _logger.LogInformation(
+            "🌐 Fetching weather for {Count}/{Total} cities from API (cache miss)",
+            citiesToFetch.Count,
+            cityCoordinates.Count);
+
+        // Layer 3: 分批从 API 获取并保存到缓存
+        const int batchSize = 10;
+        var batches = citiesToFetch
+            .Select((kvp, index) => new { kvp, index })
+            .GroupBy(x => x.index / batchSize)
+            .Select(g => g.Select(x => x.kvp).ToList())
+            .ToList();
+
+        foreach (var batch in batches)
+        {
+            var tasks = batch.Select(async kvp =>
+            {
+                var cityId = kvp.Key;
+                var (lat, lon, name) = kvp.Value;
+                var weather = await GetWeatherByCoordinatesAsync(lat, lon);
+
+                // 保存到数据库缓存
+                if (weather != null)
+                {
+                    await SaveToDbCacheAsync(cityId, name, weather);
+                }
+
+                return new { CityId = cityId, Weather = weather };
+            });
+
+            var responses = await Task.WhenAll(tasks);
+
+            foreach (var item in responses)
+            {
+                result[item.CityId] = item.Weather;
+            }
+
+            // 批次间延迟
+            if (batches.IndexOf(batch) < batches.Count - 1)
+            {
+                await Task.Delay(100);
+            }
+        }
 
         return result;
     }
@@ -500,4 +659,76 @@ public class WeatherService : IWeatherService
         var index = (int)Math.Round(degrees % 360 / 45.0) % 8;
         return directions[index];
     }
+
+    #region 数据库缓存辅助方法
+
+    /// <summary>
+    ///     保存天气数据到数据库缓存
+    /// </summary>
+    private async Task SaveToDbCacheAsync(Guid cityId, string cityName, WeatherDto weather, string? countryCode = null)
+    {
+        try
+        {
+            var cacheEntity = new WeatherCache
+            {
+                CityId = cityId,
+                CityName = cityName,
+                CountryCode = countryCode,
+                Temperature = weather.Temperature,
+                FeelsLike = weather.FeelsLike,
+                WeatherCondition = weather.Weather,
+                Description = weather.WeatherDescription,
+                IconCode = weather.WeatherIcon,
+                Humidity = weather.Humidity,
+                Pressure = weather.Pressure,
+                WindSpeed = weather.WindSpeed,
+                WindDirection = weather.WindDirection,
+                Clouds = weather.Cloudiness,
+                Visibility = weather.Visibility,
+                Sunrise = weather.Sunrise,
+                Sunset = weather.Sunset,
+                UpdatedAt = DateTime.UtcNow,
+                ExpiredAt = DateTime.UtcNow.Add(_dbCacheDuration),
+                ApiSource = "openweathermap"
+            };
+
+            await _weatherCacheRepo.UpsertAsync(cacheEntity);
+            _logger.LogDebug("✅ 已保存天气到数据库缓存: {CityName}, 过期时间: {ExpiredAt}", cityName, cacheEntity.ExpiredAt);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "保存天气到数据库缓存失败: {CityName}", cityName);
+        }
+    }
+
+    /// <summary>
+    ///     从数据库缓存实体映射到 WeatherDto
+    /// </summary>
+    private WeatherDto MapFromDbCache(WeatherCache cache)
+    {
+        return new WeatherDto
+        {
+            Temperature = cache.Temperature,
+            FeelsLike = cache.FeelsLike ?? cache.Temperature,
+            Weather = cache.WeatherCondition,
+            WeatherDescription = cache.Description ?? cache.WeatherCondition,
+            WeatherIcon = cache.IconCode ?? "01d",
+            Humidity = cache.Humidity ?? 0,
+            Pressure = cache.Pressure ?? 0,
+            WindSpeed = cache.WindSpeed ?? 0,
+            WindDirection = cache.WindDirection ?? 0,
+            WindDirectionDescription = cache.WindDirection.HasValue
+                ? GetWindDirectionDescription(cache.WindDirection.Value)
+                : "未知",
+            Cloudiness = cache.Clouds ?? 0,
+            Visibility = cache.Visibility ?? 10000,
+            Sunrise = cache.Sunrise ?? DateTime.UtcNow.Date,
+            Sunset = cache.Sunset ?? DateTime.UtcNow.Date.AddHours(18),
+            UpdatedAt = cache.UpdatedAt,
+            Timestamp = cache.UpdatedAt,
+            DataSource = $"{cache.ApiSource} (cached)"
+        };
+    }
+
+    #endregion
 }
