@@ -1,12 +1,14 @@
 using CoworkingService.Application.DTOs;
 using CoworkingService.Domain.Entities;
 using CoworkingService.Domain.Repositories;
+using CoworkingService.Services;
 
 namespace CoworkingService.Application.Services;
 
 /// <summary>
 ///     Coworking 应用服务实现
 ///     协调领域对象完成业务用例
+///     Updated: 2025-11-23 添加创建者名称支持
 /// </summary>
 public class CoworkingApplicationService : ICoworkingService
 {
@@ -15,6 +17,7 @@ public class CoworkingApplicationService : ICoworkingService
     private readonly ICoworkingVerificationRepository _verificationRepository;
     private readonly ICoworkingCommentRepository _commentRepository;
     private readonly ICoworkingReviewRepository _reviewRepository;
+    private readonly IUserServiceClient _userServiceClient;
     private readonly ILogger<CoworkingApplicationService> _logger;
 
     public CoworkingApplicationService(
@@ -23,6 +26,7 @@ public class CoworkingApplicationService : ICoworkingService
         ICoworkingBookingRepository bookingRepository,
         ICoworkingCommentRepository commentRepository,
         ICoworkingReviewRepository reviewRepository,
+        IUserServiceClient userServiceClient,
         ILogger<CoworkingApplicationService> logger)
     {
         _coworkingRepository = coworkingRepository;
@@ -30,6 +34,7 @@ public class CoworkingApplicationService : ICoworkingService
         _bookingRepository = bookingRepository;
         _commentRepository = commentRepository;
         _reviewRepository = reviewRepository;
+        _userServiceClient = userServiceClient;
         _logger = logger;
     }
 
@@ -77,7 +82,7 @@ public class CoworkingApplicationService : ICoworkingService
             _logger.LogInformation("✅ 共享办公空间创建成功: {Id}", created.Id);
 
             // 3. 转换为 DTO 返回 (新创建的评分为 0)
-            return MapToResponse(created, 0, 0.0, 0);
+            return await MapToResponseAsync(created, 0, 0.0, 0);
         }
         catch (Exception ex)
         {
@@ -95,7 +100,7 @@ public class CoworkingApplicationService : ICoworkingService
 
         var votes = await _verificationRepository.GetVerificationCountAsync(id);
         var (averageRating, reviewCount) = await _reviewRepository.GetAverageRatingAsync(id);
-        return MapToResponse(coworkingSpace, votes, averageRating, reviewCount);
+        return await MapToResponseAsync(coworkingSpace, votes, averageRating, reviewCount);
     }
 
     public async Task<CoworkingSpaceResponse> UpdateCoworkingSpaceAsync(
@@ -144,7 +149,7 @@ public class CoworkingApplicationService : ICoworkingService
 
             var votes = await _verificationRepository.GetVerificationCountAsync(id);
             var (averageRating, reviewCount) = await _reviewRepository.GetAverageRatingAsync(id);
-            return MapToResponse(updated, votes, averageRating, reviewCount);
+            return await MapToResponseAsync(updated, votes, averageRating, reviewCount);
         }
         catch (Exception ex)
         {
@@ -173,7 +178,7 @@ public class CoworkingApplicationService : ICoworkingService
 
         var updated = await _coworkingRepository.UpdateAsync(coworkingSpace);
         var (averageRating, reviewCount) = await _reviewRepository.GetAverageRatingAsync(id);
-        return MapToResponse(updated, votesBeforeUpdate, averageRating, reviewCount);
+        return await MapToResponseAsync(updated, votesBeforeUpdate, averageRating, reviewCount);
     }
 
     public async Task DeleteCoworkingSpaceAsync(Guid id)
@@ -207,12 +212,28 @@ public class CoworkingApplicationService : ICoworkingService
         var (items, totalCount) = await _coworkingRepository.GetListAsync(page, pageSize, cityId);
         var verificationCounts = await _verificationRepository.GetCountsByCoworkingIdsAsync(items.Select(i => i.Id));
         
+        // 批量获取创建者信息
+        var creatorIds = items.Where(s => s.CreatedBy.HasValue)
+                             .Select(s => s.CreatedBy!.Value.ToString())
+                             .Distinct()
+                             .ToList();
+        _logger.LogInformation("🔍 批量获取创建者信息 - 创建者ID数量: {Count}", creatorIds.Count);
+        var creatorInfos = creatorIds.Any() 
+            ? await _userServiceClient.GetUsersInfoAsync(creatorIds) 
+            : new Dictionary<string, UserInfoDto>();
+        _logger.LogInformation("✅ 获取到创建者信息数量: {Count}", creatorInfos.Count);
+        
         // 批量获取评分和评论数
         var responseTasks = items.Select(async space =>
         {
             var votes = verificationCounts.TryGetValue(space.Id, out var v) ? v : 0;
             var (averageRating, reviewCount) = await _reviewRepository.GetAverageRatingAsync(space.Id);
-            return MapToResponse(space, votes, averageRating, reviewCount);
+            var creatorName = space.CreatedBy.HasValue && creatorInfos.TryGetValue(space.CreatedBy.Value.ToString(), out var creator)
+                ? creator.Name
+                : null;
+            _logger.LogInformation("   空间: {Name}, CreatedBy: {CreatedBy}, CreatorName: {CreatorName}", 
+                space.Name, space.CreatedBy, creatorName ?? "NULL");
+            return await MapToResponseAsync(space, votes, averageRating, reviewCount, creatorName);
         });
         var responses = await Task.WhenAll(responseTasks);
 
@@ -235,11 +256,23 @@ public class CoworkingApplicationService : ICoworkingService
         var spaces = await _coworkingRepository.SearchAsync(searchTerm, page, pageSize);
         var verificationCounts = await _verificationRepository.GetCountsByCoworkingIdsAsync(spaces.Select(s => s.Id));
         
+        // 批量获取创建者信息
+        var creatorIds = spaces.Where(s => s.CreatedBy.HasValue)
+                               .Select(s => s.CreatedBy!.Value.ToString())
+                               .Distinct()
+                               .ToList();
+        var creatorInfos = creatorIds.Any() 
+            ? await _userServiceClient.GetUsersInfoAsync(creatorIds) 
+            : new Dictionary<string, UserInfoDto>();
+        
         var responseTasks = spaces.Select(async space =>
         {
             var votes = verificationCounts.TryGetValue(space.Id, out var v) ? v : 0;
             var (averageRating, reviewCount) = await _reviewRepository.GetAverageRatingAsync(space.Id);
-            return MapToResponse(space, votes, averageRating, reviewCount);
+            var creatorName = space.CreatedBy.HasValue && creatorInfos.TryGetValue(space.CreatedBy.Value.ToString(), out var creator)
+                ? creator.Name
+                : null;
+            return await MapToResponseAsync(space, votes, averageRating, reviewCount, creatorName);
         });
         return (await Task.WhenAll(responseTasks)).ToList();
     }
@@ -251,11 +284,23 @@ public class CoworkingApplicationService : ICoworkingService
         var spaces = await _coworkingRepository.GetTopRatedAsync(limit);
         var verificationCounts = await _verificationRepository.GetCountsByCoworkingIdsAsync(spaces.Select(s => s.Id));
         
+        // 批量获取创建者信息
+        var creatorIds = spaces.Where(s => s.CreatedBy.HasValue)
+                               .Select(s => s.CreatedBy!.Value.ToString())
+                               .Distinct()
+                               .ToList();
+        var creatorInfos = creatorIds.Any() 
+            ? await _userServiceClient.GetUsersInfoAsync(creatorIds) 
+            : new Dictionary<string, UserInfoDto>();
+        
         var responseTasks = spaces.Select(async space =>
         {
             var votes = verificationCounts.TryGetValue(space.Id, out var v) ? v : 0;
             var (averageRating, reviewCount) = await _reviewRepository.GetAverageRatingAsync(space.Id);
-            return MapToResponse(space, votes, averageRating, reviewCount);
+            var creatorName = space.CreatedBy.HasValue && creatorInfos.TryGetValue(space.CreatedBy.Value.ToString(), out var creator)
+                ? creator.Name
+                : null;
+            return await MapToResponseAsync(space, votes, averageRating, reviewCount, creatorName);
         });
         return (await Task.WhenAll(responseTasks)).ToList();
     }
@@ -282,7 +327,7 @@ public class CoworkingApplicationService : ICoworkingService
         }
 
         var (averageRating, reviewCount) = await _reviewRepository.GetAverageRatingAsync(id);
-        return MapToResponse(coworkingSpace, votes, averageRating, reviewCount);
+        return await MapToResponseAsync(coworkingSpace, votes, averageRating, reviewCount);
     }
 
     #endregion
@@ -447,14 +492,34 @@ public class CoworkingApplicationService : ICoworkingService
     /// <summary>
     ///     映射实体到响应 DTO
     /// </summary>
-    private CoworkingSpaceResponse MapToResponse(CoworkingSpace space, int verificationVotes = 0, double? averageRating = null, int? reviewCount = null)
+    private async Task<CoworkingSpaceResponse> MapToResponseAsync(
+        CoworkingSpace space, 
+        int verificationVotes = 0, 
+        double? averageRating = null, 
+        int? reviewCount = null,
+        string? creatorName = null)
     {
+        // 如果没有传入 creatorName，则尝试获取
+        if (creatorName == null && space.CreatedBy.HasValue)
+        {
+            try
+            {
+                var userInfo = await _userServiceClient.GetUserInfoAsync(space.CreatedBy.Value.ToString());
+                creatorName = userInfo?.Name;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "获取创建者名称失败: {CreatedBy}", space.CreatedBy);
+            }
+        }
+
         return new CoworkingSpaceResponse
         {
             Id = space.Id,
             Name = space.Name,
             CityId = space.CityId,
             CreatedBy = space.CreatedBy,
+            CreatorName = creatorName,
             Address = space.Address,
             Description = space.Description,
             ImageUrl = space.ImageUrl,

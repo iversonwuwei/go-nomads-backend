@@ -13,6 +13,7 @@ public class CoworkingSpaceResponse
     public string Name { get; set; } = string.Empty;
     public Guid? CityId { get; set; }
     public Guid? CreatedBy { get; set; }
+    public string? CreatorName { get; set; }
     public string Address { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? ImageUrl { get; set; }
