@@ -120,6 +120,7 @@ builder.Services.AddScoped<IUserFavoriteCityService, UserFavoriteCityService>();
 builder.Services.AddScoped<IGeoNamesImportService, GeoNamesImportService>();
 builder.Services.AddScoped<IDigitalNomadGuideService, DigitalNomadGuideService>();
 builder.Services.AddScoped<GeographyDataSeeder>();
+builder.Services.AddScoped<RatingCategorySeeder>();
 
 // 添加内存缓存 - 用于天气数据缓存
 builder.Services.AddMemoryCache();

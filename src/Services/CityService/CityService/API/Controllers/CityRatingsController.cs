@@ -1,4 +1,5 @@
 using CityService.Application.DTOs;
+using CityService.Application.Services;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
 using Dapr.Client;
@@ -19,17 +20,20 @@ public class CityRatingsController : ControllerBase
     private readonly ICityRatingRepository _ratingRepository;
     private readonly DaprClient _daprClient;
     private readonly ILogger<CityRatingsController> _logger;
+    private readonly RatingCategorySeeder _ratingSeeder;
 
     public CityRatingsController(
         ICityRatingCategoryRepository categoryRepository,
         ICityRatingRepository ratingRepository,
         DaprClient daprClient,
-        ILogger<CityRatingsController> logger)
+        ILogger<CityRatingsController> logger,
+        RatingCategorySeeder ratingSeeder)
     {
         _categoryRepository = categoryRepository;
         _ratingRepository = ratingRepository;
         _daprClient = daprClient;
         _logger = logger;
+        _ratingSeeder = ratingSeeder;
     }
 
     private Guid? GetCurrentUserId()
@@ -667,5 +671,36 @@ public class CityRatingsController : ControllerBase
         public string? CategoryNameEn { get; set; }
         public int RatingCount { get; set; }
         public double AverageRating { get; set; }
+    }
+
+    /// <summary>
+    /// 初始化默认评分项（管理员功能）
+    /// </summary>
+    [HttpPost("categories/initialize")]
+    [ProducesResponseType(typeof(ApiResponse<RatingCategorySeedResult>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<RatingCategorySeedResult>>> InitializeDefaultCategories()
+    {
+        try
+        {
+            _logger.LogInformation("开始初始化默认评分项...");
+            var result = await _ratingSeeder.SeedDefaultCategoriesAsync();
+
+            return Ok(new ApiResponse<RatingCategorySeedResult>
+            {
+                Success = result.Success,
+                Data = result,
+                Message = result.Message ?? "初始化完成"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "初始化默认评分项失败");
+            return StatusCode(500, new ApiResponse<RatingCategorySeedResult>
+            {
+                Success = false,
+                Message = "初始化默认评分项失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
     }
 }
