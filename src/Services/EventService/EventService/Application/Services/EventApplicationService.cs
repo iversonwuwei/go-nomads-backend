@@ -544,22 +544,27 @@ public class EventApplicationService : IEventService
             if (@event != null) events.Add(@event);
         }
 
-        // 3. 按开始时间倒序排序并分页
-        var total = events.Count;
-        var pagedEvents = events
+        // 3. 只保留未结束的活动(status=upcoming)
+        var upcomingEvents = events
+            .Where(e => e.Status == "upcoming")
+            .ToList();
+
+        // 4. 按开始时间倒序排序并分页
+        var total = upcomingEvents.Count;
+        var pagedEvents = upcomingEvents
             .OrderByDescending(e => e.StartTime)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToList();
 
-        // 4. 转换为 DTO
+        // 5. 转换为 DTO
         var responses = await Task.WhenAll(pagedEvents.Select(e => MapToResponseAsync(e)));
         var responsesList = responses.ToList();
 
-        // 5. 批量获取关联数据
+        // 6. 批量获取关联数据
         await EnrichEventResponsesWithRelatedDataAsync(responsesList);
 
-        // 6. 设置 IsParticipant 为 true(因为都是已加入的活动)
+        // 7. 设置 IsParticipant 为 true(因为都是已加入的活动)
         foreach (var response in responsesList)
         {
             response.IsParticipant = true;
@@ -569,40 +574,53 @@ public class EventApplicationService : IEventService
     }
 
     /// <summary>
-    ///     获取用户取消的活动列表(分页)
+    ///     获取用户取消参与的活动列表(分页)
     /// </summary>
     public async Task<(List<EventResponse> Events, int Total)> GetCancelledEventsByUserAsync(
         Guid userId,
         int page = 1,
         int pageSize = 20)
     {
-        // 1. 从 Repository 获取用户创建的所有活动
-        var userEvents = await _eventRepository.GetByOrganizerIdAsync(userId);
-
-        // 2. 筛选状态为 cancelled 的活动
-        var cancelledEvents = userEvents
-            .Where(e => e.Status == "cancelled")
+        // 1. 获取用户参与的所有活动ID(包括已取消的)
+        var allParticipants = await _participantRepository.GetByUserIdAsync(userId);
+        
+        // 2. 筛选状态为 cancelled 的参与记录
+        var cancelledParticipants = allParticipants
+            .Where(p => p.Status == "cancelled")
             .ToList();
 
-        // 3. 按创建时间倒序排序并分页
-        var total = cancelledEvents.Count;
-        var pagedEvents = cancelledEvents
-            .OrderByDescending(e => e.CreatedAt)
+        if (!cancelledParticipants.Any())
+        {
+            return (new List<EventResponse>(), 0);
+        }
+
+        // 3. 获取对应的活动详情
+        var events = new List<Event>();
+        foreach (var participant in cancelledParticipants)
+        {
+            var @event = await _eventRepository.GetByIdAsync(participant.EventId);
+            if (@event != null) events.Add(@event);
+        }
+
+        // 4. 按取消时间倒序排序并分页
+        var total = events.Count;
+        var pagedEvents = events
+            .OrderByDescending(e => e.UpdatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToList();
 
-        // 4. 转换为 DTO
+        // 5. 转换为 DTO
         var responses = await Task.WhenAll(pagedEvents.Select(e => MapToResponseAsync(e)));
         var responsesList = responses.ToList();
 
-        // 5. 批量获取关联数据
+        // 6. 批量获取关联数据
         await EnrichEventResponsesWithRelatedDataAsync(responsesList);
 
-        // 6. 设置 isOrganizer 为 true(因为都是自己创建的活动)
+        // 7. 设置 IsParticipant 为 false(因为已取消)
         foreach (var response in responsesList)
         {
-            response.IsOrganizer = true;
+            response.IsParticipant = false;
         }
 
         return (responsesList, total);
