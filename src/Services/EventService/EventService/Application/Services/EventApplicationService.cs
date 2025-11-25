@@ -16,6 +16,7 @@ public class EventApplicationService : IEventService
     private readonly ILogger<EventApplicationService> _logger;
     private readonly IEventParticipantRepository _participantRepository;
     private readonly IUserGrpcClient _userGrpcClient;
+    private readonly IEventTypeRepository _eventTypeRepository;
 
     public EventApplicationService(
         IEventRepository eventRepository,
@@ -23,6 +24,7 @@ public class EventApplicationService : IEventService
         IEventFollowerRepository followerRepository,
         ICityGrpcClient cityGrpcClient,
         IUserGrpcClient userGrpcClient,
+        IEventTypeRepository eventTypeRepository,
         ILogger<EventApplicationService> logger)
     {
         _eventRepository = eventRepository;
@@ -30,6 +32,7 @@ public class EventApplicationService : IEventService
         _followerRepository = followerRepository;
         _cityGrpcClient = cityGrpcClient;
         _userGrpcClient = userGrpcClient;
+        _eventTypeRepository = eventTypeRepository;
         _logger = logger;
     }
 
@@ -60,7 +63,7 @@ public class EventApplicationService : IEventService
         // 持久化
         var createdEvent = await _eventRepository.CreateAsync(@event);
 
-        return MapToResponse(createdEvent);
+        return await MapToResponseAsync(createdEvent);
     }
 
     public async Task<EventResponse> GetEventAsync(Guid id, Guid? userId = null)
@@ -68,7 +71,7 @@ public class EventApplicationService : IEventService
         var @event = await _eventRepository.GetByIdAsync(id);
         if (@event == null) throw new KeyNotFoundException($"Event {id} 不存在");
 
-        var response = MapToResponse(@event);
+        var response = await MapToResponseAsync(@event);
 
         // 如果提供了 userId，检查参与状态和组织者身份
         if (userId.HasValue)
@@ -154,7 +157,7 @@ public class EventApplicationService : IEventService
 
         var updatedEvent = await _eventRepository.UpdateAsync(@event);
 
-        return MapToResponse(updatedEvent);
+        return await MapToResponseAsync(updatedEvent);
     }
 
     /// <summary>
@@ -175,7 +178,7 @@ public class EventApplicationService : IEventService
 
         _logger.LogInformation("✅ 活动 {EventId} 已被用户 {UserId} 取消", id, userId);
 
-        return MapToResponse(updatedEvent);
+        return await MapToResponseAsync(updatedEvent);
     }
 
     public async Task<(List<EventResponse> Events, int Total)> GetEventsAsync(
@@ -188,19 +191,20 @@ public class EventApplicationService : IEventService
     {
         var (events, total) = await _eventRepository.GetListAsync(cityId, category, status, page, pageSize);
 
-        // 转换为 DTO
-        var responses = events.Select(MapToResponse).ToList();
+        // 转换为 DTO（并行处理）
+        var responses = await Task.WhenAll(events.Select(e => MapToResponseAsync(e)));
+        var responsesList = responses.ToList();
 
         // 批量获取关联数据
-        await EnrichEventResponsesWithRelatedDataAsync(responses);
+        await EnrichEventResponsesWithRelatedDataAsync(responsesList);
 
         // 🔧 保持 current_participants 来自 events 表，避免 N+1 查询
         // 如果后续需要校准，可在后台任务中同步 event_participants 表与该字段。
 
         // 如果有用户ID,批量检查参与状态
-        if (userId.HasValue) await EnrichEventParticipationStatusAsync(responses, userId.Value);
+        if (userId.HasValue) await EnrichEventParticipationStatusAsync(responsesList, userId.Value);
 
-        return (responses, total);
+        return (responsesList, total);
     }
 
     public async Task<ParticipantResponse> JoinEventAsync(Guid eventId, Guid userId, JoinEventRequest request)
@@ -294,7 +298,8 @@ public class EventApplicationService : IEventService
     public async Task<List<EventResponse>> GetUserCreatedEventsAsync(Guid userId)
     {
         var events = await _eventRepository.GetByOrganizerIdAsync(userId);
-        return events.Select(MapToResponse).ToList();
+        var responses = await Task.WhenAll(events.Select(e => MapToResponseAsync(e)));
+        return responses.ToList();
     }
 
     public async Task<List<EventResponse>> GetUserJoinedEventsAsync(Guid userId)
@@ -309,7 +314,8 @@ public class EventApplicationService : IEventService
             if (@event != null) events.Add(@event);
         }
 
-        return events.Select(MapToResponse).ToList();
+        var responses = await Task.WhenAll(events.Select(e => MapToResponseAsync(e)));
+        return responses.ToList();
     }
 
     public async Task<List<EventResponse>> GetUserFollowingEventsAsync(Guid userId)
@@ -324,7 +330,8 @@ public class EventApplicationService : IEventService
             if (@event != null) events.Add(@event);
         }
 
-        return events.Select(MapToResponse).ToList();
+        var responses = await Task.WhenAll(events.Select(e => MapToResponseAsync(e)));
+        return responses.ToList();
     }
 
     /// <summary>
@@ -425,9 +432,9 @@ public class EventApplicationService : IEventService
 
     #region Mapping Methods
 
-    private EventResponse MapToResponse(Event @event)
+    private async Task<EventResponse> MapToResponseAsync(Event @event)
     {
-        return new EventResponse
+        var response = new EventResponse
         {
             Id = @event.Id,
             Title = @event.Title,
@@ -453,6 +460,34 @@ public class EventApplicationService : IEventService
             CreatedAt = @event.CreatedAt,
             UpdatedAt = @event.UpdatedAt
         };
+
+        // 🔍 根据 category (UUID) 查询 EventType
+        if (!string.IsNullOrEmpty(@event.Category) && Guid.TryParse(@event.Category, out var eventTypeId))
+        {
+            try
+            {
+                var eventType = await _eventTypeRepository.GetByIdAsync(eventTypeId);
+                if (eventType != null)
+                {
+                    response.EventType = new EventTypeInfo
+                    {
+                        Id = eventType.Id,
+                        Name = eventType.Name,
+                        EnName = eventType.EnName,
+                        Description = eventType.Description,
+                        Icon = eventType.Icon,
+                        SortOrder = eventType.SortOrder
+                    };
+                    _logger.LogInformation("✅ 成功加载 EventType: {EventTypeName} ({EventTypeId})", eventType.Name, eventType.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ 查询 EventType 失败: {EventTypeId}", eventTypeId);
+            }
+        }
+
+        return response;
     }
 
     private ParticipantResponse MapToParticipantResponse(EventParticipant participant)
@@ -477,6 +512,100 @@ public class EventApplicationService : IEventService
             FollowedAt = follower.FollowedAt,
             NotificationEnabled = follower.NotificationEnabled
         };
+    }
+
+    #endregion
+
+    #region 新增分页方法
+
+    /// <summary>
+    ///     获取用户已加入的活动列表(分页)
+    /// </summary>
+    public async Task<(List<EventResponse> Events, int Total)> GetJoinedEventsAsync(
+        Guid userId,
+        int page = 1,
+        int pageSize = 20)
+    {
+        // 1. 获取用户参与的所有活动ID
+        var participants = await _participantRepository.GetByUserIdAsync(userId);
+        var eventIds = participants.Select(p => p.EventId).ToList();
+
+        if (!eventIds.Any())
+        {
+            return (new List<EventResponse>(), 0);
+        }
+
+        // 2. 从 Repository 获取活动列表(假设未来会支持按ID列表查询和分页)
+        // 目前暂时先全部加载再分页
+        var events = new List<Event>();
+        foreach (var eventId in eventIds)
+        {
+            var @event = await _eventRepository.GetByIdAsync(eventId);
+            if (@event != null) events.Add(@event);
+        }
+
+        // 3. 按开始时间倒序排序并分页
+        var total = events.Count;
+        var pagedEvents = events
+            .OrderByDescending(e => e.StartTime)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        // 4. 转换为 DTO
+        var responses = await Task.WhenAll(pagedEvents.Select(e => MapToResponseAsync(e)));
+        var responsesList = responses.ToList();
+
+        // 5. 批量获取关联数据
+        await EnrichEventResponsesWithRelatedDataAsync(responsesList);
+
+        // 6. 设置 IsParticipant 为 true(因为都是已加入的活动)
+        foreach (var response in responsesList)
+        {
+            response.IsParticipant = true;
+        }
+
+        return (responsesList, total);
+    }
+
+    /// <summary>
+    ///     获取用户取消的活动列表(分页)
+    /// </summary>
+    public async Task<(List<EventResponse> Events, int Total)> GetCancelledEventsByUserAsync(
+        Guid userId,
+        int page = 1,
+        int pageSize = 20)
+    {
+        // 1. 从 Repository 获取用户创建的所有活动
+        var userEvents = await _eventRepository.GetByOrganizerIdAsync(userId);
+
+        // 2. 筛选状态为 cancelled 的活动
+        var cancelledEvents = userEvents
+            .Where(e => e.Status == "cancelled")
+            .ToList();
+
+        // 3. 按创建时间倒序排序并分页
+        var total = cancelledEvents.Count;
+        var pagedEvents = cancelledEvents
+            .OrderByDescending(e => e.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        // 4. 转换为 DTO
+        var responses = await Task.WhenAll(pagedEvents.Select(e => MapToResponseAsync(e)));
+        var responsesList = responses.ToList();
+
+        // 5. 批量获取关联数据
+        await EnrichEventResponsesWithRelatedDataAsync(responsesList);
+
+        // 6. 设置 isOrganizer 为 true(因为都是自己创建的活动)
+        foreach (var response in responsesList)
+        {
+            response.IsOrganizer = true;
+        }
+
+        return (responsesList, total);
     }
 
     #endregion

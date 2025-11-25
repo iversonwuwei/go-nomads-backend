@@ -195,4 +195,37 @@ public class EventRepository : IEventRepository
             throw;
         }
     }
+
+    public async Task<List<Event>> GetExpiredEventsAsync(DateTime currentTime)
+    {
+        try
+        {
+            _logger.LogInformation("🔍 查询过期活动，当前时间: {CurrentTime}", currentTime);
+
+            // 查询状态为 upcoming 且 endTime < currentTime 的活动
+            // 如果没有 endTime，则使用 startTime
+            var result = await _supabaseClient
+                .From<Event>()
+                .Where(e => e.Status == "upcoming")
+                .Get();
+
+            // 在内存中过滤已过期的活动
+            var expiredEvents = result.Models
+                .Where(e =>
+                {
+                    // 优先使用 EndTime，如果没有则使用 StartTime
+                    var endTime = e.EndTime ?? e.StartTime;
+                    return endTime < currentTime;
+                })
+                .ToList();
+
+            _logger.LogInformation("✅ 找到 {Count} 个过期活动", expiredEvents.Count);
+            return expiredEvents;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取过期活动失败");
+            throw;
+        }
+    }
 }

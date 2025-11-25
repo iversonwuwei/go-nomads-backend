@@ -328,6 +328,107 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
+    ///     获取用户已加入的活动列表
+    /// </summary>
+    [HttpGet("joined")]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResponse<EventResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<EventResponse>>>> GetJoinedEvents(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            // 从 UserContext 获取当前用户信息
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+                return Unauthorized(new ApiResponse<PaginatedResponse<EventResponse>>
+                {
+                    Success = false,
+                    Message = "用户未认证",
+                    Errors = new List<string> { "用户未认证" }
+                });
+
+            var userId = Guid.Parse(userContext.UserId);
+            var (events, total) = await _eventService.GetJoinedEventsAsync(userId, page, pageSize);
+
+            return Ok(new ApiResponse<PaginatedResponse<EventResponse>>
+            {
+                Success = true,
+                Message = "已加入的活动列表获取成功",
+                Data = new PaginatedResponse<EventResponse>
+                {
+                    Items = events.ToList(),
+                    TotalCount = total,
+                    Page = page,
+                    PageSize = pageSize
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取已加入的活动列表失败");
+            return StatusCode(500, new ApiResponse<PaginatedResponse<EventResponse>>
+            {
+                Success = false,
+                Message = "获取已加入的活动列表失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    ///     获取用户取消的活动列表
+    /// </summary>
+    [HttpGet("cancelled")]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedResponse<EventResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<EventResponse>>>> GetCancelledEventsByUser(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            // 从 UserContext 获取当前用户信息
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+                return Unauthorized(new ApiResponse<PaginatedResponse<EventResponse>>
+                {
+                    Success = false,
+                    Message = "用户未认证",
+                    Errors = new List<string> { "用户未认证" }
+                });
+
+            var userId = Guid.Parse(userContext.UserId);
+
+            var (events, total) = await _eventService.GetCancelledEventsByUserAsync(userId, page, pageSize);
+
+            return Ok(new ApiResponse<PaginatedResponse<EventResponse>>
+            {
+                Success = true,
+                Message = "取消的活动列表获取成功",
+                Data = new PaginatedResponse<EventResponse>
+                {
+                    Items = events.ToList(),
+                    TotalCount = total,
+                    Page = page,
+                    PageSize = pageSize
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取取消的活动列表失败");
+            return StatusCode(500, new ApiResponse<PaginatedResponse<EventResponse>>
+            {
+                Success = false,
+                Message = "获取取消的活动列表失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
     ///     参加 Event
     /// </summary>
     [HttpPost("{id}/join")]

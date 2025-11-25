@@ -127,6 +127,11 @@ public class EventResponse
 
     [JsonInclude] public OrganizerInfo? Organizer { get; set; }
 
+    /// <summary>
+    /// 活动类型信息（从 event_types 表获取）
+    /// </summary>
+    [JsonInclude] public EventTypeInfo? EventType { get; set; }
+
     // 参与者列表
     [JsonInclude] public List<ParticipantResponse>? Participants { get; set; }
 }
@@ -152,6 +157,19 @@ public class OrganizerInfo
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+}
+
+/// <summary>
+///     活动类型信息（从 event_types 表获取）
+/// </summary>
+public class EventTypeInfo
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string EnName { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? Icon { get; set; }
+    public int SortOrder { get; set; }
 }
 
 /// <summary>

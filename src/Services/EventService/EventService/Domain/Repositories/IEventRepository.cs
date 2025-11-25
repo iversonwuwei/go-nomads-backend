@@ -46,4 +46,9 @@ public interface IEventRepository
     ///     检查 Event 是否存在
     /// </summary>
     Task<bool> ExistsAsync(Guid id);
+
+    /// <summary>
+    ///     获取已过期的活动（状态为 upcoming 且结束时间已过）
+    /// </summary>
+    Task<List<Event>> GetExpiredEventsAsync(DateTime currentTime);
 }

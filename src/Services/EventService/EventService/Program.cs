@@ -1,4 +1,5 @@
 using EventService.Application.Services;
+using EventService.BackgroundServices;
 using EventService.Domain.Repositories;
 using EventService.Infrastructure.GrpcClients;
 using EventService.Infrastructure.Repositories;
@@ -27,6 +28,7 @@ builder.Services.AddSupabase(builder.Configuration);
 builder.Services.AddScoped<IEventRepository, EventRepository>();
 builder.Services.AddScoped<IEventParticipantRepository, EventParticipantRepository>();
 builder.Services.AddScoped<IEventFollowerRepository, EventFollowerRepository>();
+builder.Services.AddScoped<IEventTypeRepository, EventTypeRepository>();
 
 // 注册 gRPC 客户端 (通过 Dapr Service Invocation)
 builder.Services.AddScoped<ICityGrpcClient, CityGrpcClient>();
@@ -34,6 +36,10 @@ builder.Services.AddScoped<IUserGrpcClient, UserGrpcClient>();
 
 // 注册应用服务 (Application Layer)
 builder.Services.AddScoped<IEventService, EventApplicationService>();
+builder.Services.AddScoped<IEventTypeService, EventTypeService>();
+
+// 注册后台服务
+builder.Services.AddHostedService<EventStatusUpdateService>();
 
 // 配置 DaprClient 使用 gRPC 协议（性能更好）
 // 在 container sidecar 模式下，EventService 和 Dapr 共享网络命名空间，使用 localhost

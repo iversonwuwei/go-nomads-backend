@@ -82,4 +82,20 @@ public interface IEventService
     ///     获取用户关注的 Event
     /// </summary>
     Task<List<EventResponse>> GetUserFollowingEventsAsync(Guid userId);
+
+    /// <summary>
+    ///     获取用户已加入的活动列表(分页)
+    /// </summary>
+    Task<(List<EventResponse> Events, int Total)> GetJoinedEventsAsync(
+        Guid userId,
+        int page = 1,
+        int pageSize = 20);
+
+    /// <summary>
+    ///     获取用户取消的活动列表(分页)
+    /// </summary>
+    Task<(List<EventResponse> Events, int Total)> GetCancelledEventsByUserAsync(
+        Guid userId,
+        int page = 1,
+        int pageSize = 20);
 }

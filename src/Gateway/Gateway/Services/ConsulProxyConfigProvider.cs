@@ -318,7 +318,8 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             },
             "event-service" => new List<(string, int)>
             {
-                ("/api/v1/events/{**catch-all}", 1)
+                ("/api/v1/event-types/{**catch-all}", 1),  // Event types endpoint
+                ("/api/v1/events/{**catch-all}", 2)
             },
             "ai-service" => new List<(string, int)>
             {
