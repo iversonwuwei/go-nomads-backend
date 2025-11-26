@@ -54,4 +54,9 @@ public interface IUserRepository
         int page = 1,
         int pageSize = 20,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     根据角色ID获取所有用户
+    /// </summary>
+    Task<List<User>> GetUsersByRoleIdAsync(string roleId, CancellationToken cancellationToken = default);
 }

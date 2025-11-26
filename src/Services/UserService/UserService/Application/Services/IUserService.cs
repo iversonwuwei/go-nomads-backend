@@ -121,4 +121,9 @@ public interface IUserService
     ///     获取指定角色的所有用户
     /// </summary>
     Task<List<UserDto>> GetUsersByRoleAsync(string roleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     获取所有管理员用户ID列表
+    /// </summary>
+    Task<List<Guid>> GetAdminUserIdsAsync(CancellationToken cancellationToken = default);
 }

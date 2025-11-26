@@ -97,4 +97,9 @@ public class MeetupDto
     ///     当前用户是否已参加
     /// </summary>
     public bool IsParticipant { get; set; }
+
+    /// <summary>
+    ///     当前用户是否是组织者
+    /// </summary>
+    public bool IsOrganizer { get; set; }
 }

@@ -228,4 +228,53 @@ public class EventRepository : IEventRepository
             throw;
         }
     }
+
+    public async Task<(List<Event> Events, int Total)> GetByIdsAsync(
+        List<Guid> eventIds,
+        string? status = null,
+        int page = 1,
+        int pageSize = 20)
+    {
+        try
+        {
+            if (!eventIds.Any())
+            {
+                return (new List<Event>(), 0);
+            }
+
+            _logger.LogInformation("🔍 批量查询活动，ID数量: {Count}, Status: {Status}", eventIds.Count, status ?? "all");
+
+            // 构建查询
+            var query = _supabaseClient.From<Event>();
+            
+            // 在数据库层过滤状态
+            if (!string.IsNullOrEmpty(status))
+            {
+                query = (ISupabaseTable<Event, RealtimeChannel>)query.Filter("status", Constants.Operator.Equals, status);
+            }
+
+            var result = await query.Get();
+            
+            // 在内存中过滤eventIds并排序
+            var events = result.Models
+                .Where(e => eventIds.Contains(e.Id))
+                .OrderByDescending(e => e.StartTime)
+                .ToList();
+
+            // 分页
+            var total = events.Count;
+            var pagedEvents = events
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            _logger.LogInformation("✅ 批量查询完成，总数: {Total}, 当前页: {Count}", total, pagedEvents.Count);
+            return (pagedEvents, total);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量查询活动失败");
+            throw;
+        }
+    }
 }

@@ -262,6 +262,28 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    ///     获取所有管理员的用户ID列表
+    /// </summary>
+    [HttpGet("admins")]
+    public async Task<ActionResult<List<Guid>>> GetAdminUserIds(CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 获取所有管理员用户ID");
+
+        try
+        {
+            var adminIds = await _userService.GetAdminUserIdsAsync(cancellationToken);
+
+            _logger.LogInformation("✅ 成功获取 {Count} 个管理员", adminIds.Count);
+            return Ok(adminIds);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取管理员列表失败");
+            return StatusCode(500, new List<Guid>());
+        }
+    }
+
+    /// <summary>
     ///     创建用户（不带密码 - 通常由管理员使用）
     /// </summary>
     [HttpPost]

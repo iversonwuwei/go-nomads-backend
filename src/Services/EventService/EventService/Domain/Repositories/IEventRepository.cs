@@ -51,4 +51,13 @@ public interface IEventRepository
     ///     获取已过期的活动（状态为 upcoming 且结束时间已过）
     /// </summary>
     Task<List<Event>> GetExpiredEventsAsync(DateTime currentTime);
+
+    /// <summary>
+    ///     根据ID列表批量获取活动（支持状态过滤和分页）
+    /// </summary>
+    Task<(List<Event> Events, int Total)> GetByIdsAsync(
+        List<Guid> eventIds,
+        string? status = null,
+        int page = 1,
+        int pageSize = 20);
 }

@@ -38,6 +38,11 @@ public interface IEventParticipantRepository
     Task<List<EventParticipant>> GetByUserIdAsync(Guid userId);
 
     /// <summary>
+    ///     获取用户参与的 Event（支持状态过滤）
+    /// </summary>
+    Task<List<EventParticipant>> GetByUserIdWithStatusAsync(Guid userId, string? status = null);
+
+    /// <summary>
     ///     检查用户是否已参加
     /// </summary>
     Task<bool> IsParticipantAsync(Guid eventId, Guid userId);

@@ -355,6 +355,36 @@ public class UserApplicationService : IUserService
         return userDtos;
     }
 
+    public async Task<List<Guid>> GetAdminUserIdsAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 获取所有管理员用户ID");
+
+        try
+        {
+            // 1. 获取 admin 角色
+            var adminRole = await _roleRepository.GetByNameAsync("admin", cancellationToken);
+            if (adminRole == null)
+            {
+                _logger.LogWarning("⚠️ 未找到 admin 角色");
+                return new List<Guid>();
+            }
+
+            // 2. 获取所有 admin 用户
+            var adminUsers = await _userRepository.GetUsersByRoleIdAsync(adminRole.Id, cancellationToken);
+
+            // 3. 提取用户ID
+            var adminIds = adminUsers.Select(u => Guid.Parse(u.Id)).ToList();
+
+            _logger.LogInformation("✅ 找到 {Count} 个管理员", adminIds.Count);
+            return adminIds;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取管理员列表失败");
+            return new List<Guid>();
+        }
+    }
+
     #region 私有映射方法
 
     private async Task<UserDto> MapToDtoAsync(User user, CancellationToken cancellationToken = default)

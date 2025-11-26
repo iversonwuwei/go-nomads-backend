@@ -242,4 +242,25 @@ public class UserRepository : IUserRepository
             throw;
         }
     }
+
+    public async Task<List<User>> GetUsersByRoleIdAsync(string roleId, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 根据角色ID查询用户: {RoleId}", roleId);
+
+        try
+        {
+            var response = await _supabaseClient
+                .From<User>()
+                .Filter("role_id", Constants.Operator.Equals, roleId)
+                .Get(cancellationToken);
+
+            _logger.LogInformation("✅ 找到 {Count} 个用户", response.Models.Count);
+            return response.Models.ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 根据角色ID查询用户失败: {RoleId}", roleId);
+            throw;
+        }
+    }
 }

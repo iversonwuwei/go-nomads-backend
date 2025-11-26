@@ -1,6 +1,7 @@
 using EventService.Domain.Entities;
 using EventService.Domain.Repositories;
-using Supabase;
+using Postgrest;
+using Client = Supabase.Client;
 
 namespace EventService.Infrastructure.Repositories;
 
@@ -139,9 +140,12 @@ public class EventParticipantRepository : IEventParticipantRepository
     {
         try
         {
+            // 使用Supabase原生Filter方法在数据库层过滤
             var result = await _supabaseClient
                 .From<EventParticipant>()
-                .Where(p => p.EventId == eventId && p.UserId == userId)
+                .Filter("event_id", Constants.Operator.Equals, eventId.ToString())
+                .Filter("user_id", Constants.Operator.Equals, userId.ToString())
+                .Filter("status", Constants.Operator.NotEqual, "cancelled")
                 .Get();
 
             return result.Models.Any();
@@ -164,13 +168,16 @@ public class EventParticipantRepository : IEventParticipantRepository
 
             _logger.LogInformation("🔍 批量查询用户 {UserId} 参与的 {Count} 个活动", userId, eventIds.Count);
 
-            // 一次性查询用户参与的所有活动（使用 IN 查询）
+            // 使用Filter方法在数据库层过滤
             var result = await _supabaseClient
                 .From<EventParticipant>()
-                .Where(p => p.UserId == userId && eventIds.Contains(p.EventId))
+                .Filter("user_id", Constants.Operator.Equals, userId.ToString())
+                .Filter("status", Constants.Operator.NotEqual, "cancelled")
                 .Get();
 
+            // 在内存中过滤eventIds(因为IN查询较复杂)
             var participatedEventIds = result.Models
+                .Where(p => eventIds.Contains(p.EventId))
                 .Select(p => p.EventId)
                 .ToHashSet();
 
@@ -183,6 +190,35 @@ public class EventParticipantRepository : IEventParticipantRepository
         {
             _logger.LogError(ex, "❌ 批量查询用户参与状态失败");
             return new HashSet<Guid>();
+        }
+    }
+
+    public async Task<List<EventParticipant>> GetByUserIdWithStatusAsync(Guid userId, string? status = null)
+    {
+        try
+        {
+            var query = _supabaseClient
+                .From<EventParticipant>()
+                .Filter("user_id", Constants.Operator.Equals, userId.ToString());
+
+            // 在数据库层过滤状态
+            if (!string.IsNullOrEmpty(status))
+            {
+                query = query.Filter("status", Constants.Operator.Equals, status);
+            }
+
+            var result = await query.Get();
+            var participants = result.Models.ToList();
+
+            _logger.LogInformation("✅ 获取用户参与记录成功，UserId: {UserId}, Status: {Status}, Count: {Count}",
+                userId, status ?? "all", participants.Count);
+            
+            return participants;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取用户参与记录失败，UserId: {UserId}", userId);
+            throw;
         }
     }
 
