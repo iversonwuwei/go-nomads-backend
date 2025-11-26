@@ -85,8 +85,9 @@ public class CityApplicationService : ICityService
             ? _favoriteCityService.IsCityFavoritedAsync(userId.Value, id.ToString())
             : Task.FromResult(false);
         var moderatorTask = EnrichCityWithModeratorInfoAsync(cityDto);
+        var ratingsAndCostsTask = EnrichCitiesWithRatingsAndCostsAsync(new List<CityDto> { cityDto });
 
-        await Task.WhenAll(favoriteTask, moderatorTask);
+        await Task.WhenAll(favoriteTask, moderatorTask, ratingsAndCostsTask);
 
         if (userId.HasValue) cityDto.IsFavorite = await favoriteTask;
 
@@ -440,10 +441,46 @@ public class CityApplicationService : ICityService
             // TODO: 验证目标用户是否存在且角色为 moderator
             // 这里需要调用 UserService 验证
 
-            city.ModeratorId = dto.UserId;
-            city.UpdatedAt = DateTime.UtcNow;
+            // 使用新的多版主系统：在 city_moderators 表中创建关联
+            // 先检查是否已经是版主
+            var existingModerators = await _moderatorRepository.GetByCityIdAsync(dto.CityId, activeOnly: false);
+            var existingModerator = existingModerators.FirstOrDefault(m => m.UserId == dto.UserId);
+            
+            if (existingModerator != null)
+            {
+                // 如果已存在但是被停用，重新激活
+                if (!existingModerator.IsActive)
+                {
+                    existingModerator.IsActive = true;
+                    existingModerator.AssignedAt = DateTime.UtcNow;
+                    await _moderatorRepository.UpdateAsync(existingModerator);
+                    _logger.LogInformation("重新激活版主 - CityId: {CityId}, UserId: {UserId}", dto.CityId, dto.UserId);
+                }
+                else
+                {
+                    _logger.LogInformation("用户已经是该城市的版主 - CityId: {CityId}, UserId: {UserId}", dto.CityId, dto.UserId);
+                }
+                return true;
+            }
 
-            await _cityRepository.UpdateAsync(city.Id, city);
+            // 创建新的版主关联
+            var cityModerator = new CityModerator
+            {
+                Id = Guid.NewGuid(),
+                CityId = dto.CityId,
+                UserId = dto.UserId,
+                IsActive = true,
+                CanEditCity = true,
+                CanManageCoworks = true,
+                CanManageCosts = true,
+                CanManageVisas = true,
+                CanModerateChats = true,
+                AssignedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            await _moderatorRepository.AddAsync(cityModerator);
 
             _logger.LogInformation("城市 {CityId} 的版主已设置为 {UserId}", dto.CityId, dto.UserId);
             return true;
@@ -764,11 +801,14 @@ public class CityApplicationService : ICityService
             {
                 // 设置版主ID
                 cityDto.ModeratorId = firstActiveModerator.UserId;
+                _logger.LogInformation("✅ [EnrichModerator] 已设置版主ID - CityId: {CityId}, ModeratorId: {ModeratorId}", 
+                    cityDto.Id, cityDto.ModeratorId);
 
                 // 通过缓存或 Dapr 获取用户信息
                 var userInfo = await GetUserInfoWithCacheAsync(firstActiveModerator.UserId);
 
                 if (userInfo != null)
+                {
                     cityDto.Moderator = new ModeratorDto
                     {
                         Id = userInfo.Id,
@@ -776,6 +816,17 @@ public class CityApplicationService : ICityService
                         Email = userInfo.Email,
                         Avatar = userInfo.Avatar
                     };
+                    _logger.LogInformation("✅ [EnrichModerator] 已填充版主信息 - Name: {Name}, Email: {Email}", 
+                        userInfo.Name, userInfo.Email);
+                }
+                else
+                {
+                    _logger.LogWarning("⚠️ [EnrichModerator] 获取用户信息失败 - UserId: {UserId}", firstActiveModerator.UserId);
+                }
+            }
+            else
+            {
+                _logger.LogDebug("ℹ️ [EnrichModerator] 该城市没有活跃版主 - CityId: {CityId}", cityDto.Id);
             }
         }
         catch (Exception ex)

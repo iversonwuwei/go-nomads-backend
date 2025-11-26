@@ -888,11 +888,22 @@ public class CitiesController : ControllerBase
     ///     指定城市版主 (仅管理员)
     /// </summary>
     [HttpPost("moderator/assign")]
-    [Authorize(Roles = "admin")]
     public async Task<ActionResult<ApiResponse<bool>>> AssignModerator([FromBody] AssignModeratorDto dto)
     {
         try
         {
+            // 检查用户角色 (从 Gateway 传递的 UserContext 获取)
+            var userRole = TryGetCurrentUserRole();
+            if (userRole?.ToLower() != "admin")
+            {
+                return StatusCode(403, new ApiResponse<bool>
+                {
+                    Success = false,
+                    Message = "无权限，仅管理员可以指定版主",
+                    Data = false
+                });
+            }
+
             var result = await _cityService.AssignModeratorAsync(dto);
 
             if (result)

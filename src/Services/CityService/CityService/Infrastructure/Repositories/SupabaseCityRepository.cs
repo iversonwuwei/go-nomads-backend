@@ -12,9 +12,12 @@ namespace CityService.Infrastructure.Repositories;
 /// </summary>
 public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityRepository
 {
-    public SupabaseCityRepository(Client supabaseClient, ILogger<SupabaseCityRepository> logger)
+    private readonly IConfiguration _configuration;
+
+    public SupabaseCityRepository(Client supabaseClient, ILogger<SupabaseCityRepository> logger, IConfiguration configuration)
         : base(supabaseClient, logger)
     {
+        _configuration = configuration;
     }
 
     public async Task<IEnumerable<City>> GetAllAsync(int pageNumber, int pageSize)
@@ -109,15 +112,31 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
 
         try
         {
+            Logger.LogInformation("🔄 [SupabaseCityRepository] 开始更新城市: Id={Id}", id);
+            
+            // 注意：moderator_id 字段已不在 cities 表中，改用 city_moderators 表
+            // 这里只更新城市的基本信息字段
             var response = await SupabaseClient
                 .From<City>()
                 .Where(x => x.Id == id)
                 .Update(city);
 
-            return response.Models.FirstOrDefault();
+            var updatedCity = response.Models.FirstOrDefault();
+            
+            if (updatedCity != null)
+            {
+                Logger.LogInformation("✅ [SupabaseCityRepository] 城市更新成功: Id={Id}", updatedCity.Id);
+            }
+            else
+            {
+                Logger.LogWarning("⚠️ [SupabaseCityRepository] 更新返回空结果: Id={Id}", id);
+            }
+            
+            return updatedCity;
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "❌ [SupabaseCityRepository] 更新城市失败: Id={Id}, Error={Error}", id, ex.Message);
             return null;
         }
     }
