@@ -29,6 +29,12 @@ public interface INotificationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     批量创建通知
+    /// </summary>
+    Task<BatchNotificationResponse> CreateBatchNotificationsAsync(CreateBatchNotificationDto dto,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     发送通知给所有管理员
     /// </summary>
     Task<List<NotificationDto>> SendToAdminsAsync(SendToAdminsDto dto, CancellationToken cancellationToken = default);

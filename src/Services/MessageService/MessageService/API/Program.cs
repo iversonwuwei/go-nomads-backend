@@ -25,8 +25,16 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 // 添加服务
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddDapr();
 builder.Services.AddEndpointsApiExplorer();
+
+// 配置 DaprClient
+var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50001";
+builder.Services.AddDaprClient(daprClientBuilder =>
+{
+    daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
+    daprClientBuilder.UseTimeout(TimeSpan.FromSeconds(30));
+});
 builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer((document, context, cancellationToken) =>

@@ -241,8 +241,9 @@ public class EventApplicationService : IEventService
         var participant = await _participantRepository.GetAsync(eventId, userId);
         if (participant == null) throw new KeyNotFoundException("您未参加此 Event");
 
-        // 删除参与记录
-        await _participantRepository.DeleteAsync(participant.Id);
+        // 更新参与记录状态为 cancelled（而不是删除）
+        participant.UpdateStatus("cancelled");
+        await _participantRepository.UpdateAsync(participant);
 
         // 更新参与人数
         var @event = await _eventRepository.GetByIdAsync(eventId);
@@ -251,6 +252,8 @@ public class EventApplicationService : IEventService
             @event.RemoveParticipant();
             await _eventRepository.UpdateAsync(@event);
         }
+
+        _logger.LogInformation("✅ 用户 {UserId} 的参与状态已更新为 cancelled", userId);
     }
 
     public async Task<FollowerResponse> FollowEventAsync(Guid eventId, Guid userId, FollowEventRequest request)
@@ -398,7 +401,7 @@ public class EventApplicationService : IEventService
     }
 
     /// <summary>
-    ///     批量填充事件参与状态
+    ///     批量填充事件参与状态（优化后的批量查询版本）
     /// </summary>
     private async Task EnrichEventParticipationStatusAsync(List<EventResponse> responses, Guid userId)
     {
@@ -408,15 +411,15 @@ public class EventApplicationService : IEventService
 
         try
         {
-            // 批量检查用户是否参与了这些活动和是否是组织者
+            // 🚀 性能优化：使用批量查询代替 N+1 循环查询
+            var eventIds = responses.Select(r => r.Id).ToList();
+            var participatedEventIds = await _participantRepository.GetParticipatedEventIdsAsync(eventIds, userId);
+
+            // 批量填充参与状态和组织者状态
             foreach (var response in responses)
             {
-                response.IsParticipant = await _participantRepository.IsParticipantAsync(response.Id, userId);
+                response.IsParticipant = participatedEventIds.Contains(response.Id);
                 response.IsOrganizer = response.OrganizerId == userId;
-                _logger.LogInformation("👥 用户 {UserId} 是否参与了活动 {EventId}: {IsParticipant}", userId, response.Id,
-                    response.IsParticipant);
-                _logger.LogInformation("👥 用户 {UserId} 是否是活动 {EventId} 的组织者: {IsOrganizer}", userId, response.Id,
-                    response.IsOrganizer);
             }
 
             var participatedCount = responses.Count(r => r.IsParticipant);
@@ -526,9 +529,13 @@ public class EventApplicationService : IEventService
         int page = 1,
         int pageSize = 20)
     {
-        // 1. 获取用户参与的所有活动ID
+        // 1. 获取用户参与的所有活动ID（排除已取消的）
         var participants = await _participantRepository.GetByUserIdAsync(userId);
-        var eventIds = participants.Select(p => p.EventId).ToList();
+        var activeParticipants = participants
+            .Where(p => p.Status != "cancelled")
+            .ToList();
+
+        var eventIds = activeParticipants.Select(p => p.EventId).ToList();
 
         if (!eventIds.Any())
         {

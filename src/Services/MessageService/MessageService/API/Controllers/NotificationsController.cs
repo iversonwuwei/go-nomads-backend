@@ -43,6 +43,9 @@ public class NotificationsController : ControllerBase
             var (notifications, totalCount) = await _notificationService.GetUserNotificationsAsync(
                 userId, isRead, page, pageSize, cancellationToken);
 
+            // 同时获取未读数量
+            var unreadCount = await _notificationService.GetUnreadCountAsync(userId, cancellationToken);
+
             return Ok(new ApiResponse<PaginatedNotificationsResponse>
             {
                 Success = true,
@@ -52,7 +55,8 @@ public class NotificationsController : ControllerBase
                     Notifications = notifications,
                     TotalCount = totalCount,
                     Page = page,
-                    PageSize = pageSize
+                    PageSize = pageSize,
+                    UnreadCount = unreadCount
                 }
             });
         }
@@ -142,6 +146,50 @@ public class NotificationsController : ControllerBase
             {
                 Success = false,
                 Message = "创建通知失败"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     批量创建通知
+    /// </summary>
+    [HttpPost("batch")]
+    public async Task<ActionResult<ApiResponse<BatchNotificationResponse>>> CreateBatchNotifications(
+        [FromBody] CreateBatchNotificationDto request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📬 批量创建通知: UserCount={Count}, Type={Type}",
+            request.UserIds?.Count ?? 0, request.Type);
+
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<BatchNotificationResponse>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        try
+        {
+            var response = await _notificationService.CreateBatchNotificationsAsync(request, cancellationToken);
+
+            return Ok(new ApiResponse<BatchNotificationResponse>
+            {
+                Success = true,
+                Message = $"成功创建 {response.CreatedCount} 条通知",
+                Data = response
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量创建通知失败");
+            return StatusCode(500, new ApiResponse<BatchNotificationResponse>
+            {
+                Success = false,
+                Message = "批量创建通知失败"
             });
         }
     }
@@ -361,6 +409,7 @@ public class PaginatedNotificationsResponse
     public int TotalCount { get; set; }
     public int Page { get; set; }
     public int PageSize { get; set; }
+    public int UnreadCount { get; set; }
 }
 
 #endregion

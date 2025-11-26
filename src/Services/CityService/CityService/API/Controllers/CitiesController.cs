@@ -881,45 +881,8 @@ public class CitiesController : ControllerBase
 
     #region 版主管理
 
-    /// <summary>
-    ///     申请成为城市版主 (需要登录)
-    /// </summary>
-    [HttpPost("moderator/apply")]
-    [Authorize]
-    public async Task<ActionResult<ApiResponse<bool>>> ApplyModerator([FromBody] ApplyModeratorDto dto)
-    {
-        try
-        {
-            var userId = GetCurrentUserId();
-            var result = await _cityService.ApplyModeratorAsync(userId, dto);
-
-            if (result)
-                return Ok(new ApiResponse<bool>
-                {
-                    Success = true,
-                    Message = "申请成功！您已成为该城市的版主",
-                    Data = true
-                });
-
-            return BadRequest(new ApiResponse<bool>
-            {
-                Success = false,
-                Message = "申请失败，该城市已有版主",
-                Data = false
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "申请城市版主失败: UserId={UserId}, CityId={CityId}",
-                GetCurrentUserId(), dto.CityId);
-            return StatusCode(500, new ApiResponse<bool>
-            {
-                Success = false,
-                Message = $"申请失败: {ex.Message}",
-                Data = false
-            });
-        }
-    }
+    // ⚠️ 已废弃: 申请成为版主的功能已迁移到 ModeratorApplicationController
+    // 现在使用完整的申请审核流程,详见 ModeratorApplicationController.Apply
 
     /// <summary>
     ///     指定城市版主 (仅管理员)

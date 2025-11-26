@@ -13,6 +13,11 @@ public interface IEventParticipantRepository
     Task<EventParticipant> CreateAsync(EventParticipant participant);
 
     /// <summary>
+    ///     更新参与记录
+    /// </summary>
+    Task<EventParticipant> UpdateAsync(EventParticipant participant);
+
+    /// <summary>
     ///     获取参与记录
     /// </summary>
     Task<EventParticipant?> GetAsync(Guid eventId, Guid userId);
@@ -36,6 +41,14 @@ public interface IEventParticipantRepository
     ///     检查用户是否已参加
     /// </summary>
     Task<bool> IsParticipantAsync(Guid eventId, Guid userId);
+
+    /// <summary>
+    ///     批量检查用户是否参与了多个活动（优化 N+1 查询）
+    /// </summary>
+    /// <param name="eventIds">活动ID列表</param>
+    /// <param name="userId">用户ID</param>
+    /// <returns>用户参与的活动ID集合</returns>
+    Task<HashSet<Guid>> GetParticipatedEventIdsAsync(List<Guid> eventIds, Guid userId);
 
     /// <summary>
     ///     获取 Event 的参与者数量

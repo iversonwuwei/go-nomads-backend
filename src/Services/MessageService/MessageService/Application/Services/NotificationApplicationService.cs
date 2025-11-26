@@ -61,6 +61,45 @@ public class NotificationApplicationService : INotificationService
         return MapToDto(created);
     }
 
+    public async Task<BatchNotificationResponse> CreateBatchNotificationsAsync(
+        CreateBatchNotificationDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📬 批量创建通知: UserCount={Count}, Type={Type}",
+            dto.UserIds.Count, dto.Type);
+
+        if (dto.UserIds == null || dto.UserIds.Count == 0)
+        {
+            _logger.LogWarning("⚠️ 用户ID列表为空");
+            return new BatchNotificationResponse
+            {
+                CreatedCount = 0,
+                NotificationIds = new List<string>()
+            };
+        }
+
+        // 为每个用户创建通知
+        var notifications = dto.UserIds.Select(userId => new Notification
+        {
+            UserId = userId,
+            Title = dto.Title,
+            Message = dto.Message,
+            Type = dto.Type,
+            RelatedId = dto.RelatedId,
+            Metadata = dto.Metadata != null ? JsonSerializer.Serialize(dto.Metadata) : null
+        }).ToList();
+
+        var created = await _repository.CreateBatchAsync(notifications, cancellationToken);
+
+        _logger.LogInformation("✅ 批量创建通知成功: {Count} 条", created.Count);
+
+        return new BatchNotificationResponse
+        {
+            CreatedCount = created.Count,
+            NotificationIds = created.Select(n => n.Id.ToString()).ToList()
+        };
+    }
+
     public async Task<List<NotificationDto>> SendToAdminsAsync(
         SendToAdminsDto dto,
         CancellationToken cancellationToken = default)

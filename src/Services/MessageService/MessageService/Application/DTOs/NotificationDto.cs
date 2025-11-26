@@ -43,6 +43,28 @@ public class SendToAdminsDto
 }
 
 /// <summary>
+///     批量创建通知请求 DTO
+/// </summary>
+public class CreateBatchNotificationDto
+{
+    public List<string> UserIds { get; set; } = new();
+    public string Title { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string? RelatedId { get; set; }
+    public Dictionary<string, object>? Metadata { get; set; }
+}
+
+/// <summary>
+///     批量通知响应 DTO
+/// </summary>
+public class BatchNotificationResponse
+{
+    public int CreatedCount { get; set; }
+    public List<string> NotificationIds { get; set; } = new();
+}
+
+/// <summary>
 ///     批量标记已读请求 DTO
 /// </summary>
 public class MarkMultipleAsReadDto

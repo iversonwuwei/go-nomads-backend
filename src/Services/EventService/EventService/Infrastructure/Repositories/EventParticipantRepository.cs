@@ -40,6 +40,29 @@ public class EventParticipantRepository : IEventParticipantRepository
         }
     }
 
+    public async Task<EventParticipant> UpdateAsync(EventParticipant participant)
+    {
+        try
+        {
+            var result = await _supabaseClient
+                .From<EventParticipant>()
+                .Where(p => p.Id == participant.Id)
+                .Update(participant);
+
+            var updated = result.Models.FirstOrDefault();
+            if (updated == null) throw new InvalidOperationException("更新参与记录失败");
+
+            _logger.LogInformation("✅ 参与记录更新成功，ID: {Id}, Status: {Status}",
+                participant.Id, participant.Status);
+            return updated;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 更新参与记录失败，ID: {Id}", participant.Id);
+            throw;
+        }
+    }
+
     public async Task<EventParticipant?> GetAsync(Guid eventId, Guid userId)
     {
         try
@@ -127,6 +150,39 @@ public class EventParticipantRepository : IEventParticipantRepository
         {
             _logger.LogError(ex, "❌ 检查用户是否参与失败");
             throw;
+        }
+    }
+
+    public async Task<HashSet<Guid>> GetParticipatedEventIdsAsync(List<Guid> eventIds, Guid userId)
+    {
+        try
+        {
+            if (!eventIds.Any())
+            {
+                return new HashSet<Guid>();
+            }
+
+            _logger.LogInformation("🔍 批量查询用户 {UserId} 参与的 {Count} 个活动", userId, eventIds.Count);
+
+            // 一次性查询用户参与的所有活动（使用 IN 查询）
+            var result = await _supabaseClient
+                .From<EventParticipant>()
+                .Where(p => p.UserId == userId && eventIds.Contains(p.EventId))
+                .Get();
+
+            var participatedEventIds = result.Models
+                .Select(p => p.EventId)
+                .ToHashSet();
+
+            _logger.LogInformation("✅ 用户 {UserId} 参与了 {ParticipatedCount}/{TotalCount} 个活动",
+                userId, participatedEventIds.Count, eventIds.Count);
+
+            return participatedEventIds;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量查询用户参与状态失败");
+            return new HashSet<Guid>();
         }
     }
 

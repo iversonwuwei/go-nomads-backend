@@ -333,6 +333,10 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             {
                 ("/api/v1/products/{**catch-all}", 1)
             },
+            "message-service" => new List<(string, int)>
+            {
+                ("/api/v1/notifications/{**catch-all}", 1)
+            },
             _ => new List<(string, int)>
             {
                 // Default catch-all for unknown services
