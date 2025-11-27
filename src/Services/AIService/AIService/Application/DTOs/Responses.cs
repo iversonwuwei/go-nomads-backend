@@ -268,3 +268,96 @@ public class VisaInfoDto
     public double Cost { get; set; }
     public string Process { get; set; } = string.Empty;
 }
+
+/// <summary>
+///     图片生成响应
+/// </summary>
+public class GenerateImageResponse
+{
+    /// <summary>
+    ///     生成的图片信息列表
+    /// </summary>
+    public List<GeneratedImageInfo> Images { get; set; } = new();
+
+    /// <summary>
+    ///     任务ID（通义万象返回）
+    /// </summary>
+    public string TaskId { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     生成耗时（毫秒）
+    /// </summary>
+    public int GenerationTimeMs { get; set; }
+
+    /// <summary>
+    ///     是否成功
+    /// </summary>
+    public bool Success { get; set; }
+
+    /// <summary>
+    ///     错误信息（如果失败）
+    /// </summary>
+    public string? ErrorMessage { get; set; }
+}
+
+/// <summary>
+///     生成的图片信息
+/// </summary>
+public class GeneratedImageInfo
+{
+    /// <summary>
+    ///     Supabase Storage 中的公开访问 URL
+    /// </summary>
+    public string Url { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     存储路径
+    /// </summary>
+    public string StoragePath { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     原始 URL（通义万象返回的临时 URL）
+    /// </summary>
+    public string OriginalUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     文件大小（字节）
+    /// </summary>
+    public long FileSize { get; set; }
+}
+
+/// <summary>
+///     城市图片批量生成响应
+/// </summary>
+public class GenerateCityImagesResponse
+{
+    /// <summary>
+    ///     城市ID
+    /// </summary>
+    public string CityId { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     竖屏封面图（720*1280）
+    /// </summary>
+    public GeneratedImageInfo? PortraitImage { get; set; }
+
+    /// <summary>
+    ///     横屏图片列表（1280*720）
+    /// </summary>
+    public List<GeneratedImageInfo> LandscapeImages { get; set; } = new();
+
+    /// <summary>
+    ///     生成耗时（毫秒）
+    /// </summary>
+    public int GenerationTimeMs { get; set; }
+
+    /// <summary>
+    ///     是否成功
+    /// </summary>
+    public bool Success { get; set; }
+
+    /// <summary>
+    ///     错误信息
+    /// </summary>
+    public string? ErrorMessage { get; set; }
+}

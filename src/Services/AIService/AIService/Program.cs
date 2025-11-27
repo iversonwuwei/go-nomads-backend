@@ -84,6 +84,15 @@ catch (Exception ex)
 // 注册应用服务 (Application Layer)
 builder.Services.AddScoped<IAIChatService, AIChatApplicationService>();
 
+// 注册图片生成服务 (通义万象)
+builder.Services.AddHttpClient("WanxClient", client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(5); // 图片生成可能需要较长时间
+    client.DefaultRequestHeaders.Add("User-Agent", "GoNomads-AIService/1.0");
+});
+builder.Services.AddScoped<IImageGenerationService, ImageGenerationService>();
+Log.Information("✅ 图片生成服务已注册（通义万象 + Supabase Storage）");
+
 // 配置 MassTransit + RabbitMQ
 var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
 builder.Services.AddMassTransit(x =>
@@ -126,7 +135,13 @@ builder.Services.AddDaprClient(daprClientBuilder =>
 });
 
 // Add services to the container.
-builder.Services.AddControllers().AddDapr();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    })
+    .AddDapr();
 
 // 配置 CORS
 builder.Services.AddCors(options =>

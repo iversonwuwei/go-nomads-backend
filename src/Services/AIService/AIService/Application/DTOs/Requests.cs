@@ -133,3 +133,98 @@ public class GenerateTravelGuideRequest
 
     [Required(ErrorMessage = "城市名称不能为空")] public string CityName { get; set; } = string.Empty;
 }
+
+/// <summary>
+///     生成图片请求 (通义万象) - 单张图片
+/// </summary>
+public class GenerateImageRequest
+{
+    /// <summary>
+    ///     正向提示词，描述期望生成的图像内容
+    /// </summary>
+    [Required(ErrorMessage = "提示词不能为空")]
+    [StringLength(800, ErrorMessage = "提示词不能超过800个字符")]
+    public string Prompt { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     反向提示词，描述不希望出现的元素（可选）
+    /// </summary>
+    [StringLength(800, ErrorMessage = "反向提示词不能超过800个字符")]
+    public string? NegativePrompt { get; set; }
+
+    /// <summary>
+    ///     输出图像的风格
+    ///     可选值: auto, photography, portrait, 3d cartoon, anime, oil painting, watercolor, sketch, chinese painting, flat illustration
+    /// </summary>
+    public string Style { get; set; } = "<auto>";
+
+    /// <summary>
+    ///     输出图像的分辨率
+    ///     可选值: 1024*1024, 720*1280, 1280*720
+    /// </summary>
+    public string Size { get; set; } = "1024*1024";
+
+    /// <summary>
+    ///     生成图片的数量 (1-4)
+    /// </summary>
+    [Range(1, 4, ErrorMessage = "生成数量必须在1-4之间")]
+    public int Count { get; set; } = 1;
+
+    /// <summary>
+    ///     Supabase Storage 中的存储桶名称
+    /// </summary>
+    public string Bucket { get; set; } = "city-photos";
+
+    /// <summary>
+    ///     存储路径前缀（可选，例如 "city-covers" 或 "avatars"）
+    /// </summary>
+    public string? PathPrefix { get; set; }
+}
+
+/// <summary>
+///     批量生成城市图片请求（1张竖屏 + 4张横屏）
+/// </summary>
+public class GenerateCityImagesRequest
+{
+    /// <summary>
+    ///     城市ID
+    /// </summary>
+    [Required(ErrorMessage = "城市ID不能为空")]
+    public string CityId { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     城市名称（用于生成提示词）
+    /// </summary>
+    [Required(ErrorMessage = "城市名称不能为空")]
+    public string CityName { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     城市所在国家（用于生成提示词）
+    /// </summary>
+    public string? Country { get; set; }
+
+    /// <summary>
+    ///     竖屏封面图的提示词（可选，如果不提供则自动生成）
+    /// </summary>
+    public string? PortraitPrompt { get; set; }
+
+    /// <summary>
+    ///     横屏图片的提示词（可选，如果不提供则自动生成）
+    /// </summary>
+    public string? LandscapePrompt { get; set; }
+
+    /// <summary>
+    ///     反向提示词
+    /// </summary>
+    public string? NegativePrompt { get; set; }
+
+    /// <summary>
+    ///     输出图像的风格
+    /// </summary>
+    public string Style { get; set; } = "<photography>";
+
+    /// <summary>
+    ///     Supabase Storage 中的存储桶名称
+    /// </summary>
+    public string Bucket { get; set; } = "city-photos";
+}

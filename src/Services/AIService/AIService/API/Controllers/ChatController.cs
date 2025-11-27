@@ -1542,4 +1542,139 @@ public class ChatController : ControllerBase
     }
 
     #endregion
+
+    #region 图片生成 API (通义万象)
+
+    /// <summary>
+    ///     生成图片（通义万象）并上传到 Supabase Storage
+    /// </summary>
+    /// <remarks>
+    ///     使用通义万象 wanx-v1 模型生成图片，自动下载并上传到 Supabase Storage。
+    ///     支持多种风格：摄影、人像写真、3D卡通、动画、油画、水彩、素描、中国画、扁平插画等。
+    /// </remarks>
+    /// <param name="request">图片生成请求</param>
+    /// <returns>生成的图片信息，包含 Supabase Storage 公开访问 URL</returns>
+    [AllowAnonymous]
+    [HttpPost("images/generate")]
+    public async Task<ActionResult<ApiResponse<GenerateImageResponse>>> GenerateImage(
+        [FromBody] GenerateImageRequest request,
+        [FromServices] IImageGenerationService imageService)
+    {
+        try
+        {
+            // 不需要验证用户，使用系统用户ID
+            var userId = Guid.Empty;
+
+            _logger.LogInformation("收到图片生成请求，提示词: {Prompt}", request.Prompt);
+
+            var result = await imageService.GenerateImageAsync(request, userId);
+
+            if (!result.Success)
+                return BadRequest(new ApiResponse<GenerateImageResponse>
+                {
+                    Success = false,
+                    Message = result.ErrorMessage ?? "图片生成失败",
+                    Data = result
+                });
+
+            return Ok(new ApiResponse<GenerateImageResponse>
+            {
+                Success = true,
+                Message = $"成功生成 {result.Images.Count} 张图片",
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "生成图片失败");
+            return StatusCode(500, new ApiResponse<GenerateImageResponse>
+            {
+                Success = false,
+                Message = $"生成图片失败: {ex.Message}"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     批量生成城市图片（1张竖屏封面 + 4张横屏）
+    /// </summary>
+    /// <remarks>
+    ///     为指定城市生成一组图片：
+    ///     - 1张竖屏封面图 (720*1280)，存储路径：portrait/{cityId}/
+    ///     - 4张横屏图片 (1280*720)，存储路径：landscape/{cityId}/
+    /// </remarks>
+    /// <param name="request">城市图片生成请求</param>
+    /// <returns>生成的图片信息</returns>
+    [AllowAnonymous]
+    [HttpPost("images/city")]
+    public async Task<ActionResult<ApiResponse<GenerateCityImagesResponse>>> GenerateCityImages(
+        [FromBody] GenerateCityImagesRequest request,
+        [FromServices] IImageGenerationService imageService)
+    {
+        try
+        {
+            _logger.LogInformation("收到城市图片批量生成请求，城市: {CityName} ({CityId})", request.CityName, request.CityId);
+
+            var result = await imageService.GenerateCityImagesAsync(request);
+
+            if (!result.Success)
+                return BadRequest(new ApiResponse<GenerateCityImagesResponse>
+                {
+                    Success = false,
+                    Message = result.ErrorMessage ?? "城市图片生成失败",
+                    Data = result
+                });
+
+            return Ok(new ApiResponse<GenerateCityImagesResponse>
+            {
+                Success = true,
+                Message = $"成功生成城市图片：竖屏 {(result.PortraitImage != null ? 1 : 0)} 张，横屏 {result.LandscapeImages.Count} 张",
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "城市图片批量生成失败，城市: {CityId}", request.CityId);
+            return StatusCode(500, new ApiResponse<GenerateCityImagesResponse>
+            {
+                Success = false,
+                Message = $"生成城市图片失败: {ex.Message}"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     查询图片生成任务状态
+    /// </summary>
+    /// <param name="taskId">通义万象任务ID</param>
+    /// <returns>任务状态和结果</returns>
+    [AllowAnonymous]
+    [HttpGet("images/tasks/{taskId}")]
+    public async Task<ActionResult<ApiResponse<ImageTaskStatusResponse>>> GetImageTaskStatus(
+        string taskId,
+        [FromServices] IImageGenerationService imageService)
+    {
+        try
+        {
+            var result = await imageService.GetTaskStatusAsync(taskId);
+
+            return Ok(new ApiResponse<ImageTaskStatusResponse>
+            {
+                Success = true,
+                Message = $"任务状态: {result.Status}",
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "查询图片任务状态失败，TaskId: {TaskId}", taskId);
+            return StatusCode(500, new ApiResponse<ImageTaskStatusResponse>
+            {
+                Success = false,
+                Message = $"查询任务状态失败: {ex.Message}"
+            });
+        }
+    }
+
+    #endregion
 }
