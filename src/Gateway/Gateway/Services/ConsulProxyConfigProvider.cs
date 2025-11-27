@@ -1,6 +1,7 @@
 using Consul;
 using Microsoft.Extensions.Primitives;
 using Yarp.ReverseProxy.Configuration;
+using Yarp.ReverseProxy.Forwarder;
 using YarpRouteConfig = Yarp.ReverseProxy.Configuration.RouteConfig;
 using YarpClusterConfig = Yarp.ReverseProxy.Configuration.ClusterConfig;
 using YarpDestinationConfig = Yarp.ReverseProxy.Configuration.DestinationConfig;
@@ -220,6 +221,16 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                     ClusterId = $"{serviceName}-cluster",
                     Destinations = destinations,
                     LoadBalancingPolicy = "RoundRobin", // 轮询负载均衡
+                    // 设置 HttpClient 配置
+                    HttpClient = new HttpClientConfig
+                    {
+                        RequestHeaderEncoding = "utf-8"
+                    },
+                    // 设置请求超时（支持长时间运行的请求如 AI 图片生成）
+                    HttpRequest = new ForwarderRequestConfig
+                    {
+                        ActivityTimeout = TimeSpan.FromMinutes(10) // 10分钟超时
+                    },
                     HealthCheck = new HealthCheckConfig
                     {
                         Active = new ActiveHealthCheckConfig
