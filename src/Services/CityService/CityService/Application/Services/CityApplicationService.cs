@@ -509,6 +509,8 @@ public class CityApplicationService : ICityService
             TimeZone = city.TimeZone,
             Currency = city.Currency,
             ImageUrl = city.ImageUrl,
+            PortraitImageUrl = city.PortraitImageUrl,
+            LandscapeImageUrls = city.LandscapeImageUrls,
             AverageCostOfLiving = city.AverageCostOfLiving,
             OverallScore = city.OverallScore,
             InternetQualityScore = city.InternetQualityScore,
@@ -980,6 +982,81 @@ public class CityApplicationService : ICityService
             }
 
         return null;
+    }
+
+    /// <summary>
+    ///     更新城市图片 URL（简单版本，只更新主图）
+    /// </summary>
+    public async Task<bool> UpdateCityImageAsync(Guid cityId, string imageUrl)
+    {
+        try
+        {
+            _logger.LogInformation("🖼️ 更新城市图片: CityId={CityId}, ImageUrl={ImageUrl}", cityId, imageUrl);
+
+            var city = await _cityRepository.GetByIdAsync(cityId);
+            if (city == null)
+            {
+                _logger.LogWarning("城市不存在: CityId={CityId}", cityId);
+                return false;
+            }
+
+            city.ImageUrl = imageUrl;
+            city.UpdatedAt = DateTime.UtcNow;
+
+            var result = await _cityRepository.UpdateAsync(cityId, city);
+
+            if (result != null)
+            {
+                _logger.LogInformation("✅ 城市图片更新成功: CityId={CityId}", cityId);
+                return true;
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ 城市图片更新失败: CityId={CityId}", cityId);
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 更新城市图片异常: CityId={CityId}", cityId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    ///     更新城市所有图片（竖屏 + 横屏）
+    /// </summary>
+    public async Task<bool> UpdateCityImagesAsync(Guid cityId, string? portraitImageUrl, List<string>? landscapeImageUrls)
+    {
+        try
+        {
+            _logger.LogInformation(
+                "🖼️ 更新城市所有图片: CityId={CityId}, PortraitUrl={PortraitUrl}, LandscapeCount={LandscapeCount}",
+                cityId, portraitImageUrl, landscapeImageUrls?.Count ?? 0);
+
+            // 直接使用 HttpClient 更新，绕过 ORM
+            var result = await _cityRepository.UpdateImagesDirectAsync(
+                cityId, 
+                portraitImageUrl,  // 同时更新 image_url
+                portraitImageUrl, 
+                landscapeImageUrls);
+
+            if (result)
+            {
+                _logger.LogInformation("✅ 城市图片全部更新成功: CityId={CityId}", cityId);
+                return true;
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ 城市图片更新失败: CityId={CityId}", cityId);
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 更新城市图片异常: CityId={CityId}", cityId);
+            return false;
+        }
     }
 }
 

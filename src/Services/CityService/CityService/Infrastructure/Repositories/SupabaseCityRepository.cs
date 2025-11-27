@@ -112,20 +112,52 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
 
         try
         {
-            Logger.LogInformation("🔄 [SupabaseCityRepository] 开始更新城市: Id={Id}", id);
+            Logger.LogInformation(
+                "🔄 [SupabaseCityRepository] 开始更新城市: Id={Id}, ImageUrl={ImageUrl}, PortraitImageUrl={PortraitImageUrl}, LandscapeCount={LandscapeCount}", 
+                id, city.ImageUrl, city.PortraitImageUrl, city.LandscapeImageUrls?.Count ?? 0);
             
-            // 注意：moderator_id 字段已不在 cities 表中，改用 city_moderators 表
-            // 这里只更新城市的基本信息字段
-            var response = await SupabaseClient
-                .From<City>()
-                .Where(x => x.Id == id)
-                .Update(city);
+            // 创建一个用于更新的简化对象，避免 Reference 属性导致的外键关系问题
+            var updatePayload = new CityUpdatePayload
+            {
+                Name = city.Name,
+                NameEn = city.NameEn,
+                Country = city.Country,
+                Region = city.Region,
+                Description = city.Description,
+                Latitude = city.Latitude,
+                Longitude = city.Longitude,
+                Population = city.Population,
+                Climate = city.Climate,
+                TimeZone = city.TimeZone,
+                Currency = city.Currency,
+                ImageUrl = city.ImageUrl,
+                PortraitImageUrl = city.PortraitImageUrl,
+                LandscapeImageUrls = city.LandscapeImageUrls,
+                OverallScore = city.OverallScore,
+                InternetQualityScore = city.InternetQualityScore,
+                SafetyScore = city.SafetyScore,
+                CostScore = city.CostScore,
+                CommunityScore = city.CommunityScore,
+                WeatherScore = city.WeatherScore,
+                Tags = city.Tags,
+                IsActive = city.IsActive,
+                UpdatedAt = city.UpdatedAt
+            };
 
-            var updatedCity = response.Models.FirstOrDefault();
+            // 使用简化的更新对象
+            var response = await SupabaseClient
+                .From<CityUpdatePayload>()
+                .Where(x => x.Id == id)
+                .Update(updatePayload);
+
+            // 重新获取更新后的城市
+            var updatedCity = await GetByIdAsync(id);
             
             if (updatedCity != null)
             {
-                Logger.LogInformation("✅ [SupabaseCityRepository] 城市更新成功: Id={Id}", updatedCity.Id);
+                Logger.LogInformation(
+                    "✅ [SupabaseCityRepository] 城市更新成功: Id={Id}, 返回的ImageUrl={ImageUrl}, PortraitImageUrl={PortraitImageUrl}", 
+                    updatedCity.Id, updatedCity.ImageUrl, updatedCity.PortraitImageUrl);
             }
             else
             {
@@ -138,6 +170,84 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         {
             Logger.LogError(ex, "❌ [SupabaseCityRepository] 更新城市失败: Id={Id}, Error={Error}", id, ex.Message);
             return null;
+        }
+    }
+
+    /// <summary>
+    /// 直接使用 HttpClient 更新城市图片字段，绕过 Postgrest ORM
+    /// </summary>
+    public async Task<bool> UpdateImagesDirectAsync(Guid cityId, string? imageUrl, string? portraitImageUrl, List<string>? landscapeImageUrls)
+    {
+        try
+        {
+            var supabaseUrl = _configuration["Supabase:Url"];
+            var supabaseKey = _configuration["Supabase:Key"];
+
+            if (string.IsNullOrEmpty(supabaseUrl) || string.IsNullOrEmpty(supabaseKey))
+            {
+                Logger.LogError("❌ Supabase URL 或 Key 未配置");
+                return false;
+            }
+
+            Logger.LogInformation(
+                "🔄 [UpdateImagesDirectAsync] 开始直接更新图片: CityId={CityId}, ImageUrl={ImageUrl}, PortraitUrl={PortraitUrl}, LandscapeCount={LandscapeCount}",
+                cityId, imageUrl, portraitImageUrl, landscapeImageUrls?.Count ?? 0);
+
+            using var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.Add("apikey", supabaseKey);
+            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseKey}");
+            httpClient.DefaultRequestHeaders.Add("Prefer", "return=representation");
+
+            // 构建更新的 JSON 数据
+            var updateData = new Dictionary<string, object?>();
+            
+            if (!string.IsNullOrEmpty(imageUrl))
+            {
+                updateData["image_url"] = imageUrl;
+            }
+            
+            if (!string.IsNullOrEmpty(portraitImageUrl))
+            {
+                updateData["portrait_image_url"] = portraitImageUrl;
+            }
+            
+            if (landscapeImageUrls != null && landscapeImageUrls.Count > 0)
+            {
+                // PostgreSQL 的数组格式: {"url1","url2","url3"}
+                updateData["landscape_image_urls"] = landscapeImageUrls.ToArray();
+            }
+
+            updateData["updated_at"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.ffffffZ");
+
+            var jsonContent = System.Text.Json.JsonSerializer.Serialize(updateData);
+            Logger.LogInformation("📝 [UpdateImagesDirectAsync] 更新数据: {JsonContent}", jsonContent);
+
+            var content = new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");
+
+            // 构建 PATCH 请求 URL
+            var requestUrl = $"{supabaseUrl}/rest/v1/cities?id=eq.{cityId}";
+            Logger.LogInformation("🌐 [UpdateImagesDirectAsync] 请求 URL: {Url}", requestUrl);
+
+            var response = await httpClient.PatchAsync(requestUrl, content);
+            var responseContent = await response.Content.ReadAsStringAsync();
+
+            if (response.IsSuccessStatusCode)
+            {
+                Logger.LogInformation("✅ [UpdateImagesDirectAsync] 更新成功: StatusCode={StatusCode}, Response={Response}", 
+                    response.StatusCode, responseContent);
+                return true;
+            }
+            else
+            {
+                Logger.LogError("❌ [UpdateImagesDirectAsync] 更新失败: StatusCode={StatusCode}, Response={Response}", 
+                    response.StatusCode, responseContent);
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ [UpdateImagesDirectAsync] 异常: CityId={CityId}, Error={Error}", cityId, ex.Message);
+            return false;
         }
     }
 
@@ -206,4 +316,84 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
 
         return response.Models;
     }
+}
+
+/// <summary>
+///     用于更新操作的简化 City 类（不包含 Reference 属性）
+///     避免 Postgrest 尝试处理外键关系
+/// </summary>
+[Postgrest.Attributes.Table("cities")]
+internal class CityUpdatePayload : Postgrest.Models.BaseModel
+{
+    [Postgrest.Attributes.PrimaryKey("id")] 
+    public Guid Id { get; set; }
+
+    [Postgrest.Attributes.Column("name")] 
+    public string Name { get; set; } = string.Empty;
+
+    [Postgrest.Attributes.Column("name_en")] 
+    public string? NameEn { get; set; }
+
+    [Postgrest.Attributes.Column("country")] 
+    public string Country { get; set; } = string.Empty;
+
+    [Postgrest.Attributes.Column("region")] 
+    public string? Region { get; set; }
+
+    [Postgrest.Attributes.Column("description")] 
+    public string? Description { get; set; }
+
+    [Postgrest.Attributes.Column("latitude")] 
+    public double? Latitude { get; set; }
+
+    [Postgrest.Attributes.Column("longitude")] 
+    public double? Longitude { get; set; }
+
+    [Postgrest.Attributes.Column("population")] 
+    public int? Population { get; set; }
+
+    [Postgrest.Attributes.Column("climate")] 
+    public string? Climate { get; set; }
+
+    [Postgrest.Attributes.Column("timezone")] 
+    public string? TimeZone { get; set; }
+
+    [Postgrest.Attributes.Column("currency")] 
+    public string? Currency { get; set; }
+
+    [Postgrest.Attributes.Column("image_url")] 
+    public string? ImageUrl { get; set; }
+
+    [Postgrest.Attributes.Column("portrait_image_url")] 
+    public string? PortraitImageUrl { get; set; }
+
+    [Postgrest.Attributes.Column("landscape_image_urls")] 
+    public List<string>? LandscapeImageUrls { get; set; }
+
+    [Postgrest.Attributes.Column("overall_score")] 
+    public decimal? OverallScore { get; set; }
+
+    [Postgrest.Attributes.Column("internet_quality_score")] 
+    public decimal? InternetQualityScore { get; set; }
+
+    [Postgrest.Attributes.Column("safety_score")] 
+    public decimal? SafetyScore { get; set; }
+
+    [Postgrest.Attributes.Column("cost_score")] 
+    public decimal? CostScore { get; set; }
+
+    [Postgrest.Attributes.Column("community_score")] 
+    public decimal? CommunityScore { get; set; }
+
+    [Postgrest.Attributes.Column("weather_score")] 
+    public decimal? WeatherScore { get; set; }
+
+    [Postgrest.Attributes.Column("tags")] 
+    public List<string> Tags { get; set; } = new();
+
+    [Postgrest.Attributes.Column("is_active")] 
+    public bool IsActive { get; set; } = true;
+
+    [Postgrest.Attributes.Column("updated_at")] 
+    public DateTime? UpdatedAt { get; set; }
 }

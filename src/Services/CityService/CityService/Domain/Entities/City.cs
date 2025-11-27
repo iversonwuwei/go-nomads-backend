@@ -59,11 +59,24 @@ public class City : BaseModel
 
     [MaxLength(50)] [Column("climate")] public string? Climate { get; set; }
 
-    [MaxLength(50)] [Column("time_zone")] public string? TimeZone { get; set; }
+    [MaxLength(50)] [Column("timezone")] public string? TimeZone { get; set; }
 
     [MaxLength(10)] [Column("currency")] public string? Currency { get; set; }
 
+    /// <summary>
+    ///     主图片 URL（向后兼容）
+    /// </summary>
     [MaxLength(500)] [Column("image_url")] public string? ImageUrl { get; set; }
+
+    /// <summary>
+    ///     竖屏封面图 URL (720x1280)
+    /// </summary>
+    [MaxLength(500)] [Column("portrait_image_url")] public string? PortraitImageUrl { get; set; }
+
+    /// <summary>
+    ///     横屏图片 URL 列表 (1280x720)，JSON 数组格式
+    /// </summary>
+    [Column("landscape_image_urls")] public List<string>? LandscapeImageUrls { get; set; }
 
     [JsonIgnore]
     [Column("average_cost_of_living")]

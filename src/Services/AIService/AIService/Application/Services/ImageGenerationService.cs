@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
@@ -10,6 +11,7 @@ namespace AIService.Application.Services;
 
 /// <summary>
 ///     图片生成服务实现 (通义万象 + Supabase Storage)
+///     支持并发控制，防止 API 限流
 /// </summary>
 public class ImageGenerationService : IImageGenerationService
 {
@@ -18,6 +20,11 @@ public class ImageGenerationService : IImageGenerationService
     private const string QueryTaskEndpoint = "/tasks";
     private const int MaxPollingAttempts = 60; // 最多轮询60次
     private const int PollingIntervalMs = 2000; // 每2秒轮询一次
+    
+    // 并发控制：最多同时处理 3 个城市图片生成请求
+    private static readonly SemaphoreSlim _cityImageSemaphore = new(3, 3);
+    // 跟踪正在处理的城市，避免重复请求
+    private static readonly ConcurrentDictionary<string, Task<GenerateCityImagesResponse>> _pendingCityRequests = new();
 
     private readonly IConfiguration _configuration;
     private readonly HttpClient _httpClient;
@@ -98,14 +105,72 @@ public class ImageGenerationService : IImageGenerationService
     /// <inheritdoc />
     public async Task<GenerateCityImagesResponse> GenerateCityImagesAsync(GenerateCityImagesRequest request)
     {
+        // 检查是否有相同城市的请求正在处理中
+        if (_pendingCityRequests.TryGetValue(request.CityId, out var existingTask))
+        {
+            _logger.LogInformation("⏳ 城市 {CityId} 的图片生成请求正在进行中，等待现有任务完成...", request.CityId);
+            try
+            {
+                return await existingTask;
+            }
+            catch
+            {
+                // 如果现有任务失败，移除并继续新请求
+                _pendingCityRequests.TryRemove(request.CityId, out _);
+            }
+        }
+
+        // 创建新任务并注册
+        var taskCompletionSource = new TaskCompletionSource<GenerateCityImagesResponse>();
+        var newTask = taskCompletionSource.Task;
+        
+        if (!_pendingCityRequests.TryAdd(request.CityId, newTask))
+        {
+            // 如果添加失败，说明有其他线程刚刚添加了任务，等待它
+            if (_pendingCityRequests.TryGetValue(request.CityId, out var concurrentTask))
+            {
+                return await concurrentTask;
+            }
+        }
+
+        try
+        {
+            var result = await GenerateCityImagesInternalAsync(request);
+            taskCompletionSource.SetResult(result);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            taskCompletionSource.SetException(ex);
+            throw;
+        }
+        finally
+        {
+            // 任务完成后移除
+            _pendingCityRequests.TryRemove(request.CityId, out _);
+        }
+    }
+
+    /// <summary>
+    /// 内部方法：实际执行城市图片生成（带并发控制）
+    /// </summary>
+    private async Task<GenerateCityImagesResponse> GenerateCityImagesInternalAsync(GenerateCityImagesRequest request)
+    {
         var stopwatch = Stopwatch.StartNew();
         var response = new GenerateCityImagesResponse
         {
             CityId = request.CityId
         };
 
+        // 获取信号量，控制并发数
+        _logger.LogInformation("🔄 城市 {CityId} 等待获取并发槽位... (当前可用: {Available})", 
+            request.CityId, _cityImageSemaphore.CurrentCount);
+        
+        await _cityImageSemaphore.WaitAsync();
+        
         try
         {
+            _logger.LogInformation("✅ 城市 {CityId} 获取到并发槽位，开始生成图片", request.CityId);
             _logger.LogInformation("开始批量生成城市图片，城市: {CityName} ({CityId})", request.CityName, request.CityId);
 
             // 生成默认提示词
@@ -122,52 +187,25 @@ public class ImageGenerationService : IImageGenerationService
             var negativePrompt = request.NegativePrompt
                 ?? "blurry, low quality, distorted, watermark, text, logo, ugly, deformed";
 
-            // 1. 生成竖屏封面图 (720*1280)
-            _logger.LogInformation("生成竖屏封面图...");
-            var portraitRequest = new GenerateImageRequest
-            {
-                Prompt = portraitPrompt,
-                NegativePrompt = negativePrompt,
-                Style = request.Style,
-                Size = "720*1280",
-                Count = 1,
-                Bucket = request.Bucket,
-                PathPrefix = $"portrait/{request.CityId}"
-            };
+            // 并行生成竖屏和横屏图片
+            var portraitTask = GeneratePortraitImageAsync(request, portraitPrompt, negativePrompt);
+            var landscapeTask = GenerateLandscapeImagesAsync(request, landscapePrompt, negativePrompt);
 
-            var portraitResult = await GenerateImageAsync(portraitRequest, Guid.Empty);
-            if (portraitResult.Success && portraitResult.Images.Count > 0)
+            // 等待两个任务都完成
+            await Task.WhenAll(portraitTask, landscapeTask);
+
+            // 获取结果
+            var portraitResult = await portraitTask;
+            var landscapeResult = await landscapeTask;
+
+            if (portraitResult != null)
             {
-                response.PortraitImage = portraitResult.Images[0];
-                _logger.LogInformation("竖屏封面图生成成功: {Url}", response.PortraitImage.Url);
-            }
-            else
-            {
-                _logger.LogWarning("竖屏封面图生成失败: {Error}", portraitResult.ErrorMessage);
+                response.PortraitImage = portraitResult;
             }
 
-            // 2. 生成横屏图片 (1280*720) - 分两批，每批最多4张
-            _logger.LogInformation("生成横屏图片...");
-            var landscapeRequest = new GenerateImageRequest
+            if (landscapeResult != null && landscapeResult.Count > 0)
             {
-                Prompt = landscapePrompt,
-                NegativePrompt = negativePrompt,
-                Style = request.Style,
-                Size = "1280*720",
-                Count = 4,
-                Bucket = request.Bucket,
-                PathPrefix = $"landscape/{request.CityId}"
-            };
-
-            var landscapeResult = await GenerateImageAsync(landscapeRequest, Guid.Empty);
-            if (landscapeResult.Success && landscapeResult.Images.Count > 0)
-            {
-                response.LandscapeImages = landscapeResult.Images;
-                _logger.LogInformation("横屏图片生成成功，共 {Count} 张", response.LandscapeImages.Count);
-            }
-            else
-            {
-                _logger.LogWarning("横屏图片生成失败: {Error}", landscapeResult.ErrorMessage);
+                response.LandscapeImages = landscapeResult;
             }
 
             stopwatch.Stop();
@@ -179,7 +217,7 @@ public class ImageGenerationService : IImageGenerationService
                 response.ErrorMessage = "所有图片生成均失败";
             }
 
-            _logger.LogInformation("城市图片批量生成完成，耗时: {Time}ms，竖屏: {Portrait}张，横屏: {Landscape}张",
+            _logger.LogInformation("🎉 城市图片批量生成完成，耗时: {Time}ms，竖屏: {Portrait}张，横屏: {Landscape}张",
                 response.GenerationTimeMs,
                 response.PortraitImage != null ? 1 : 0,
                 response.LandscapeImages.Count);
@@ -195,6 +233,87 @@ public class ImageGenerationService : IImageGenerationService
 
             _logger.LogError(ex, "城市图片批量生成发生错误，城市: {CityId}", request.CityId);
             return response;
+        }
+        finally
+        {
+            // 释放信号量
+            _cityImageSemaphore.Release();
+            _logger.LogInformation("🔓 城市 {CityId} 释放并发槽位 (当前可用: {Available})", 
+                request.CityId, _cityImageSemaphore.CurrentCount);
+        }
+    }
+
+    /// <summary>
+    /// 生成竖屏封面图
+    /// </summary>
+    private async Task<GeneratedImageInfo?> GeneratePortraitImageAsync(
+        GenerateCityImagesRequest request, string prompt, string negativePrompt)
+    {
+        try
+        {
+            _logger.LogInformation("生成竖屏封面图...");
+            var portraitRequest = new GenerateImageRequest
+            {
+                Prompt = prompt,
+                NegativePrompt = negativePrompt,
+                Style = request.Style,
+                Size = "720*1280",
+                Count = 1,
+                Bucket = request.Bucket,
+                PathPrefix = $"portrait/{request.CityId}"
+            };
+
+            var result = await GenerateImageAsync(portraitRequest, Guid.Empty);
+            if (result.Success && result.Images.Count > 0)
+            {
+                _logger.LogInformation("竖屏封面图生成成功: {Url}", result.Images[0].Url);
+                return result.Images[0];
+            }
+            
+            _logger.LogWarning("竖屏封面图生成失败: {Error}", result.ErrorMessage);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "生成竖屏封面图异常");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 生成横屏图片列表
+    /// </summary>
+    private async Task<List<GeneratedImageInfo>> GenerateLandscapeImagesAsync(
+        GenerateCityImagesRequest request, string prompt, string negativePrompt)
+    {
+        try
+        {
+            _logger.LogInformation("生成横屏图片...");
+            var landscapeRequest = new GenerateImageRequest
+            {
+                Prompt = prompt,
+                NegativePrompt = negativePrompt,
+                Style = request.Style,
+                Size = "1280*720",
+                Count = 4,
+                Bucket = request.Bucket,
+                PathPrefix = $"landscape/{request.CityId}"
+            };
+
+            var result = await GenerateImageAsync(landscapeRequest, Guid.Empty);
+            if (result.Success && result.Images.Count > 0)
+            {
+                _logger.LogInformation("横屏图片生成成功，共 {Count} 张", result.Images.Count);
+                return result.Images;
+            }
+            
+            _logger.LogWarning("横屏图片生成失败: {Error}", result.ErrorMessage);
+            return new List<GeneratedImageInfo>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "生成横屏图片异常");
+            return new List<GeneratedImageInfo>();
         }
     }
 

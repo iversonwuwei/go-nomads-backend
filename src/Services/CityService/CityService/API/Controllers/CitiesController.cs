@@ -1244,6 +1244,94 @@ public class CitiesController : ControllerBase
     }
 
     #endregion
+
+    #region AI 图片生成
+
+    /// <summary>
+    ///     为城市生成 AI 图片（1张竖屏封面 + 4张横屏）
+    /// </summary>
+    /// <remarks>
+    ///     调用 AIService 的通义万象 API 生成城市图片：
+    ///     - 1张竖屏封面图 (720*1280)，存储路径：portrait/{cityId}/
+    ///     - 4张横屏图片 (1280*720)，存储路径：landscape/{cityId}/
+    ///     生成成功后自动更新城市的 image_url 字段
+    ///     注意：Token 验证在 Gateway 层完成，此处通过 UserContext 获取用户信息
+    /// </remarks>
+    /// <param name="cityId">城市ID</param>
+    /// <param name="request">生成请求（可选参数）</param>
+    /// <returns>生成的图片信息</returns>
+    [HttpPost("{cityId:guid}/generate-images")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<GenerateCityImagesResponse>>> GenerateCityImages(
+        Guid cityId,
+        [FromBody] GenerateCityImagesRequest? request,
+        [FromServices] CityService.Infrastructure.Clients.IAIServiceClient aiServiceClient)
+    {
+        try
+        {
+            // 通过 UserContext 获取用户信息（Gateway 已验证 Token）
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            _logger.LogInformation("🖼️ 用户 {UserId} ({Role}) 请求生成城市图片",
+                userContext?.UserId, userContext?.Role);
+
+            // 获取城市信息
+            var city = await _cityService.GetCityByIdAsync(cityId);
+            if (city == null)
+            {
+                return NotFound(new ApiResponse<GenerateCityImagesResponse>
+                {
+                    Success = false,
+                    Message = "城市不存在"
+                });
+            }
+
+            _logger.LogInformation("🖼️ 开始为城市生成 AI 图片: CityId={CityId}, CityName={CityName}",
+                cityId, city.Name);
+
+            // 调用 AIService 生成图片
+            var result = await aiServiceClient.GenerateCityImagesAsync(
+                cityId.ToString(),
+                city.NameEn ?? city.Name,
+                city.Country,
+                request?.Style ?? "<photography>",
+                request?.Bucket ?? "city-photos");
+
+            if (result == null || !result.Success)
+            {
+                return BadRequest(new ApiResponse<GenerateCityImagesResponse>
+                {
+                    Success = false,
+                    Message = result?.ErrorMessage ?? "图片生成失败"
+                });
+            }
+
+            // 更新城市的所有图片字段（竖屏 + 横屏）
+            var portraitUrl = result.PortraitImage?.Url;
+            var landscapeUrls = result.LandscapeImages?.Select(img => img.Url).ToList();
+            
+            await _cityService.UpdateCityImagesAsync(cityId, portraitUrl, landscapeUrls);
+            _logger.LogInformation("✅ 城市图片已更新: CityId={CityId}, Portrait={Portrait}, LandscapeCount={LandscapeCount}",
+                cityId, portraitUrl != null, landscapeUrls?.Count ?? 0);
+
+            return Ok(new ApiResponse<GenerateCityImagesResponse>
+            {
+                Success = true,
+                Message = $"成功生成城市图片：竖屏 {(result.PortraitImage != null ? 1 : 0)} 张，横屏 {result.LandscapeImages?.Count ?? 0} 张",
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 为城市生成 AI 图片失败: CityId={CityId}", cityId);
+            return StatusCode(500, new ApiResponse<GenerateCityImagesResponse>
+            {
+                Success = false,
+                Message = $"图片生成失败: {ex.Message}"
+            });
+        }
+    }
+
+    #endregion
 }
 
 /// <summary>

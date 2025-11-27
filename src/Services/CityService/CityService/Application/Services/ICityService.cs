@@ -33,4 +33,21 @@ public interface ICityService
     ///     指定城市版主 (仅管理员)
     /// </summary>
     Task<bool> AssignModeratorAsync(AssignModeratorDto dto);
+
+    /// <summary>
+    ///     更新城市图片 URL（简单版本，只更新主图）
+    /// </summary>
+    /// <param name="cityId">城市ID</param>
+    /// <param name="imageUrl">新的图片URL</param>
+    /// <returns>是否成功</returns>
+    Task<bool> UpdateCityImageAsync(Guid cityId, string imageUrl);
+
+    /// <summary>
+    ///     更新城市所有图片（竖屏 + 横屏）
+    /// </summary>
+    /// <param name="cityId">城市ID</param>
+    /// <param name="portraitImageUrl">竖屏封面图 URL</param>
+    /// <param name="landscapeImageUrls">横屏图片 URL 列表</param>
+    /// <returns>是否成功</returns>
+    Task<bool> UpdateCityImagesAsync(Guid cityId, string? portraitImageUrl, List<string>? landscapeImageUrls);
 }

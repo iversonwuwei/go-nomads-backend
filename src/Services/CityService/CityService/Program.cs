@@ -141,6 +141,12 @@ builder.Services.AddHostedService<WeatherCacheRefreshService>();
 builder.Services.AddHttpClient<IWeatherService, WeatherService>();
 builder.Services.AddHttpClient<IAmapGeocodingService, AmapGeocodingService>();
 
+// 注册 AIService 客户端 (支持直接 HTTP 调用和 Dapr Service Invocation)
+builder.Services.AddHttpClient<CityService.Infrastructure.Clients.IAIServiceClient, CityService.Infrastructure.Clients.AIServiceClient>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(5); // AI 图片生成需要较长时间
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline

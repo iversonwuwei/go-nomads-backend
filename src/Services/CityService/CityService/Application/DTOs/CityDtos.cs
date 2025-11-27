@@ -35,7 +35,22 @@ public class CityDto : BaseDtoWithUserContext
     public string? Climate { get; set; }
     public string? TimeZone { get; set; }
     public string? Currency { get; set; }
+    
+    /// <summary>
+    ///     主图片 URL（向后兼容，默认使用竖屏封面图）
+    /// </summary>
     public string? ImageUrl { get; set; }
+    
+    /// <summary>
+    ///     竖屏封面图 URL (720x1280)
+    /// </summary>
+    public string? PortraitImageUrl { get; set; }
+    
+    /// <summary>
+    ///     横屏图片 URL 列表 (1280x720)
+    /// </summary>
+    public List<string>? LandscapeImageUrls { get; set; }
+    
     public decimal? AverageCostOfLiving { get; set; }
     public decimal? OverallScore { get; set; }
     public decimal? InternetQualityScore { get; set; }
@@ -418,6 +433,94 @@ public class CityRatingInfoDto
     /// 城市总得分（所有评分项的加权平均）
     /// </summary>
     public double OverallScore { get; set; }
+}
+
+#endregion
+
+#region 城市图片生成 DTOs
+
+/// <summary>
+///     城市图片生成请求 DTO
+/// </summary>
+public class GenerateCityImagesRequest
+{
+    /// <summary>
+    ///     城市ID
+    /// </summary>
+    [Required]
+    public Guid CityId { get; set; }
+
+    /// <summary>
+    ///     图片风格（默认摄影风格）
+    /// </summary>
+    public string Style { get; set; } = "<photography>";
+
+    /// <summary>
+    ///     存储桶名称
+    /// </summary>
+    public string Bucket { get; set; } = "city-photos";
+}
+
+/// <summary>
+///     城市图片生成响应 DTO
+/// </summary>
+public class GenerateCityImagesResponse
+{
+    /// <summary>
+    ///     城市ID
+    /// </summary>
+    public string CityId { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     竖屏封面图信息
+    /// </summary>
+    public GeneratedImageInfo? PortraitImage { get; set; }
+
+    /// <summary>
+    ///     横屏图片列表
+    /// </summary>
+    public List<GeneratedImageInfo> LandscapeImages { get; set; } = new();
+
+    /// <summary>
+    ///     生成耗时（毫秒）
+    /// </summary>
+    public long GenerationTimeMs { get; set; }
+
+    /// <summary>
+    ///     是否成功
+    /// </summary>
+    public bool Success { get; set; }
+
+    /// <summary>
+    ///     错误信息
+    /// </summary>
+    public string? ErrorMessage { get; set; }
+}
+
+/// <summary>
+///     生成的图片信息
+/// </summary>
+public class GeneratedImageInfo
+{
+    /// <summary>
+    ///     Supabase Storage 公开访问 URL
+    /// </summary>
+    public string Url { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     存储路径
+    /// </summary>
+    public string StoragePath { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     原始生成 URL（通义万象）
+    /// </summary>
+    public string? OriginalUrl { get; set; }
+
+    /// <summary>
+    ///     文件大小（字节）
+    /// </summary>
+    public long FileSize { get; set; }
 }
 
 #endregion
