@@ -1248,21 +1248,26 @@ public class CitiesController : ControllerBase
     #region AI 图片生成
 
     /// <summary>
-    ///     为城市生成 AI 图片（1张竖屏封面 + 4张横屏）
+    ///     为城市生成 AI 图片（异步模式）
     /// </summary>
     /// <remarks>
-    ///     调用 AIService 的通义万象 API 生成城市图片：
+    ///     异步调用 AIService 的通义万象 API 生成城市图片：
     ///     - 1张竖屏封面图 (720*1280)，存储路径：portrait/{cityId}/
     ///     - 4张横屏图片 (1280*720)，存储路径：landscape/{cityId}/
-    ///     生成成功后自动更新城市的 image_url 字段
+    ///     
+    ///     接口立即返回任务ID，生成完成后：
+    ///     1. AIService 通过 MassTransit 发送 CityImageGeneratedMessage
+    ///     2. CityService 消费消息并更新数据库
+    ///     3. MessageService 消费消息并通过 SignalR 通知 Flutter
+    ///     
     ///     注意：Token 验证在 Gateway 层完成，此处通过 UserContext 获取用户信息
     /// </remarks>
     /// <param name="cityId">城市ID</param>
     /// <param name="request">生成请求（可选参数）</param>
-    /// <returns>生成的图片信息</returns>
+    /// <returns>任务创建结果</returns>
     [HttpPost("{cityId:guid}/generate-images")]
     [AllowAnonymous]
-    public async Task<ActionResult<ApiResponse<GenerateCityImagesResponse>>> GenerateCityImages(
+    public async Task<ActionResult<ApiResponse<GenerateCityImagesTaskResponseDto>>> GenerateCityImages(
         Guid cityId,
         [FromBody] GenerateCityImagesRequest? request,
         [FromServices] CityService.Infrastructure.Clients.IAIServiceClient aiServiceClient)
@@ -1278,60 +1283,103 @@ public class CitiesController : ControllerBase
             var city = await _cityService.GetCityByIdAsync(cityId);
             if (city == null)
             {
-                return NotFound(new ApiResponse<GenerateCityImagesResponse>
+                return NotFound(new ApiResponse<GenerateCityImagesTaskResponseDto>
                 {
                     Success = false,
                     Message = "城市不存在"
                 });
             }
 
-            _logger.LogInformation("🖼️ 开始为城市生成 AI 图片: CityId={CityId}, CityName={CityName}",
+            _logger.LogInformation("🖼️ 开始为城市创建图片生成任务: CityId={CityId}, CityName={CityName}",
                 cityId, city.Name);
 
-            // 调用 AIService 生成图片
-            var result = await aiServiceClient.GenerateCityImagesAsync(
+            // 获取当前用户ID（用于推送通知）
+            var userId = userContext?.UserId ?? "00000000-0000-0000-0000-000000000001";
+
+            // 调用 AIService 创建异步任务（立即返回，不等待结果）
+            var result = await aiServiceClient.GenerateCityImagesAsyncTask(
                 cityId.ToString(),
                 city.NameEn ?? city.Name,
                 city.Country,
+                userId,  // 传递用户ID
                 request?.Style ?? "<photography>",
                 request?.Bucket ?? "city-photos");
 
             if (result == null || !result.Success)
             {
-                return BadRequest(new ApiResponse<GenerateCityImagesResponse>
+                return BadRequest(new ApiResponse<GenerateCityImagesTaskResponseDto>
                 {
                     Success = false,
-                    Message = result?.ErrorMessage ?? "图片生成失败"
+                    Message = result?.Message ?? "创建图片生成任务失败"
                 });
             }
 
-            // 更新城市的所有图片字段（竖屏 + 横屏）
-            var portraitUrl = result.PortraitImage?.Url;
-            var landscapeUrls = result.LandscapeImages?.Select(img => img.Url).ToList();
-            
-            await _cityService.UpdateCityImagesAsync(cityId, portraitUrl, landscapeUrls);
-            _logger.LogInformation("✅ 城市图片已更新: CityId={CityId}, Portrait={Portrait}, LandscapeCount={LandscapeCount}",
-                cityId, portraitUrl != null, landscapeUrls?.Count ?? 0);
+            _logger.LogInformation("✅ 城市图片生成任务已创建: CityId={CityId}, TaskId={TaskId}",
+                cityId, result.TaskId);
 
-            return Ok(new ApiResponse<GenerateCityImagesResponse>
+            return Ok(new ApiResponse<GenerateCityImagesTaskResponseDto>
             {
                 Success = true,
-                Message = $"成功生成城市图片：竖屏 {(result.PortraitImage != null ? 1 : 0)} 张，横屏 {result.LandscapeImages?.Count ?? 0} 张",
-                Data = result
+                Message = "图片生成任务已创建，完成后将通过通知推送结果",
+                Data = new GenerateCityImagesTaskResponseDto
+                {
+                    TaskId = result.TaskId ?? "",
+                    CityId = cityId.ToString(),
+                    CityName = city.Name,
+                    Status = result.Status ?? "queued",
+                    EstimatedTimeSeconds = result.EstimatedTimeSeconds,
+                    Message = result.Message ?? "任务已创建，正在处理中"
+                }
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ 为城市生成 AI 图片失败: CityId={CityId}", cityId);
-            return StatusCode(500, new ApiResponse<GenerateCityImagesResponse>
+            _logger.LogError(ex, "❌ 为城市创建图片生成任务失败: CityId={CityId}", cityId);
+            return StatusCode(500, new ApiResponse<GenerateCityImagesTaskResponseDto>
             {
                 Success = false,
-                Message = $"图片生成失败: {ex.Message}"
+                Message = $"创建图片生成任务失败: {ex.Message}"
             });
         }
     }
 
     #endregion
+}
+
+/// <summary>
+///     城市图片生成任务响应 DTO
+/// </summary>
+public class GenerateCityImagesTaskResponseDto
+{
+    /// <summary>
+    ///     任务ID
+    /// </summary>
+    public string TaskId { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     城市ID
+    /// </summary>
+    public string CityId { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     城市名称
+    /// </summary>
+    public string CityName { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     任务状态
+    /// </summary>
+    public string Status { get; set; } = "queued";
+
+    /// <summary>
+    ///     预计完成时间（秒）
+    /// </summary>
+    public int EstimatedTimeSeconds { get; set; }
+
+    /// <summary>
+    ///     消息
+    /// </summary>
+    public string Message { get; set; } = string.Empty;
 }
 
 /// <summary>

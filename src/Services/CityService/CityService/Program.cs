@@ -3,17 +3,20 @@ using CityService.Application.Abstractions.Services;
 using CityService.Application.Services;
 using CityService.Domain.Repositories;
 using CityService.Infrastructure.Auth;
+using CityService.Infrastructure.Consumers;
 using CityService.Infrastructure.Integrations.Geocoding;
 using CityService.Infrastructure.Integrations.Weather;
 using CityService.Infrastructure.Repositories;
 using CityService.Infrastructure.Services;
 using CityService.Services;
 using GoNomads.Shared.Extensions;
+using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using Serilog;
+using Shared.Messages;
 using IUserCityContentService = CityService.Application.Services.IUserCityContentService;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -141,10 +144,33 @@ builder.Services.AddHostedService<WeatherCacheRefreshService>();
 builder.Services.AddHttpClient<IWeatherService, WeatherService>();
 builder.Services.AddHttpClient<IAmapGeocodingService, AmapGeocodingService>();
 
-// 注册 AIService 客户端 (支持直接 HTTP 调用和 Dapr Service Invocation)
-builder.Services.AddHttpClient<CityService.Infrastructure.Clients.IAIServiceClient, CityService.Infrastructure.Clients.AIServiceClient>(client =>
+// 注册 AIService 客户端 (使用 Dapr Service Invocation)
+builder.Services.AddScoped<CityService.Infrastructure.Clients.IAIServiceClient, CityService.Infrastructure.Clients.AIServiceClient>();
+
+// 配置 MassTransit - 用于接收 AIService 的图片生成完成消息
+builder.Services.AddMassTransit(x =>
 {
-    client.Timeout = TimeSpan.FromMinutes(5); // AI 图片生成需要较长时间
+    // 注册消费者
+    x.AddConsumer<CityImageGeneratedMessageConsumer>();
+
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
+
+        cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
+        {
+            h.Username(rabbitMqConfig["Username"] ?? "guest");
+            h.Password(rabbitMqConfig["Password"] ?? "guest");
+        });
+
+        // 配置城市图片生成完成消息队列
+        cfg.ReceiveEndpoint("city-image-generated-cityservice-queue", e =>
+        {
+            e.ConfigureConsumer<CityImageGeneratedMessageConsumer>(context);
+            e.PrefetchCount = 16;
+            e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
+        });
+    });
 });
 
 var app = builder.Build();

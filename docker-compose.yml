@@ -142,12 +142,16 @@ services:
     depends_on:
       - redis
       - elasticsearch
+      - rabbitmq
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8002
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=cityservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=redis:6379
       - ConnectionStrings__Elasticsearch=http://elasticsearch:9200
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
     networks:
       - gonomads-network
 

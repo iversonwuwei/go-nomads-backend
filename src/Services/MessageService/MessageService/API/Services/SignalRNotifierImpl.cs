@@ -142,4 +142,24 @@ public class SignalRNotifierImpl : ISignalRNotifier
             throw;
         }
     }
+
+    public async Task SendCityImageUpdatedAsync(string cityId, string userId, object imageData)
+    {
+        try
+        {
+            // 发送到用户组 - 城市图片更新事件
+            await _aiProgressHub.Clients
+                .Group($"user-{userId}")
+                .SendAsync("CityImageUpdated", imageData);
+
+            _logger.LogInformation("推送城市图片更新通知: CityId={CityId}, UserId={UserId}",
+                cityId, userId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "推送城市图片更新通知失败: CityId={CityId}, UserId={UserId}",
+                cityId, userId);
+            throw;
+        }
+    }
 }

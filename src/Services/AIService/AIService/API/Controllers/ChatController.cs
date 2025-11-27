@@ -1644,6 +1644,180 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
+    ///     异步生成城市图片（后台处理）
+    /// </summary>
+    /// <remarks>
+    ///     为指定城市异步生成一组图片，立即返回任务ID。
+    ///     生成完成后通过 MassTransit 发送消息通知 CityService 和 MessageService。
+    ///     - 1张竖屏封面图 (720*1280)，存储路径：portrait/{cityId}/
+    ///     - 4张横屏图片 (1280*720)，存储路径：landscape/{cityId}/
+    /// </remarks>
+    /// <param name="request">城市图片生成请求</param>
+    /// <returns>任务创建结果</returns>
+    [AllowAnonymous]
+    [HttpPost("images/city/async")]
+    public async Task<ActionResult<ApiResponse<CreateTaskResponse>>> GenerateCityImagesAsync(
+        [FromBody] GenerateCityImagesRequest request,
+        [FromServices] IImageGenerationService imageService,
+        [FromServices] IPublishEndpoint publishEndpoint,
+        [FromServices] IRedisCache cache)
+    {
+        try
+        {
+            _logger.LogInformation("📥 收到异步城市图片生成请求: CityId={CityId}, CityName={CityName}",
+                request.CityId, request.CityName);
+
+            if (!ModelState.IsValid)
+            {
+                var errors = string.Join("; ", ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage));
+                _logger.LogWarning("⚠️ 请求验证失败: {Errors}", errors);
+                return BadRequest(new ApiResponse<CreateTaskResponse>
+                {
+                    Success = false,
+                    Message = $"请求验证失败: {errors}"
+                });
+            }
+
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+            {
+                // 优先从请求体获取 userId（服务端调用会传递此参数）
+                if (!string.IsNullOrEmpty(request.UserId) && Guid.TryParse(request.UserId, out var requestUserId))
+                {
+                    userId = requestUserId;
+                    _logger.LogInformation("📥 使用请求体中的 UserId: {UserId}", userId);
+                }
+                else
+                {
+                    // 测试用：使用固定的测试用户ID
+                    userId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+                    _logger.LogWarning("⚠️ 用户未认证且未提供 UserId，使用测试用户ID: {UserId}", userId);
+                }
+            }
+
+            // 生成任务ID
+            var taskId = Guid.NewGuid().ToString("N");
+            var startTime = DateTime.UtcNow;
+
+            // 初始化任务状态
+            var taskStatus = new TaskStatus
+            {
+                TaskId = taskId,
+                Status = "queued",
+                Progress = 0,
+                ProgressMessage = "图片生成任务已创建，正在处理...",
+                CreatedAt = startTime,
+                UpdatedAt = startTime
+            };
+
+            // 保存到 Redis (24小时过期)
+            await cache.SetAsync($"task:image:{taskId}", taskStatus, TimeSpan.FromHours(24));
+
+            // 在后台线程中处理任务
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    _logger.LogInformation("🚀 开始处理城市图片生成任务: TaskId={TaskId}, CityId={CityId}",
+                        taskId, request.CityId);
+
+                    // 发送开始处理的进度消息
+                    await publishEndpoint.Publish(new AIProgressMessage
+                    {
+                        TaskId = taskId,
+                        UserId = userId.ToString(),
+                        Progress = 10,
+                        Message = "正在生成城市图片...",
+                        TaskType = "city-image",
+                        CurrentStage = "generating",
+                        Status = "processing",
+                        Timestamp = DateTime.UtcNow
+                    });
+
+                    // 调用图片生成服务
+                    var result = await imageService.GenerateCityImagesAsync(request);
+
+                    // 更新任务状态
+                    taskStatus.Status = result.Success ? "completed" : "failed";
+                    taskStatus.Progress = 100;
+                    taskStatus.Result = result;
+                    taskStatus.CompletedAt = DateTime.UtcNow;
+                    await cache.SetAsync($"task:image:{taskId}", taskStatus, TimeSpan.FromHours(24));
+
+                    // 发送城市图片生成完成消息
+                    await publishEndpoint.Publish(new CityImageGeneratedMessage
+                    {
+                        TaskId = taskId,
+                        CityId = request.CityId,
+                        CityName = request.CityName,
+                        UserId = userId.ToString(),
+                        PortraitImageUrl = result.PortraitImage?.Url,
+                        LandscapeImageUrls = result.LandscapeImages?.Select(img => img.Url).ToList(),
+                        Success = result.Success,
+                        ErrorMessage = result.ErrorMessage,
+                        CompletedAt = DateTime.UtcNow,
+                        DurationSeconds = (int)(DateTime.UtcNow - startTime).TotalSeconds
+                    });
+
+                    _logger.LogInformation("✅ 城市图片生成完成: TaskId={TaskId}, CityId={CityId}, Success={Success}",
+                        taskId, request.CityId, result.Success);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ 处理城市图片生成任务失败: TaskId={TaskId}, CityId={CityId}",
+                        taskId, request.CityId);
+
+                    // 更新任务状态为失败
+                    taskStatus.Status = "failed";
+                    taskStatus.Error = ex.Message;
+                    taskStatus.CompletedAt = DateTime.UtcNow;
+                    await cache.SetAsync($"task:image:{taskId}", taskStatus, TimeSpan.FromHours(24));
+
+                    // 发送失败消息
+                    await publishEndpoint.Publish(new CityImageGeneratedMessage
+                    {
+                        TaskId = taskId,
+                        CityId = request.CityId,
+                        CityName = request.CityName,
+                        UserId = userId.ToString(),
+                        Success = false,
+                        ErrorMessage = ex.Message,
+                        CompletedAt = DateTime.UtcNow,
+                        DurationSeconds = (int)(DateTime.UtcNow - startTime).TotalSeconds
+                    });
+                }
+            });
+
+            _logger.LogInformation("✅ 城市图片生成任务已创建: TaskId={TaskId}, CityId={CityId}",
+                taskId, request.CityId);
+
+            return Ok(new ApiResponse<CreateTaskResponse>
+            {
+                Success = true,
+                Message = "图片生成任务已创建",
+                Data = new CreateTaskResponse
+                {
+                    TaskId = taskId,
+                    Status = "queued",
+                    EstimatedTimeSeconds = 180, // 预计3分钟
+                    Message = "图片生成任务已创建，生成完成后将通过 SignalR 通知。"
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 创建城市图片生成任务失败: CityId={CityId}", request.CityId);
+            return StatusCode(500, new ApiResponse<CreateTaskResponse>
+            {
+                Success = false,
+                Message = $"创建任务失败: {ex.Message}"
+            });
+        }
+    }
+
+    /// <summary>
     ///     查询图片生成任务状态
     /// </summary>
     /// <param name="taskId">通义万象任务ID</param>

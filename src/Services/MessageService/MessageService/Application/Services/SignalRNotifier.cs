@@ -13,4 +13,12 @@ public interface ISignalRNotifier
     Task SendTaskFailedAsync(string taskId, string userId, string error);
     Task SendNotificationAsync(string userId, NotificationMessage notification);
     Task BroadcastNotificationAsync(NotificationMessage notification);
+
+    /// <summary>
+    ///     发送城市图片更新通知
+    /// </summary>
+    /// <param name="cityId">城市ID</param>
+    /// <param name="userId">用户ID</param>
+    /// <param name="imageData">图片数据</param>
+    Task SendCityImageUpdatedAsync(string cityId, string userId, object imageData);
 }

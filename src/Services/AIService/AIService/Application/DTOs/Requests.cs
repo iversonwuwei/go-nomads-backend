@@ -227,4 +227,9 @@ public class GenerateCityImagesRequest
     ///     Supabase Storage 中的存储桶名称
     /// </summary>
     public string Bucket { get; set; } = "city-photos";
+
+    /// <summary>
+    ///     用户ID（用于推送通知，由服务端传递）
+    /// </summary>
+    public string? UserId { get; set; }
 }

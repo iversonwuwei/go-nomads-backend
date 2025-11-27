@@ -84,6 +84,9 @@ builder.Services.AddMassTransit(x =>
     x.AddConsumer<AITaskCompletedMessageConsumer>();
     x.AddConsumer<AITaskFailedMessageConsumer>();
 
+    // 注册城市图片生成完成消息消费者
+    x.AddConsumer<CityImageGeneratedMessageConsumer>();
+
     x.UsingRabbitMq((context, cfg) =>
     {
         var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
@@ -146,6 +149,14 @@ builder.Services.AddMassTransit(x =>
         cfg.ReceiveEndpoint("ai-task-failed-queue", e =>
         {
             e.ConfigureConsumer<AITaskFailedMessageConsumer>(context);
+            e.PrefetchCount = 16;
+            e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
+        });
+
+        // 配置城市图片生成完成消息队列
+        cfg.ReceiveEndpoint("city-image-generated-queue", e =>
+        {
+            e.ConfigureConsumer<CityImageGeneratedMessageConsumer>(context);
             e.PrefetchCount = 16;
             e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
         });
