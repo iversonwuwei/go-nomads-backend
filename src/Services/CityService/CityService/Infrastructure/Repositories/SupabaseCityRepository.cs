@@ -43,11 +43,78 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
                 .Where(x => x.Id == id)
                 .Single();
 
+            if (response != null)
+            {
+                // Postgrest ORM 对 List<string> 数组类型支持不完善，需要手动获取
+                await EnrichCityWithImageUrlsAsync(response);
+                
+                // 调试日志
+                Logger.LogInformation(
+                    "🔍 [GetByIdAsync] 从数据库读取城市: Id={Id}, Name={Name}, LandscapeImageUrls={LandscapeImageUrls}, Count={Count}",
+                    response.Id, response.Name, 
+                    response.LandscapeImageUrls != null ? string.Join(", ", response.LandscapeImageUrls) : "null",
+                    response.LandscapeImageUrls?.Count ?? 0);
+            }
+
             return response;
         }
         catch
         {
             return null;
+        }
+    }
+    
+    /// <summary>
+    /// 手动获取城市的图片 URL 字段（绕过 Postgrest ORM 的数组解析问题）
+    /// </summary>
+    private async Task EnrichCityWithImageUrlsAsync(City city)
+    {
+        try
+        {
+            var supabaseUrl = _configuration["Supabase:Url"];
+            var supabaseKey = _configuration["Supabase:Key"];
+
+            if (string.IsNullOrEmpty(supabaseUrl) || string.IsNullOrEmpty(supabaseKey))
+            {
+                return;
+            }
+
+            using var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.Add("apikey", supabaseKey);
+            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseKey}");
+
+            var requestUrl = $"{supabaseUrl}/rest/v1/cities?id=eq.{city.Id}&select=landscape_image_urls";
+            var response = await httpClient.GetAsync(requestUrl);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                var jsonDoc = System.Text.Json.JsonDocument.Parse(content);
+                var root = jsonDoc.RootElement;
+                
+                if (root.ValueKind == System.Text.Json.JsonValueKind.Array && root.GetArrayLength() > 0)
+                {
+                    var firstItem = root[0];
+                    if (firstItem.TryGetProperty("landscape_image_urls", out var landscapeUrls) && 
+                        landscapeUrls.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        var urls = new List<string>();
+                        foreach (var url in landscapeUrls.EnumerateArray())
+                        {
+                            if (url.ValueKind == System.Text.Json.JsonValueKind.String)
+                            {
+                                urls.Add(url.GetString()!);
+                            }
+                        }
+                        city.LandscapeImageUrls = urls;
+                        Logger.LogDebug("✅ [EnrichCityWithImageUrlsAsync] 成功获取 {Count} 张横屏图片", urls.Count);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "⚠️ [EnrichCityWithImageUrlsAsync] 获取图片 URL 失败");
         }
     }
 

@@ -78,6 +78,13 @@ public class CityApplicationService : ICityService
         var city = await _cityRepository.GetByIdAsync(id);
         if (city == null) return null;
 
+        // 调试日志 - 打印图片字段
+        _logger.LogInformation(
+            "🖼️ [GetCityById] 图片字段调试: CityId={CityId}, Name={CityName}, ImageUrl={ImageUrl}, PortraitImageUrl={PortraitImageUrl}, LandscapeImageUrls={LandscapeImageUrls}, LandscapeCount={Count}",
+            id, city.Name, city.ImageUrl, city.PortraitImageUrl, 
+            city.LandscapeImageUrls != null ? string.Join(", ", city.LandscapeImageUrls) : "null",
+            city.LandscapeImageUrls?.Count ?? 0);
+
         var cityDto = MapToDto(city);
 
         // 并行填充数据
