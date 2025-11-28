@@ -705,10 +705,9 @@ public class CitiesController : ControllerBase
     ///     Get digital nomad guide for a city
     /// </summary>
     /// <param name="cityId">City ID</param>
-    /// <returns>Digital nomad guide or 404 if not found</returns>
+    /// <returns>Digital nomad guide or null if not found</returns>
     [HttpGet("{cityId}/guide")]
     [ProducesResponseType(typeof(ApiResponse<DigitalNomadGuideDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<ApiResponse<DigitalNomadGuideDto>>> GetDigitalNomadGuide(string cityId)
     {
@@ -720,11 +719,12 @@ public class CitiesController : ControllerBase
 
             if (guide == null)
             {
-                _logger.LogInformation("📭 未找到指南: cityId={CityId}", cityId);
-                return NotFound(new ApiResponse<DigitalNomadGuideDto>
+                // 没有找到指南是正常的业务状态，返回 200 + null data
+                _logger.LogInformation("📭 未找到指南: cityId={CityId}，这是正常状态", cityId);
+                return Ok(new ApiResponse<DigitalNomadGuideDto>
                 {
-                    Success = false,
-                    Message = "Guide not found for this city",
+                    Success = true,
+                    Message = "No guide found for this city yet",
                     Data = null
                 });
             }
