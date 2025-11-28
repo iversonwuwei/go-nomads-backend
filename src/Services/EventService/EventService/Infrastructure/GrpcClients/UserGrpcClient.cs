@@ -10,6 +10,8 @@ namespace EventService.Infrastructure.GrpcClients;
 public class UserGrpcClient : IUserGrpcClient
 {
     private const string UserServiceAppId = "user-service";
+    private const string UserBatchEndpoint = "api/v1/users/batch";
+    private const int BatchSize = 50;
     private readonly DaprClient _daprClient;
     private readonly ILogger<UserGrpcClient> _logger;
 
@@ -21,39 +23,18 @@ public class UserGrpcClient : IUserGrpcClient
 
     public async Task<OrganizerInfo?> GetUserByIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        try
+        if (userId == Guid.Empty)
         {
-            _logger.LogInformation("👤 通过 Dapr 调用 UserService 获取用户信息: UserId={UserId}", userId);
-
-            // UserService 使用 string ID，需要转换
-            var userIdString = userId.ToString();
-
-            // 使用 Dapr Service Invocation 调用 UserService
-            var response = await _daprClient.InvokeMethodAsync<ApiResponse<UserDto>>(
-                HttpMethod.Get,
-                UserServiceAppId,
-                $"api/v1/users/{userIdString}",
-                cancellationToken);
-
-            if (response?.Success == true && response.Data != null)
-            {
-                var userDto = response.Data;
-                return new OrganizerInfo
-                {
-                    Id = userDto.Id,
-                    Name = userDto.Name,
-                    Email = userDto.Email
-                };
-            }
-
-            _logger.LogWarning("⚠️ UserService 返回空数据或失败: UserId={UserId}", userId);
+            _logger.LogWarning("⚠️ 无效的用户 ID");
             return null;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ 调用 UserService 失败: UserId={UserId}", userId);
-            return null;
-        }
+
+        var users = await GetUsersByIdsAsync(new[] { userId }, cancellationToken);
+        if (users.TryGetValue(userId, out var userInfo))
+            return userInfo;
+
+        _logger.LogWarning("⚠️ UserService 返回空数据或失败: UserId={UserId}", userId);
+        return null;
     }
 
     public async Task<Dictionary<Guid, OrganizerInfo>> GetUsersByIdsAsync(
@@ -67,18 +48,45 @@ public class UserGrpcClient : IUserGrpcClient
 
         _logger.LogInformation("👥 批量获取用户信息: Count={Count}", uniqueUserIds.Count);
 
-        // 并行获取用户信息
-        var tasks = uniqueUserIds.Select(async userId =>
+        // 🚀 性能优化：使用批量接口代替 N+1 单独查询
+        foreach (var batch in uniqueUserIds.Chunk(BatchSize))
         {
-            var userInfo = await GetUserByIdAsync(userId, cancellationToken);
-            return (userId, userInfo);
-        });
+            var payload = new BatchUserIdsRequest(batch.Select(id => id.ToString()).ToList());
+            try
+            {
+                var response = await _daprClient.InvokeMethodAsync<BatchUserIdsRequest, ApiResponse<List<UserDto>>>(
+                    HttpMethod.Post,
+                    UserServiceAppId,
+                    UserBatchEndpoint,
+                    payload,
+                    cancellationToken);
 
-        var users = await Task.WhenAll(tasks);
-
-        foreach (var (userId, userInfo) in users)
-            if (userInfo != null)
-                result[userId] = userInfo;
+                if (response?.Success == true && response.Data != null)
+                {
+                    foreach (var userDto in response.Data)
+                    {
+                        if (Guid.TryParse(userDto.Id, out var userId))
+                        {
+                            result[userId] = new OrganizerInfo
+                            {
+                                Id = userDto.Id,
+                                Name = userDto.Name,
+                                Email = userDto.Email,
+                                AvatarUrl = userDto.Avatar
+                            };
+                        }
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("⚠️ User batch lookup failed for batch size {BatchSize}", batch.Length);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ User batch lookup request failed for batch size {BatchSize}", batch.Length);
+            }
+        }
 
         _logger.LogInformation("✅ 批量获取用户信息完成: 请求={Requested}, 成功={Success}",
             uniqueUserIds.Count, result.Count);
@@ -97,49 +105,46 @@ public class UserGrpcClient : IUserGrpcClient
 
         _logger.LogInformation("👥 批量获取完整用户信息（含 Avatar 和 Phone）: Count={Count}", uniqueUserIds.Count);
 
-        // 并行获取用户信息
-        var tasks = uniqueUserIds.Select(async userId =>
+        // 🚀 性能优化：使用批量接口代替 N+1 单独查询
+        foreach (var batch in uniqueUserIds.Chunk(BatchSize))
         {
+            var payload = new BatchUserIdsRequest(batch.Select(id => id.ToString()).ToList());
             try
             {
-                var userIdString = userId.ToString();
-
-                // 使用 Dapr Service Invocation 调用 UserService
-                var response = await _daprClient.InvokeMethodAsync<ApiResponse<UserDto>>(
-                    HttpMethod.Get,
+                var response = await _daprClient.InvokeMethodAsync<BatchUserIdsRequest, ApiResponse<List<UserDto>>>(
+                    HttpMethod.Post,
                     UserServiceAppId,
-                    $"api/v1/users/{userIdString}",
+                    UserBatchEndpoint,
+                    payload,
                     cancellationToken);
 
                 if (response?.Success == true && response.Data != null)
                 {
-                    var userDto = response.Data;
-                    var userInfo = new UserInfo
+                    foreach (var userDto in response.Data)
                     {
-                        Id = userDto.Id,
-                        Name = userDto.Name,
-                        Email = userDto.Email,
-                        Avatar = userDto.Avatar,
-                        Phone = userDto.Phone
-                    };
-                    return (userId, userInfo);
+                        if (Guid.TryParse(userDto.Id, out var userId))
+                        {
+                            result[userId] = new UserInfo
+                            {
+                                Id = userDto.Id,
+                                Name = userDto.Name,
+                                Email = userDto.Email,
+                                Avatar = userDto.Avatar,
+                                Phone = userDto.Phone
+                            };
+                        }
+                    }
                 }
-
-                _logger.LogWarning("⚠️ UserService 返回空数据或失败: UserId={UserId}", userId);
-                return (userId, null);
+                else
+                {
+                    _logger.LogWarning("⚠️ User batch lookup failed for batch size {BatchSize}", batch.Length);
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ 调用 UserService 失败: UserId={UserId}", userId);
-                return (userId, (UserInfo?)null);
+                _logger.LogError(ex, "❌ User batch lookup request failed for batch size {BatchSize}", batch.Length);
             }
-        });
-
-        var users = await Task.WhenAll(tasks);
-
-        foreach (var (userId, userInfo) in users)
-            if (userInfo != null)
-                result[userId] = userInfo;
+        }
 
         _logger.LogInformation("✅ 批量获取完整用户信息完成: 请求={Requested}, 成功={Success}",
             uniqueUserIds.Count, result.Count);
@@ -147,6 +152,11 @@ public class UserGrpcClient : IUserGrpcClient
         return result;
     }
 }
+
+/// <summary>
+///     批量用户ID请求
+/// </summary>
+internal sealed record BatchUserIdsRequest(List<string> UserIds);
 
 /// <summary>
 ///     UserService 返回的 DTO(映射)

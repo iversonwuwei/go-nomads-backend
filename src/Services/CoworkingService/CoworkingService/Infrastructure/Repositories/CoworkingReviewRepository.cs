@@ -183,4 +183,58 @@ public class CoworkingReviewRepository : ICoworkingReviewRepository
             return (0, 0);
         }
     }
+
+    public async Task<Dictionary<Guid, (double AverageRating, int ReviewCount)>> GetAverageRatingsByCoworkingIdsAsync(
+        IEnumerable<Guid> coworkingIds)
+    {
+        var result = new Dictionary<Guid, (double AverageRating, int ReviewCount)>();
+        var idList = coworkingIds.ToList();
+
+        if (idList.Count == 0)
+            return result;
+
+        try
+        {
+            // 批量查询所有相关的评论
+            var coworkingIdStrings = idList.Select(id => id.ToString()).ToList();
+            var response = await _supabaseClient
+                .From<CoworkingReview>()
+                .Filter("coworking_id", Constants.Operator.In, coworkingIdStrings)
+                .Get();
+
+            var allReviews = response?.Models ?? new List<CoworkingReview>();
+
+            // 按 coworking_id 分组计算
+            var grouped = allReviews.GroupBy(r => r.CoworkingId);
+
+            foreach (var group in grouped)
+            {
+                var reviews = group.ToList();
+                var averageRating = reviews.Average(r => r.Rating);
+                result[group.Key] = (Math.Round(averageRating, 1), reviews.Count);
+            }
+
+            // 为没有评论的 coworking 设置默认值
+            foreach (var id in idList)
+            {
+                if (!result.ContainsKey(id))
+                {
+                    result[id] = (0, 0);
+                }
+            }
+
+            _logger.LogInformation("✅ 批量获取 {Count} 个 Coworking 的评分信息", idList.Count);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量计算 Coworking 平均评分失败");
+            // 返回空结果而不抛异常
+            foreach (var id in idList)
+            {
+                result[id] = (0, 0);
+            }
+            return result;
+        }
+    }
 }

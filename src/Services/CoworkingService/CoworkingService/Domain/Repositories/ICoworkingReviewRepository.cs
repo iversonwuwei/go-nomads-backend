@@ -44,4 +44,10 @@ public interface ICoworkingReviewRepository
     /// 计算 Coworking 的平均评分
     /// </summary>
     Task<(double AverageRating, int ReviewCount)> GetAverageRatingAsync(Guid coworkingId);
+
+    /// <summary>
+    /// 批量计算多个 Coworking 的平均评分
+    /// </summary>
+    Task<Dictionary<Guid, (double AverageRating, int ReviewCount)>> GetAverageRatingsByCoworkingIdsAsync(
+        IEnumerable<Guid> coworkingIds);
 }
