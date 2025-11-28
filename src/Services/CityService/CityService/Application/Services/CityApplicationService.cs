@@ -340,7 +340,19 @@ public class CityApplicationService : ICityService
         }
 
         var cities = await _cityRepository.GetByIdsAsync(normalized);
-        return cities.Select(MapToDto).ToList();
+        var cityDtos = cities.Select(MapToDto).ToList();
+
+        // 填充天气信息（静默失败，不影响主流程）
+        try
+        {
+            await EnrichCitiesWithWeatherAsync(cityDtos);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[CityBatch] 填充天气信息失败，继续返回城市数据");
+        }
+
+        return cityDtos;
     }
 
     public async Task<WeatherDto?> GetCityWeatherAsync(Guid id, bool includeForecast = false, int days = 7)

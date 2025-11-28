@@ -173,19 +173,19 @@ public class ImageGenerationService : IImageGenerationService
             _logger.LogInformation("✅ 城市 {CityId} 获取到并发槽位，开始生成图片", request.CityId);
             _logger.LogInformation("开始批量生成城市图片，城市: {CityName} ({CityId})", request.CityName, request.CityId);
 
-            // 生成默认提示词
+            // 生成默认提示词 - 专注于名胜古迹、著名景点和地标建筑
             var cityDesc = string.IsNullOrEmpty(request.Country)
                 ? request.CityName
                 : $"{request.CityName}, {request.Country}";
 
             var portraitPrompt = request.PortraitPrompt
-                ?? $"A stunning vertical cityscape of {cityDesc}, showing iconic landmarks and skyline, professional photography, high quality, vibrant colors, golden hour lighting";
+                ?? $"A stunning vertical photograph of the most famous landmark or monument in {cityDesc}, showcasing iconic historical architecture, world-renowned tourist attraction, UNESCO heritage site, professional travel photography, high quality, vibrant colors, golden hour lighting, clear blue sky";
 
             var landscapePrompt = request.LandscapePrompt
-                ?? $"Beautiful panoramic view of {cityDesc}, featuring famous landmarks, streets, and local culture, professional travel photography, high resolution, vivid colors";
+                ?? $"Beautiful panoramic photograph of famous scenic spots and landmarks in {cityDesc}, featuring historic monuments, ancient temples, iconic towers, famous bridges, renowned museums, cultural heritage sites, must-visit tourist attractions, professional travel photography, high resolution, vivid colors, dramatic lighting";
 
             var negativePrompt = request.NegativePrompt
-                ?? "blurry, low quality, distorted, watermark, text, logo, ugly, deformed";
+                ?? "blurry, low quality, distorted, watermark, text, logo, ugly, deformed, people, crowds, modern buildings without historical significance, plain streets, ordinary residential areas";
 
             // 并行生成竖屏和横屏图片
             var portraitTask = GeneratePortraitImageAsync(request, portraitPrompt, negativePrompt);

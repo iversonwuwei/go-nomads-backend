@@ -535,6 +535,7 @@ public class CitiesController : ControllerBase
     /// <summary>
     ///     Get cities with coworking count for coworking home page
     ///     专门为 coworking_home 页面提供城市列表和每个城市的 coworking 数量
+    ///     只返回有 coworking 空间的城市
     /// </summary>
     [HttpGet("with-coworking-count")]
     public async Task<ActionResult<ApiResponse<PaginatedResponse<CityDto>>>> GetCitiesWithCoworkingCount(
@@ -543,20 +544,73 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            // 获取城市列表
+            // 第一步：获取所有有 coworking 空间的城市ID及其数量
+            var coworkingCountByCity = await GetCoworkingCountByCityAsync();
+            
+            // 如果没有任何城市有 coworking 空间，返回空列表
+            if (coworkingCountByCity.Count == 0)
+            {
+                return Ok(new ApiResponse<PaginatedResponse<CityDto>>
+                {
+                    Success = true,
+                    Message = "暂无有 Coworking 空间的城市",
+                    Data = new PaginatedResponse<CityDto>
+                    {
+                        Items = new List<CityDto>(),
+                        TotalCount = 0,
+                        Page = page,
+                        PageSize = pageSize
+                    }
+                });
+            }
+
+            // 获取有 coworking 的城市 ID 列表
+            var cityIdsWithCoworking = coworkingCountByCity.Keys.ToList();
+            var totalCount = cityIdsWithCoworking.Count;
+
+            // 计算分页的偏移量
+            var skip = (page - 1) * pageSize;
+            
+            // 如果偏移量超过总数，返回空列表
+            if (skip >= totalCount)
+            {
+                return Ok(new ApiResponse<PaginatedResponse<CityDto>>
+                {
+                    Success = true,
+                    Message = "已无更多数据",
+                    Data = new PaginatedResponse<CityDto>
+                    {
+                        Items = new List<CityDto>(),
+                        TotalCount = totalCount,
+                        Page = page,
+                        PageSize = pageSize
+                    }
+                });
+            }
+
+            // 分页获取城市ID
+            var pagedCityIds = cityIdsWithCoworking
+                .Skip(skip)
+                .Take(pageSize)
+                .ToList();
+
+            // 第二步：获取这些城市的详细信息
             var userId = TryGetCurrentUserId();
             var userRole = TryGetCurrentUserRole();
-            var cities = await _cityService.GetAllCitiesAsync(page, pageSize, userId, userRole);
-            var totalCount = await _cityService.GetTotalCountAsync();
+            var cities = await _cityService.GetCitiesByIdsAsync(pagedCityIds);
             var cityList = cities.ToList();
 
-            // 批量获取每个城市的 coworking 数量
-            await EnrichCitiesWithCoworkingCountAsync(cityList);
+            // 填充 coworking 数量
+            foreach (var city in cityList)
+            {
+                city.CoworkingCount = coworkingCountByCity.TryGetValue(city.Id, out var count) ? count : 0;
+            }
 
             _logger.LogInformation(
-                "获取城市列表(含Coworking数量)成功: {CityCount} 个城市, 第 {Page} 页",
+                "获取城市列表(含Coworking数量)成功: {CityCount} 个城市, 第 {Page} 页, 共 {TotalCount} 个",
                 cityList.Count,
-                page);
+                page,
+                totalCount);
 
             return Ok(new ApiResponse<PaginatedResponse<CityDto>>
             {
@@ -584,50 +638,28 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    ///     直接从数据库查询城市的 coworking 数量（避免跨服务HTTP调用）
+    ///     获取所有有 coworking 空间的城市及其数量
     /// </summary>
-    private async Task EnrichCitiesWithCoworkingCountAsync(List<CityDto> cities)
+    private async Task<Dictionary<Guid, int>> GetCoworkingCountByCityAsync()
     {
-        if (cities == null || cities.Count == 0) return;
-
         try
         {
-            _logger.LogInformation("开始统计 {CityCount} 个城市的 Coworking 数量", cities.Count);
-
-            // 收集所有城市 ID
-            var cityIds = cities.Select(c => c.Id).ToList();
-
             // 直接查询 coworking_spaces 表
             var response = await _supabaseClient
                 .From<CoworkingSpaceDto>()
                 .Where(x => x.IsActive == true)
                 .Get();
 
-            // 过滤出目标城市，并按城市ID分组统计
-            var countByCity = response.Models
-                .Where(x => x.CityId.HasValue && cityIds.Contains(x.CityId.Value))
+            // 按城市ID分组统计，只保留有 CityId 的记录
+            return response.Models
+                .Where(x => x.CityId.HasValue)
                 .GroupBy(x => x.CityId!.Value)
                 .ToDictionary(g => g.Key, g => g.Count());
-
-            // 填充每个城市的 coworking 数量
-            foreach (var city in cities)
-            {
-                city.CoworkingCount = countByCity.TryGetValue(city.Id, out var count) ? count : 0;
-            }
-
-            _logger.LogInformation(
-                "成功统计 {CityCount} 个城市的 Coworking 数量，其中 {ActiveCount} 个城市有空间",
-                cities.Count,
-                countByCity.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "统计 Coworking 数量失败，使用默认值 0");
-            // 容错: 如果查询失败，将所有城市的 CoworkingCount 设为 0
-            foreach (var city in cities)
-            {
-                city.CoworkingCount = 0;
-            }
+            _logger.LogWarning(ex, "获取 Coworking 数量统计失败");
+            return new Dictionary<Guid, int>();
         }
     }
 
