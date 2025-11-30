@@ -15,3 +15,14 @@ public class UserDto
     public List<UserSkillDto>? Skills { get; set; }
     public List<UserInterestDto>? Interests { get; set; }
 }
+
+/// <summary>
+///     用户基本信息 DTO（简化版，用于跨服务调用）
+/// </summary>
+public class UserBasicDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Avatar { get; set; }
+    public string? Email { get; set; }
+}

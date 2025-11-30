@@ -168,6 +168,43 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    ///     根据 ID 获取用户基本信息（简化版，用于跨服务调用）
+    /// </summary>
+    [HttpGet("{id}/basic")]
+    [AllowAnonymous]
+    public async Task<ActionResult<UserBasicDto>> GetUserBasic(
+        string id,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 获取用户基本信息: {UserId}", id);
+
+        try
+        {
+            var user = await _userService.GetUserByIdAsync(id, cancellationToken);
+
+            if (user == null)
+            {
+                _logger.LogWarning("⚠️ 用户不存在: {UserId}", id);
+                return NotFound();
+            }
+
+            // 返回简化的用户信息（直接返回 DTO，不包装 ApiResponse，便于 Dapr 调用）
+            return Ok(new UserBasicDto
+            {
+                Id = user.Id,
+                Name = user.Name,
+                Avatar = user.AvatarUrl,
+                Email = user.Email
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取用户基本信息失败: {UserId}", id);
+            return StatusCode(500);
+        }
+    }
+
+    /// <summary>
     ///     批量根据 ID 获取用户
     /// </summary>
     [HttpPost("batch")]

@@ -82,6 +82,60 @@ public class UserRepository : IUserRepository
         }
     }
 
+    public async Task<UserWithRole?> GetByEmailWithRoleAsync(string email, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 根据邮箱查询用户(含角色): {Email}", email);
+
+        try
+        {
+            // 使用 Select 显式声明 JOIN 查询，一次性获取用户和角色
+            var response = await _supabaseClient
+                .From<UserWithRole>()
+                .Select("*, role:roles(*)")  // 关联查询 roles 表
+                .Where(u => u.Email == email)
+                .Single(cancellationToken);
+
+            if (response != null)
+            {
+                _logger.LogInformation("✅ 找到用户: {Email}, 角色: {Role}", email, response.RoleName);
+            }
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 未找到用户: {Email}", email);
+            return null;
+        }
+    }
+
+    public async Task<UserWithRole?> GetByIdWithRoleAsync(string id, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 根据ID查询用户(含角色): {UserId}", id);
+
+        try
+        {
+            // 使用 Select 显式声明 JOIN 查询，一次性获取用户和角色
+            var response = await _supabaseClient
+                .From<UserWithRole>()
+                .Select("*, role:roles(*)")  // 关联查询 roles 表
+                .Where(u => u.Id == id)
+                .Single(cancellationToken);
+
+            if (response != null)
+            {
+                _logger.LogInformation("✅ 找到用户: {UserId}, 角色: {Role}", id, response.RoleName);
+            }
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 未找到用户: {UserId}", id);
+            return null;
+        }
+    }
+
     public async Task<User> UpdateAsync(User user, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("📝 更新用户: {UserId}", user.Id);

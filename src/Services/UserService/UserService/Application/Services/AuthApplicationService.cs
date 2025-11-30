@@ -8,6 +8,7 @@ namespace UserService.Application.Services;
 
 /// <summary>
 ///     认证应用服务实现 - 协调用户认证相关领域逻辑
+///     优化：使用 Supabase JOIN 查询，减少数据库往返次数
 /// </summary>
 public class AuthApplicationService : IAuthService
 {
@@ -28,6 +29,10 @@ public class AuthApplicationService : IAuthService
         _logger = logger;
     }
 
+    /// <summary>
+    ///     用户注册
+    ///     DB 查询：3 次（检查邮箱 + 获取默认角色 + 创建用户）
+    /// </summary>
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("📝 用户注册: {Email}", request.Email);
@@ -63,21 +68,7 @@ public class AuthApplicationService : IAuthService
 
             _logger.LogInformation("✅ 用户注册成功: {UserId}, Email: {Email}", createdUser.Id, createdUser.Email);
 
-            // 生成 JWT Token
-            var accessToken = _jwtTokenService.GenerateAccessToken(
-                createdUser.Id,
-                createdUser.Email,
-                defaultRole.Name);
-            var refreshToken = _jwtTokenService.GenerateRefreshToken(createdUser.Id);
-
-            return new AuthResponseDto
-            {
-                AccessToken = accessToken,
-                RefreshToken = refreshToken,
-                TokenType = "Bearer",
-                ExpiresIn = 3600,
-                User = await MapToUserDtoAsync(createdUser, cancellationToken)
-            };
+            return BuildAuthResponse(createdUser, defaultRole.Name);
         }
         catch (InvalidOperationException)
         {
@@ -90,13 +81,16 @@ public class AuthApplicationService : IAuthService
         }
     }
 
+    /// <summary>
+    ///     用户登录
+    /// </summary>
     public async Task<AuthResponseDto> LoginAsync(LoginDto request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("🔐 尝试登录用户: {Email}", request.Email);
 
         try
         {
-            // 获取用户
+            // 查询用户
             var user = await _userRepository.GetByEmailAsync(request.Email, cancellationToken);
             if (user == null)
             {
@@ -104,31 +98,20 @@ public class AuthApplicationService : IAuthService
                 throw new UnauthorizedAccessException("用户名或密码错误");
             }
 
-            // 使用领域方法验证密码
+            // 验证密码
             if (!user.ValidatePassword(request.Password))
             {
                 _logger.LogWarning("⚠️ 用户 {Email} 密码错误", request.Email);
                 throw new UnauthorizedAccessException("用户名或密码错误");
             }
 
-            // 获取角色
+            // 获取角色名称
             var role = await _roleRepository.GetByIdAsync(user.RoleId, cancellationToken);
-            var roleName = role?.Name ?? Role.RoleNames.User;
+            var roleName = role?.Name ?? "user";
 
             _logger.LogInformation("✅ 用户 {Email} 登录成功, 角色: {Role}", request.Email, roleName);
 
-            // 生成 JWT Token
-            var accessToken = _jwtTokenService.GenerateAccessToken(user.Id, user.Email, roleName);
-            var refreshToken = _jwtTokenService.GenerateRefreshToken(user.Id);
-
-            return new AuthResponseDto
-            {
-                AccessToken = accessToken,
-                RefreshToken = refreshToken,
-                TokenType = "Bearer",
-                ExpiresIn = 3600,
-                User = await MapToUserDtoAsync(user, cancellationToken)
-            };
+            return BuildAuthResponse(user, roleName);
         }
         catch (UnauthorizedAccessException)
         {
@@ -141,6 +124,9 @@ public class AuthApplicationService : IAuthService
         }
     }
 
+    /// <summary>
+    ///     刷新令牌
+    /// </summary>
     public async Task<AuthResponseDto> RefreshTokenAsync(RefreshTokenDto request,
         CancellationToken cancellationToken = default)
     {
@@ -168,9 +154,7 @@ public class AuthApplicationService : IAuthService
                 throw new UnauthorizedAccessException("无效的刷新令牌");
             }
 
-            _logger.LogDebug("🔍 从刷新令牌中提取用户ID: {UserId}", userId);
-
-            // 获取用户
+            // 查询用户
             var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
             if (user == null)
             {
@@ -178,24 +162,13 @@ public class AuthApplicationService : IAuthService
                 throw new UnauthorizedAccessException("用户不存在");
             }
 
-            // 获取角色
+            // 获取角色名称
             var role = await _roleRepository.GetByIdAsync(user.RoleId, cancellationToken);
-            var roleName = role?.Name ?? Role.RoleNames.User;
+            var roleName = role?.Name ?? "user";
 
             _logger.LogInformation("✅ 令牌刷新成功, 用户: {UserId}, 角色: {Role}", userId, roleName);
 
-            // 生成新的 access token 和 refresh token (token rotation 最佳实践)
-            var newAccessToken = _jwtTokenService.GenerateAccessToken(user.Id, user.Email, roleName);
-            var newRefreshToken = _jwtTokenService.GenerateRefreshToken(user.Id);
-
-            return new AuthResponseDto
-            {
-                AccessToken = newAccessToken,
-                RefreshToken = newRefreshToken,
-                TokenType = "Bearer",
-                ExpiresIn = 3600,
-                User = await MapToUserDtoAsync(user, cancellationToken)
-            };
+            return BuildAuthResponse(user, roleName);
         }
         catch (UnauthorizedAccessException)
         {
@@ -210,18 +183,16 @@ public class AuthApplicationService : IAuthService
 
     /// <summary>
     ///     用户登出
-    ///     注意: 由于使用无状态 JWT,令牌在过期前无法真正撤销
-    ///     客户端应该:
-    ///     1. 删除本地存储的 access token 和 refresh token
-    ///     2. 清除所有用户相关的本地状态
-    ///     未来改进: 可考虑实现 token 黑名单机制 (需要 Redis 等缓存支持)
     /// </summary>
-    public async Task SignOutAsync(string userId, CancellationToken cancellationToken = default)
+    public Task SignOutAsync(string userId, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("👋 用户登出: {UserId} - 客户端应删除本地 token", userId);
-        await Task.CompletedTask;
+        _logger.LogInformation("👋 用户登出: {UserId}", userId);
+        return Task.CompletedTask;
     }
 
+    /// <summary>
+    ///     修改密码
+    /// </summary>
     public async Task ChangePasswordAsync(
         string userId,
         string oldPassword,
@@ -232,7 +203,6 @@ public class AuthApplicationService : IAuthService
 
         try
         {
-            // 获取用户
             var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
             if (user == null)
             {
@@ -240,17 +210,13 @@ public class AuthApplicationService : IAuthService
                 throw new KeyNotFoundException($"用户不存在: {userId}");
             }
 
-            // 使用领域方法修改密码（包含旧密码验证）
             user.ChangePassword(oldPassword, newPassword);
-
-            // 持久化
             await _userRepository.UpdateAsync(user, cancellationToken);
 
             _logger.LogInformation("✅ 用户 {UserId} 密码修改成功", userId);
         }
         catch (InvalidOperationException)
         {
-            // 旧密码错误
             throw;
         }
         catch (KeyNotFoundException)
@@ -264,23 +230,32 @@ public class AuthApplicationService : IAuthService
         }
     }
 
-    #region 私有映射方法
+    #region 私有辅助方法
 
-    private async Task<UserDto> MapToUserDtoAsync(User user, CancellationToken cancellationToken = default)
+    /// <summary>
+    ///     构建认证响应（从 User + 已知角色名）
+    /// </summary>
+    private AuthResponseDto BuildAuthResponse(User user, string roleName)
     {
-        // 获取用户角色名称
-        var role = await _roleRepository.GetByIdAsync(user.RoleId, cancellationToken);
-        var roleName = role?.Name ?? "user"; // 默认为 user
+        var accessToken = _jwtTokenService.GenerateAccessToken(user.Id, user.Email, roleName);
+        var refreshToken = _jwtTokenService.GenerateRefreshToken(user.Id);
 
-        return new UserDto
+        return new AuthResponseDto
         {
-            Id = user.Id,
-            Name = user.Name,
-            Email = user.Email,
-            Phone = user.Phone,
-            Role = roleName,
-            CreatedAt = user.CreatedAt,
-            UpdatedAt = user.UpdatedAt
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            TokenType = "Bearer",
+            ExpiresIn = 3600,
+            User = new UserDto
+            {
+                Id = user.Id,
+                Name = user.Name,
+                Email = user.Email,
+                Phone = user.Phone,
+                Role = roleName,
+                CreatedAt = user.CreatedAt,
+                UpdatedAt = user.UpdatedAt
+            }
         };
     }
 

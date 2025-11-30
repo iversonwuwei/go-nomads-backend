@@ -72,21 +72,23 @@ COMMENT ON COLUMN public.notifications.read_at IS '阅读时间';
 -- ====================================
 -- 4. 创建RPC函数：获取管理员用户ID列表
 -- ====================================
--- 注意：这个函数需要根据实际的users表结构调整
--- 假设users表在auth schema中，且有role字段
+-- 从 public.users 和 public.roles 表中查询管理员用户ID
 
 CREATE OR REPLACE FUNCTION public.get_admin_user_ids()
 RETURNS SETOF TEXT
 LANGUAGE sql
 STABLE
+SECURITY DEFINER
 AS $$
-    SELECT id::text
-    FROM auth.users
-    WHERE raw_user_meta_data->>'role' = 'admin'
-       OR raw_user_meta_data->>'role' = 'administrator';
+SELECT u.id::text
+FROM public.users u
+    INNER JOIN public.roles r ON u.role_id = r.id
+WHERE
+    r.name = 'admin'
+    OR r.name = 'administrator';
 $$;
 
-COMMENT ON FUNCTION public.get_admin_user_ids() IS '获取所有管理员用户的ID列表';
+COMMENT ON FUNCTION public.get_admin_user_ids () IS '获取所有管理员用户的ID列表（从 public.users 表查询）';
 
 -- ====================================
 -- 5. 启用Row Level Security (RLS)

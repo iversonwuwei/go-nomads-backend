@@ -85,14 +85,17 @@ CREATE OR REPLACE FUNCTION public.get_admin_user_ids()
 RETURNS SETOF TEXT
 LANGUAGE sql
 STABLE
+SECURITY DEFINER
 AS $$
-    SELECT id::text
-    FROM auth.users
-    WHERE raw_user_meta_data->>'role' = 'admin'
-       OR raw_user_meta_data->>'role' = 'administrator';
+SELECT u.id::text
+FROM public.users u
+    INNER JOIN public.roles r ON u.role_id = r.id
+WHERE
+    r.name = 'admin'
+    OR r.name = 'administrator';
 $$;
 
-COMMENT ON FUNCTION public.get_admin_user_ids() IS '获取所有管理员用户的ID列表';
+COMMENT ON FUNCTION public.get_admin_user_ids () IS '获取所有管理员用户的ID列表（从 public.users 表查询）';
 
 -- ====================================
 -- 6. 启用Row Level Security (RLS)
