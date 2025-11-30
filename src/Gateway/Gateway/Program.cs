@@ -19,22 +19,6 @@ builder.Services.AddSingleton<IConsulClient>(sp =>
     return new ConsulClient(config => config.Address = new Uri(consulAddress));
 });
 
-// Add services to the container.
-// 配置 DaprClient 使用 gRPC 协议（性能更好）
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    // 使用 gRPC 端点（默认端口 50001）
-    // 在 container sidecar 模式下，Gateway 和 Dapr 共享网络命名空间，使用 localhost
-    var daprGrpcPort = builder.Configuration.GetValue("Dapr:GrpcPort", 50001);
-    var daprGrpcEndpoint = $"http://localhost:{daprGrpcPort}";
-
-    daprClientBuilder.UseGrpcEndpoint(daprGrpcEndpoint);
-
-    // 记录配置
-    var logger = LoggerFactory.Create(loggingBuilder => loggingBuilder.AddConsole()).CreateLogger("DaprSetup");
-    logger.LogInformation("🚀 Dapr Client 配置使用 gRPC: {Endpoint}", daprGrpcEndpoint);
-});
-
 // Configure JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
@@ -106,7 +90,7 @@ builder.Services.AddReverseProxy()
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
-builder.Services.AddControllers().AddDapr();
+builder.Services.AddControllers();
 
 var app = builder.Build();
 

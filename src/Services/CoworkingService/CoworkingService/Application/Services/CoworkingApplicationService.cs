@@ -332,27 +332,125 @@ public class CoworkingApplicationService : ICoworkingService
         }).ToList();
     }
 
-    public async Task<CoworkingSpaceResponse> SubmitVerificationAsync(Guid id, Guid userId)
+    public async Task<VerificationEligibilityResponse> CheckVerificationEligibilityAsync(Guid id, Guid userId)
     {
-        var coworkingSpace = await _coworkingRepository.GetByIdAsync(id)
+        _logger.LogInformation("检查验证资格: CoworkingId={CoworkingId}, UserId={UserId}", id, userId);
+
+        // 并行获取 coworking 信息、用户是否已验证、当前投票数
+        var coworkingTask = _coworkingRepository.GetByIdAsync(id);
+        var hasVerifiedTask = _verificationRepository.HasUserVerifiedAsync(id, userId);
+        var votesTask = _verificationRepository.GetVerificationCountAsync(id);
+
+        await Task.WhenAll(coworkingTask, hasVerifiedTask, votesTask);
+
+        var coworkingSpace = await coworkingTask
                                ?? throw new KeyNotFoundException($"未找到 ID 为 {id} 的共享办公空间");
+        var hasVerified = await hasVerifiedTask;
+        var votes = await votesTask;
+
+        var isSpaceVerified = coworkingSpace.VerificationStatus == CoworkingVerificationStatus.Verified;
+
+        // 检查各种不能验证的情况
+        if (isSpaceVerified)
+        {
+            return new VerificationEligibilityResponse
+            {
+                CanVerify = false,
+                Reason = "该共享空间已通过认证",
+                ReasonCode = "SPACE_VERIFIED",
+                IsSpaceVerified = true,
+                CurrentVotes = votes
+            };
+        }
 
         if (coworkingSpace.CreatedBy.HasValue && coworkingSpace.CreatedBy.Value == userId)
+        {
+            return new VerificationEligibilityResponse
+            {
+                CanVerify = false,
+                Reason = "创建者不能为自己的共享空间认证",
+                ReasonCode = "IS_CREATOR",
+                IsSpaceVerified = false,
+                CurrentVotes = votes
+            };
+        }
+
+        if (hasVerified)
+        {
+            return new VerificationEligibilityResponse
+            {
+                CanVerify = false,
+                Reason = "您已经为该共享空间提交过认证",
+                ReasonCode = "ALREADY_VOTED",
+                IsSpaceVerified = false,
+                CurrentVotes = votes
+            };
+        }
+
+        // 可以验证
+        return new VerificationEligibilityResponse
+        {
+            CanVerify = true,
+            Reason = null,
+            ReasonCode = null,
+            IsSpaceVerified = false,
+            CurrentVotes = votes
+        };
+    }
+
+    public async Task<CoworkingSpaceResponse> SubmitVerificationAsync(Guid id, Guid userId)
+    {
+        _logger.LogInformation("提交认证: CoworkingId={CoworkingId}, UserId={UserId}", id, userId);
+
+        // 1. 并行获取 coworking 信息和用户是否已验证
+        var coworkingTask = _coworkingRepository.GetByIdAsync(id);
+        var hasVerifiedTask = _verificationRepository.HasUserVerifiedAsync(id, userId);
+
+        await Task.WhenAll(coworkingTask, hasVerifiedTask);
+
+        var coworkingSpace = await coworkingTask
+                               ?? throw new KeyNotFoundException($"未找到 ID 为 {id} 的共享办公空间");
+        var alreadyVerified = await hasVerifiedTask;
+
+        // 2. 验证业务规则
+        if (coworkingSpace.CreatedBy.HasValue && coworkingSpace.CreatedBy.Value == userId)
+        {
+            _logger.LogWarning("创建者尝试为自己的 Coworking 认证: CoworkingId={CoworkingId}, UserId={UserId}", id, userId);
             throw new InvalidOperationException("创建者不能为自己的 Coworking 认证");
+        }
 
-        var alreadyVerified = await _verificationRepository.HasUserVerifiedAsync(id, userId);
-        if (alreadyVerified) throw new InvalidOperationException("您已提交过认证");
+        if (alreadyVerified)
+        {
+            _logger.LogWarning("用户重复认证: CoworkingId={CoworkingId}, UserId={UserId}", id, userId);
+            throw new InvalidOperationException("您已提交过认证");
+        }
 
-        await _verificationRepository.AddAsync(CoworkingVerification.Create(id, userId));
+        // 3. 添加验证记录并获取新的投票数（通过仓储层原子操作）
+        int votes;
+        try
+        {
+            var result = await _verificationRepository.AddAndGetCountAsync(id, userId);
+            votes = result;
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("已经为该 Coworking 提交过认证") ||
+                                                    ex.Message.Contains("您已提交过认证"))
+        {
+            // 数据库唯一约束捕获的重复（并发情况下的竞态条件保护）
+            _logger.LogWarning("并发重复认证被数据库拦截: CoworkingId={CoworkingId}, UserId={UserId}", id, userId);
+            throw new InvalidOperationException("您已提交过认证");
+        }
 
-        var votes = await _verificationRepository.GetVerificationCountAsync(id);
+        _logger.LogInformation("认证成功: CoworkingId={CoworkingId}, UserId={UserId}, 当前投票数={Votes}", id, userId, votes);
 
+        // 4. 检查是否需要自动更新验证状态（超过 3 票自动变为已认证）
         if (coworkingSpace.VerificationStatus == CoworkingVerificationStatus.Unverified && votes > 3)
         {
+            _logger.LogInformation("自动更新认证状态: CoworkingId={CoworkingId}, Votes={Votes}", id, votes);
             coworkingSpace.SetVerificationStatus(CoworkingVerificationStatus.Verified, userId);
             coworkingSpace = await _coworkingRepository.UpdateAsync(coworkingSpace);
         }
 
+        // 5. 获取评分信息并返回
         var (averageRating, reviewCount) = await _reviewRepository.GetAverageRatingAsync(id);
         return await MapToResponseAsync(coworkingSpace, votes, averageRating, reviewCount);
     }

@@ -302,6 +302,34 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
+    ///     检查当前用户是否可以验证指定的 Coworking 空间
+    /// </summary>
+    [HttpGet("{id}/verification-eligibility")]
+    [ProducesResponseType(typeof(ApiResponse<VerificationEligibilityResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<VerificationEligibilityResponse>>> CheckVerificationEligibility(Guid id)
+    {
+        try
+        {
+            var userContext = GetUserContext();
+            var userId = TryGetUserId(userContext);
+            if (!userId.HasValue)
+                return Unauthorized(ApiResponse<object>.ErrorResponse("需要登录", new List<string> { "未检测到用户信息" }));
+
+            var result = await _coworkingService.CheckVerificationEligibilityAsync(id, userId.Value);
+            return Ok(ApiResponse<VerificationEligibilityResponse>.SuccessResponse(result, "检查完成"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse("未找到 Coworking", new List<string> { ex.Message }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "检查验证资格失败: {Id}", id);
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("检查失败", new List<string> { ex.Message }));
+        }
+    }
+
+    /// <summary>
     ///     用户提交 Coworking 认证
     /// </summary>
     [HttpPost("{id}/verifications")]

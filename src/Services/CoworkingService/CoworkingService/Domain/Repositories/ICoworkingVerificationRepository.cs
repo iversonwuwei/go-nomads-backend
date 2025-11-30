@@ -9,6 +9,11 @@ public interface ICoworkingVerificationRepository
 {
     Task<CoworkingVerification> AddAsync(CoworkingVerification verification);
 
+    /// <summary>
+    ///     添加验证记录并返回当前投票总数（原子操作，避免 N+1）
+    /// </summary>
+    Task<int> AddAndGetCountAsync(Guid coworkingId, Guid userId);
+
     Task<bool> HasUserVerifiedAsync(Guid coworkingId, Guid userId);
 
     Task<int> GetVerificationCountAsync(Guid coworkingId);

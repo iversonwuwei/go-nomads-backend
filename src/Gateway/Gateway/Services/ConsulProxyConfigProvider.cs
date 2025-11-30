@@ -307,46 +307,63 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             "city-service" => new List<(string, int)>
             {
                 // Specific paths first (higher priority, lower order number)
-                ("/api/v1/user-favorite-cities/{**catch-all}", 1),
-                ("/api/v1/user-content/pros-cons/{**catch-all}", 2), // Pros & Cons voting endpoint
-                ("/api/v1/cities/{cityId}/user-content/{**catch-all}", 3),
-                ("/api/v1/cities/{**catch-all}", 4),
-                ("/api/v1/countries/{**catch-all}", 5),
-                ("/api/v1/provinces/{**catch-all}", 6)
+                ("/api/v1/user-favorite-cities", 1),
+                ("/api/v1/user-favorite-cities/{**catch-all}", 2),
+                ("/api/v1/user-content/pros-cons", 3),
+                ("/api/v1/user-content/pros-cons/{**catch-all}", 4), // Pros & Cons voting endpoint
+                ("/api/v1/cities/{cityId}/user-content/{**catch-all}", 5),
+                ("/api/v1/cities", 6),
+                ("/api/v1/cities/{**catch-all}", 7),
+                ("/api/v1/countries", 8),
+                ("/api/v1/countries/{**catch-all}", 9),
+                ("/api/v1/provinces", 10),
+                ("/api/v1/provinces/{**catch-all}", 11)
             },
             "cache-service" => new List<(string, int)>
             {
                 // Cache Service endpoints for score caching
-                ("/api/v1/cache/{**catch-all}", 1)
+                ("/api/v1/cache", 1),
+                ("/api/v1/cache/{**catch-all}", 2)
             },
             "user-service" => new List<(string, int)>
             {
-                ("/api/v1/auth/{**catch-all}", 1),
-                ("/api/v1/users/{**catch-all}", 2),
-                ("/api/v1/roles/{**catch-all}", 3),
-                ("/api/v1/skills/{**catch-all}", 4),
-                ("/api/v1/interests/{**catch-all}", 5)
+                ("/api/v1/auth", 1),
+                ("/api/v1/auth/{**catch-all}", 2),
+                ("/api/v1/users", 3),
+                ("/api/v1/users/{**catch-all}", 4),
+                ("/api/v1/roles", 5),
+                ("/api/v1/roles/{**catch-all}", 6),
+                ("/api/v1/skills", 7),
+                ("/api/v1/skills/{**catch-all}", 8),
+                ("/api/v1/interests", 9),
+                ("/api/v1/interests/{**catch-all}", 10)
             },
             "event-service" => new List<(string, int)>
             {
-                ("/api/v1/event-types/{**catch-all}", 1),  // Event types endpoint
-                ("/api/v1/events/{**catch-all}", 2)
+                ("/api/v1/event-types", 1),  // Event types endpoint
+                ("/api/v1/event-types/{**catch-all}", 2),
+                ("/api/v1/events", 3),
+                ("/api/v1/events/{**catch-all}", 4)
             },
             "ai-service" => new List<(string, int)>
             {
-                ("/api/v1/ai/{**catch-all}", 1)
+                ("/api/v1/ai", 1),
+                ("/api/v1/ai/{**catch-all}", 2)
             },
             "coworking-service" => new List<(string, int)>
             {
-                ("/api/v1/coworking/{**catch-all}", 1)
+                ("/api/v1/coworking", 1),
+                ("/api/v1/coworking/{**catch-all}", 2)
             },
             "product-service" => new List<(string, int)>
             {
-                ("/api/v1/products/{**catch-all}", 1)
+                ("/api/v1/products", 1),
+                ("/api/v1/products/{**catch-all}", 2)
             },
             "message-service" => new List<(string, int)>
             {
-                ("/api/v1/notifications/{**catch-all}", 1)
+                ("/api/v1/notifications", 1),
+                ("/api/v1/notifications/{**catch-all}", 2)
             },
             _ => new List<(string, int)>
             {

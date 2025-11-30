@@ -56,6 +56,53 @@ public class CoworkingVerificationRepository : ICoworkingVerificationRepository
         }
     }
 
+    /// <summary>
+    ///     添加验证记录并返回当前投票总数（原子操作，避免 N+1）
+    /// </summary>
+    public async Task<int> AddAndGetCountAsync(Guid coworkingId, Guid userId)
+    {
+        try
+        {
+            // 创建验证记录
+            var verification = CoworkingVerification.Create(coworkingId, userId);
+            var insertResponse = await _supabaseClient
+                .From<CoworkingVerification>()
+                .Insert(verification);
+
+            if (insertResponse.Models.FirstOrDefault() == null)
+                throw new InvalidOperationException("创建认证记录失败");
+
+            // 插入成功后立即查询总数
+            var countResponse = await _supabaseClient
+                .From<CoworkingVerification>()
+                .Where(x => x.CoworkingId == coworkingId)
+                .Get();
+
+            return countResponse.Models.Count;
+        }
+        catch (Exception ex)
+        {
+            if (IsDuplicateVoteViolation(ex))
+            {
+                _logger.LogWarning(
+                    ex,
+                    "检测到重复认证（数据库唯一约束）: CoworkingId={CoworkingId}, UserId={UserId}",
+                    coworkingId,
+                    userId);
+
+                throw new InvalidOperationException("您已经为该 Coworking 提交过认证", ex);
+            }
+
+            _logger.LogError(
+                ex,
+                "创建 Coworking 认证记录时发生错误: CoworkingId={CoworkingId}, UserId={UserId}",
+                coworkingId,
+                userId);
+
+            throw;
+        }
+    }
+
     public async Task<bool> HasUserVerifiedAsync(Guid coworkingId, Guid userId)
     {
         var response = await _supabaseClient
@@ -99,6 +146,9 @@ public class CoworkingVerificationRepository : ICoworkingVerificationRepository
         var message = ex.Message;
         if (string.IsNullOrWhiteSpace(message)) return false;
 
-        return message.Contains("duplicate key value violates unique constraint", StringComparison.OrdinalIgnoreCase);
+        // 检查多种可能的重复键错误信息
+        return message.Contains("duplicate key value violates unique constraint", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("23505", StringComparison.OrdinalIgnoreCase)  // PostgreSQL 错误码
+            || message.Contains("unique_violation", StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -50,6 +50,11 @@ public interface ICoworkingService
     Task<List<CoworkingSpaceResponse>> GetTopRatedCoworkingSpacesAsync(int limit = 10);
 
     /// <summary>
+    ///     检查用户是否有资格验证指定的 Coworking 空间
+    /// </summary>
+    Task<VerificationEligibilityResponse> CheckVerificationEligibilityAsync(Guid id, Guid userId);
+
+    /// <summary>
     ///     普通用户提交认证投票
     /// </summary>
     Task<CoworkingSpaceResponse> SubmitVerificationAsync(Guid id, Guid userId);

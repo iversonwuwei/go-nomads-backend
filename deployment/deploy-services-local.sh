@@ -201,41 +201,59 @@ deploy_service_local() {
         )
     fi
 
-    # 启动应用容器（暴露应用端口和 Dapr HTTP 端口）
-    # Dapr sidecar 将共享此容器的网络命名空间
-    # 配置 Dapr gRPC: 通过环境变量 DAPR_GRPC_PORT 启用 gRPC 通信
+    # 启动应用容器
     echo -e "${YELLOW}  启动应用容器...${NC}"
     
     # Gateway 使用生产配置（appsettings.json 中的 go-nomads-consul:8500）
     # 其他服务使用 Development 环境
     local env_config=()
     if [[ "$service_name" == "gateway" ]]; then
-        # Gateway 使用生产配置（appsettings.json 中的 go-nomads-consul:8500）
+        # Gateway 使用生产配置，不需要 Dapr
         env_config+=("-e" "ASPNETCORE_ENVIRONMENT=Production")
     else
         # 其他服务使用 Development 环境
         env_config+=("-e" "ASPNETCORE_ENVIRONMENT=Development")
     fi
     
-    $CONTAINER_RUNTIME run -d \
-        --name "go-nomads-$service_name" \
-        --network "$NETWORK_NAME" \
-        -p "$app_port:8080" \
-        -p "$dapr_http_port:$dapr_http_port" \
-        "${env_config[@]}" \
-        -e ASPNETCORE_URLS="http://+:8080" \
-        -e DAPR_GRPC_PORT="50001" \
-        -e DAPR_HTTP_PORT="$dapr_http_port" \
-        -e Consul__Address="http://go-nomads-consul:7500" \
-        -e DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=true \
-        -e HTTP_PROXY= \
-        -e HTTPS_PROXY= \
-        -e NO_PROXY= \
-        "${extra_env[@]}" \
-        -v "${publish_dir}:/app:ro" \
-        -w /app \
-        mcr.microsoft.com/dotnet/aspnet:9.0 \
-        dotnet "$dll_name" > /dev/null
+    # Gateway 容器配置（不需要 Dapr）
+    if [[ "$service_name" == "gateway" ]]; then
+        $CONTAINER_RUNTIME run -d \
+            --name "go-nomads-$service_name" \
+            --network "$NETWORK_NAME" \
+            -p "$app_port:8080" \
+            "${env_config[@]}" \
+            -e ASPNETCORE_URLS="http://+:8080" \
+            -e Consul__Address="http://go-nomads-consul:7500" \
+            -e HTTP_PROXY= \
+            -e HTTPS_PROXY= \
+            -e NO_PROXY= \
+            "${extra_env[@]}" \
+            -v "${publish_dir}:/app:ro" \
+            -w /app \
+            mcr.microsoft.com/dotnet/aspnet:9.0 \
+            dotnet "$dll_name" > /dev/null
+    else
+        # 其他服务需要 Dapr 支持
+        $CONTAINER_RUNTIME run -d \
+            --name "go-nomads-$service_name" \
+            --network "$NETWORK_NAME" \
+            -p "$app_port:8080" \
+            -p "$dapr_http_port:$dapr_http_port" \
+            "${env_config[@]}" \
+            -e ASPNETCORE_URLS="http://+:8080" \
+            -e DAPR_GRPC_PORT="50001" \
+            -e DAPR_HTTP_PORT="$dapr_http_port" \
+            -e Consul__Address="http://go-nomads-consul:7500" \
+            -e DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=true \
+            -e HTTP_PROXY= \
+            -e HTTPS_PROXY= \
+            -e NO_PROXY= \
+            "${extra_env[@]}" \
+            -v "${publish_dir}:/app:ro" \
+            -w /app \
+            mcr.microsoft.com/dotnet/aspnet:9.0 \
+            dotnet "$dll_name" > /dev/null
+    fi
     
     if container_running "go-nomads-$service_name"; then
         echo -e "${GREEN}  应用容器启动成功!${NC}"
@@ -246,6 +264,15 @@ deploy_service_local() {
     fi
 
     sleep 2
+
+    # Gateway 不需要 Dapr sidecar（只使用 YARP 反向代理 + JWT 验证）
+    if [[ "$service_name" == "gateway" ]]; then
+        echo -e "${YELLOW}  跳过 Dapr sidecar (Gateway 不需要 Dapr)${NC}"
+        echo -e "${GREEN}  $service_name 部署成功!${NC}"
+        echo -e "${GREEN}  应用端口: http://localhost:$app_port${NC}"
+        sleep 2
+        return 0
+    fi
 
     # 启动 Dapr sidecar（共享应用容器的网络命名空间）
     # 使用 --network container:<app-container> 实现真正的 sidecar 模式

@@ -5,6 +5,37 @@ using CoworkingService.Domain.Entities;
 namespace CoworkingService.Application.DTOs;
 
 /// <summary>
+///     验证资格检查响应 DTO
+/// </summary>
+public class VerificationEligibilityResponse
+{
+    /// <summary>
+    ///     是否可以验证
+    /// </summary>
+    public bool CanVerify { get; set; }
+
+    /// <summary>
+    ///     不能验证的原因
+    /// </summary>
+    public string? Reason { get; set; }
+
+    /// <summary>
+    ///     原因代码: ALREADY_VERIFIED, IS_CREATOR, ALREADY_VOTED, SPACE_VERIFIED
+    /// </summary>
+    public string? ReasonCode { get; set; }
+
+    /// <summary>
+    ///     该 Coworking 空间是否已经是已验证状态
+    /// </summary>
+    public bool IsSpaceVerified { get; set; }
+
+    /// <summary>
+    ///     当前投票数
+    /// </summary>
+    public int CurrentVotes { get; set; }
+}
+
+/// <summary>
 ///     Coworking 空间响应 DTO
 /// </summary>
 public class CoworkingSpaceResponse
