@@ -38,6 +38,17 @@ public class HandleModeratorApplicationRequest
 }
 
 /// <summary>
+///     撤销版主请求 DTO
+/// </summary>
+public class RevokeModeratorRequest
+{
+    /// <summary>
+    ///     申请ID
+    /// </summary>
+    public Guid ApplicationId { get; set; }
+}
+
+/// <summary>
 ///     版主申请响应 DTO
 /// </summary>
 public class ModeratorApplicationResponse

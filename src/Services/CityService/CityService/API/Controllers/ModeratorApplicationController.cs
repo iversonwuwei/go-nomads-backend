@@ -274,4 +274,60 @@ public class ModeratorApplicationController : ControllerBase
             });
         }
     }
+
+    /// <summary>
+    ///     撤销版主资格（管理员使用）
+    /// </summary>
+    [HttpPost("revoke")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<object>>> RevokeModerator(
+        [FromBody] RevokeModeratorRequest request)
+    {
+        try
+        {
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+                return Unauthorized(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "用户未认证"
+                });
+
+            var adminId = Guid.Parse(userContext.UserId);
+            await _service.RevokeModeratorAsync(adminId, request.ApplicationId);
+
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "版主资格已撤销"
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "撤销版主资格失败");
+            return StatusCode(500, new ApiResponse<object>
+            {
+                Success = false,
+                Message = "撤销版主失败"
+            });
+        }
+    }
 }

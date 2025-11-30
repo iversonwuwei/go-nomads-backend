@@ -182,6 +182,47 @@ public class ModeratorApplicationService : IModeratorApplicationService
         return await _applicationRepo.GetStatisticsAsync();
     }
 
+    public async Task RevokeModeratorAsync(Guid adminId, Guid applicationId)
+    {
+        _logger.LogInformation("🔍 管理员 {AdminId} 撤销版主资格，申请ID: {ApplicationId}",
+            adminId, applicationId);
+
+        // 1. 获取申请记录
+        var application = await _applicationRepo.GetByIdAsync(applicationId);
+        if (application == null)
+        {
+            throw new KeyNotFoundException("申请记录不存在");
+        }
+
+        // 2. 检查申请状态必须是已批准
+        if (application.Status != "approved")
+        {
+            throw new InvalidOperationException($"只能撤销已批准的申请，当前状态: {application.Status}");
+        }
+
+        // 3. 删除版主记录
+        var isModerator = await _moderatorRepo.IsModeratorAsync(application.CityId, application.UserId);
+        if (isModerator)
+        {
+            await _moderatorRepo.RemoveAsync(application.CityId, application.UserId);
+            _logger.LogInformation("✅ 已删除用户 {UserId} 的版主记录", application.UserId);
+        }
+
+        // 4. 更新申请状态为已撤销
+        application.Status = "revoked";
+        application.ProcessedBy = adminId;
+        application.ProcessedAt = DateTime.UtcNow;
+        application.UpdatedAt = DateTime.UtcNow;
+        
+        await _applicationRepo.UpdateAsync(application);
+
+        // 5. 通知用户
+        await NotifyModeratorRevokedAsync(application);
+
+        _logger.LogInformation("✅ 版主资格已撤销: UserId={UserId}, CityId={CityId}", 
+            application.UserId, application.CityId);
+    }
+
     #region 私有方法
 
     /// <summary>
@@ -370,6 +411,45 @@ public class ModeratorApplicationService : IModeratorApplicationService
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ 发送拒绝通知失败");
+        }
+    }
+
+    /// <summary>
+    ///     通知用户：版主资格已被撤销
+    /// </summary>
+    private async Task NotifyModeratorRevokedAsync(ModeratorApplication application)
+    {
+        try
+        {
+            var city = await _cityRepo.GetByIdAsync(application.CityId);
+
+            var notification = new
+            {
+                UserId = application.UserId.ToString(),
+                Title = "版主资格已被撤销",
+                Message = $"您在 {city?.NameEn ?? "该城市"} 的版主资格已被管理员撤销",
+                Type = "moderator_revoked",
+                RelatedId = application.Id.ToString(),
+                Metadata = JsonSerializer.Serialize(new
+                {
+                    ApplicationId = application.Id,
+                    CityId = application.CityId,
+                    CityName = city?.NameEn ?? "Unknown City"
+                })
+            };
+
+            await _daprClient.InvokeMethodAsync(
+                HttpMethod.Post,
+                "message-service",
+                "api/v1/notifications",
+                notification
+            );
+
+            _logger.LogInformation("📬 已向用户 {UserId} 发送版主撤销通知", application.UserId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 发送版主撤销通知失败");
         }
     }
 

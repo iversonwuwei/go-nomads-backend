@@ -36,4 +36,9 @@ public interface IModeratorApplicationService
     ///     获取申请统计
     /// </summary>
     Task<(int Total, int Pending, int Approved, int Rejected)> GetStatisticsAsync();
+
+    /// <summary>
+    ///     撤销版主资格
+    /// </summary>
+    Task RevokeModeratorAsync(Guid adminId, Guid applicationId);
 }
