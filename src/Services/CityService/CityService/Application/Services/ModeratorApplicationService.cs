@@ -2,7 +2,6 @@ using CityService.Application.DTOs;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
 using Dapr.Client;
-using System.Text.Json;
 
 namespace CityService.Application.Services;
 
@@ -351,12 +350,12 @@ public class ModeratorApplicationService : IModeratorApplicationService
                 Message = $"恭喜！您已成为 {city?.NameEn ?? "该城市"} 的版主",
                 Type = "moderator_approved",
                 RelatedId = application.Id.ToString(),
-                Metadata = JsonSerializer.Serialize(new
+                Metadata = new Dictionary<string, object>
                 {
-                    ApplicationId = application.Id,
-                    CityId = application.CityId,
-                    CityName = city?.NameEn ?? "Unknown City"
-                })
+                    { "applicationId", application.Id.ToString() },
+                    { "cityId", application.CityId.ToString() },
+                    { "cityName", city?.NameEn ?? "Unknown City" }
+                }
             };
 
             await _daprClient.InvokeMethodAsync(
@@ -387,16 +386,16 @@ public class ModeratorApplicationService : IModeratorApplicationService
             {
                 UserId = application.UserId.ToString(),
                 Title = "版主申请未通过",
-                Message = $"很抱歉，您申请成为 {city?.NameEn ?? "该城市"} 版主的请求未通过",
+                Message = $"很抱歉，您申请成为 {city?.NameEn ?? "该城市"} 版主的请求未通过。原因：{reason}",
                 Type = "moderator_rejected",
                 RelatedId = application.Id.ToString(),
-                Metadata = JsonSerializer.Serialize(new
+                Metadata = new Dictionary<string, object>
                 {
-                    ApplicationId = application.Id,
-                    CityId = application.CityId,
-                    CityName = city?.NameEn ?? "Unknown City",
-                    RejectionReason = reason
-                })
+                    { "applicationId", application.Id.ToString() },
+                    { "cityId", application.CityId.ToString() },
+                    { "cityName", city?.NameEn ?? "Unknown City" },
+                    { "rejectionReason", reason }
+                }
             };
 
             await _daprClient.InvokeMethodAsync(
@@ -430,12 +429,12 @@ public class ModeratorApplicationService : IModeratorApplicationService
                 Message = $"您在 {city?.NameEn ?? "该城市"} 的版主资格已被管理员撤销",
                 Type = "moderator_revoked",
                 RelatedId = application.Id.ToString(),
-                Metadata = JsonSerializer.Serialize(new
+                Metadata = new Dictionary<string, object>
                 {
-                    ApplicationId = application.Id,
-                    CityId = application.CityId,
-                    CityName = city?.NameEn ?? "Unknown City"
-                })
+                    { "applicationId", application.Id.ToString() },
+                    { "cityId", application.CityId.ToString() },
+                    { "cityName", city?.NameEn ?? "Unknown City" }
+                }
             };
 
             await _daprClient.InvokeMethodAsync(

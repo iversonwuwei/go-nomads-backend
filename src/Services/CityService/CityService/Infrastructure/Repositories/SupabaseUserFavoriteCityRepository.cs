@@ -181,6 +181,25 @@ public class SupabaseUserFavoriteCityRepository : IUserFavoriteCityRepository
         }
     }
 
+    public async Task<int> GetUserFavoriteCitiesCountAsync(Guid userId)
+    {
+        try
+        {
+            var response = await _supabaseClient
+                .From<UserFavoriteCityModel>()
+                .Select("id")
+                .Filter("user_id", Constants.Operator.Equals, userId.ToString())
+                .Get();
+
+            return response.Models.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取用户收藏城市数量失败: UserId={UserId}", userId);
+            return 0;
+        }
+    }
+
     private static UserFavoriteCity MapToEntity(UserFavoriteCityModel model)
     {
         return new UserFavoriteCity

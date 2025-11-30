@@ -361,3 +361,54 @@ public class GenerateCityImagesResponse
     /// </summary>
     public string? ErrorMessage { get; set; }
 }
+
+/// <summary>
+///     旅行计划摘要（用于列表显示）
+/// </summary>
+public class AiTravelPlanSummary
+{
+    /// <summary>
+    ///     计划ID
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    ///     城市ID
+    /// </summary>
+    public string CityId { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     城市名称
+    /// </summary>
+    public string CityName { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     城市图片
+    /// </summary>
+    public string? CityImage { get; set; }
+
+    /// <summary>
+    ///     旅行天数
+    /// </summary>
+    public int Duration { get; set; }
+
+    /// <summary>
+    ///     预算级别
+    /// </summary>
+    public string BudgetLevel { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     旅行风格
+    /// </summary>
+    public string TravelStyle { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     状态
+    /// </summary>
+    public string Status { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     创建时间
+    /// </summary>
+    public DateTime CreatedAt { get; set; }
+}

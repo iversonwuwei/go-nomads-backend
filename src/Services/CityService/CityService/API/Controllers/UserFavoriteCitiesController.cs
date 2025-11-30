@@ -139,6 +139,32 @@ public class UserFavoriteCitiesController : ControllerBase
     }
 
     /// <summary>
+    ///     获取指定用户收藏的城市数量（供其他服务调用）
+    /// </summary>
+    /// <param name="userId">用户ID</param>
+    /// <returns>收藏城市数量</returns>
+    [HttpGet("user/{userId}/count")]
+    [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetUserFavoriteCitiesCount(string userId)
+    {
+        try
+        {
+            if (!Guid.TryParse(userId, out var userGuid))
+            {
+                return BadRequest(new { error = "无效的用户ID格式" });
+            }
+
+            var count = await _favoriteCityService.GetUserFavoriteCitiesCountAsync(userGuid);
+            return Ok(count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取用户收藏城市数量失败: UserId={UserId}", userId);
+            return StatusCode(500, new { error = "获取收藏数量失败" });
+        }
+    }
+
+    /// <summary>
     ///     获取用户收藏的城市列表（分页）
     /// </summary>
     /// <param name="page">页码（默认1）</param>

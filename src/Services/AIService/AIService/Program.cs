@@ -28,6 +28,7 @@ builder.Services.AddSupabase(builder.Configuration);
 // 注册仓储 (Infrastructure Layer)
 builder.Services.AddScoped<IAIConversationRepository, AIConversationRepository>();
 builder.Services.AddScoped<IAIMessageRepository, AIMessageRepository>();
+builder.Services.AddScoped<ITravelPlanRepository, TravelPlanRepository>();
 
 // 注册 gRPC 客户端 (通过 Dapr Service Invocation)
 builder.Services.AddScoped<IUserGrpcClient, UserGrpcClient>();

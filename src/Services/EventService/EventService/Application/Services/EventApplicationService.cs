@@ -329,6 +329,12 @@ public class EventApplicationService : IEventService
         return responses.ToList();
     }
 
+    public async Task<int> GetUserCreatedEventsCountAsync(Guid userId)
+    {
+        var events = await _eventRepository.GetByOrganizerIdAsync(userId);
+        return events.Count;
+    }
+
     public async Task<List<EventResponse>> GetUserJoinedEventsAsync(Guid userId)
     {
         var participants = await _participantRepository.GetByUserIdAsync(userId);

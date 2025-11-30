@@ -13,6 +13,7 @@ public interface IUserFavoriteCityService
     Task<bool> RemoveFavoriteCityAsync(Guid userId, string cityId);
     Task<List<string>> GetUserFavoriteCityIdsAsync(Guid userId);
     Task<(List<UserFavoriteCity> Items, int Total)> GetUserFavoriteCitiesAsync(Guid userId, int page, int pageSize);
+    Task<int> GetUserFavoriteCitiesCountAsync(Guid userId);
 }
 
 /// <summary>
@@ -68,5 +69,10 @@ public class UserFavoriteCityService : IUserFavoriteCityService
         if (pageSize < 1 || pageSize > 100) pageSize = 20;
 
         return await _repository.GetUserFavoriteCitiesAsync(userId, page, pageSize);
+    }
+
+    public async Task<int> GetUserFavoriteCitiesCountAsync(Guid userId)
+    {
+        return await _repository.GetUserFavoriteCitiesCountAsync(userId);
     }
 }

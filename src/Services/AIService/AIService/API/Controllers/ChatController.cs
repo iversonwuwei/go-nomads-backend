@@ -3,6 +3,8 @@ using System.Text.Json;
 using AIService.API.Models;
 using AIService.Application.DTOs;
 using AIService.Application.Services;
+using AIService.Domain.Entities;
+using AIService.Domain.Repositories;
 using AIService.Infrastructure.Cache;
 using Dapr.Client;
 using GoNomads.Shared.DTOs;
@@ -947,7 +949,8 @@ public class ChatController : ControllerBase
         [FromBody] GenerateTravelPlanRequest request,
         [FromServices] IPublishEndpoint publishEndpoint,
         [FromServices] IRedisCache cache,
-        [FromServices] IAIChatService chatService)
+        [FromServices] IAIChatService chatService,
+        [FromServices] ITravelPlanRepository travelPlanRepository)
     {
         try
         {
@@ -1027,6 +1030,37 @@ public class ChatController : ControllerBase
                     var planId = travelPlan.Id;
                     var planJson = JsonSerializer.Serialize(travelPlan);
                     await cache.SetStringAsync($"plan:{planId}", planJson, TimeSpan.FromHours(24));
+
+                    // 保存到数据库 (持久化存储)
+                    try
+                    {
+                        var dbPlan = new AiTravelPlan
+                        {
+                            Id = Guid.Parse(planId),
+                            UserId = userId,
+                            CityId = request.CityId,
+                            CityName = request.CityName,
+                            CityImage = request.CityImage,
+                            Duration = request.Duration,
+                            BudgetLevel = request.Budget,
+                            TravelStyle = request.TravelStyle,
+                            Interests = request.Interests?.ToArray(),
+                            DepartureLocation = request.DepartureLocation,
+                            DepartureDate = request.DepartureDate,
+                            PlanData = planJson,
+                            Status = "published",
+                            IsPublic = false,
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+
+                        await travelPlanRepository.SaveAsync(dbPlan);
+                        _logger.LogInformation("💾 旅行计划已保存到数据库: PlanId={PlanId}, UserId={UserId}", planId, userId);
+                    }
+                    catch (Exception dbEx)
+                    {
+                        _logger.LogWarning(dbEx, "⚠️ 保存旅行计划到数据库失败（不影响主流程）: PlanId={PlanId}", planId);
+                    }
 
                     // 更新任务状态
                     taskStatus.Status = "completed";
@@ -1203,6 +1237,147 @@ public class ChatController : ControllerBase
         {
             _logger.LogError(ex, "❌ 获取旅行计划失败: {PlanId}", planId);
             return StatusCode(500, new ApiResponse<TravelPlanResponse>
+            {
+                Success = false,
+                Message = $"获取失败: {ex.Message}"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     根据 ID 获取旅行计划详情（从数据库）
+    /// </summary>
+    /// <param name="planId">旅行计划ID</param>
+    /// <returns>旅行计划详情</returns>
+    [HttpGet("travel-plans/{planId:guid}/detail")]
+    public async Task<ActionResult<ApiResponse<TravelPlanResponse>>> GetTravelPlanDetailAsync(
+        Guid planId,
+        [FromServices] ITravelPlanRepository travelPlanRepository = null!)
+    {
+        try
+        {
+            var userId = GetUserId();
+            _logger.LogInformation("📥 获取旅行计划详情: PlanId={PlanId}, UserId={UserId}", planId, userId);
+
+            var plan = await travelPlanRepository.GetByIdAsync(planId);
+            if (plan == null)
+            {
+                return NotFound(new ApiResponse<TravelPlanResponse>
+                {
+                    Success = false,
+                    Message = "旅行计划不存在"
+                });
+            }
+
+            // 验证计划所有权（只有所有者或公开计划可以访问）
+            if (userId != Guid.Empty && plan.UserId != userId && !plan.IsPublic)
+            {
+                return StatusCode(403, new ApiResponse<TravelPlanResponse>
+                {
+                    Success = false,
+                    Message = "无权访问该旅行计划"
+                });
+            }
+
+            // 解析 PlanData 为 TravelPlanResponse
+            if (string.IsNullOrEmpty(plan.PlanData))
+            {
+                return StatusCode(500, new ApiResponse<TravelPlanResponse>
+                {
+                    Success = false,
+                    Message = "旅行计划数据为空"
+                });
+            }
+
+            var travelPlan = JsonSerializer.Deserialize<TravelPlanResponse>(
+                plan.PlanData,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (travelPlan == null)
+            {
+                return StatusCode(500, new ApiResponse<TravelPlanResponse>
+                {
+                    Success = false,
+                    Message = "旅行计划数据解析失败"
+                });
+            }
+
+            _logger.LogInformation("✅ 获取旅行计划详情成功: PlanId={PlanId}", planId);
+
+            return Ok(new ApiResponse<TravelPlanResponse>
+            {
+                Success = true,
+                Message = "获取成功",
+                Data = travelPlan
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取旅行计划详情失败: PlanId={PlanId}", planId);
+            return StatusCode(500, new ApiResponse<TravelPlanResponse>
+            {
+                Success = false,
+                Message = $"获取失败: {ex.Message}"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     获取当前用户的旅行计划列表
+    /// </summary>
+    /// <param name="page">页码，默认1</param>
+    /// <param name="pageSize">每页数量，默认20</param>
+    /// <returns>用户的旅行计划列表</returns>
+    [HttpGet("travel-plans")]
+    public async Task<ActionResult<ApiResponse<List<AiTravelPlanSummary>>>> GetUserTravelPlansAsync(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromServices] ITravelPlanRepository travelPlanRepository = null!)
+    {
+        try
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+            {
+                return Unauthorized(new ApiResponse<List<AiTravelPlanSummary>>
+                {
+                    Success = false,
+                    Message = "用户未认证"
+                });
+            }
+
+            _logger.LogInformation("📥 获取用户旅行计划列表: UserId={UserId}, Page={Page}, PageSize={PageSize}",
+                userId, page, pageSize);
+
+            var plans = await travelPlanRepository.GetByUserIdAsync(userId, page, pageSize);
+
+            // 转换为摘要DTO（不包含完整的 PlanData）
+            var summaries = plans.Select(p => new AiTravelPlanSummary
+            {
+                Id = p.Id,
+                CityId = p.CityId,
+                CityName = p.CityName,
+                CityImage = p.CityImage,
+                Duration = p.Duration,
+                BudgetLevel = p.BudgetLevel,
+                TravelStyle = p.TravelStyle,
+                Status = p.Status,
+                CreatedAt = p.CreatedAt
+            }).ToList();
+
+            _logger.LogInformation("✅ 获取到 {Count} 个旅行计划", summaries.Count);
+
+            return Ok(new ApiResponse<List<AiTravelPlanSummary>>
+            {
+                Success = true,
+                Message = $"获取成功，共 {summaries.Count} 个旅行计划",
+                Data = summaries
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取用户旅行计划列表失败");
+            return StatusCode(500, new ApiResponse<List<AiTravelPlanSummary>>
             {
                 Success = false,
                 Message = $"获取失败: {ex.Message}"

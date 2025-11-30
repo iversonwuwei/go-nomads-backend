@@ -74,6 +74,11 @@ public interface IEventService
     Task<List<EventResponse>> GetUserCreatedEventsAsync(Guid userId);
 
     /// <summary>
+    ///     获取用户创建的 Event 数量
+    /// </summary>
+    Task<int> GetUserCreatedEventsCountAsync(Guid userId);
+
+    /// <summary>
     ///     获取用户参加的 Event
     /// </summary>
     Task<List<EventResponse>> GetUserJoinedEventsAsync(Guid userId);

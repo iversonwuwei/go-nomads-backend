@@ -21,6 +21,7 @@ builder.Services.AddSingleton<JwtTokenService>();
 // Register Domain Repositories (Infrastructure Layer)
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
+builder.Services.AddScoped<IUserStatsRepository, UserStatsRepository>();
 
 // Register Application Services
 builder.Services.AddScoped<IUserService, UserApplicationService>();

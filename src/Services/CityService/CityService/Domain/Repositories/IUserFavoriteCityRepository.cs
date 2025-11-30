@@ -39,4 +39,9 @@ public interface IUserFavoriteCityRepository
     ///     获取城市被收藏的次数
     /// </summary>
     Task<int> GetCityFavoriteCountAsync(string cityId);
+
+    /// <summary>
+    ///     获取用户收藏的城市数量
+    /// </summary>
+    Task<int> GetUserFavoriteCitiesCountAsync(Guid userId);
 }
