@@ -27,6 +27,12 @@ public class CityDto : BaseDtoWithUserContext
     public string Name { get; set; } = string.Empty;
     public string? NameEn { get; set; }
     public string Country { get; set; } = string.Empty;
+    
+    /// <summary>
+    ///     国家ID
+    /// </summary>
+    public Guid? CountryId { get; set; }
+    
     public string? Region { get; set; }
     public string? Description { get; set; }
     public double? Latitude { get; set; }

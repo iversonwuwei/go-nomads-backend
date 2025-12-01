@@ -519,6 +519,7 @@ public class CityApplicationService : ICityService
             Name = city.Name,
             NameEn = city.NameEn,
             Country = city.Country,
+            CountryId = city.CountryId,
             Region = city.Region,
             Description = city.Description,
             Latitude = city.Latitude,
