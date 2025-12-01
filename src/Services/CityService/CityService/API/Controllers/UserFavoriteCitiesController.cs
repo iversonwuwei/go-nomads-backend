@@ -1,3 +1,4 @@
+using CityService.Application.DTOs;
 using CityService.Application.Services;
 using CityService.DTOs;
 using GoNomads.Shared.Middleware;
@@ -12,14 +13,17 @@ namespace CityService.API.Controllers;
 [Route("api/v1/user-favorite-cities")]
 public class UserFavoriteCitiesController : ControllerBase
 {
+    private readonly ICityService _cityService;
     private readonly IUserFavoriteCityService _favoriteCityService;
     private readonly ILogger<UserFavoriteCitiesController> _logger;
 
     public UserFavoriteCitiesController(
         IUserFavoriteCityService favoriteCityService,
+        ICityService cityService,
         ILogger<UserFavoriteCitiesController> logger)
     {
         _favoriteCityService = favoriteCityService;
+        _cityService = cityService;
         _logger = logger;
     }
 
@@ -203,6 +207,70 @@ public class UserFavoriteCitiesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "获取收藏城市列表失败");
+            return StatusCode(500, new { error = "获取收藏列表失败" });
+        }
+    }
+
+    /// <summary>
+    ///     获取用户收藏的城市详情列表（包含完整城市信息）
+    /// </summary>
+    /// <param name="page">页码（默认1）</param>
+    /// <param name="pageSize">每页数量（默认20，最大100）</param>
+    /// <returns>收藏城市详情列表</returns>
+    [HttpGet("details")]
+    [ProducesResponseType(typeof(FavoriteCitiesDetailResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetUserFavoriteCitiesWithDetails(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            
+            // 获取收藏记录
+            var (items, total) = await _favoriteCityService.GetUserFavoriteCitiesAsync(userId, page, pageSize);
+            
+            if (items.Count == 0)
+            {
+                return Ok(new FavoriteCitiesDetailResponse
+                {
+                    Items = new List<CityDto>(),
+                    Total = 0,
+                    Page = page,
+                    PageSize = pageSize
+                });
+            }
+            
+            // 获取城市详情
+            var cityIds = items
+                .Select(x => Guid.TryParse(x.CityId, out var id) ? id : (Guid?)null)
+                .Where(x => x.HasValue)
+                .Select(x => x!.Value)
+                .ToList();
+                
+            var cities = await _cityService.GetCitiesByIdsAsync(cityIds);
+            
+            // 按收藏顺序排序
+            var cityDict = cities.ToDictionary(c => c.Id);
+            var orderedCities = items
+                .Select(item => Guid.TryParse(item.CityId, out var id) && cityDict.TryGetValue(id, out var city) ? city : null)
+                .Where(c => c != null)
+                .Cast<CityDto>()
+                .ToList();
+
+            var response = new FavoriteCitiesDetailResponse
+            {
+                Items = orderedCities,
+                Total = total,
+                Page = page,
+                PageSize = pageSize
+            };
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取收藏城市详情列表失败");
             return StatusCode(500, new { error = "获取收藏列表失败" });
         }
     }

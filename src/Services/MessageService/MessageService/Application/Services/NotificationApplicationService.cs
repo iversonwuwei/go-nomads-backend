@@ -13,13 +13,16 @@ public class NotificationApplicationService : INotificationService
 {
     private readonly ILogger<NotificationApplicationService> _logger;
     private readonly INotificationRepository _repository;
+    private readonly ISignalRNotifier? _signalRNotifier;
 
     public NotificationApplicationService(
         INotificationRepository repository,
-        ILogger<NotificationApplicationService> logger)
+        ILogger<NotificationApplicationService> logger,
+        ISignalRNotifier? signalRNotifier = null)
     {
         _repository = repository;
         _logger = logger;
+        _signalRNotifier = signalRNotifier;
     }
 
     public async Task<(List<NotificationDto> Notifications, int TotalCount)> GetUserNotificationsAsync(
@@ -58,6 +61,34 @@ public class NotificationApplicationService : INotificationService
 
         var created = await _repository.CreateAsync(notification, cancellationToken);
 
+        // 通过 SignalR 实时推送通知
+        if (_signalRNotifier != null)
+        {
+            try
+            {
+                var message = new NotificationMessage
+                {
+                    UserId = created.UserId,
+                    Type = created.Type,
+                    Title = created.Title,
+                    Content = created.Message,
+                    Data = new Dictionary<string, object>
+                    {
+                        { "notificationId", created.Id.ToString() },
+                        { "relatedId", created.RelatedId ?? "" },
+                        { "isRead", created.IsRead }
+                    },
+                    CreatedAt = created.CreatedAt
+                };
+                await _signalRNotifier.SendNotificationAsync(created.UserId, message);
+                _logger.LogInformation("📡 SignalR 推送通知给用户: {UserId}", created.UserId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ SignalR 推送通知失败: {UserId}", created.UserId);
+            }
+        }
+
         return MapToDto(created);
     }
 
@@ -93,6 +124,36 @@ public class NotificationApplicationService : INotificationService
 
         _logger.LogInformation("✅ 批量创建通知成功: {Count} 条", created.Count);
 
+        // 通过 SignalR 实时推送通知给每个用户
+        if (_signalRNotifier != null)
+        {
+            foreach (var notification in created)
+            {
+                try
+                {
+                    var message = new NotificationMessage
+                    {
+                        UserId = notification.UserId,
+                        Type = notification.Type,
+                        Title = notification.Title,
+                        Content = notification.Message,
+                        Data = new Dictionary<string, object>
+                        {
+                            { "notificationId", notification.Id.ToString() },
+                            { "relatedId", notification.RelatedId ?? "" },
+                            { "isRead", notification.IsRead }
+                        },
+                        CreatedAt = notification.CreatedAt
+                    };
+                    await _signalRNotifier.SendNotificationAsync(notification.UserId, message);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ SignalR 推送通知失败: {UserId}", notification.UserId);
+                }
+            }
+        }
+
         return new BatchNotificationResponse
         {
             CreatedCount = created.Count,
@@ -127,6 +188,38 @@ public class NotificationApplicationService : INotificationService
         var created = await _repository.CreateBatchAsync(notifications, cancellationToken);
 
         _logger.LogInformation("✅ 发送通知给 {Count} 位管理员", created.Count);
+
+        // 通过 SignalR 实时推送通知给每个管理员
+        if (_signalRNotifier != null)
+        {
+            foreach (var notification in created)
+            {
+                try
+                {
+                    var message = new NotificationMessage
+                    {
+                        UserId = notification.UserId,
+                        Type = notification.Type,
+                        Title = notification.Title,
+                        Content = notification.Message,
+                        Data = new Dictionary<string, object>
+                        {
+                            { "notificationId", notification.Id.ToString() },
+                            { "relatedId", notification.RelatedId ?? "" },
+                            { "isRead", notification.IsRead }
+                        },
+                        CreatedAt = notification.CreatedAt
+                    };
+                    await _signalRNotifier.SendNotificationAsync(notification.UserId, message);
+                    _logger.LogInformation("📡 SignalR 推送通知给管理员: {UserId}", notification.UserId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ SignalR 推送通知失败: {UserId}", notification.UserId);
+                    // 不抛出异常，通知已保存到数据库
+                }
+            }
+        }
 
         return created.Select(MapToDto).ToList();
     }

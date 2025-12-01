@@ -1,3 +1,5 @@
+using CityService.Application.DTOs;
+
 namespace CityService.DTOs;
 
 /// <summary>
@@ -34,6 +36,17 @@ public class CheckFavoriteStatusResponse
 public class FavoriteCitiesResponse
 {
     public List<UserFavoriteCityDto> Items { get; set; } = new();
+    public int Total { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+}
+
+/// <summary>
+///     收藏城市详情列表响应DTO（包含完整城市信息）
+/// </summary>
+public class FavoriteCitiesDetailResponse
+{
+    public List<CityDto> Items { get; set; } = new();
     public int Total { get; set; }
     public int Page { get; set; }
     public int PageSize { get; set; }
