@@ -1302,6 +1302,10 @@ public class ChatController : ControllerBase
                 });
             }
 
+            // 补充数据库中存储的出发地和出发日期信息
+            travelPlan.DepartureLocation = plan.DepartureLocation;
+            travelPlan.DepartureDate = plan.DepartureDate;
+
             _logger.LogInformation("✅ 获取旅行计划详情成功: PlanId={PlanId}", planId);
 
             return Ok(new ApiResponse<TravelPlanResponse>

@@ -110,6 +110,8 @@ public class TravelPlanResponse
     public string Budget { get; set; } = string.Empty;
     public string TravelStyle { get; set; } = string.Empty;
     public List<string> Interests { get; set; } = new();
+    public string? DepartureLocation { get; set; } // 出发地
+    public DateTime? DepartureDate { get; set; } // 出发日期
     public TransportationPlanDto Transportation { get; set; } = new();
     public AccommodationPlanDto Accommodation { get; set; } = new();
     public List<DailyItineraryDto> DailyItineraries { get; set; } = new();
