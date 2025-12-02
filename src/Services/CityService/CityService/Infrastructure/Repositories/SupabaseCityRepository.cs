@@ -180,12 +180,13 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         try
         {
             Logger.LogInformation(
-                "🔄 [SupabaseCityRepository] 开始更新城市: Id={Id}, ImageUrl={ImageUrl}, PortraitImageUrl={PortraitImageUrl}, LandscapeCount={LandscapeCount}", 
-                id, city.ImageUrl, city.PortraitImageUrl, city.LandscapeImageUrls?.Count ?? 0);
-            
+                "🔄 [SupabaseCityRepository] 开始更新城市: Id={Id}, Lat={Lat}, Lng={Lng}, ImageUrl={ImageUrl}, PortraitImageUrl={PortraitImageUrl}, LandscapeCount={LandscapeCount}",
+                id, city.Latitude, city.Longitude, city.ImageUrl, city.PortraitImageUrl, city.LandscapeImageUrls?.Count ?? 0);
+
             // 创建一个用于更新的简化对象，避免 Reference 属性导致的外键关系问题
             var updatePayload = new CityUpdatePayload
             {
+                Id = id,
                 Name = city.Name,
                 NameEn = city.NameEn,
                 Country = city.Country,
@@ -223,8 +224,8 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
             if (updatedCity != null)
             {
                 Logger.LogInformation(
-                    "✅ [SupabaseCityRepository] 城市更新成功: Id={Id}, 返回的ImageUrl={ImageUrl}, PortraitImageUrl={PortraitImageUrl}", 
-                    updatedCity.Id, updatedCity.ImageUrl, updatedCity.PortraitImageUrl);
+                    "✅ [SupabaseCityRepository] 城市更新成功: Id={Id}, Lat={Lat}, Lng={Lng}, ImageUrl={ImageUrl}, PortraitImageUrl={PortraitImageUrl}",
+                    updatedCity.Id, updatedCity.Latitude, updatedCity.Longitude, updatedCity.ImageUrl, updatedCity.PortraitImageUrl);
             }
             else
             {
@@ -318,6 +319,69 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         }
     }
 
+    /// <summary>
+    /// 直接使用 HttpClient 更新城市经纬度，绕过 Postgrest ORM
+    /// </summary>
+    public async Task<bool> UpdateCoordinatesDirectAsync(Guid cityId, double latitude, double longitude)
+    {
+        try
+        {
+            var supabaseUrl = _configuration["Supabase:Url"];
+            var supabaseKey = _configuration["Supabase:Key"];
+
+            if (string.IsNullOrEmpty(supabaseUrl) || string.IsNullOrEmpty(supabaseKey))
+            {
+                Logger.LogError("❌ [UpdateCoordinatesDirectAsync] Supabase URL 或 Key 未配置");
+                return false;
+            }
+
+            Logger.LogInformation(
+                "🔄 [UpdateCoordinatesDirectAsync] 开始更新经纬度: CityId={CityId}, Lat={Lat}, Lng={Lng}",
+                cityId, latitude, longitude);
+
+            using var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.Add("apikey", supabaseKey);
+            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseKey}");
+            httpClient.DefaultRequestHeaders.Add("Prefer", "return=representation");
+
+            var updateData = new Dictionary<string, object?>
+            {
+                ["latitude"] = latitude,
+                ["longitude"] = longitude,
+                ["updated_at"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.ffffffZ")
+            };
+
+            var jsonContent = System.Text.Json.JsonSerializer.Serialize(updateData);
+            Logger.LogInformation("📝 [UpdateCoordinatesDirectAsync] 更新数据: {JsonContent}", jsonContent);
+
+            var content = new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");
+
+            var requestUrl = $"{supabaseUrl}/rest/v1/cities?id=eq.{cityId}";
+            Logger.LogInformation("🌐 [UpdateCoordinatesDirectAsync] 请求 URL: {Url}", requestUrl);
+
+            var response = await httpClient.PatchAsync(requestUrl, content);
+            var responseContent = await response.Content.ReadAsStringAsync();
+
+            if (response.IsSuccessStatusCode)
+            {
+                Logger.LogInformation("✅ [UpdateCoordinatesDirectAsync] 更新成功: CityId={CityId}, StatusCode={StatusCode}",
+                    cityId, response.StatusCode);
+                return true;
+            }
+            else
+            {
+                Logger.LogError("❌ [UpdateCoordinatesDirectAsync] 更新失败: CityId={CityId}, StatusCode={StatusCode}, Response={Response}",
+                    cityId, response.StatusCode, responseContent);
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ [UpdateCoordinatesDirectAsync] 异常: CityId={CityId}, Error={Error}", cityId, ex.Message);
+            return false;
+        }
+    }
+
     public async Task<bool> DeleteAsync(Guid id)
     {
         try
@@ -364,6 +428,18 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
             .Filter("country", Constants.Operator.ILike, $"%{countryName}%")
+            .Order(x => x.Name, Constants.Ordering.Ascending)
+            .Get();
+
+        return response.Models;
+    }
+
+    public async Task<IEnumerable<City>> GetByCountryIdAsync(Guid countryId)
+    {
+        var response = await SupabaseClient
+            .From<City>()
+            .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("country_id", Constants.Operator.Equals, countryId.ToString())
             .Order(x => x.Name, Constants.Ordering.Ascending)
             .Get();
 

@@ -293,10 +293,8 @@ public class CityApplicationService : ICityService
     {
         try
         {
-            var country = await _countryRepository.GetCountryByIdAsync(countryId);
-            if (country == null) return Enumerable.Empty<CitySummaryDto>();
-
-            var cities = await _cityRepository.GetByCountryAsync(country.Name);
+            // 直接使用 country_id 查询，只需一次数据库查询，性能更好
+            var cities = await _cityRepository.GetByCountryIdAsync(countryId);
 
             return cities.Select(city => new CitySummaryDto
             {
@@ -394,6 +392,40 @@ public class CityApplicationService : ICityService
                     cityWeather.Forecast = await _weatherService.GetDailyForecastByCityNameAsync(
                         cityName,
                         normalizedDays);
+            }
+
+            // 如果城市没有经纬度但天气API返回了经纬度，则更新城市的经纬度
+            if (!city.Latitude.HasValue && !city.Longitude.HasValue &&
+                cityWeather?.Latitude.HasValue == true && cityWeather?.Longitude.HasValue == true)
+            {
+                try
+                {
+                    // 使用直接 HTTP API 更新，绕过 ORM
+                    var success = await _cityRepository.UpdateCoordinatesDirectAsync(
+                        city.Id,
+                        cityWeather.Latitude.Value,
+                        cityWeather.Longitude.Value);
+
+                    if (success)
+                    {
+                        _logger.LogInformation(
+                            "已从天气API更新城市经纬度: CityId={CityId}, CityName={CityName}, Lat={Latitude}, Lng={Longitude}",
+                            city.Id, city.Name, cityWeather.Latitude.Value, cityWeather.Longitude.Value);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "更新城市经纬度返回失败: CityId={CityId}, CityName={CityName}",
+                            city.Id, city.Name);
+                    }
+                }
+                catch (Exception updateEx)
+                {
+                    // 更新经纬度失败不影响返回天气数据
+                    _logger.LogWarning(updateEx,
+                        "更新城市经纬度失败: CityId={CityId}, CityName={CityName}",
+                        city.Id, city.Name);
+                }
             }
 
             return cityWeather;
@@ -783,6 +815,9 @@ public class CityApplicationService : ICityService
 
                 var weatherByName = await _weatherService.GetWeatherForCitiesAsync(cityNames);
 
+                // 收集需要更新经纬度的城市
+                var citiesToUpdate = new List<(Guid Id, double Lat, double Lng, string Name)>();
+
                 for (int i = 0; i < citiesWithoutCoords.Count; i++)
                 {
                     var city = citiesWithoutCoords[i];
@@ -791,7 +826,48 @@ public class CityApplicationService : ICityService
                     if (weatherByName.TryGetValue(cityName, out var weather))
                     {
                         city.Weather = weather;
+
+                        // 如果天气API返回了经纬度，收集起来批量更新
+                        if (weather?.Latitude.HasValue == true && weather?.Longitude.HasValue == true)
+                        {
+                            citiesToUpdate.Add((city.Id, weather.Latitude.Value, weather.Longitude.Value, city.Name));
+                            // 同时更新 DTO 以便前端立即可用
+                            city.Latitude = weather.Latitude.Value;
+                            city.Longitude = weather.Longitude.Value;
+                        }
                     }
+                }
+
+                // 批量更新城市经纬度到数据库（异步执行，不阻塞返回）
+                if (citiesToUpdate.Count > 0)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        foreach (var (cityId, lat, lng, name) in citiesToUpdate)
+                        {
+                            try
+                            {
+                                // 使用直接 HTTP API 更新，绕过 ORM
+                                var success = await _cityRepository.UpdateCoordinatesDirectAsync(cityId, lat, lng);
+                                if (success)
+                                {
+                                    _logger.LogInformation(
+                                        "已从天气API更新城市经纬度: CityId={CityId}, CityName={CityName}, Lat={Latitude}, Lng={Longitude}",
+                                        cityId, name, lat, lng);
+                                }
+                                else
+                                {
+                                    _logger.LogWarning(
+                                        "更新城市经纬度返回失败: CityId={CityId}, CityName={CityName}",
+                                        cityId, name);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "更新城市经纬度失败: CityId={CityId}, CityName={CityName}", cityId, name);
+                            }
+                        }
+                    });
                 }
             }
 
