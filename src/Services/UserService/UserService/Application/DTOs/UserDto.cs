@@ -7,6 +7,7 @@ public class UserDto
     public string Email { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string? AvatarUrl { get; set; } // 用户头像URL
+    public string? Bio { get; set; } // 个人简介
     public string Role { get; set; } = "user"; // 用户角色: user, admin, etc.
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

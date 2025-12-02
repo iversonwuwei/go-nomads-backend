@@ -175,9 +175,11 @@ public class UserApplicationService : IUserService
 
     public async Task<UserDto> UpdateUserAsync(
         string id,
-        string name,
-        string email,
-        string phone,
+        string? name = null,
+        string? email = null,
+        string? phone = null,
+        string? avatarUrl = null,
+        string? bio = null,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("📝 更新用户: {UserId}", id);
@@ -186,16 +188,16 @@ public class UserApplicationService : IUserService
         var user = await _userRepository.GetByIdAsync(id, cancellationToken);
         if (user == null) throw new KeyNotFoundException($"用户不存在: {id}");
 
-        // 检查邮箱是否被其他用户使用
-        if (user.Email != email)
+        // 如果要更新邮箱，检查是否被其他用户使用
+        if (email != null && user.Email != email)
         {
             var existingUser = await _userRepository.GetByEmailAsync(email, cancellationToken);
             if (existingUser != null && existingUser.Id != id)
                 throw new InvalidOperationException($"邮箱 '{email}' 已被其他用户使用");
         }
 
-        // 使用领域方法更新
-        user.Update(name, email, phone);
+        // 使用领域方法进行部分更新（只更新非null字段）
+        user.PartialUpdate(name, email, phone, avatarUrl, bio);
 
         // 持久化
         var updatedUser = await _userRepository.UpdateAsync(user, cancellationToken);
@@ -399,6 +401,8 @@ public class UserApplicationService : IUserService
             Name = user.Name,
             Email = user.Email,
             Phone = user.Phone,
+            AvatarUrl = user.AvatarUrl,
+            Bio = user.Bio,
             Role = roleName,
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdatedAt

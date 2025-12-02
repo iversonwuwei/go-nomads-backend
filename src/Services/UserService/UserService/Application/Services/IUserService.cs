@@ -57,13 +57,15 @@ public interface IUserService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     更新用户信息
+    ///     更新用户信息（支持部分更新，只更新非null字段）
     /// </summary>
     Task<UserDto> UpdateUserAsync(
         string id,
-        string name,
-        string email,
-        string phone,
+        string? name = null,
+        string? email = null,
+        string? phone = null,
+        string? avatarUrl = null,
+        string? bio = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

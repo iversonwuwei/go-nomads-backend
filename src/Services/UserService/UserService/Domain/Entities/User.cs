@@ -37,6 +37,10 @@ public class User : BaseModel
 
     [Phone] [Column("phone")] public string Phone { get; set; } = string.Empty;
 
+    [Column("avatar")] public string? AvatarUrl { get; set; }
+
+    [Column("bio")] public string? Bio { get; set; }
+
     [Column("password_hash")] public string PasswordHash { get; set; } = string.Empty;
 
     [Column("role_id")] public string RoleId { get; set; } = string.Empty;
@@ -111,9 +115,9 @@ public class User : BaseModel
     #region 领域方法
 
     /// <summary>
-    ///     更新用户信息
+    ///     更新用户信息（完整更新，所有字段必填）
     /// </summary>
-    public void Update(string name, string email, string phone)
+    public void Update(string name, string email, string phone, string? avatarUrl = null, string? bio = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("用户名不能为空", nameof(name));
@@ -127,6 +131,55 @@ public class User : BaseModel
         Name = name;
         Email = email;
         Phone = phone ?? string.Empty;
+        if (avatarUrl != null)
+            AvatarUrl = avatarUrl;
+        if (bio != null)
+            Bio = bio;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    ///     部分更新用户信息（只更新非null字段）
+    /// </summary>
+    public void PartialUpdate(string? name = null, string? email = null, string? phone = null, string? avatarUrl = null, string? bio = null)
+    {
+        if (name != null)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ArgumentException("用户名不能为空", nameof(name));
+            Name = name;
+        }
+
+        if (email != null)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                throw new ArgumentException("邮箱不能为空", nameof(email));
+            if (!IsValidEmail(email))
+                throw new ArgumentException("邮箱格式不正确", nameof(email));
+            Email = email;
+        }
+
+        if (phone != null)
+            Phone = phone;
+
+        if (avatarUrl != null)
+            AvatarUrl = avatarUrl;
+
+        if (bio != null)
+            Bio = bio;
+
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    ///     更新头像
+    /// </summary>
+    public void UpdateAvatar(string avatarUrl)
+    {
+        if (string.IsNullOrWhiteSpace(avatarUrl))
+            throw new ArgumentException("头像URL不能为空", nameof(avatarUrl));
+
+        AvatarUrl = avatarUrl;
         UpdatedAt = DateTime.UtcNow;
     }
 

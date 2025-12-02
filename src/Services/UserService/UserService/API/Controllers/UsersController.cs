@@ -433,6 +433,8 @@ public class UsersController : ControllerBase
                 request.Name,
                 request.Email,
                 request.Phone,
+                request.AvatarUrl,
+                request.Bio,
                 cancellationToken);
 
             return Ok(new ApiResponse<UserDto>
@@ -506,6 +508,8 @@ public class UsersController : ControllerBase
                 request.Name,
                 request.Email,
                 request.Phone,
+                request.AvatarUrl,
+                request.Bio,
                 cancellationToken);
 
             return Ok(new ApiResponse<UserDto>
@@ -906,13 +910,31 @@ public class CreateUserRequest
 /// </summary>
 public class UpdateUserRequest
 {
-    [Required(ErrorMessage = "姓名不能为空")] public string Name { get; set; } = string.Empty;
+    /// <summary>
+    ///     用户姓名（可选，不传则不更新）
+    /// </summary>
+    public string? Name { get; set; }
 
-    [Required(ErrorMessage = "邮箱不能为空")]
+    /// <summary>
+    ///     用户邮箱（可选，不传则不更新）
+    /// </summary>
     [EmailAddress(ErrorMessage = "邮箱格式不正确")]
-    public string Email { get; set; } = string.Empty;
+    public string? Email { get; set; }
 
-    [Required(ErrorMessage = "手机号不能为空")] public string Phone { get; set; } = string.Empty;
+    /// <summary>
+    ///     手机号（可选，不传则不更新）
+    /// </summary>
+    public string? Phone { get; set; }
+
+    /// <summary>
+    ///     头像 URL（可选）
+    /// </summary>
+    public string? AvatarUrl { get; set; }
+
+    /// <summary>
+    ///     个人简介（可选）
+    /// </summary>
+    public string? Bio { get; set; }
 }
 
 /// <summary>
