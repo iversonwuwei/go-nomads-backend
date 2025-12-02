@@ -35,7 +35,7 @@ public class User : BaseModel
     [Column("email")]
     public string Email { get; set; } = string.Empty;
 
-    [Phone] [Column("phone")] public string Phone { get; set; } = string.Empty;
+    [Phone] [Column("phone")] public string? Phone { get; set; }
 
     [Column("avatar")] public string? AvatarUrl { get; set; }
 
@@ -87,7 +87,7 @@ public class User : BaseModel
             Id = Guid.NewGuid().ToString(),
             Name = name,
             Email = email,
-            Phone = phone ?? string.Empty,
+            Phone = string.IsNullOrWhiteSpace(phone) ? null : phone,
             RoleId = roleId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -130,7 +130,7 @@ public class User : BaseModel
 
         Name = name;
         Email = email;
-        Phone = phone ?? string.Empty;
+        Phone = string.IsNullOrWhiteSpace(phone) ? null : phone;
         if (avatarUrl != null)
             AvatarUrl = avatarUrl;
         if (bio != null)
@@ -160,7 +160,7 @@ public class User : BaseModel
         }
 
         if (phone != null)
-            Phone = phone;
+            Phone = string.IsNullOrWhiteSpace(phone) ? null : phone;
 
         if (avatarUrl != null)
             AvatarUrl = avatarUrl;

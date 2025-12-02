@@ -74,10 +74,15 @@ public class AuthApplicationService : IAuthService
         {
             throw;
         }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("⚠️ 注册参数错误: {Message}", ex.Message);
+            throw new InvalidOperationException(ex.Message);
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ 用户注册失败: {Email}", request.Email);
-            throw new Exception("注册失败,请稍后重试");
+            _logger.LogError(ex, "❌ 用户注册失败: {Email}, 错误: {Error}", request.Email, ex.Message);
+            throw new Exception($"注册失败: {ex.Message}");
         }
     }
 
