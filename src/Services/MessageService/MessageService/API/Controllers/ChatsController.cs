@@ -114,10 +114,31 @@ public class ChatsController : ControllerBase
                 return BadRequest(new { error = "无效的 MeetupId" });
             }
 
+            // 优先从 UserContext 获取组织者信息（Gateway 传递）
+            var organizerId = GetCurrentUserId();
+            var organizerName = GetCurrentUserEmail() ?? request.OrganizerName;
+            var organizerAvatar = request.OrganizerAvatar;
+            
+            // 如果 UserContext 中没有用户信息，尝试从请求体获取
+            if (string.IsNullOrEmpty(organizerId) && !string.IsNullOrEmpty(request.OrganizerId))
+            {
+                organizerId = request.OrganizerId;
+            }
+            if (!string.IsNullOrEmpty(request.OrganizerName))
+            {
+                organizerName = request.OrganizerName;
+            }
+            
+            _logger.LogInformation("GetOrCreateMeetupRoom: MeetupId={MeetupId}, OrganizerId={OrganizerId}", 
+                request.MeetupId, organizerId);
+
             var room = await _chatService.GetOrCreateMeetupRoomAsync(
                 meetupGuid, 
                 request.MeetupTitle, 
-                request.MeetupType);
+                request.MeetupType,
+                organizerId,
+                organizerName,
+                organizerAvatar);
 
             return Ok(room);
         }
@@ -290,9 +311,21 @@ public class ChatsController : ControllerBase
     {
         try
         {
+            // 处理 meetup_ 格式的 roomId，获取实际的数据库 roomId
+            var actualRoomId = roomId;
+            if (roomId.StartsWith("meetup_"))
+            {
+                var meetupIdStr = roomId.Substring(7);
+                if (Guid.TryParse(meetupIdStr, out var meetupId))
+                {
+                    var meetupRoom = await _chatService.GetOrCreateMeetupRoomAsync(meetupId, "Meetup Chat", null);
+                    actualRoomId = meetupRoom.Id;
+                }
+            }
+
             var savedMessage = await _chatService.SaveMessageAsync(new SaveMessageDto
             {
-                RoomId = roomId,
+                RoomId = actualRoomId,
                 UserId = request.UserId,
                 UserName = request.UserName,
                 UserAvatar = request.UserAvatar,
@@ -428,6 +461,9 @@ public class CreateMeetupRoomRequest
     public string MeetupId { get; set; } = string.Empty;
     public string MeetupTitle { get; set; } = string.Empty;
     public string? MeetupType { get; set; }
+    public string? OrganizerId { get; set; }
+    public string? OrganizerName { get; set; }
+    public string? OrganizerAvatar { get; set; }
 }
 
 public class JoinRoomRequest

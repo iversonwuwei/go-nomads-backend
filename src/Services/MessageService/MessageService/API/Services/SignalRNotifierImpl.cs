@@ -11,16 +11,19 @@ namespace MessageService.API.Services;
 public class SignalRNotifierImpl : ISignalRNotifier
 {
     private readonly IHubContext<AIProgressHub> _aiProgressHub;
+    private readonly IHubContext<ChatHub> _chatHub;
     private readonly ILogger<SignalRNotifierImpl> _logger;
     private readonly IHubContext<NotificationHub> _notificationHub;
 
     public SignalRNotifierImpl(
         IHubContext<AIProgressHub> aiProgressHub,
         IHubContext<NotificationHub> notificationHub,
+        IHubContext<ChatHub> chatHub,
         ILogger<SignalRNotifierImpl> logger)
     {
         _aiProgressHub = aiProgressHub;
         _notificationHub = notificationHub;
+        _chatHub = chatHub;
         _logger = logger;
     }
 
@@ -159,6 +162,24 @@ public class SignalRNotifierImpl : ISignalRNotifier
         {
             _logger.LogError(ex, "推送城市图片更新通知失败: CityId={CityId}, UserId={UserId}",
                 cityId, userId);
+            throw;
+        }
+    }
+
+    public async Task SendChatRoomOnlineStatusAsync(string roomId, object onlineStatusData)
+    {
+        try
+        {
+            // 发送到聊天室组 - 在线状态更新事件
+            await _chatHub.Clients
+                .Group(roomId)
+                .SendAsync("OnlineStatusUpdated", onlineStatusData);
+
+            _logger.LogInformation("推送聊天室在线状态更新: RoomId={RoomId}", roomId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "推送聊天室在线状态更新失败: RoomId={RoomId}", roomId);
             throw;
         }
     }

@@ -54,7 +54,13 @@ public class ChatApplicationService : IChatService
         return dto;
     }
 
-    public async Task<ChatRoomDto> GetOrCreateMeetupRoomAsync(Guid meetupId, string meetupTitle, string? meetupType)
+    public async Task<ChatRoomDto> GetOrCreateMeetupRoomAsync(
+        Guid meetupId, 
+        string meetupTitle, 
+        string? meetupType,
+        string? organizerId = null,
+        string? organizerName = null,
+        string? organizerAvatar = null)
     {
         // 先查找是否已存在
         var existingRoom = await _roomRepository.GetRoomByMeetupIdAsync(meetupId);
@@ -79,6 +85,14 @@ public class ChatApplicationService : IChatService
         var createdRoom = await _roomRepository.CreateAsync(newRoom);
         _logger.LogInformation("创建 Meetup 聊天室: {RoomId} for Meetup: {MeetupId}", createdRoom.Id, meetupId);
 
+        // 如果提供了组织者信息，自动将组织者加入群聊（角色为 owner）
+        if (!string.IsNullOrEmpty(organizerId))
+        {
+            var userName = organizerName ?? "Organizer";
+            await JoinRoomAsOwnerAsync(createdRoom.Id.ToString(), organizerId, userName, organizerAvatar);
+            _logger.LogInformation("组织者 {OrganizerId} 已自动加入 Meetup 聊天室 {RoomId} (角色: owner)", organizerId, createdRoom.Id);
+        }
+
         return MapToDto(createdRoom);
     }
 
@@ -89,6 +103,22 @@ public class ChatApplicationService : IChatService
     }
 
     public async Task<bool> JoinRoomAsync(string roomId, string userId, string userName, string? userAvatar)
+    {
+        return await JoinRoomWithRoleAsync(roomId, userId, userName, userAvatar, "member");
+    }
+
+    /// <summary>
+    /// 以 owner 角色加入聊天室
+    /// </summary>
+    public async Task<bool> JoinRoomAsOwnerAsync(string roomId, string userId, string userName, string? userAvatar)
+    {
+        return await JoinRoomWithRoleAsync(roomId, userId, userName, userAvatar, "owner");
+    }
+
+    /// <summary>
+    /// 以指定角色加入聊天室
+    /// </summary>
+    private async Task<bool> JoinRoomWithRoleAsync(string roomId, string userId, string userName, string? userAvatar, string role)
     {
         // 检查是否已是成员
         var isMember = await _memberRepository.IsMemberAsync(roomId, userId);
@@ -107,13 +137,13 @@ public class ChatApplicationService : IChatService
             UserId = userId,
             UserName = userName,
             UserAvatar = userAvatar,
-            Role = "member",
+            Role = role,
             JoinedAt = DateTime.UtcNow,
             LastSeenAt = DateTime.UtcNow
         };
 
         await _memberRepository.AddMemberAsync(member);
-        _logger.LogInformation("用户 {UserId} 加入聊天室 {RoomId}", userId, roomId);
+        _logger.LogInformation("用户 {UserId} 以 {Role} 角色加入聊天室 {RoomId}", userId, role, roomId);
 
         return true;
     }

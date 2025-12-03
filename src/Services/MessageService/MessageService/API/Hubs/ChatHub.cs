@@ -1,7 +1,9 @@
+using MassTransit;
 using MessageService.Application.DTOs;
 using MessageService.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Shared.Messages;
 using AppMessageAttachmentDto = MessageService.Application.Services.MessageAttachmentDto;
 
 namespace MessageService.API.Hubs;
@@ -14,15 +16,17 @@ public class ChatHub : Hub
 {
     private readonly ILogger<ChatHub> _logger;
     private readonly IChatService _chatService;
+    private readonly IPublishEndpoint _publishEndpoint;
 
     // 存储用户连接信息
     private static readonly Dictionary<string, UserConnectionInfo> _connections = new();
     private static readonly object _lock = new();
 
-    public ChatHub(ILogger<ChatHub> logger, IChatService chatService)
+    public ChatHub(ILogger<ChatHub> logger, IChatService chatService, IPublishEndpoint publishEndpoint)
     {
         _logger = logger;
         _chatService = chatService;
+        _publishEndpoint = publishEndpoint;
     }
 
     #region 连接生命周期
@@ -163,6 +167,9 @@ public class ChatHub : Hub
         _logger.LogInformation("用户 {UserId} 加入聊天室 {RoomId}, 当前在线: {OnlineCount}",
             userInfo.UserId, roomId, onlineUsers.Count);
 
+        // 发布在线状态变更消息到 RabbitMQ
+        await PublishOnlineStatusMessageAsync(roomId, userInfo, "joined", onlineUsers);
+
         // 返回确认
         await Clients.Caller.SendAsync("JoinedRoom", new
         {
@@ -195,6 +202,9 @@ public class ChatHub : Hub
         // 从 SignalR 组移除
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomId);
 
+        // 获取更新后的在线用户列表
+        var onlineUsers = GetOnlineUsersInRoom(roomId);
+
         // 通知其他用户
         await Clients.Group(roomId).SendAsync("UserLeft", new
         {
@@ -205,6 +215,9 @@ public class ChatHub : Hub
         });
 
         _logger.LogInformation("用户 {UserId} 离开聊天室 {RoomId}", userInfo.UserId, roomId);
+
+        // 发布在线状态变更消息到 RabbitMQ
+        await PublishOnlineStatusMessageAsync(roomId, userInfo, "left", onlineUsers);
 
         await Clients.Caller.SendAsync("LeftRoom", new
         {
@@ -245,6 +258,19 @@ public class ChatHub : Hub
 
         try
         {
+            // 处理 meetup_ 格式的 roomId，获取实际的数据库 roomId
+            var actualRoomId = request.RoomId;
+            if (request.RoomId.StartsWith("meetup_"))
+            {
+                var meetupIdStr = request.RoomId.Substring(7);
+                if (Guid.TryParse(meetupIdStr, out var meetupId))
+                {
+                    var meetupRoom = await _chatService.GetOrCreateMeetupRoomAsync(meetupId, "Meetup Chat", null);
+                    actualRoomId = meetupRoom.Id;
+                    _logger.LogInformation("转换 Meetup roomId: {OriginalId} -> {ActualId}", request.RoomId, actualRoomId);
+                }
+            }
+
             // 转换附件 DTO
             AppMessageAttachmentDto? attachmentDto = null;
             if (request.Attachment != null)
@@ -264,10 +290,10 @@ public class ChatHub : Hub
                 };
             }
 
-            // 保存消息到数据库
+            // 保存消息到数据库（使用实际的 roomId）
             var savedMessage = await _chatService.SaveMessageAsync(new SaveMessageDto
             {
-                RoomId = request.RoomId,
+                RoomId = actualRoomId,
                 UserId = userInfo.UserId,
                 UserName = userInfo.UserName,
                 UserAvatar = userInfo.UserAvatar,
@@ -428,6 +454,49 @@ public class ChatHub : Hub
         }
     }
 
+    /// <summary>
+    ///     发布在线状态变更消息到 RabbitMQ
+    /// </summary>
+    private async Task PublishOnlineStatusMessageAsync(
+        string roomId, 
+        UserConnectionInfo userInfo, 
+        string eventType, 
+        List<OnlineUserDto> onlineUsers)
+    {
+        try
+        {
+            var message = new ChatRoomOnlineStatusMessage
+            {
+                RoomId = roomId,
+                UserId = userInfo.UserId,
+                UserName = userInfo.UserName,
+                UserAvatar = userInfo.UserAvatar,
+                EventType = eventType,
+                OnlineCount = onlineUsers.Count,
+                OnlineUsers = onlineUsers.Select(u => new OnlineUserInfo
+                {
+                    UserId = u.UserId,
+                    UserName = u.UserName,
+                    UserAvatar = u.UserAvatar,
+                    Role = u.Role ?? "member",
+                    IsOnline = u.IsOnline
+                }).ToList(),
+                Timestamp = DateTime.UtcNow
+            };
+
+            await _publishEndpoint.Publish(message);
+            
+            _logger.LogInformation(
+                "发布在线状态消息: RoomId={RoomId}, UserId={UserId}, EventType={EventType}, OnlineCount={OnlineCount}",
+                roomId, userInfo.UserId, eventType, onlineUsers.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发布在线状态消息失败: RoomId={RoomId}", roomId);
+            // 不抛出异常，避免影响主流程
+        }
+    }
+
     #endregion
 }
 
@@ -484,6 +553,7 @@ public class OnlineUserDto
     public string UserId { get; set; } = string.Empty;
     public string UserName { get; set; } = string.Empty;
     public string? UserAvatar { get; set; }
+    public string? Role { get; set; } = "member";
     public bool IsOnline { get; set; }
     public DateTime? LastSeen { get; set; }
 }

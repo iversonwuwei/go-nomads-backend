@@ -93,6 +93,9 @@ builder.Services.AddMassTransit(x =>
     // 注册城市图片生成完成消息消费者
     x.AddConsumer<CityImageGeneratedMessageConsumer>();
 
+    // 注册聊天室在线状态消息消费者
+    x.AddConsumer<ChatRoomOnlineStatusConsumer>();
+
     x.UsingRabbitMq((context, cfg) =>
     {
         var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
@@ -165,6 +168,14 @@ builder.Services.AddMassTransit(x =>
             e.ConfigureConsumer<CityImageGeneratedMessageConsumer>(context);
             e.PrefetchCount = 16;
             e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
+        });
+
+        // 配置聊天室在线状态消息队列
+        cfg.ReceiveEndpoint("chatroom-online-status-queue", e =>
+        {
+            e.ConfigureConsumer<ChatRoomOnlineStatusConsumer>(context);
+            e.PrefetchCount = 32; // 在线状态消息频繁，增加并发
+            e.UseMessageRetry(r => r.Interval(2, TimeSpan.FromSeconds(2)));
         });
     });
 });

@@ -22,7 +22,19 @@ public interface IChatService
     /// <summary>
     ///     根据 Meetup ID 获取或创建聊天室
     /// </summary>
-    Task<ChatRoomDto> GetOrCreateMeetupRoomAsync(Guid meetupId, string meetupTitle, string? meetupType);
+    /// <param name="meetupId">Meetup ID</param>
+    /// <param name="meetupTitle">Meetup 标题</param>
+    /// <param name="meetupType">Meetup 类型</param>
+    /// <param name="organizerId">组织者用户ID（可选，创建时自动加入群聊）</param>
+    /// <param name="organizerName">组织者用户名（可选）</param>
+    /// <param name="organizerAvatar">组织者头像（可选）</param>
+    Task<ChatRoomDto> GetOrCreateMeetupRoomAsync(
+        Guid meetupId, 
+        string meetupTitle, 
+        string? meetupType,
+        string? organizerId = null,
+        string? organizerName = null,
+        string? organizerAvatar = null);
     
     /// <summary>
     ///     获取用户加入的聊天室

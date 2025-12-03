@@ -42,7 +42,7 @@ services:
   messageservice:
     build:
       context: .
-      dockerfile: src/Services/MessageService/API/Dockerfile
+      dockerfile: src/Services/MessageService/MessageService/API/Dockerfile
     container_name: go-nomads-messageservice
     ports:
       - "5005:5005"
