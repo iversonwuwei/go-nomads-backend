@@ -94,6 +94,9 @@ builder.Services.AddControllers();
 
 var app = builder.Build();
 
+// Enable WebSockets for SignalR proxy
+app.UseWebSockets();
+
 // Configure the HTTP request pipeline.
 app.MapOpenApi();
 

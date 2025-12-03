@@ -363,7 +363,12 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             "message-service" => new List<(string, int)>
             {
                 ("/api/v1/notifications", 1),
-                ("/api/v1/notifications/{**catch-all}", 2)
+                ("/api/v1/notifications/{**catch-all}", 2),
+                ("/api/v1/chats", 3),
+                ("/api/v1/chats/{**catch-all}", 4),
+                // SignalR Hub endpoints
+                ("/hubs/chat", 5),
+                ("/hubs/chat/{**catch-all}", 6)
             },
             _ => new List<(string, int)>
             {

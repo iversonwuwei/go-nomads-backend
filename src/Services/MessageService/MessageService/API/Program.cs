@@ -65,6 +65,12 @@ builder.Services.AddSingleton<ISignalRNotifier, SignalRNotifierImpl>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<INotificationService, NotificationApplicationService>();
 
+// 注册聊天服务
+builder.Services.AddScoped<IChatRoomRepository, SupabaseChatRoomRepository>();
+builder.Services.AddScoped<IChatMessageRepository, SupabaseChatMessageRepository>();
+builder.Services.AddScoped<IChatMemberRepository, SupabaseChatMemberRepository>();
+builder.Services.AddScoped<IChatService, ChatApplicationService>();
+
 // 配置 SignalR + Redis Backplane
 builder.Services.AddSignalR()
     .AddStackExchangeRedis(builder.Configuration.GetConnectionString("Redis")
@@ -187,11 +193,15 @@ app.UseCors("AllowFlutter");
 
 app.UseAuthorization();
 
+// 启用 UserContext 中间件（从 Gateway 传递的请求头获取用户信息）
+app.UseUserContext();
+
 app.MapControllers();
 
 // 映射 SignalR Hubs
 app.MapHub<AIProgressHub>("/hubs/ai-progress");
 app.MapHub<NotificationHub>("/hubs/notifications");
+app.MapHub<ChatHub>("/hubs/chat");
 
 // 注册到 Consul
 var consulClient = app.Services.GetRequiredService<IConsulClient>();
