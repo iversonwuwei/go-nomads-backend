@@ -11,6 +11,7 @@ public class UserApplicationService : IUserService
 {
     private readonly IInterestService _interestService;
     private readonly ILogger<UserApplicationService> _logger;
+    private readonly IMembershipService _membershipService;
     private readonly IRoleRepository _roleRepository;
     private readonly ISkillService _skillService;
     private readonly IUserRepository _userRepository;
@@ -20,12 +21,14 @@ public class UserApplicationService : IUserService
         IRoleRepository roleRepository,
         ISkillService skillService,
         IInterestService interestService,
+        IMembershipService membershipService,
         ILogger<UserApplicationService> logger)
     {
         _userRepository = userRepository;
         _roleRepository = roleRepository;
         _skillService = skillService;
         _interestService = interestService;
+        _membershipService = membershipService;
         _logger = logger;
     }
 
@@ -395,7 +398,7 @@ public class UserApplicationService : IUserService
         var role = await _roleRepository.GetByIdAsync(user.RoleId, cancellationToken);
         var roleName = role?.Name ?? "user"; // 默认为 user
 
-        return new UserDto
+        var userDto = new UserDto
         {
             Id = user.Id,
             Name = user.Name,
@@ -407,6 +410,39 @@ public class UserApplicationService : IUserService
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdatedAt
         };
+
+        // 加载会员信息
+        try
+        {
+            var membership = await _membershipService.GetMembershipAsync(user.Id);
+            if (membership != null)
+            {
+                userDto.Membership = new UserMembershipDto
+                {
+                    Level = membership.Level,
+                    LevelName = membership.LevelName,
+                    StartDate = membership.StartDate,
+                    ExpiryDate = membership.ExpiryDate,
+                    AutoRenew = membership.AutoRenew,
+                    AiUsageThisMonth = membership.AiUsageThisMonth,
+                    AiUsageLimit = membership.AiUsageLimit,
+                    ModeratorDeposit = membership.ModeratorDeposit,
+                    IsActive = membership.IsActive,
+                    IsExpired = membership.IsExpired,
+                    RemainingDays = membership.RemainingDays,
+                    IsExpiringSoon = membership.IsExpiringSoon,
+                    CanUseAI = membership.CanUseAI,
+                    CanApplyModerator = membership.CanApplyModerator
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 加载用户会员信息失败: UserId={UserId}", user.Id);
+            // 即使加载失败也返回用户基本信息
+        }
+
+        return userDto;
     }
 
     private RoleDto MapRoleToDto(Role role)

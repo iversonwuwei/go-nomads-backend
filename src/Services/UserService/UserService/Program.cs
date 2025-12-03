@@ -22,12 +22,15 @@ builder.Services.AddSingleton<JwtTokenService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IUserStatsRepository, UserStatsRepository>();
+builder.Services.AddScoped<IMembershipRepository, MembershipRepository>();
+builder.Services.AddScoped<IMembershipPlanRepository, MembershipPlanRepository>();
 
 // Register Application Services
 builder.Services.AddScoped<IUserService, UserApplicationService>();
 builder.Services.AddScoped<IAuthService, AuthApplicationService>();
 builder.Services.AddScoped<ISkillService, SkillService>();
 builder.Services.AddScoped<IInterestService, InterestService>();
+builder.Services.AddScoped<IMembershipService, MembershipService>();
 
 // 配置 DaprClient 连接到 Dapr sidecar
 // Dapr sidecar 与应用共享网络命名空间，通过 localhost 访问

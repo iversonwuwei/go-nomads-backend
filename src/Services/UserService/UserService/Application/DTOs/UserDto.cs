@@ -15,6 +15,30 @@ public class UserDto
     // 技能和兴趣列表
     public List<UserSkillDto>? Skills { get; set; }
     public List<UserInterestDto>? Interests { get; set; }
+    
+    // 会员信息
+    public UserMembershipDto? Membership { get; set; }
+}
+
+/// <summary>
+///     用户会员信息 DTO（嵌套在 UserDto 中）
+/// </summary>
+public class UserMembershipDto
+{
+    public int Level { get; set; }
+    public string LevelName { get; set; } = string.Empty;
+    public DateTime? StartDate { get; set; }
+    public DateTime? ExpiryDate { get; set; }
+    public bool AutoRenew { get; set; }
+    public int AiUsageThisMonth { get; set; }
+    public int AiUsageLimit { get; set; }
+    public decimal? ModeratorDeposit { get; set; }
+    public bool IsActive { get; set; }
+    public bool IsExpired { get; set; }
+    public int RemainingDays { get; set; }
+    public bool IsExpiringSoon { get; set; }
+    public bool CanUseAI { get; set; }
+    public bool CanApplyModerator { get; set; }
 }
 
 /// <summary>
