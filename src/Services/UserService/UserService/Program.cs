@@ -23,6 +23,10 @@ builder.Services.AddSingleton<JwtTokenService>();
 builder.Services.Configure<PayPalSettings>(builder.Configuration.GetSection(PayPalSettings.SectionName));
 builder.Services.AddHttpClient<IPayPalService, PayPalService>();
 
+// 配置支付宝
+builder.Services.Configure<AlipaySettings>(builder.Configuration.GetSection("Alipay"));
+builder.Services.AddSingleton<IAlipayService, AlipayService>();
+
 // Register Domain Repositories (Infrastructure Layer)
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();

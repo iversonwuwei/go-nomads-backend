@@ -18,16 +18,19 @@ public class PaymentController : ControllerBase
     private readonly ILogger<PaymentController> _logger;
     private readonly IPaymentService _paymentService;
     private readonly IPayPalService _payPalService;
+    private readonly IAlipayService _alipayService;
     private readonly PayPalSettings _payPalSettings;
 
     public PaymentController(
         IPaymentService paymentService,
         IPayPalService payPalService,
+        IAlipayService alipayService,
         IOptions<PayPalSettings> payPalSettings,
         ILogger<PaymentController> logger)
     {
         _paymentService = paymentService;
         _payPalService = payPalService;
+        _alipayService = alipayService;
         _payPalSettings = payPalSettings.Value;
         _logger = logger;
     }
@@ -329,5 +332,205 @@ public class PaymentController : ControllerBase
         }
 
         return Redirect(redirectUrl);
+    }
+
+    /// <summary>
+    ///     创建微信支付订单
+    /// </summary>
+    /// <remarks>
+    ///     创建微信支付订单，返回调用微信 SDK 所需的参数
+    /// </remarks>
+    [HttpPost("orders/wechat")]
+    public async Task<ActionResult<ApiResponse<WeChatPayOrderDto>>> CreateWeChatPayOrder(
+        [FromBody] CreateWeChatPayOrderRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+        {
+            return Unauthorized(new ApiResponse<WeChatPayOrderDto>
+            {
+                Success = false,
+                Message = "未认证用户"
+            });
+        }
+
+        _logger.LogInformation("📝 创建微信支付订单: UserId={UserId}, Type={Type}",
+            userContext.UserId, request.OrderType);
+
+        try
+        {
+            // TODO: 实现真正的微信支付订单创建
+            // 需要配置微信商户号、API密钥等
+            // 调用微信统一下单接口获取 prepay_id
+
+            // 模拟返回 (实际需要对接微信支付 API)
+            var mockOrder = new WeChatPayOrderDto
+            {
+                OrderId = Guid.NewGuid().ToString(),
+                AppId = "wx_your_app_id",  // 微信开放平台 AppId
+                PartnerId = "your_mch_id", // 商户号
+                PrepayId = $"wx_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}",
+                Package = "Sign=WXPay",
+                NonceStr = Guid.NewGuid().ToString("N"),
+                Timestamp = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                Sign = "mock_sign_value" // 实际需要使用商户私钥签名
+            };
+
+            return Ok(new ApiResponse<WeChatPayOrderDto>
+            {
+                Success = true,
+                Message = "微信支付订单创建成功",
+                Data = mockOrder
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 创建微信支付订单失败");
+            return StatusCode(500, new ApiResponse<WeChatPayOrderDto>
+            {
+                Success = false,
+                Message = "创建微信支付订单失败"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     创建支付宝订单
+    /// </summary>
+    /// <remarks>
+    ///     创建支付宝订单，返回签名后的订单信息字符串
+    /// </remarks>
+    [HttpPost("orders/alipay")]
+    public async Task<ActionResult<ApiResponse<AlipayOrderDto>>> CreateAlipayOrder(
+        [FromBody] CreateAlipayOrderRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+        {
+            return Unauthorized(new ApiResponse<AlipayOrderDto>
+            {
+                Success = false,
+                Message = "未认证用户"
+            });
+        }
+
+        _logger.LogInformation("📝 创建支付宝订单: UserId={UserId}, Type={Type}",
+            userContext.UserId, request.OrderType);
+
+        try
+        {
+            // 生成订单号
+            var outTradeNo = $"GN{DateTime.UtcNow:yyyyMMddHHmmss}{Guid.NewGuid().ToString("N")[..8].ToUpper()}";
+
+            // 根据订单类型确定金额和商品名
+            var (amount, subject) = request.OrderType switch
+            {
+                "membership_upgrade" => request.MembershipLevel switch
+                {
+                    1 => (29.00m, "Go Nomads 探索者会员"),
+                    2 => (99.00m, "Go Nomads 旅行家会员"),
+                    3 => (299.00m, "Go Nomads 数字游民会员"),
+                    _ => (29.00m, "Go Nomads 会员")
+                },
+                _ => (0m, "Go Nomads 订单")
+            };
+
+            if (amount <= 0)
+            {
+                return BadRequest(new ApiResponse<AlipayOrderDto>
+                {
+                    Success = false,
+                    Message = "无效的订单类型或等级"
+                });
+            }
+
+            // 使用支付宝服务生成签名后的订单字符串
+            var orderString = _alipayService.CreateAppPayOrderString(
+                outTradeNo,
+                amount,
+                subject,
+                $"用户 {userContext.UserId} 购买 {subject}"
+            );
+
+            var order = new AlipayOrderDto
+            {
+                OrderId = outTradeNo,
+                OrderString = orderString
+            };
+
+            return Ok(new ApiResponse<AlipayOrderDto>
+            {
+                Success = true,
+                Message = "支付宝订单创建成功",
+                Data = order
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 创建支付宝订单失败");
+            return StatusCode(500, new ApiResponse<AlipayOrderDto>
+            {
+                Success = false,
+                Message = "创建支付宝订单失败"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     微信支付回调
+    /// </summary>
+    [HttpPost("webhooks/wechat")]
+    public async Task<IActionResult> WeChatPayWebhook(CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📨 收到微信支付 Webhook");
+
+        try
+        {
+            using var reader = new StreamReader(Request.Body);
+            var body = await reader.ReadToEndAsync(cancellationToken);
+
+            // TODO: 验证微信支付签名
+            // TODO: 解析通知内容并更新订单状态
+
+            _logger.LogInformation("微信支付通知: {Body}", body);
+
+            // 返回微信要求的格式
+            return Ok(new { code = "SUCCESS", message = "成功" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 处理微信支付 Webhook 失败");
+            return Ok(new { code = "FAIL", message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    ///     支付宝支付回调
+    /// </summary>
+    [HttpPost("webhooks/alipay")]
+    public async Task<IActionResult> AlipayWebhook(CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📨 收到支付宝 Webhook");
+
+        try
+        {
+            var form = await Request.ReadFormAsync(cancellationToken);
+
+            // TODO: 验证支付宝签名
+            // TODO: 解析通知内容并更新订单状态
+
+            _logger.LogInformation("支付宝通知: TradeNo={TradeNo}, TradeStatus={TradeStatus}",
+                form["trade_no"], form["trade_status"]);
+
+            // 返回支付宝要求的格式
+            return Content("success");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 处理支付宝 Webhook 失败");
+            return Content("fail");
+        }
     }
 }
