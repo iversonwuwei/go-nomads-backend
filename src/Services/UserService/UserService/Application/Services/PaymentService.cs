@@ -94,6 +94,7 @@ public class PaymentService : IPaymentService
             UserId = userId,
             OrderType = request.OrderType.ToLower(),
             Amount = amount,
+            TotalAmount = amount, // 设置总金额（与 amount 相同，未来可扩展加入税费等）
             Currency = "USD",
             MembershipLevel = request.MembershipLevel,
             DurationDays = request.DurationDays ?? 365

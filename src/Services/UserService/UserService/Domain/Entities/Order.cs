@@ -61,6 +61,9 @@ public class Order : BaseModel
     [Column("amount")]
     public decimal Amount { get; set; }
 
+    [Column("total_amount")]
+    public decimal TotalAmount { get; set; }
+
     [Column("currency")]
     public string Currency { get; set; } = "USD";
 
@@ -136,6 +139,7 @@ public class Order : BaseModel
             OrderType = "membership_upgrade",
             MembershipLevel = membershipLevel,
             Amount = amount,
+            TotalAmount = amount,
             DurationDays = durationDays
         };
     }
@@ -152,6 +156,7 @@ public class Order : BaseModel
             OrderType = "membership_renew",
             MembershipLevel = membershipLevel,
             Amount = amount,
+            TotalAmount = amount,
             DurationDays = durationDays
         };
     }
@@ -162,7 +167,8 @@ public class Order : BaseModel
         {
             UserId = userId,
             OrderType = "moderator_deposit",
-            Amount = amount
+            Amount = amount,
+            TotalAmount = amount
         };
     }
 
