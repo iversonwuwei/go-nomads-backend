@@ -7,6 +7,7 @@ using Prometheus;
 using Scalar.AspNetCore;
 using UserService.Application.Services;
 using UserService.Domain.Repositories;
+using UserService.Infrastructure.Configuration;
 using UserService.Infrastructure.Repositories;
 using UserService.Infrastructure.Services;
 
@@ -18,12 +19,19 @@ builder.Services.AddSupabase(builder.Configuration);
 // 添加 JWT Token 服务
 builder.Services.AddSingleton<JwtTokenService>();
 
+// 配置 PayPal
+builder.Services.Configure<PayPalSettings>(builder.Configuration.GetSection(PayPalSettings.SectionName));
+builder.Services.AddHttpClient<IPayPalService, PayPalService>();
+
 // Register Domain Repositories (Infrastructure Layer)
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IUserStatsRepository, UserStatsRepository>();
+builder.Services.AddScoped<IUserPreferencesRepository, UserPreferencesRepository>();
 builder.Services.AddScoped<IMembershipRepository, MembershipRepository>();
 builder.Services.AddScoped<IMembershipPlanRepository, MembershipPlanRepository>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
 
 // Register Application Services
 builder.Services.AddScoped<IUserService, UserApplicationService>();
@@ -31,6 +39,7 @@ builder.Services.AddScoped<IAuthService, AuthApplicationService>();
 builder.Services.AddScoped<ISkillService, SkillService>();
 builder.Services.AddScoped<IInterestService, InterestService>();
 builder.Services.AddScoped<IMembershipService, MembershipService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
 
 // 配置 DaprClient 连接到 Dapr sidecar
 // Dapr sidecar 与应用共享网络命名空间，通过 localhost 访问

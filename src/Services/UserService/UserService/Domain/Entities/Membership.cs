@@ -1,4 +1,3 @@
-using System.Text.Json.Serialization;
 using Postgrest.Attributes;
 using Postgrest.Models;
 
@@ -64,24 +63,30 @@ public class Membership : BaseModel
 
     #region 计算属性（不映射到数据库）
 
-    [JsonIgnore]
+    [System.Text.Json.Serialization.JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
     public MembershipLevel MembershipLevel => (MembershipLevel)Level;
 
-    [JsonIgnore]
+    [System.Text.Json.Serialization.JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
     public bool IsExpired => ExpiryDate.HasValue && ExpiryDate.Value < DateTime.UtcNow;
 
-    [JsonIgnore]
+    [System.Text.Json.Serialization.JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
     public bool IsActive => !IsExpired && Level > (int)MembershipLevel.Free;
 
-    [JsonIgnore]
+    [System.Text.Json.Serialization.JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
     public int RemainingDays => ExpiryDate.HasValue 
         ? Math.Max(0, (ExpiryDate.Value - DateTime.UtcNow).Days) 
         : 0;
 
-    [JsonIgnore]
+    [System.Text.Json.Serialization.JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
     public bool IsExpiringSoon => RemainingDays > 0 && RemainingDays <= 7;
 
-    [JsonIgnore]
+    [System.Text.Json.Serialization.JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
     public int AiUsageLimit => MembershipLevel switch
     {
         MembershipLevel.Free => 0,
@@ -91,10 +96,12 @@ public class Membership : BaseModel
         _ => 0
     };
 
-    [JsonIgnore]
+    [System.Text.Json.Serialization.JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
     public bool CanUseAI => Level > (int)MembershipLevel.Free && !IsExpired;
 
-    [JsonIgnore]
+    [System.Text.Json.Serialization.JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
     public bool CanApplyModerator => Level >= (int)MembershipLevel.Pro && !IsExpired;
 
     #endregion
