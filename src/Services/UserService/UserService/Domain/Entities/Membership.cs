@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Postgrest.Attributes;
 using Postgrest.Models;
 
@@ -61,20 +62,26 @@ public class Membership : BaseModel
     [Column("updated_at")]
     public DateTime UpdatedAt { get; set; }
 
-    #region 计算属性
+    #region 计算属性（不映射到数据库）
 
+    [JsonIgnore]
     public MembershipLevel MembershipLevel => (MembershipLevel)Level;
 
+    [JsonIgnore]
     public bool IsExpired => ExpiryDate.HasValue && ExpiryDate.Value < DateTime.UtcNow;
 
+    [JsonIgnore]
     public bool IsActive => !IsExpired && Level > (int)MembershipLevel.Free;
 
+    [JsonIgnore]
     public int RemainingDays => ExpiryDate.HasValue 
         ? Math.Max(0, (ExpiryDate.Value - DateTime.UtcNow).Days) 
         : 0;
 
+    [JsonIgnore]
     public bool IsExpiringSoon => RemainingDays > 0 && RemainingDays <= 7;
 
+    [JsonIgnore]
     public int AiUsageLimit => MembershipLevel switch
     {
         MembershipLevel.Free => 0,
@@ -84,8 +91,10 @@ public class Membership : BaseModel
         _ => 0
     };
 
+    [JsonIgnore]
     public bool CanUseAI => Level > (int)MembershipLevel.Free && !IsExpired;
 
+    [JsonIgnore]
     public bool CanApplyModerator => Level >= (int)MembershipLevel.Pro && !IsExpired;
 
     #endregion
