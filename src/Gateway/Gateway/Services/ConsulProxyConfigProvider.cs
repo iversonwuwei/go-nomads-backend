@@ -333,12 +333,14 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                 ("/api/v1/users/{**catch-all}", 4),
                 ("/api/v1/membership", 5),
                 ("/api/v1/membership/{**catch-all}", 6),
-                ("/api/v1/roles", 7),
-                ("/api/v1/roles/{**catch-all}", 8),
-                ("/api/v1/skills", 9),
-                ("/api/v1/skills/{**catch-all}", 10),
-                ("/api/v1/interests", 11),
-                ("/api/v1/interests/{**catch-all}", 12)
+                ("/api/v1/payments", 7),
+                ("/api/v1/payments/{**catch-all}", 8),
+                ("/api/v1/roles", 9),
+                ("/api/v1/roles/{**catch-all}", 10),
+                ("/api/v1/skills", 11),
+                ("/api/v1/skills/{**catch-all}", 12),
+                ("/api/v1/interests", 13),
+                ("/api/v1/interests/{**catch-all}", 14)
             },
             "event-service" => new List<(string, int)>
             {
