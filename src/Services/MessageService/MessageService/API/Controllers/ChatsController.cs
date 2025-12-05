@@ -150,6 +150,64 @@ public class ChatsController : ControllerBase
     }
 
     /// <summary>
+    ///     获取或创建一对一私聊
+    /// </summary>
+    [HttpPost("direct")]
+    public async Task<IActionResult> GetOrCreateDirectChat([FromBody] CreateDirectChatRequest request)
+    {
+        try
+        {
+            // 优先从 UserContext 获取当前用户信息
+            var currentUserId = GetCurrentUserId();
+            var currentUserName = GetCurrentUserEmail() ?? request.CurrentUserName;
+            var currentUserAvatar = request.CurrentUserAvatar;
+            
+            // 如果 UserContext 中没有，尝试从请求体获取
+            if (string.IsNullOrEmpty(currentUserId) && !string.IsNullOrEmpty(request.CurrentUserId))
+            {
+                currentUserId = request.CurrentUserId;
+            }
+            if (!string.IsNullOrEmpty(request.CurrentUserName))
+            {
+                currentUserName = request.CurrentUserName;
+            }
+
+            if (string.IsNullOrEmpty(currentUserId))
+            {
+                return BadRequest(new { error = "当前用户ID不能为空，请确保已登录" });
+            }
+
+            if (string.IsNullOrEmpty(request.TargetUserId))
+            {
+                return BadRequest(new { error = "目标用户ID不能为空" });
+            }
+
+            if (currentUserId == request.TargetUserId)
+            {
+                return BadRequest(new { error = "不能与自己创建私聊" });
+            }
+
+            _logger.LogInformation("GetOrCreateDirectChat: CurrentUser={CurrentUserId}, TargetUser={TargetUserId}",
+                currentUserId, request.TargetUserId);
+
+            var room = await _chatService.GetOrCreateDirectChatAsync(
+                currentUserId,
+                request.TargetUserId,
+                currentUserName ?? "User",
+                request.TargetUserName ?? "User",
+                currentUserAvatar,
+                request.TargetUserAvatar);
+
+            return Ok(room);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "创建私聊失败");
+            return StatusCode(500, new { error = "创建私聊失败" });
+        }
+    }
+
+    /// <summary>
     ///     获取用户加入的聊天室列表
     /// </summary>
     [HttpGet("user/{userId}")]
@@ -464,6 +522,39 @@ public class CreateMeetupRoomRequest
     public string? OrganizerId { get; set; }
     public string? OrganizerName { get; set; }
     public string? OrganizerAvatar { get; set; }
+}
+
+public class CreateDirectChatRequest
+{
+    /// <summary>
+    /// 当前用户ID（可选，优先从 UserContext 获取）
+    /// </summary>
+    public string? CurrentUserId { get; set; }
+    
+    /// <summary>
+    /// 当前用户名称
+    /// </summary>
+    public string? CurrentUserName { get; set; }
+    
+    /// <summary>
+    /// 当前用户头像
+    /// </summary>
+    public string? CurrentUserAvatar { get; set; }
+    
+    /// <summary>
+    /// 目标用户ID（必填）
+    /// </summary>
+    public string TargetUserId { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// 目标用户名称
+    /// </summary>
+    public string? TargetUserName { get; set; }
+    
+    /// <summary>
+    /// 目标用户头像
+    /// </summary>
+    public string? TargetUserAvatar { get; set; }
 }
 
 public class JoinRoomRequest

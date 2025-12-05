@@ -48,4 +48,10 @@ public interface IChatRoomRepository
     ///     获取用户加入的聊天室列表
     /// </summary>
     Task<List<ChatRoom>> GetUserRoomsAsync(string userId, int page = 1, int pageSize = 20);
+    
+    /// <summary>
+    ///     根据私聊标识获取聊天室
+    /// </summary>
+    /// <param name="directChatKey">私聊唯一标识 (格式: direct_{userId1}_{userId2})</param>
+    Task<ChatRoom?> GetRoomByDirectChatKeyAsync(string directChatKey);
 }

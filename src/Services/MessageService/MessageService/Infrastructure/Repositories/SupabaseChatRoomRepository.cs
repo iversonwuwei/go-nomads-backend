@@ -222,6 +222,25 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
         }
     }
 
+    public async Task<ChatRoom?> GetRoomByDirectChatKeyAsync(string directChatKey)
+    {
+        try
+        {
+            // 私聊房间的 Name 字段存储了 directChatKey
+            var response = await _supabaseClient
+                .From<ChatRoomModel>()
+                .Where(r => r.RoomType == "direct" && r.Name == directChatKey && r.IsDeleted == false)
+                .Single();
+
+            return response != null ? MapToDomain(response) : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "根据 DirectChatKey 获取聊天室失败: Key={Key}", directChatKey);
+            return null;
+        }
+    }
+
     #region 映射方法
 
     private ChatRoom MapToDomain(ChatRoomModel model)

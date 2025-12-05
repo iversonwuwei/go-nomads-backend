@@ -72,7 +72,7 @@ public class UserGrpcClient : IUserGrpcClient
                                 Id = userDto.Id,
                                 Name = userDto.Name,
                                 Email = userDto.Email,
-                                AvatarUrl = userDto.Avatar
+                                AvatarUrl = userDto.AvatarUrl
                             };
                         }
                     }
@@ -129,7 +129,7 @@ public class UserGrpcClient : IUserGrpcClient
                                 Id = userDto.Id,
                                 Name = userDto.Name,
                                 Email = userDto.Email,
-                                Avatar = userDto.Avatar,
+                                Avatar = userDto.AvatarUrl,
                                 Phone = userDto.Phone
                             };
                         }
@@ -167,5 +167,5 @@ internal class UserDto
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? Phone { get; set; }
-    public string? Avatar { get; set; }
+    public string? AvatarUrl { get; set; }
 }

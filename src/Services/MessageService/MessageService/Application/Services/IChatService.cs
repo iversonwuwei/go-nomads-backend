@@ -51,6 +51,23 @@ public interface IChatService
     /// </summary>
     Task<bool> LeaveRoomAsync(string roomId, string userId);
     
+    /// <summary>
+    ///     获取或创建一对一私聊房间
+    /// </summary>
+    /// <param name="userId1">用户1的ID</param>
+    /// <param name="userId2">用户2的ID</param>
+    /// <param name="userName1">用户1的名称</param>
+    /// <param name="userName2">用户2的名称</param>
+    /// <param name="userAvatar1">用户1的头像</param>
+    /// <param name="userAvatar2">用户2的头像</param>
+    Task<ChatRoomDto> GetOrCreateDirectChatAsync(
+        string userId1, 
+        string userId2, 
+        string userName1, 
+        string userName2,
+        string? userAvatar1 = null,
+        string? userAvatar2 = null);
+    
     // ==================== 消息管理 ====================
     
     /// <summary>

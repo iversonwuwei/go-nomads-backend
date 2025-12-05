@@ -155,6 +155,53 @@ public class ChatApplicationService : IChatService
         return true;
     }
 
+    /// <summary>
+    /// 获取或创建一对一私聊房间
+    /// </summary>
+    public async Task<ChatRoomDto> GetOrCreateDirectChatAsync(
+        string userId1, 
+        string userId2, 
+        string userName1, 
+        string userName2,
+        string? userAvatar1 = null,
+        string? userAvatar2 = null)
+    {
+        // 生成唯一的私聊房间标识（按字典序排列，确保两个用户无论谁发起都是同一个房间）
+        var sortedIds = new[] { userId1, userId2 }.OrderBy(x => x).ToArray();
+        var directChatKey = $"direct_{sortedIds[0]}_{sortedIds[1]}";
+        
+        // 先查找是否已存在私聊房间
+        var existingRoom = await _roomRepository.GetRoomByDirectChatKeyAsync(directChatKey);
+        if (existingRoom != null)
+        {
+            _logger.LogInformation("找到已存在的私聊房间: {RoomId}", existingRoom.Id);
+            return MapToDto(existingRoom);
+        }
+
+        // 创建新的私聊房间
+        var newRoom = new ChatRoom
+        {
+            Id = Guid.NewGuid(),
+            RoomType = "direct",
+            Name = directChatKey, // 使用唯一标识作为名称
+            Description = $"Private chat between {userName1} and {userName2}",
+            IsPublic = false,
+            CreatedBy = userId1,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        var createdRoom = await _roomRepository.CreateAsync(newRoom);
+        _logger.LogInformation("创建私聊房间: {RoomId} between {User1} and {User2}", 
+            createdRoom.Id, userId1, userId2);
+
+        // 将两个用户都加入房间
+        await JoinRoomWithRoleAsync(createdRoom.Id.ToString(), userId1, userName1, userAvatar1, "member");
+        await JoinRoomWithRoleAsync(createdRoom.Id.ToString(), userId2, userName2, userAvatar2, "member");
+
+        return MapToDto(createdRoom);
+    }
+
     #endregion
 
     #region 消息管理
