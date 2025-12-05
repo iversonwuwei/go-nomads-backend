@@ -305,15 +305,17 @@ public class PaymentController : ControllerBase
     {
         _logger.LogInformation("💳 支付返回: Token={Token}, PayerID={PayerID}", token, PayerID);
 
-        // 重定向到 Flutter 应用的 deep link
-        // 格式: gonomads://payment/success?token=xxx&PayerID=xxx
-        var redirectUrl = $"gonomads://payment/success?token={token}";
+        // 构建 deep link URL
+        var deepLink = $"gonomads://payment/success?token={token}";
         if (!string.IsNullOrEmpty(PayerID))
         {
-            redirectUrl += $"&PayerID={PayerID}";
+            deepLink += $"&PayerID={PayerID}";
         }
 
-        return Redirect(redirectUrl);
+        // 返回一个 HTML 页面，通过 JavaScript 尝试打开 App
+        // 这种方式比直接重定向更可靠
+        var html = GenerateRedirectHtml(deepLink, "支付成功", "正在返回应用...", true);
+        return Content(html, "text/html");
     }
 
     /// <summary>
@@ -324,14 +326,144 @@ public class PaymentController : ControllerBase
     {
         _logger.LogInformation("❌ 支付取消: Token={Token}", token);
 
-        // 重定向到 Flutter 应用的 deep link
-        var redirectUrl = "gonomads://payment/cancel";
+        // 构建 deep link URL
+        var deepLink = "gonomads://payment/cancel";
         if (!string.IsNullOrEmpty(token))
         {
-            redirectUrl += $"?token={token}";
+            deepLink += $"?token={token}";
         }
 
-        return Redirect(redirectUrl);
+        // 返回一个 HTML 页面，通过 JavaScript 尝试打开 App
+        var html = GenerateRedirectHtml(deepLink, "支付已取消", "正在返回应用...", false);
+        return Content(html, "text/html");
+    }
+
+    /// <summary>
+    ///     生成重定向到 App 的 HTML 页面
+    /// </summary>
+    private static string GenerateRedirectHtml(string deepLink, string title, string message, bool isSuccess)
+    {
+        var statusColor = isSuccess ? "#4CAF50" : "#FF9800";
+        var statusIcon = isSuccess ? "✓" : "!";
+        
+        return $@"
+<!DOCTYPE html>
+<html lang=""zh-CN"">
+<head>
+    <meta charset=""UTF-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+    <title>{title} - Go Nomads</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }}
+        .container {{
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }}
+        .icon {{
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: {statusColor};
+            color: white;
+            font-size: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+        }}
+        h1 {{
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 12px;
+        }}
+        p {{
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 24px;
+        }}
+        .spinner {{
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid {statusColor};
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 24px;
+        }}
+        @keyframes spin {{
+            0% {{ transform: rotate(0deg); }}
+            100% {{ transform: rotate(360deg); }}
+        }}
+        .btn {{
+            display: inline-block;
+            background: {statusColor};
+            color: white;
+            padding: 14px 32px;
+            border-radius: 30px;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }}
+        .btn:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+        }}
+        .hint {{
+            color: #999;
+            font-size: 14px;
+            margin-top: 20px;
+        }}
+    </style>
+</head>
+<body>
+    <div class=""container"">
+        <div class=""icon"">{statusIcon}</div>
+        <h1>{title}</h1>
+        <p>{message}</p>
+        <div class=""spinner""></div>
+        <a href=""{deepLink}"" class=""btn"" id=""openAppBtn"">打开 Go Nomads</a>
+        <p class=""hint"">如果应用没有自动打开，请点击上方按钮</p>
+    </div>
+    <script>
+        // 尝试自动打开 App
+        function openApp() {{
+            // 方法1: 使用 location.href
+            window.location.href = '{deepLink}';
+            
+            // 方法2: 3秒后如果还在页面上，显示手动按钮
+            setTimeout(function() {{
+                document.querySelector('.spinner').style.display = 'none';
+                document.querySelector('.hint').textContent = '请点击按钮返回应用';
+            }}, 3000);
+        }}
+        
+        // 页面加载后立即尝试打开
+        document.addEventListener('DOMContentLoaded', function() {{
+            setTimeout(openApp, 500);
+        }});
+        
+        // 点击按钮时打开
+        document.getElementById('openAppBtn').addEventListener('click', function(e) {{
+            // 不阻止默认行为，让链接正常工作
+        }});
+    </script>
+</body>
+</html>";
     }
 
     /// <summary>
