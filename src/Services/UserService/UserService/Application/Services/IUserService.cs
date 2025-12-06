@@ -128,4 +128,13 @@ public interface IUserService
     ///     获取所有管理员用户ID列表
     /// </summary>
     Task<List<Guid>> GetAdminUserIdsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     获取版主候选人列表（Pro及以上会员或Admin用户）
+    /// </summary>
+    Task<(List<ModeratorCandidateDto> Users, int Total)> GetModeratorCandidatesAsync(
+        string? searchTerm = null,
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default);
 }

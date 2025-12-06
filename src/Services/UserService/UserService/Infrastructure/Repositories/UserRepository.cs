@@ -317,4 +317,108 @@ public class UserRepository : IUserRepository
             throw;
         }
     }
+
+    public async Task<(List<UserWithMembership> Users, int Total)> GetModeratorCandidatesAsync(
+        string? searchTerm = null,
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "👥 获取版主候选人列表 - SearchTerm: {SearchTerm}, Page: {Page}, PageSize: {PageSize}",
+            searchTerm, page, pageSize);
+
+        try
+        {
+            var from = (page - 1) * pageSize;
+            var to = from + pageSize - 1;
+
+            // 第一步：获取所有用户
+            var userQuery = _supabaseClient
+                .From<User>()
+                .Order(u => u.CreatedAt, Constants.Ordering.Descending);
+
+            // 如果有搜索词，添加名称过滤
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                userQuery = userQuery.Filter("name", Constants.Operator.ILike, $"%{searchTerm}%");
+            }
+
+            var usersResponse = await userQuery.Get(cancellationToken);
+            var users = usersResponse.Models.ToList();
+
+            _logger.LogInformation("👥 查询到 {Count} 个用户", users.Count);
+
+            if (users.Count == 0)
+            {
+                return (new List<UserWithMembership>(), 0);
+            }
+
+            // 第二步：批量获取这些用户的会员信息
+            var userIds = users.Select(u => u.Id).ToList();
+            var membershipsResponse = await _supabaseClient
+                .From<Membership>()
+                .Filter("user_id", Constants.Operator.In, userIds)
+                .Get(cancellationToken);
+
+            var memberships = membershipsResponse.Models.ToList();
+            _logger.LogInformation("👥 查询到 {Count} 条会员记录", memberships.Count);
+
+            // 第三步：批量获取角色信息
+            var roleIds = users.Select(u => u.RoleId).Distinct().ToList();
+            var rolesResponse = await _supabaseClient
+                .From<Role>()
+                .Filter("id", Constants.Operator.In, roleIds)
+                .Get(cancellationToken);
+
+            var rolesById = rolesResponse.Models.ToDictionary(r => r.Id, r => r);
+            _logger.LogInformation("👥 查询到 {Count} 个角色", rolesById.Count);
+
+            // 按用户ID分组会员信息
+            var membershipsByUserId = memberships
+                .GroupBy(m => m.UserId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            // 第四步：组装 UserWithMembership 对象并过滤
+            var candidates = new List<UserWithMembership>();
+            foreach (var user in users)
+            {
+                var userMemberships = membershipsByUserId.GetValueOrDefault(user.Id);
+                var role = rolesById.GetValueOrDefault(user.RoleId);
+
+                var userWithMembership = new UserWithMembership
+                {
+                    Id = user.Id,
+                    Name = user.Name,
+                    Email = user.Email,
+                    AvatarUrl = user.AvatarUrl,
+                    RoleId = user.RoleId,
+                    CreatedAt = user.CreatedAt,
+                    Role = role,
+                    Memberships = userMemberships
+                };
+
+                // 只保留 Pro 及以上会员或 Admin 用户
+                if (userWithMembership.CanBeModeratorCandidate)
+                {
+                    candidates.Add(userWithMembership);
+                }
+            }
+
+            _logger.LogInformation("✅ 版主候选人总数: {Total}", candidates.Count);
+
+            // 手动分页
+            var pagedCandidates = candidates
+                .Skip(from)
+                .Take(pageSize)
+                .ToList();
+
+            return (pagedCandidates, candidates.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取版主候选人列表失败");
+            throw;
+        }
+    }
 }

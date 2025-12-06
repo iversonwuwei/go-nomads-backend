@@ -69,4 +69,14 @@ public interface IUserRepository
     ///     根据角色ID获取所有用户
     /// </summary>
     Task<List<User>> GetUsersByRoleIdAsync(string roleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     获取版主候选人列表（Pro及以上会员或Admin用户）
+    ///     使用 Supabase JOIN 一次性查询用户、角色和会员信息
+    /// </summary>
+    Task<(List<UserWithMembership> Users, int Total)> GetModeratorCandidatesAsync(
+        string? searchTerm = null,
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default);
 }

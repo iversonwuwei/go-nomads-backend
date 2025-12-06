@@ -458,4 +458,27 @@ public class UserApplicationService : IUserService
     }
 
     #endregion
+
+    #region 版主候选人相关方法
+
+    public async Task<(List<ModeratorCandidateDto> Users, int Total)> GetModeratorCandidatesAsync(
+        string? searchTerm = null,
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "👥 获取版主候选人列表 - SearchTerm: {SearchTerm}, Page: {Page}, PageSize: {PageSize}",
+            searchTerm, page, pageSize);
+
+        var (users, total) = await _userRepository.GetModeratorCandidatesAsync(
+            searchTerm, page, pageSize, cancellationToken);
+
+        var dtos = users.Select(ModeratorCandidateDto.FromEntity).ToList();
+
+        _logger.LogInformation("✅ 获取到 {Count}/{Total} 个版主候选人", dtos.Count, total);
+        return (dtos, total);
+    }
+
+    #endregion
 }

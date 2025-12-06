@@ -129,6 +129,56 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    ///     获取版主候选人列表（Pro及以上会员或Admin用户）
+    ///     仅返回符合版主资格的用户（会员等级 >= Pro 或者是 Admin）
+    /// </summary>
+    [HttpGet("moderator-candidates")]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<ModeratorCandidateDto>>>> GetModeratorCandidates(
+        [FromQuery] string? q = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        // 获取用户上下文
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated == true)
+            _logger.LogInformation(
+                "👥 GetModeratorCandidates 请求 - 认证用户: UserId={UserId}, Role={Role}, Query={Query}",
+                userContext.UserId, userContext.Role, q);
+
+        // 验证并规范化分页参数
+        page = Math.Max(1, page);
+        pageSize = Math.Max(1, Math.Min(100, pageSize));
+
+        try
+        {
+            var (users, total) = await _userService.GetModeratorCandidatesAsync(q, page, pageSize, cancellationToken);
+
+            return Ok(new ApiResponse<PaginatedResponse<ModeratorCandidateDto>>
+            {
+                Success = true,
+                Message = "Moderator candidates retrieved successfully",
+                Data = new PaginatedResponse<ModeratorCandidateDto>
+                {
+                    Items = users,
+                    TotalCount = total,
+                    Page = page,
+                    PageSize = pageSize
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取版主候选人列表失败 - Query: {Query}", q);
+            return StatusCode(500, new ApiResponse<PaginatedResponse<ModeratorCandidateDto>>
+            {
+                Success = false,
+                Message = "获取版主候选人列表失败"
+            });
+        }
+    }
+
+    /// <summary>
     ///     根据 ID 获取用户
     /// </summary>
     [HttpGet("{id}")]
