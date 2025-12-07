@@ -180,6 +180,14 @@ builder.Services.AddMassTransit(x =>
             e.PrefetchCount = 32; // 在线状态消息频繁，增加并发
             e.UseMessageRetry(r => r.Interval(2, TimeSpan.FromSeconds(2)));
         });
+
+        // 配置 Coworking 验证人数变化消息队列
+        cfg.ReceiveEndpoint("coworking-verification-votes-queue", e =>
+        {
+            e.ConfigureConsumer<CoworkingVerificationVotesConsumer>(context);
+            e.PrefetchCount = 16;
+            e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
+        });
     });
 });
 
