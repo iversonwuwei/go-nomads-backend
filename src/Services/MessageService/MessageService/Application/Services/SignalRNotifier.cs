@@ -28,4 +28,11 @@ public interface ISignalRNotifier
     /// <param name="roomId">聊天室ID</param>
     /// <param name="onlineStatusData">在线状态数据</param>
     Task SendChatRoomOnlineStatusAsync(string roomId, object onlineStatusData);
+
+    /// <summary>
+    ///     发送 Coworking 验证人数更新
+    /// </summary>
+    /// <param name="coworkingId">Coworking ID</param>
+    /// <param name="votesData">验证人数数据</param>
+    Task SendCoworkingVerificationVotesAsync(string coworkingId, object votesData);
 }

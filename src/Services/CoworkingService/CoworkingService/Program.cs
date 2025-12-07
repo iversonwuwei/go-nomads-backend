@@ -2,6 +2,7 @@ using CoworkingService.Application.Services;
 using CoworkingService.Domain.Repositories;
 using CoworkingService.Infrastructure.Repositories;
 using GoNomads.Shared.Extensions;
+using MassTransit;
 using Scalar.AspNetCore;
 using Serilog;
 using System.Text.Json.Serialization;
@@ -55,6 +56,20 @@ builder.Services.AddScoped<CoworkingService.Services.ICacheServiceClient, Cowork
 builder.Services.AddScoped<CoworkingService.Services.IUserServiceClient, CoworkingService.Services.UserServiceClient>();
 
 // Domain Layer 不需要注册（纯 POCO）
+
+// 配置 MassTransit + RabbitMQ（用于发布消息到 MessageService）
+builder.Services.AddMassTransit(x =>
+{
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
+        cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
+        {
+            h.Username(rabbitMqConfig["Username"] ?? "guest");
+            h.Password(rabbitMqConfig["Password"] ?? "guest");
+        });
+    });
+});
 
 // 添加控制器
 builder.Services.AddControllers()

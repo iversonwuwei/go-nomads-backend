@@ -2,6 +2,8 @@ using CoworkingService.Application.DTOs;
 using CoworkingService.Domain.Entities;
 using CoworkingService.Domain.Repositories;
 using CoworkingService.Services;
+using MassTransit;
+using Shared.Messages;
 
 namespace CoworkingService.Application.Services;
 
@@ -18,6 +20,7 @@ public class CoworkingApplicationService : ICoworkingService
     private readonly ICoworkingCommentRepository _commentRepository;
     private readonly ICoworkingReviewRepository _reviewRepository;
     private readonly IUserServiceClient _userServiceClient;
+    private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<CoworkingApplicationService> _logger;
 
     public CoworkingApplicationService(
@@ -27,6 +30,7 @@ public class CoworkingApplicationService : ICoworkingService
         ICoworkingCommentRepository commentRepository,
         ICoworkingReviewRepository reviewRepository,
         IUserServiceClient userServiceClient,
+        IPublishEndpoint publishEndpoint,
         ILogger<CoworkingApplicationService> logger)
     {
         _coworkingRepository = coworkingRepository;
@@ -35,6 +39,7 @@ public class CoworkingApplicationService : ICoworkingService
         _commentRepository = commentRepository;
         _reviewRepository = reviewRepository;
         _userServiceClient = userServiceClient;
+        _publishEndpoint = publishEndpoint;
         _logger = logger;
     }
 
@@ -443,14 +448,26 @@ public class CoworkingApplicationService : ICoworkingService
         _logger.LogInformation("认证成功: CoworkingId={CoworkingId}, UserId={UserId}, 当前投票数={Votes}", id, userId, votes);
 
         // 4. 检查是否需要自动更新验证状态（超过 3 票自动变为已认证）
+        var isVerified = coworkingSpace.VerificationStatus == CoworkingVerificationStatus.Verified;
         if (coworkingSpace.VerificationStatus == CoworkingVerificationStatus.Unverified && votes > 3)
         {
             _logger.LogInformation("自动更新认证状态: CoworkingId={CoworkingId}, Votes={Votes}", id, votes);
             coworkingSpace.SetVerificationStatus(CoworkingVerificationStatus.Verified, userId);
             coworkingSpace = await _coworkingRepository.UpdateAsync(coworkingSpace);
+            isVerified = true;
         }
 
-        // 5. 获取评分信息并返回
+        // 5. 发布验证人数变化消息到 RabbitMQ（由 MessageService 消费并推送到客户端）
+        await _publishEndpoint.Publish(new CoworkingVerificationVotesMessage
+        {
+            CoworkingId = id.ToString(),
+            VerificationVotes = votes,
+            IsVerified = isVerified,
+            Timestamp = DateTime.UtcNow
+        });
+        _logger.LogInformation("已发布验证人数变化消息: CoworkingId={CoworkingId}, Votes={Votes}", id, votes);
+
+        // 6. 获取评分信息并返回
         var (averageRating, reviewCount) = await _reviewRepository.GetAverageRatingAsync(id);
         return await MapToResponseAsync(coworkingSpace, votes, averageRating, reviewCount);
     }

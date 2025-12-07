@@ -498,6 +498,83 @@ public class ChatHub : Hub
     }
 
     #endregion
+
+    #region Coworking 订阅操作
+
+    /// <summary>
+    ///     订阅 Coworking 验证人数变化
+    /// </summary>
+    public async Task SubscribeCoworking(string coworkingId)
+    {
+        if (string.IsNullOrEmpty(coworkingId))
+        {
+            await Clients.Caller.SendAsync("Error", "Coworking ID 不能为空");
+            return;
+        }
+
+        // 添加到 SignalR 组
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"coworking-{coworkingId}");
+
+        _logger.LogInformation("用户订阅 Coworking {CoworkingId}, ConnectionId: {ConnectionId}",
+            coworkingId, Context.ConnectionId);
+
+        await Clients.Caller.SendAsync("SubscribedCoworking", new
+        {
+            CoworkingId = coworkingId,
+            Timestamp = DateTime.UtcNow
+        });
+    }
+
+    /// <summary>
+    ///     批量订阅 Coworking 验证人数变化（用于列表页）
+    /// </summary>
+    public async Task SubscribeCoworkings(List<string> coworkingIds)
+    {
+        if (coworkingIds == null || coworkingIds.Count == 0)
+        {
+            await Clients.Caller.SendAsync("Error", "Coworking ID 列表不能为空");
+            return;
+        }
+
+        // 批量添加到 SignalR 组
+        foreach (var coworkingId in coworkingIds)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"coworking-{coworkingId}");
+        }
+
+        _logger.LogInformation("用户批量订阅 {Count} 个 Coworking, ConnectionId: {ConnectionId}",
+            coworkingIds.Count, Context.ConnectionId);
+
+        await Clients.Caller.SendAsync("SubscribedCoworkings", new
+        {
+            CoworkingIds = coworkingIds,
+            Timestamp = DateTime.UtcNow
+        });
+    }
+
+    /// <summary>
+    ///     取消订阅 Coworking
+    /// </summary>
+    public async Task UnsubscribeCoworking(string coworkingId)
+    {
+        if (string.IsNullOrEmpty(coworkingId))
+        {
+            return;
+        }
+
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"coworking-{coworkingId}");
+
+        _logger.LogInformation("用户取消订阅 Coworking {CoworkingId}, ConnectionId: {ConnectionId}",
+            coworkingId, Context.ConnectionId);
+
+        await Clients.Caller.SendAsync("UnsubscribedCoworking", new
+        {
+            CoworkingId = coworkingId,
+            Timestamp = DateTime.UtcNow
+        });
+    }
+
+    #endregion
 }
 
 #region DTOs

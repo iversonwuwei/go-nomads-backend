@@ -312,7 +312,7 @@ public class ModeratorApplicationService : IModeratorApplicationService
                     ["applicantName"] = applicantInfo?.Name ?? "未知用户",
                     ["applicantAvatar"] = applicantInfo?.Avatar ?? "",
                     ["cityId"] = application.CityId,
-                    ["cityName"] = city.NameEn,
+                    ["cityName"] = city.NameEn ?? "Unknown City",
                     ["reason"] = application.Reason
                 }
             };

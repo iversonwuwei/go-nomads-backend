@@ -183,4 +183,22 @@ public class SignalRNotifierImpl : ISignalRNotifier
             throw;
         }
     }
+
+    public async Task SendCoworkingVerificationVotesAsync(string coworkingId, object votesData)
+    {
+        try
+        {
+            // 发送到 Coworking 订阅组 - 验证人数更新事件
+            await _chatHub.Clients
+                .Group($"coworking-{coworkingId}")
+                .SendAsync("VerificationVotesUpdated", votesData);
+
+            _logger.LogInformation("推送 Coworking 验证人数更新: CoworkingId={CoworkingId}", coworkingId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "推送 Coworking 验证人数更新失败: CoworkingId={CoworkingId}", coworkingId);
+            throw;
+        }
+    }
 }

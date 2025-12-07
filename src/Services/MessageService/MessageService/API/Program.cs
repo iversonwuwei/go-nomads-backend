@@ -96,6 +96,9 @@ builder.Services.AddMassTransit(x =>
     // 注册聊天室在线状态消息消费者
     x.AddConsumer<ChatRoomOnlineStatusConsumer>();
 
+    // 注册 Coworking 验证人数变化消息消费者
+    x.AddConsumer<CoworkingVerificationVotesConsumer>();
+
     x.UsingRabbitMq((context, cfg) =>
     {
         var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
