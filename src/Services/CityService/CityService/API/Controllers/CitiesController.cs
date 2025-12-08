@@ -24,6 +24,7 @@ public class CitiesController : ControllerBase
     private readonly ICityService _cityService;
     private readonly DaprClient _daprClient;
     private readonly IDigitalNomadGuideService _guideService;
+    private readonly INearbyCityService _nearbyCityService;
     private readonly ILogger<CitiesController> _logger;
     private readonly ICityModeratorRepository _moderatorRepository;
     private readonly Client _supabaseClient;
@@ -31,6 +32,7 @@ public class CitiesController : ControllerBase
     public CitiesController(
         ICityService cityService,
         IDigitalNomadGuideService guideService,
+        INearbyCityService nearbyCityService,
         ICityModeratorRepository moderatorRepository,
         DaprClient daprClient,
         Client supabaseClient,
@@ -38,6 +40,7 @@ public class CitiesController : ControllerBase
     {
         _cityService = cityService;
         _guideService = guideService;
+        _nearbyCityService = nearbyCityService;
         _moderatorRepository = moderatorRepository;
         _daprClient = daprClient;
         _supabaseClient = supabaseClient;
@@ -1373,6 +1376,203 @@ public class CitiesController : ControllerBase
                 Message = $"创建图片生成任务失败: {ex.Message}"
             });
         }
+    }
+
+    #endregion
+
+    #region Nearby Cities APIs
+
+    /// <summary>
+    ///     Get nearby cities for a city
+    /// </summary>
+    /// <param name="cityId">City ID</param>
+    /// <returns>List of nearby cities</returns>
+    [HttpGet("{cityId}/nearby")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<List<NearbyCityDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ApiResponse<List<NearbyCityDto>>>> GetNearbyCities(string cityId)
+    {
+        try
+        {
+            _logger.LogInformation("📖 获取附近城市: cityId={CityId}", cityId);
+
+            var nearbyCities = await _nearbyCityService.GetBySourceCityIdAsync(cityId);
+
+            var dtos = nearbyCities.Select(MapToDto).ToList();
+
+            _logger.LogInformation("✅ 返回 {Count} 个附近城市: cityId={CityId}", dtos.Count, cityId);
+
+            return Ok(new ApiResponse<List<NearbyCityDto>>
+            {
+                Success = true,
+                Message = nearbyCities.Count > 0
+                    ? "Nearby cities retrieved successfully"
+                    : "No nearby cities found for this city yet",
+                Data = dtos
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取附近城市失败: cityId={CityId}", cityId);
+            return StatusCode(500, new ApiResponse<List<NearbyCityDto>>
+            {
+                Success = false,
+                Message = $"Failed to retrieve nearby cities: {ex.Message}",
+                Data = null
+            });
+        }
+    }
+
+    /// <summary>
+    ///     Save nearby cities for a city (batch save)
+    /// </summary>
+    /// <param name="cityId">City ID</param>
+    /// <param name="request">Nearby cities data</param>
+    /// <returns>Saved nearby cities</returns>
+    [HttpPost("{cityId}/nearby")]
+    [ProducesResponseType(typeof(ApiResponse<List<NearbyCityDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ApiResponse<List<NearbyCityDto>>>> SaveNearbyCities(
+        string cityId,
+        [FromBody] SaveNearbyCitiesRequest request)
+    {
+        try
+        {
+            _logger.LogInformation("💾 保存附近城市: cityId={CityId}, count={Count}",
+                cityId, request.NearbyCities.Count);
+
+            // 验证cityId匹配
+            if (request.SourceCityId != cityId)
+                return BadRequest(new ApiResponse<List<NearbyCityDto>>
+                {
+                    Success = false,
+                    Message = "City ID in URL does not match request body",
+                    Data = null
+                });
+
+            // 映射到实体
+            var nearbyCities = request.NearbyCities.Select(dto => new NearbyCity
+            {
+                SourceCityId = cityId,
+                TargetCityId = dto.TargetCityId,
+                TargetCityName = dto.TargetCityName,
+                Country = dto.Country,
+                DistanceKm = dto.DistanceKm,
+                TransportationType = dto.TransportationType,
+                TravelTimeMinutes = dto.TravelTimeMinutes,
+                Highlights = dto.Highlights,
+                NomadFeatures = new NearbyCityNomadFeatures
+                {
+                    MonthlyCostUsd = dto.NomadFeatures.MonthlyCostUsd,
+                    InternetSpeedMbps = dto.NomadFeatures.InternetSpeedMbps,
+                    CoworkingSpaces = dto.NomadFeatures.CoworkingSpaces,
+                    VisaInfo = dto.NomadFeatures.VisaInfo,
+                    SafetyScore = dto.NomadFeatures.SafetyScore,
+                    QualityOfLife = dto.NomadFeatures.QualityOfLife
+                },
+                ImageUrl = dto.ImageUrl,
+                OverallScore = dto.OverallScore,
+                Latitude = dto.Latitude,
+                Longitude = dto.Longitude,
+                IsAIGenerated = dto.IsAIGenerated
+            }).ToList();
+
+            var savedCities = await _nearbyCityService.SaveBatchAsync(cityId, nearbyCities);
+
+            var dtos = savedCities.Select(MapToDto).ToList();
+
+            _logger.LogInformation("✅ 附近城市保存成功: cityId={CityId}, savedCount={Count}",
+                cityId, dtos.Count);
+
+            return Ok(new ApiResponse<List<NearbyCityDto>>
+            {
+                Success = true,
+                Message = "Nearby cities saved successfully",
+                Data = dtos
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 保存附近城市失败: cityId={CityId}", cityId);
+            return StatusCode(500, new ApiResponse<List<NearbyCityDto>>
+            {
+                Success = false,
+                Message = $"Failed to save nearby cities: {ex.Message}",
+                Data = null
+            });
+        }
+    }
+
+    /// <summary>
+    ///     Delete all nearby cities for a city
+    /// </summary>
+    /// <param name="cityId">City ID</param>
+    /// <returns>Success or failure</returns>
+    [HttpDelete("{cityId}/nearby")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteNearbyCities(string cityId)
+    {
+        try
+        {
+            _logger.LogInformation("🗑️ 删除附近城市: cityId={CityId}", cityId);
+
+            var result = await _nearbyCityService.DeleteBySourceCityIdAsync(cityId);
+
+            return Ok(new ApiResponse<bool>
+            {
+                Success = true,
+                Message = result ? "Nearby cities deleted successfully" : "No nearby cities found to delete",
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 删除附近城市失败: cityId={CityId}", cityId);
+            return StatusCode(500, new ApiResponse<bool>
+            {
+                Success = false,
+                Message = $"Failed to delete nearby cities: {ex.Message}",
+                Data = false
+            });
+        }
+    }
+
+    /// <summary>
+    ///     Map NearbyCity entity to DTO
+    /// </summary>
+    private static NearbyCityDto MapToDto(NearbyCity entity)
+    {
+        return new NearbyCityDto
+        {
+            Id = entity.Id,
+            SourceCityId = entity.SourceCityId,
+            TargetCityId = entity.TargetCityId,
+            TargetCityName = entity.TargetCityName,
+            Country = entity.Country,
+            DistanceKm = entity.DistanceKm,
+            TransportationType = entity.TransportationType,
+            TravelTimeMinutes = entity.TravelTimeMinutes,
+            Highlights = entity.Highlights,
+            NomadFeatures = new NearbyCityNomadFeaturesDto
+            {
+                MonthlyCostUsd = entity.NomadFeatures.MonthlyCostUsd,
+                InternetSpeedMbps = entity.NomadFeatures.InternetSpeedMbps,
+                CoworkingSpaces = entity.NomadFeatures.CoworkingSpaces,
+                VisaInfo = entity.NomadFeatures.VisaInfo,
+                SafetyScore = entity.NomadFeatures.SafetyScore,
+                QualityOfLife = entity.NomadFeatures.QualityOfLife
+            },
+            ImageUrl = entity.ImageUrl,
+            OverallScore = entity.OverallScore,
+            Latitude = entity.Latitude,
+            Longitude = entity.Longitude,
+            IsAIGenerated = entity.IsAIGenerated,
+            CreatedAt = entity.CreatedAt,
+            UpdatedAt = entity.UpdatedAt
+        };
     }
 
     #endregion

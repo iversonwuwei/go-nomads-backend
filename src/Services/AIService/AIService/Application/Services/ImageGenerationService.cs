@@ -173,19 +173,26 @@ public class ImageGenerationService : IImageGenerationService
             _logger.LogInformation("✅ 城市 {CityId} 获取到并发槽位，开始生成图片", request.CityId);
             _logger.LogInformation("开始批量生成城市图片，城市: {CityName} ({CityId})", request.CityName, request.CityId);
 
-            // 生成默认提示词 - 专注于名胜古迹、著名景点和地标建筑
+            // 提取英文城市名（如果有中英文格式如"北戴河/Beidaihe"，只取英文部分）
+            var cityName = request.CityName;
+            if (cityName.Contains('/'))
+            {
+                cityName = cityName.Split('/').Last().Trim();
+            }
+
+            // 生成默认提示词 - 融合美食、旅游景点和现代化城市元素的创意构图（纯英文避免敏感词检测）
             var cityDesc = string.IsNullOrEmpty(request.Country)
-                ? request.CityName
-                : $"{request.CityName}, {request.Country}";
+                ? cityName
+                : $"{cityName}, {request.Country}";
 
             var portraitPrompt = request.PortraitPrompt
-                ?? $"A stunning vertical photograph of the most famous landmark or monument in {cityDesc}, showcasing iconic historical architecture, world-renowned tourist attraction, UNESCO heritage site, professional travel photography, high quality, vibrant colors, golden hour lighting, clear blue sky";
+                ?? $"Beautiful vertical travel photograph of {cityDesc}, artistic composition with local cuisine in foreground, historic landmark in middle, modern skyline in background, vibrant colors, warm atmosphere, professional photography, high quality, cinematic lighting";
 
             var landscapePrompt = request.LandscapePrompt
-                ?? $"Beautiful panoramic photograph of famous scenic spots and landmarks in {cityDesc}, featuring historic monuments, ancient temples, iconic towers, famous bridges, renowned museums, cultural heritage sites, must-visit tourist attractions, professional travel photography, high resolution, vivid colors, dramatic lighting";
+                ?? $"Panoramic travel photograph of {cityDesc}, featuring local food culture, famous scenic spots, modern architecture, vibrant street life, colorful composition, professional photography, high resolution, vivid colors";
 
             var negativePrompt = request.NegativePrompt
-                ?? "blurry, low quality, distorted, watermark, text, logo, ugly, deformed, people, crowds, modern buildings without historical significance, plain streets, ordinary residential areas";
+                ?? "blurry, low quality, distorted, watermark, text, logo, ugly, deformed, dull colors";
 
             // 并行生成竖屏和横屏图片
             var portraitTask = GeneratePortraitImageAsync(request, portraitPrompt, negativePrompt);
@@ -459,7 +466,7 @@ public class ImageGenerationService : IImageGenerationService
     }
 
     /// <summary>
-    ///     下载图片并上传到 Supabase Storage
+    ///     下载图片并上传到 Supabase Storage（带重试机制）
     /// </summary>
     private async Task<List<GeneratedImageInfo>> DownloadAndUploadImagesAsync(
         List<string> imageUrls,
@@ -468,13 +475,37 @@ public class ImageGenerationService : IImageGenerationService
         Guid userId)
     {
         var uploadedImages = new List<GeneratedImageInfo>();
+        const int maxRetries = 3;
 
         foreach (var imageUrl in imageUrls)
         {
             try
             {
-                // 下载图片
-                var imageBytes = await _httpClient.GetByteArrayAsync(imageUrl);
+                // 下载图片（带重试机制）
+                byte[]? imageBytes = null;
+
+                for (int retry = 0; retry < maxRetries; retry++)
+                {
+                    try
+                    {
+                        _logger.LogInformation("📥 下载图片 (尝试 {Retry}/{Max}): {Url}", retry + 1, maxRetries, imageUrl);
+                        imageBytes = await _httpClient.GetByteArrayAsync(imageUrl);
+                        _logger.LogInformation("✅ 图片下载成功，大小: {Size} bytes", imageBytes.Length);
+                        break; // 下载成功，跳出重试循环
+                    }
+                    catch (HttpRequestException ex) when (retry < maxRetries - 1)
+                    {
+                        _logger.LogWarning("⚠️ 下载图片失败 (尝试 {Retry}/{Max}): {Error}，将在 2 秒后重试",
+                            retry + 1, maxRetries, ex.Message);
+                        await Task.Delay(2000); // 等待 2 秒后重试
+                    }
+                }
+
+                if (imageBytes == null || imageBytes.Length == 0)
+                {
+                    _logger.LogError("❌ 图片下载失败（已重试 {Max} 次）: {Url}", maxRetries, imageUrl);
+                    continue;
+                }
 
                 // 生成存储路径
                 var fileName = $"{Guid.NewGuid():N}.png";
@@ -482,21 +513,45 @@ public class ImageGenerationService : IImageGenerationService
                     ? $"{userId}/{fileName}"
                     : $"{pathPrefix}/{userId}/{fileName}";
 
-                _logger.LogDebug("上传图片到 Supabase Storage: {Bucket}/{Path}", bucket, storagePath);
+                // 上传到 Supabase Storage（带重试机制）
+                string? publicUrl = null;
 
-                // 上传到 Supabase Storage
-                await _supabaseClient.Storage
-                    .From(bucket)
-                    .Upload(imageBytes, storagePath, new Supabase.Storage.FileOptions
+                for (int retry = 0; retry < maxRetries; retry++)
+                {
+                    try
                     {
-                        ContentType = "image/png",
-                        Upsert = false
-                    });
+                        _logger.LogInformation("📤 上传图片到 Supabase (尝试 {Retry}/{Max}): {Bucket}/{Path}",
+                            retry + 1, maxRetries, bucket, storagePath);
 
-                // 获取公开 URL
-                var publicUrl = _supabaseClient.Storage
-                    .From(bucket)
-                    .GetPublicUrl(storagePath);
+                        await _supabaseClient.Storage
+                            .From(bucket)
+                            .Upload(imageBytes, storagePath, new Supabase.Storage.FileOptions
+                            {
+                                ContentType = "image/png",
+                                Upsert = true // 使用 Upsert 避免重试时冲突
+                            });
+
+                        // 获取公开 URL
+                        publicUrl = _supabaseClient.Storage
+                            .From(bucket)
+                            .GetPublicUrl(storagePath);
+
+                        _logger.LogInformation("✅ 图片上传成功: {Url}", publicUrl);
+                        break; // 上传成功，跳出重试循环
+                    }
+                    catch (Exception ex) when (retry < maxRetries - 1)
+                    {
+                        _logger.LogWarning("⚠️ 上传图片失败 (尝试 {Retry}/{Max}): {Error}，将在 2 秒后重试",
+                            retry + 1, maxRetries, ex.Message);
+                        await Task.Delay(2000); // 等待 2 秒后重试
+                    }
+                }
+
+                if (string.IsNullOrEmpty(publicUrl))
+                {
+                    _logger.LogError("❌ 图片上传失败（已重试 {Max} 次）: {Path}", maxRetries, storagePath);
+                    continue;
+                }
 
                 uploadedImages.Add(new GeneratedImageInfo
                 {
@@ -505,12 +560,10 @@ public class ImageGenerationService : IImageGenerationService
                     OriginalUrl = imageUrl,
                     FileSize = imageBytes.Length
                 });
-
-                _logger.LogInformation("图片上传成功: {Url}", publicUrl);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "下载或上传图片失败: {ImageUrl}", imageUrl);
+                _logger.LogError(ex, "❌ 处理图片失败: {ImageUrl}", imageUrl);
                 // 继续处理其他图片
             }
         }

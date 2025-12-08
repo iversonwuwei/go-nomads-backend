@@ -84,4 +84,12 @@ public interface IAIChatService
         GenerateTravelGuideRequest request,
         Guid userId,
         Func<int, string, Task>? onProgress = null);
+
+    /// <summary>
+    ///     生成附近城市信息
+    /// </summary>
+    Task<NearbyCitiesResponse> GenerateNearbyCitiesAsync(
+        GenerateNearbyCitiesRequest request,
+        Guid userId,
+        Func<int, string, Task>? onProgress = null);
 }

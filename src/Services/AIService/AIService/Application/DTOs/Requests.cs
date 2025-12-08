@@ -135,6 +135,33 @@ public class GenerateTravelGuideRequest
 }
 
 /// <summary>
+///     生成附近城市请求
+/// </summary>
+public class GenerateNearbyCitiesRequest
+{
+    [Required(ErrorMessage = "城市ID不能为空")]
+    public string CityId { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "城市名称不能为空")]
+    public string CityName { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     城市所在国家
+    /// </summary>
+    public string? Country { get; set; }
+
+    /// <summary>
+    ///     搜索半径（公里），默认100公里
+    /// </summary>
+    public int RadiusKm { get; set; } = 100;
+
+    /// <summary>
+    ///     返回城市数量，默认4个
+    /// </summary>
+    public int Count { get; set; } = 4;
+}
+
+/// <summary>
 ///     生成图片请求 (通义万象) - 单张图片
 /// </summary>
 public class GenerateImageRequest

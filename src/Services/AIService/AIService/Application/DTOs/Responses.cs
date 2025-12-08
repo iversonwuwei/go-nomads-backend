@@ -209,6 +209,113 @@ public class TravelGuideResponse
     public Dictionary<string, string> EssentialInfo { get; set; } = new();
 }
 
+/// <summary>
+///     附近城市响应
+/// </summary>
+public class NearbyCitiesResponse
+{
+    public string SourceCityId { get; set; } = string.Empty;
+    public string SourceCityName { get; set; } = string.Empty;
+    public List<NearbyCityItemResponse> Cities { get; set; } = new();
+}
+
+/// <summary>
+///     附近城市项目响应
+/// </summary>
+public class NearbyCityItemResponse
+{
+    /// <summary>
+    ///     城市名称
+    /// </summary>
+    public string CityName { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     所属国家
+    /// </summary>
+    public string Country { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     距离（公里）
+    /// </summary>
+    public double DistanceKm { get; set; }
+
+    /// <summary>
+    ///     主要交通方式 (train/bus/car/flight/ferry)
+    /// </summary>
+    public string TransportationType { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     预计旅行时间（分钟）
+    /// </summary>
+    public int TravelTimeMinutes { get; set; }
+
+    /// <summary>
+    ///     城市亮点/特色
+    /// </summary>
+    public List<string> Highlights { get; set; } = new();
+
+    /// <summary>
+    ///     数字游民相关特色
+    /// </summary>
+    public NearbyCityNomadFeaturesResponse NomadFeatures { get; set; } = new();
+
+    /// <summary>
+    ///     纬度
+    /// </summary>
+    public double? Latitude { get; set; }
+
+    /// <summary>
+    ///     经度
+    /// </summary>
+    public double? Longitude { get; set; }
+
+    /// <summary>
+    ///     综合评分 (1-5)
+    /// </summary>
+    public double? OverallScore { get; set; }
+
+    /// <summary>
+    ///     城市图片 URL
+    /// </summary>
+    public string? ImageUrl { get; set; }
+}
+
+/// <summary>
+///     附近城市的数字游民相关特色响应
+/// </summary>
+public class NearbyCityNomadFeaturesResponse
+{
+    /// <summary>
+    ///     预计月生活成本 (美元)
+    /// </summary>
+    public double? MonthlyCostUsd { get; set; }
+
+    /// <summary>
+    ///     网络速度 (Mbps)
+    /// </summary>
+    public int? InternetSpeedMbps { get; set; }
+
+    /// <summary>
+    ///     联合办公空间数量
+    /// </summary>
+    public int? CoworkingSpaces { get; set; }
+
+    /// <summary>
+    ///     签证便利性描述
+    /// </summary>
+    public string? VisaInfo { get; set; }
+
+    /// <summary>
+    ///     安全评分 (1-5)
+    /// </summary>
+    public double? SafetyScore { get; set; }
+
+    /// <summary>
+    ///     生活质量描述
+    /// </summary>
+    public string? QualityOfLife { get; set; }
+}
+
 public class BestAreaDto
 {
     /// <summary>

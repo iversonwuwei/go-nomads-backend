@@ -529,6 +529,182 @@ public class AIChatApplicationService : IAIChatService
         }
     }
 
+    /// <summary>
+    ///     生成附近城市信息
+    /// </summary>
+    public async Task<NearbyCitiesResponse> GenerateNearbyCitiesAsync(
+        GenerateNearbyCitiesRequest request,
+        Guid userId,
+        Func<int, string, Task>? onProgress = null)
+    {
+        try
+        {
+            _logger.LogInformation("🌍 开始生成附近城市信息 - 城市: {CityName}, 半径: {Radius}km, 数量: {Count}",
+                request.CityName, request.RadiusKm, request.Count);
+
+            if (onProgress != null) await onProgress(10, "正在分析周边城市...");
+
+            var response = new NearbyCitiesResponse
+            {
+                SourceCityId = request.CityId,
+                SourceCityName = request.CityName
+            };
+
+            // 生成附近城市列表
+            var cities = await GenerateNearbyCitiesListAsync(request, onProgress);
+            response.Cities = cities;
+
+            if (onProgress != null) await onProgress(100, "附近城市信息生成完成!");
+
+            _logger.LogInformation("✅ 附近城市信息生成成功 - 城市: {CityName}, 找到 {Count} 个附近城市",
+                request.CityName, cities.Count);
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 生成附近城市信息失败，城市: {CityName}", request.CityName);
+            throw;
+        }
+    }
+
+    /// <summary>
+    ///     生成附近城市列表
+    /// </summary>
+    private async Task<List<NearbyCityItemResponse>> GenerateNearbyCitiesListAsync(
+        GenerateNearbyCitiesRequest request,
+        Func<int, string, Task>? onProgress)
+    {
+        var countryInfo = string.IsNullOrEmpty(request.Country) ? "" : $"（{request.Country}）";
+        var prompt = $@"请为 {request.CityName}{countryInfo} 推荐 {request.Count} 个车程在 {request.RadiusKm} 公里范围内的相邻城市。
+
+这些城市应该是适合数字游民短途旅行或周末游的目的地。
+
+请以 JSON 格式返回：
+
+{{
+  ""cities"": [
+    {{
+      ""cityName"": ""城市名称（中英文皆可，如：苏州/Suzhou）"",
+      ""country"": ""所属国家"",
+      ""distanceKm"": 距离公里数（数字）,
+      ""transportationType"": ""主要交通方式（train/bus/car之一）"",
+      ""travelTimeMinutes"": 预计旅行时间分钟数（数字）,
+      ""highlights"": [""亮点1"", ""亮点2"", ""亮点3""],
+      ""nomadFeatures"": {{
+        ""monthlyCostUsd"": 预计月生活成本美元（数字，可选）,
+        ""internetSpeedMbps"": 网络速度Mbps（数字，可选）,
+        ""coworkingSpaces"": 联合办公空间数量（数字，可选）,
+        ""visaInfo"": ""签证便利性描述（可选）"",
+        ""safetyScore"": 安全评分1-5（数字，可选）,
+        ""qualityOfLife"": ""生活质量描述（可选）""
+      }},
+      ""latitude"": 纬度（数字，可选）,
+      ""longitude"": 经度（数字，可选）,
+      ""overallScore"": 综合评分1-5（数字）
+    }}
+  ]
+}}
+
+要求：
+1. 只推荐真实存在的城市，距离和交通信息要准确
+2. 优先推荐对数字游民友好的城市
+3. 亮点要简洁有特色，3个左右
+4. 必须返回严格的 JSON 格式
+5. 【重要】绝对不能包含 {request.CityName} 本身，只返回周边其他城市";
+
+        if (onProgress != null) await onProgress(30, "正在调用 AI 分析周边城市...");
+
+        _logger.LogInformation("🤖 调用 AI 生成附近城市列表...");
+        var aiResponse = await CallAIAsync(prompt, 2000);
+
+        if (onProgress != null) await onProgress(70, "正在解析附近城市信息...");
+
+        try
+        {
+            var jsonContent = ExtractJsonFromAIResponse(aiResponse);
+            jsonContent = TryFixIncompleteJson(jsonContent);
+
+            var jsonDoc = JsonDocument.Parse(jsonContent);
+            var root = jsonDoc.RootElement;
+
+            var cities = new List<NearbyCityItemResponse>();
+
+            if (root.TryGetProperty("cities", out var citiesElement) && citiesElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var cityElement in citiesElement.EnumerateArray())
+                {
+                    var city = new NearbyCityItemResponse
+                    {
+                        CityName = cityElement.TryGetProperty("cityName", out var name) ? name.GetString() ?? "" : "",
+                        Country = cityElement.TryGetProperty("country", out var country) ? country.GetString() ?? "" : "",
+                        DistanceKm = cityElement.TryGetProperty("distanceKm", out var distance) ? distance.GetDouble() : 0,
+                        TransportationType = cityElement.TryGetProperty("transportationType", out var transport) ? transport.GetString() ?? "car" : "car",
+                        TravelTimeMinutes = cityElement.TryGetProperty("travelTimeMinutes", out var time) ? time.GetInt32() : 0,
+                        Latitude = cityElement.TryGetProperty("latitude", out var lat) && lat.ValueKind == JsonValueKind.Number ? lat.GetDouble() : null,
+                        Longitude = cityElement.TryGetProperty("longitude", out var lng) && lng.ValueKind == JsonValueKind.Number ? lng.GetDouble() : null,
+                        OverallScore = cityElement.TryGetProperty("overallScore", out var score) && score.ValueKind == JsonValueKind.Number ? score.GetDouble() : null
+                    };
+
+                    // 解析 highlights
+                    if (cityElement.TryGetProperty("highlights", out var highlightsElement) && highlightsElement.ValueKind == JsonValueKind.Array)
+                    {
+                        city.Highlights = highlightsElement.EnumerateArray()
+                            .Select(h => h.GetString() ?? "")
+                            .Where(h => !string.IsNullOrEmpty(h))
+                            .ToList();
+                    }
+
+                    // 解析 nomadFeatures
+                    if (cityElement.TryGetProperty("nomadFeatures", out var featuresElement) && featuresElement.ValueKind == JsonValueKind.Object)
+                    {
+                        city.NomadFeatures = new NearbyCityNomadFeaturesResponse
+                        {
+                            MonthlyCostUsd = featuresElement.TryGetProperty("monthlyCostUsd", out var cost) && cost.ValueKind == JsonValueKind.Number ? cost.GetDouble() : null,
+                            InternetSpeedMbps = featuresElement.TryGetProperty("internetSpeedMbps", out var speed) && speed.ValueKind == JsonValueKind.Number ? speed.GetInt32() : null,
+                            CoworkingSpaces = featuresElement.TryGetProperty("coworkingSpaces", out var spaces) && spaces.ValueKind == JsonValueKind.Number ? spaces.GetInt32() : null,
+                            VisaInfo = featuresElement.TryGetProperty("visaInfo", out var visa) ? visa.GetString() : null,
+                            SafetyScore = featuresElement.TryGetProperty("safetyScore", out var safety) && safety.ValueKind == JsonValueKind.Number ? safety.GetDouble() : null,
+                            QualityOfLife = featuresElement.TryGetProperty("qualityOfLife", out var quality) ? quality.GetString() : null
+                        };
+                    }
+
+                    if (!string.IsNullOrEmpty(city.CityName))
+                    {
+                        // 过滤掉源城市本身（防止 AI 返回源城市）
+                        var sourceCityName = request.CityName.ToLowerInvariant();
+                        var targetCityName = city.CityName.ToLowerInvariant();
+
+                        // 检查是否包含源城市名（考虑中英文格式如 "大同/Datong"）
+                        var isSourceCity = targetCityName.Contains(sourceCityName) ||
+                                           sourceCityName.Contains(targetCityName) ||
+                                           targetCityName.Split('/').Any(n => sourceCityName.Split('/').Any(s =>
+                                               n.Trim().Equals(s.Trim(), StringComparison.OrdinalIgnoreCase)));
+
+                        if (isSourceCity)
+                        {
+                            _logger.LogWarning("⚠️ 过滤掉源城市: {CityName}", city.CityName);
+                            continue;
+                        }
+
+                        cities.Add(city);
+                    }
+                }
+            }
+
+            _logger.LogInformation("✅ 成功解析 {Count} 个附近城市", cities.Count);
+            return cities;
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "❌ JSON 解析失败，原始响应: {Response}",
+                aiResponse.Length > 500 ? aiResponse.Substring(0, 500) + "..." : aiResponse);
+
+            // 返回空列表
+            return new List<NearbyCityItemResponse>();
+        }
+    }
+
     // 私有辅助方法
 
     private async Task<AIConversation> GetConversationWithPermissionCheck(Guid conversationId, Guid userId)

@@ -1720,6 +1720,442 @@ public class ChatController : ControllerBase
         }
     }
 
+    /// <summary>
+    ///     生成附近城市信息
+    /// </summary>
+    [HttpPost("nearby-cities")]
+    public async Task<ActionResult<ApiResponse<NearbyCitiesResponse>>> GenerateNearbyCities(
+        [FromBody] GenerateNearbyCitiesRequest request)
+    {
+        try
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+            {
+                userId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+                _logger.LogInformation("ℹ️ 匿名用户生成附近城市");
+            }
+
+            _logger.LogInformation("🌍 开始生成附近城市信息 - 城市: {CityName}", request.CityName);
+
+            var result = await _aiChatService.GenerateNearbyCitiesAsync(request, userId);
+
+            _logger.LogInformation("✅ 附近城市信息生成成功 - 城市: {CityName}, 数量: {Count}",
+                request.CityName, result.Cities.Count);
+
+            return Ok(new ApiResponse<NearbyCitiesResponse>
+            {
+                Success = true,
+                Message = "附近城市信息生成成功",
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 生成附近城市信息失败");
+            return StatusCode(500, new ApiResponse<NearbyCitiesResponse>
+            {
+                Success = false,
+                Message = "生成附近城市信息失败,请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     流式生成附近城市信息 - 带进度条
+    /// </summary>
+    [HttpPost("nearby-cities/stream")]
+    public async Task GenerateNearbyCitiesStream([FromBody] GenerateNearbyCitiesRequest request)
+    {
+        Response.Headers.Append("Content-Type", "text/event-stream");
+        Response.Headers.Append("Cache-Control", "no-cache");
+        Response.Headers.Append("Connection", "keep-alive");
+
+        try
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) userId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+            _logger.LogInformation("🌍 [流式] 开始生成附近城市信息 - 城市: {CityName}", request.CityName);
+
+            await SendProgressEvent("start", new { message = "开始生成附近城市信息...", progress = 0 });
+            await Response.Body.FlushAsync();
+
+            var result = await _aiChatService.GenerateNearbyCitiesAsync(
+                request,
+                userId,
+                async (progress, message) =>
+                {
+                    await SendProgressEvent("progress", new { message, progress });
+                    await Response.Body.FlushAsync();
+                });
+
+            await SendProgressEvent("success", new
+            {
+                message = "附近城市信息生成成功!",
+                progress = 100,
+                data = result
+            });
+            await Response.Body.FlushAsync();
+
+            _logger.LogInformation("✅ [流式] 附近城市信息生成成功 - 城市: {CityName}", request.CityName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [流式] 生成附近城市信息失败");
+            await SendProgressEvent("error", new { message = $"生成失败: {ex.Message}", progress = 0 });
+            await Response.Body.FlushAsync();
+        }
+    }
+
+    /// <summary>
+    ///     创建附近城市生成任务(异步)
+    /// </summary>
+    [HttpPost("nearby-cities/async")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<CreateTaskResponse>>> CreateNearbyCitiesTaskAsync(
+        [FromBody] GenerateNearbyCitiesRequest request,
+        [FromServices] IPublishEndpoint publishEndpoint,
+        [FromServices] IRedisCache cache,
+        [FromServices] IAIChatService chatService,
+        [FromServices] DaprClient daprClient,
+        [FromServices] IImageGenerationService imageService)
+    {
+        try
+        {
+            _logger.LogInformation("📥 收到异步附近城市生成请求: CityId={CityId}, CityName={CityName}",
+                request.CityId, request.CityName);
+
+            if (!ModelState.IsValid)
+            {
+                var errors = string.Join("; ", ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage));
+                return BadRequest(new ApiResponse<CreateTaskResponse>
+                {
+                    Success = false,
+                    Message = $"请求验证失败: {errors}"
+                });
+            }
+
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+            {
+                userId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+            }
+
+            var taskId = Guid.NewGuid().ToString("N");
+            var startTime = DateTime.UtcNow;
+
+            var taskStatus = new TaskStatus
+            {
+                TaskId = taskId,
+                Status = "queued",
+                Progress = 0,
+                ProgressMessage = "附近城市生成任务已创建,正在开始处理...",
+                CreatedAt = startTime,
+                UpdatedAt = startTime
+            };
+
+            await cache.SetAsync($"task:{taskId}", taskStatus, TimeSpan.FromHours(24));
+
+            // 后台处理任务
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    _logger.LogInformation("🚀 开始处理附近城市生成任务: TaskId={TaskId}", taskId);
+
+                    var nearbyCities = await chatService.GenerateNearbyCitiesAsync(
+                        request,
+                        userId,
+                        async (progress, message) =>
+                        {
+                            await publishEndpoint.Publish(new AIProgressMessage
+                            {
+                                TaskId = taskId,
+                                UserId = userId.ToString(),
+                                Progress = progress,
+                                Message = message,
+                                TaskType = "nearby-cities",
+                                CurrentStage = message,
+                                Status = progress >= 100 ? "completed" : "processing",
+                                Timestamp = DateTime.UtcNow
+                            });
+
+                            _logger.LogInformation("📊 附近城市进度: {Progress}% - {Message}", progress, message);
+                        });
+
+                    // 为每个附近城市生成图片
+                    await publishEndpoint.Publish(new AIProgressMessage
+                    {
+                        TaskId = taskId,
+                        UserId = userId.ToString(),
+                        Progress = 75,
+                        Message = "正在生成城市图片...",
+                        TaskType = "nearby-cities",
+                        CurrentStage = "正在生成城市图片...",
+                        Status = "processing",
+                        Timestamp = DateTime.UtcNow
+                    });
+
+                    var citiesWithImages = new List<NearbyCityItemResponse>();
+                    var totalCities = nearbyCities.Cities.Count;
+                    var processedCount = 0;
+                    var successCount = 0;
+                    var failedCount = 0;
+
+                    foreach (var city in nearbyCities.Cities)
+                    {
+                        processedCount++;
+
+                        // 先发送进度：开始生成当前城市图片
+                        var imageProgress = 75 + (int)((processedCount - 1) * 20.0 / totalCities);
+                        await publishEndpoint.Publish(new AIProgressMessage
+                        {
+                            TaskId = taskId,
+                            UserId = userId.ToString(),
+                            Progress = imageProgress,
+                            Message = $"正在生成图片 ({processedCount}/{totalCities}): {city.CityName}",
+                            TaskType = "nearby-cities",
+                            CurrentStage = $"🖼️ 正在为 {city.CityName} 生成图片...",
+                            Status = "processing",
+                            Timestamp = DateTime.UtcNow
+                        });
+
+                        try
+                        {
+                            _logger.LogInformation("🖼️ 开始为附近城市生成图片: {CityName}", city.CityName);
+
+                            // 提取英文城市名（如果有中英文格式如"北戴河/Beidaihe"，只取英文部分）
+                            var cityNameForPrompt = city.CityName;
+                            if (cityNameForPrompt.Contains('/'))
+                            {
+                                cityNameForPrompt = cityNameForPrompt.Split('/').Last().Trim();
+                            }
+
+                            // 生成安全的城市ID（只保留字母数字和下划线，移除中文和特殊字符）
+                            var safeCityName = System.Text.RegularExpressions.Regex.Replace(
+                                city.CityName, @"[^a-zA-Z0-9_]", "_");
+                            var nearbyCityId = $"nearby_{request.CityId}_{safeCityName}_{Guid.NewGuid():N}";
+
+                            // 构建 prompt（融合美食、旅游和现代化元素）
+                            var cityDesc = string.IsNullOrEmpty(city.Country)
+                                ? cityNameForPrompt
+                                : $"{cityNameForPrompt}, {city.Country}";
+                            var prompt = $"Panoramic travel photograph of {cityDesc}, featuring local food culture, famous scenic spots, modern architecture, vibrant street life, colorful composition, professional photography, high resolution, vivid colors";
+
+                            // 只生成一张横屏图片
+                            var imageRequest = new GenerateImageRequest
+                            {
+                                Prompt = prompt,
+                                NegativePrompt = "blurry, low quality, distorted, watermark, text, logo, ugly, deformed, dull colors",
+                                Style = "<photography>",
+                                Size = "1280*720", // 横屏尺寸
+                                Count = 1,
+                                Bucket = "city-photos",
+                                PathPrefix = $"nearby/{nearbyCityId}"
+                            };
+
+                            var imageResult = await imageService.GenerateImageAsync(imageRequest, Guid.Empty);
+
+                            if (imageResult.Success && imageResult.Images.Count > 0)
+                            {
+                                city.ImageUrl = imageResult.Images[0].Url;
+                                successCount++;
+                                _logger.LogInformation("✅ 附近城市图片生成成功: {CityName} -> {Url}",
+                                    city.CityName, city.ImageUrl);
+
+                                // 发送成功状态
+                                await publishEndpoint.Publish(new AIProgressMessage
+                                {
+                                    TaskId = taskId,
+                                    UserId = userId.ToString(),
+                                    Progress = 75 + (int)(processedCount * 20.0 / totalCities),
+                                    Message = $"✅ {city.CityName} 图片生成成功 ({processedCount}/{totalCities})",
+                                    TaskType = "nearby-cities",
+                                    CurrentStage = $"✅ {city.CityName} 图片已生成",
+                                    Status = "processing",
+                                    Timestamp = DateTime.UtcNow
+                                });
+                            }
+                            else
+                            {
+                                failedCount++;
+                                _logger.LogWarning("⚠️ 附近城市图片生成失败: {CityName}, 错误: {Error}",
+                                    city.CityName, imageResult.ErrorMessage);
+
+                                // 发送失败状态（但继续处理）
+                                await publishEndpoint.Publish(new AIProgressMessage
+                                {
+                                    TaskId = taskId,
+                                    UserId = userId.ToString(),
+                                    Progress = 75 + (int)(processedCount * 20.0 / totalCities),
+                                    Message = $"⚠️ {city.CityName} 图片生成失败 ({processedCount}/{totalCities})",
+                                    TaskType = "nearby-cities",
+                                    CurrentStage = $"⚠️ {city.CityName} 图片生成失败，继续处理下一个...",
+                                    Status = "processing",
+                                    Timestamp = DateTime.UtcNow
+                                });
+                            }
+                        }
+                        catch (Exception imgEx)
+                        {
+                            failedCount++;
+                            _logger.LogWarning(imgEx, "⚠️ 生成附近城市图片异常: {CityName}", city.CityName);
+
+                            // 发送异常状态
+                            await publishEndpoint.Publish(new AIProgressMessage
+                            {
+                                TaskId = taskId,
+                                UserId = userId.ToString(),
+                                Progress = 75 + (int)(processedCount * 20.0 / totalCities),
+                                Message = $"❌ {city.CityName} 图片生成异常 ({processedCount}/{totalCities})",
+                                TaskType = "nearby-cities",
+                                CurrentStage = $"❌ {city.CityName} 发生错误，继续处理下一个...",
+                                Status = "processing",
+                                Timestamp = DateTime.UtcNow
+                            });
+                        }
+
+                        citiesWithImages.Add(city);
+                    }
+
+                    // 发送图片生成汇总状态
+                    await publishEndpoint.Publish(new AIProgressMessage
+                    {
+                        TaskId = taskId,
+                        UserId = userId.ToString(),
+                        Progress = 95,
+                        Message = $"图片生成完成: 成功 {successCount} 个, 失败 {failedCount} 个",
+                        TaskType = "nearby-cities",
+                        CurrentStage = $"📊 图片生成汇总: ✅ {successCount} 成功, ⚠️ {failedCount} 失败",
+                        Status = "processing",
+                        Timestamp = DateTime.UtcNow
+                    });
+
+                    // 更新结果中的城市列表
+                    nearbyCities.Cities = citiesWithImages;
+
+                    // 保存结果到 CityService（通过 Dapr）
+                    try
+                    {
+                        var saveRequest = new
+                        {
+                            SourceCityId = request.CityId,
+                            NearbyCities = nearbyCities.Cities.Select(c => new
+                            {
+                                TargetCityName = c.CityName,
+                                c.Country,
+                                c.DistanceKm,
+                                c.TransportationType,
+                                c.TravelTimeMinutes,
+                                c.Highlights,
+                                NomadFeatures = new
+                                {
+                                    c.NomadFeatures.MonthlyCostUsd,
+                                    c.NomadFeatures.InternetSpeedMbps,
+                                    c.NomadFeatures.CoworkingSpaces,
+                                    c.NomadFeatures.VisaInfo,
+                                    c.NomadFeatures.SafetyScore,
+                                    c.NomadFeatures.QualityOfLife
+                                },
+                                c.ImageUrl,
+                                c.OverallScore,
+                                c.Latitude,
+                                c.Longitude,
+                                IsAIGenerated = true
+                            }).ToList()
+                        };
+
+                        await daprClient.InvokeMethodAsync<object, object>(
+                            HttpMethod.Post,
+                            "city-service",
+                            $"api/v1/cities/{request.CityId}/nearby",
+                            saveRequest);
+
+                        _logger.LogInformation("✅ 附近城市已保存到 CityService: CityId={CityId}", request.CityId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "⚠️ 保存附近城市到 CityService 失败,但不影响任务完成");
+                    }
+
+                    // 保存结果到 Redis
+                    var resultId = $"nearby_{request.CityId}_{Guid.NewGuid():N}";
+                    var resultJson = JsonSerializer.Serialize(nearbyCities);
+                    await cache.SetStringAsync($"nearby:{resultId}", resultJson, TimeSpan.FromHours(24));
+
+                    // 更新任务状态
+                    taskStatus.Status = "completed";
+                    taskStatus.Progress = 100;
+                    taskStatus.GuideId = resultId;
+                    taskStatus.Result = nearbyCities;
+                    taskStatus.CompletedAt = DateTime.UtcNow;
+                    await cache.SetAsync($"task:{taskId}", taskStatus, TimeSpan.FromHours(24));
+
+                    // 发送完成消息
+                    await publishEndpoint.Publish(new AITaskCompletedMessage
+                    {
+                        TaskId = taskId,
+                        UserId = userId.ToString(),
+                        TaskType = "nearby-cities",
+                        ResultId = resultId,
+                        Result = nearbyCities,
+                        CompletedAt = DateTime.UtcNow,
+                        DurationSeconds = (int)(DateTime.UtcNow - startTime).TotalSeconds
+                    });
+
+                    _logger.LogInformation("✅ 附近城市生成完成: TaskId={TaskId}", taskId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ 处理附近城市生成任务失败: TaskId={TaskId}", taskId);
+
+                    taskStatus.Status = "failed";
+                    taskStatus.Error = ex.Message;
+                    taskStatus.CompletedAt = DateTime.UtcNow;
+                    await cache.SetAsync($"task:{taskId}", taskStatus, TimeSpan.FromHours(24));
+
+                    await publishEndpoint.Publish(new AITaskFailedMessage
+                    {
+                        TaskId = taskId,
+                        UserId = userId.ToString(),
+                        TaskType = "nearby-cities",
+                        ErrorMessage = ex.Message,
+                        ErrorCode = "GENERATION_FAILED",
+                        StackTrace = ex.StackTrace,
+                        FailedAt = DateTime.UtcNow
+                    });
+                }
+            });
+
+            _logger.LogInformation("✅ 附近城市任务已创建: {TaskId}, UserId: {UserId}", taskId, userId);
+
+            return Ok(new ApiResponse<CreateTaskResponse>
+            {
+                Success = true,
+                Message = "任务创建成功",
+                Data = new CreateTaskResponse
+                {
+                    TaskId = taskId,
+                    Status = "queued",
+                    EstimatedTimeSeconds = 60,
+                    Message = "附近城市生成任务已创建,正在处理中。请通过 SignalR 连接 MessageService 接收实时进度。"
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 创建附近城市任务失败");
+            return StatusCode(500, new ApiResponse<CreateTaskResponse>
+            {
+                Success = false,
+                Message = $"创建任务失败: {ex.Message}"
+            });
+        }
+    }
+
     #endregion
 
     #region 图片生成 API (通义万象)
