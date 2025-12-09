@@ -6,6 +6,7 @@ using AIService.Application.Services;
 using AIService.Domain.Entities;
 using AIService.Domain.Repositories;
 using AIService.Infrastructure.Cache;
+using AIService.Infrastructure.GrpcClients;
 using Dapr.Client;
 using GoNomads.Shared.DTOs;
 using GoNomads.Shared.Middleware;
@@ -950,7 +951,8 @@ public class ChatController : ControllerBase
         [FromServices] IPublishEndpoint publishEndpoint,
         [FromServices] IRedisCache cache,
         [FromServices] IAIChatService chatService,
-        [FromServices] ITravelPlanRepository travelPlanRepository)
+        [FromServices] ITravelPlanRepository travelPlanRepository,
+        [FromServices] ICityGrpcClient cityGrpcClient)
     {
         try
         {
@@ -1034,13 +1036,29 @@ public class ChatController : ControllerBase
                     // 保存到数据库 (持久化存储)
                     try
                     {
+                        // 如果请求中没有城市图片，尝试从 CityService 获取
+                        var cityImage = request.CityImage;
+                        if (string.IsNullOrEmpty(cityImage) && !string.IsNullOrEmpty(request.CityId) && Guid.TryParse(request.CityId, out var cityIdGuid))
+                        {
+                            _logger.LogInformation("📸 尝试从 CityService 获取城市图片: CityId={CityId}", request.CityId);
+                            cityImage = await cityGrpcClient.GetCityImageAsync(cityIdGuid);
+                            if (!string.IsNullOrEmpty(cityImage))
+                            {
+                                _logger.LogInformation("✅ 成功获取城市图片: CityId={CityId}, ImageUrl={ImageUrl}", request.CityId, cityImage);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("⚠️ 未能获取城市图片，将使用空值: CityId={CityId}", request.CityId);
+                            }
+                        }
+
                         var dbPlan = new AiTravelPlan
                         {
                             Id = Guid.Parse(planId),
                             UserId = userId,
                             CityId = request.CityId,
                             CityName = request.CityName,
-                            CityImage = request.CityImage,
+                            CityImage = cityImage,
                             Duration = request.Duration,
                             BudgetLevel = request.Budget,
                             TravelStyle = request.TravelStyle,

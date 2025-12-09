@@ -32,6 +32,7 @@ builder.Services.AddScoped<ITravelPlanRepository, TravelPlanRepository>();
 
 // 注册 gRPC 客户端 (通过 Dapr Service Invocation)
 builder.Services.AddScoped<IUserGrpcClient, UserGrpcClient>();
+builder.Services.AddScoped<ICityGrpcClient, CityGrpcClient>();
 
 // 配置 Semantic Kernel - 使用 Qwen 模型
 try
