@@ -52,10 +52,13 @@ public class CoworkingSpaceResponse
     public decimal? PricePerDay { get; set; }
     public decimal? PricePerMonth { get; set; }
     public decimal? PricePerHour { get; set; }
+    public decimal? PricePerWeek { get; set; }
     public string Currency { get; set; } = "USD";
     public decimal Rating { get; set; }
     public int ReviewCount { get; set; }
     public decimal? WifiSpeed { get; set; }
+    public int? Desks { get; set; }
+    public int? MeetingRooms { get; set; }
     public bool HasMeetingRoom { get; set; }
     public bool HasCoffee { get; set; }
     public bool HasParking { get; set; }
@@ -102,10 +105,19 @@ public class CreateCoworkingSpaceRequest
     [Range(0, 500, ErrorMessage = "时价格必须在 0-500 之间")]
     public decimal? PricePerHour { get; set; }
 
+    [Range(0, 5000, ErrorMessage = "周价格必须在 0-5000 之间")]
+    public decimal? PricePerWeek { get; set; }
+
     [MaxLength(10)] public string Currency { get; set; } = "USD";
 
     [Range(0, 1000, ErrorMessage = "Wifi 速度必须在 0-1000 之间")]
     public decimal? WifiSpeed { get; set; }
+
+    [Range(0, 500, ErrorMessage = "桌位数量必须在 0-500 之间")]
+    public int? Desks { get; set; }
+
+    [Range(0, 100, ErrorMessage = "会议室数量必须在 0-100 之间")]
+    public int? MeetingRooms { get; set; }
 
     public bool HasMeetingRoom { get; set; }
     public bool HasCoffee { get; set; }
@@ -161,9 +173,15 @@ public class UpdateCoworkingSpaceRequest
 
     [Range(0, 500)] public decimal? PricePerHour { get; set; }
 
+    [Range(0, 5000)] public decimal? PricePerWeek { get; set; }
+
     [MaxLength(10)] public string Currency { get; set; } = "USD";
 
     [Range(0, 1000)] public decimal? WifiSpeed { get; set; }
+
+    [Range(0, 500)] public int? Desks { get; set; }
+
+    [Range(0, 100)] public int? MeetingRooms { get; set; }
 
     public bool HasMeetingRoom { get; set; }
     public bool HasCoffee { get; set; }

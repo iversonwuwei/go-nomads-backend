@@ -37,6 +37,8 @@ public class CoworkingSpace : BaseModel
 
     [Column("price_per_hour")] public decimal? PricePerHour { get; set; }
 
+    [Column("price_per_week")] public decimal? PricePerWeek { get; set; }
+
     [Column("currency")] public string Currency { get; set; } = "USD";
 
     [Column("rating")] public decimal Rating { get; set; }
@@ -44,6 +46,10 @@ public class CoworkingSpace : BaseModel
     [Column("review_count")] public int ReviewCount { get; set; }
 
     [Column("wifi_speed")] public decimal? WifiSpeed { get; set; }
+
+    [Column("desks")] public int? Desks { get; set; }
+
+    [Column("meeting_rooms")] public int? MeetingRooms { get; set; }
 
     [Column("has_meeting_room")] public bool HasMeetingRoom { get; set; }
 
@@ -98,8 +104,11 @@ public class CoworkingSpace : BaseModel
         decimal? pricePerDay = null,
         decimal? pricePerMonth = null,
         decimal? pricePerHour = null,
+        decimal? pricePerWeek = null,
         string currency = "USD",
         decimal? wifiSpeed = null,
+        int? desks = null,
+        int? meetingRooms = null,
         bool hasMeetingRoom = false,
         bool hasCoffee = false,
         bool hasParking = false,
@@ -129,6 +138,9 @@ public class CoworkingSpace : BaseModel
         if (pricePerHour.HasValue && pricePerHour.Value < 0)
             throw new ArgumentException("时价格不能为负数", nameof(pricePerHour));
 
+        if (pricePerWeek.HasValue && pricePerWeek.Value < 0)
+            throw new ArgumentException("周价格不能为负数", nameof(pricePerWeek));
+
         if (capacity.HasValue && capacity.Value <= 0)
             throw new ArgumentException("容量必须大于 0", nameof(capacity));
 
@@ -154,10 +166,13 @@ public class CoworkingSpace : BaseModel
             PricePerDay = pricePerDay,
             PricePerMonth = pricePerMonth,
             PricePerHour = pricePerHour,
+            PricePerWeek = pricePerWeek,
             Currency = currency,
             Rating = 0,
             ReviewCount = 0,
             WifiSpeed = wifiSpeed,
+            Desks = desks,
+            MeetingRooms = meetingRooms,
             HasMeetingRoom = hasMeetingRoom,
             HasCoffee = hasCoffee,
             HasParking = hasParking,
@@ -193,8 +208,11 @@ public class CoworkingSpace : BaseModel
         decimal? pricePerDay = null,
         decimal? pricePerMonth = null,
         decimal? pricePerHour = null,
+        decimal? pricePerWeek = null,
         string currency = "USD",
         decimal? wifiSpeed = null,
+        int? desks = null,
+        int? meetingRooms = null,
         bool hasMeetingRoom = false,
         bool hasCoffee = false,
         bool hasParking = false,
@@ -223,6 +241,9 @@ public class CoworkingSpace : BaseModel
         if (pricePerHour.HasValue && pricePerHour.Value < 0)
             throw new ArgumentException("时价格不能为负数", nameof(pricePerHour));
 
+        if (pricePerWeek.HasValue && pricePerWeek.Value < 0)
+            throw new ArgumentException("周价格不能为负数", nameof(pricePerWeek));
+
         if (capacity.HasValue && capacity.Value <= 0)
             throw new ArgumentException("容量必须大于 0", nameof(capacity));
 
@@ -236,8 +257,11 @@ public class CoworkingSpace : BaseModel
         PricePerDay = pricePerDay;
         PricePerMonth = pricePerMonth;
         PricePerHour = pricePerHour;
+        PricePerWeek = pricePerWeek;
         Currency = currency;
         WifiSpeed = wifiSpeed;
+        Desks = desks;
+        MeetingRooms = meetingRooms;
         HasMeetingRoom = hasMeetingRoom;
         HasCoffee = hasCoffee;
         HasParking = hasParking;
