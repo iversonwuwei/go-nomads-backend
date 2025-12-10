@@ -54,6 +54,7 @@ builder.Services.AddScoped<ICoworkingReviewService, CoworkingReviewService>();
 // External Services - 外部服务客户端
 builder.Services.AddScoped<CoworkingService.Services.ICacheServiceClient, CoworkingService.Services.CacheServiceClient>();
 builder.Services.AddScoped<CoworkingService.Services.IUserServiceClient, CoworkingService.Services.UserServiceClient>();
+builder.Services.AddScoped<CoworkingService.Services.ICityServiceClient, CoworkingService.Services.CityServiceClient>();
 
 // Domain Layer 不需要注册（纯 POCO）
 

@@ -11,6 +11,7 @@ namespace CoworkingService.Application.Services;
 ///     Coworking 应用服务实现
 ///     协调领域对象完成业务用例
 ///     Updated: 2025-11-23 添加创建者名称支持
+///     Updated: 2025-12-10 添加城市信息填充
 /// </summary>
 public class CoworkingApplicationService : ICoworkingService
 {
@@ -20,6 +21,7 @@ public class CoworkingApplicationService : ICoworkingService
     private readonly ICoworkingCommentRepository _commentRepository;
     private readonly ICoworkingReviewRepository _reviewRepository;
     private readonly IUserServiceClient _userServiceClient;
+    private readonly ICityServiceClient _cityServiceClient;
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<CoworkingApplicationService> _logger;
 
@@ -30,6 +32,7 @@ public class CoworkingApplicationService : ICoworkingService
         ICoworkingCommentRepository commentRepository,
         ICoworkingReviewRepository reviewRepository,
         IUserServiceClient userServiceClient,
+        ICityServiceClient cityServiceClient,
         IPublishEndpoint publishEndpoint,
         ILogger<CoworkingApplicationService> logger)
     {
@@ -39,6 +42,7 @@ public class CoworkingApplicationService : ICoworkingService
         _commentRepository = commentRepository;
         _reviewRepository = reviewRepository;
         _userServiceClient = userServiceClient;
+        _cityServiceClient = cityServiceClient;
         _publishEndpoint = publishEndpoint;
         _logger = logger;
     }
@@ -237,14 +241,25 @@ public class CoworkingApplicationService : ICoworkingService
             ? _userServiceClient.GetUsersInfoAsync(creatorIds) 
             : Task.FromResult(new Dictionary<string, UserInfoDto>());
         
+        // 批量获取城市信息
+        var cityIds = items.Where(s => s.CityId.HasValue)
+                          .Select(s => s.CityId!.Value.ToString())
+                          .Distinct()
+                          .ToList();
+        var cityInfosTask = cityIds.Any()
+            ? _cityServiceClient.GetCitiesInfoAsync(cityIds)
+            : Task.FromResult(new Dictionary<string, CityInfoDto>());
+        
         // 等待所有批量查询完成
-        await Task.WhenAll(verificationCountsTask, ratingsTask, creatorInfosTask);
+        await Task.WhenAll(verificationCountsTask, ratingsTask, creatorInfosTask, cityInfosTask);
         
         var verificationCounts = await verificationCountsTask;
         var ratings = await ratingsTask;
         var creatorInfos = await creatorInfosTask;
+        var cityInfos = await cityInfosTask;
         
-        _logger.LogInformation("✅ 获取到创建者信息数量: {Count}", creatorInfos.Count);
+        _logger.LogInformation("✅ 获取到创建者信息数量: {Count}, 城市信息数量: {CityCount}", 
+            creatorInfos.Count, cityInfos.Count);
         
         // 同步映射（不再需要异步调用）
         var responses = items.Select(space =>
@@ -254,7 +269,10 @@ public class CoworkingApplicationService : ICoworkingService
             var creatorName = space.CreatedBy.HasValue && creatorInfos.TryGetValue(space.CreatedBy.Value.ToString(), out var creator)
                 ? creator.Name
                 : null;
-            return MapToResponseSync(space, votes, averageRating, reviewCount, creatorName);
+            var (cityName, country) = space.CityId.HasValue && cityInfos.TryGetValue(space.CityId.Value.ToString(), out var city)
+                ? (city.Name, city.Country)
+                : (null, null);
+            return MapToResponseSync(space, votes, averageRating, reviewCount, creatorName, cityName, country);
         }).ToList();
 
         return new PaginatedCoworkingSpacesResponse
@@ -289,11 +307,21 @@ public class CoworkingApplicationService : ICoworkingService
             ? _userServiceClient.GetUsersInfoAsync(creatorIds) 
             : Task.FromResult(new Dictionary<string, UserInfoDto>());
         
-        await Task.WhenAll(verificationCountsTask, ratingsTask, creatorInfosTask);
+        // 批量获取城市信息
+        var cityIds = spaces.Where(s => s.CityId.HasValue)
+                           .Select(s => s.CityId!.Value.ToString())
+                           .Distinct()
+                           .ToList();
+        var cityInfosTask = cityIds.Any()
+            ? _cityServiceClient.GetCitiesInfoAsync(cityIds)
+            : Task.FromResult(new Dictionary<string, CityInfoDto>());
+        
+        await Task.WhenAll(verificationCountsTask, ratingsTask, creatorInfosTask, cityInfosTask);
         
         var verificationCounts = await verificationCountsTask;
         var ratings = await ratingsTask;
         var creatorInfos = await creatorInfosTask;
+        var cityInfos = await cityInfosTask;
         
         return spaces.Select(space =>
         {
@@ -302,7 +330,10 @@ public class CoworkingApplicationService : ICoworkingService
             var creatorName = space.CreatedBy.HasValue && creatorInfos.TryGetValue(space.CreatedBy.Value.ToString(), out var creator)
                 ? creator.Name
                 : null;
-            return MapToResponseSync(space, votes, averageRating, reviewCount, creatorName);
+            var (cityName, country) = space.CityId.HasValue && cityInfos.TryGetValue(space.CityId.Value.ToString(), out var city)
+                ? (city.Name, city.Country)
+                : (null, null);
+            return MapToResponseSync(space, votes, averageRating, reviewCount, creatorName, cityName, country);
         }).ToList();
     }
 
@@ -326,11 +357,21 @@ public class CoworkingApplicationService : ICoworkingService
             ? _userServiceClient.GetUsersInfoAsync(creatorIds) 
             : Task.FromResult(new Dictionary<string, UserInfoDto>());
         
-        await Task.WhenAll(verificationCountsTask, ratingsTask, creatorInfosTask);
+        // 批量获取城市信息
+        var cityIds = spaces.Where(s => s.CityId.HasValue)
+                           .Select(s => s.CityId!.Value.ToString())
+                           .Distinct()
+                           .ToList();
+        var cityInfosTask = cityIds.Any()
+            ? _cityServiceClient.GetCitiesInfoAsync(cityIds)
+            : Task.FromResult(new Dictionary<string, CityInfoDto>());
+        
+        await Task.WhenAll(verificationCountsTask, ratingsTask, creatorInfosTask, cityInfosTask);
         
         var verificationCounts = await verificationCountsTask;
         var ratings = await ratingsTask;
         var creatorInfos = await creatorInfosTask;
+        var cityInfos = await cityInfosTask;
         
         return spaces.Select(space =>
         {
@@ -339,7 +380,10 @@ public class CoworkingApplicationService : ICoworkingService
             var creatorName = space.CreatedBy.HasValue && creatorInfos.TryGetValue(space.CreatedBy.Value.ToString(), out var creator)
                 ? creator.Name
                 : null;
-            return MapToResponseSync(space, votes, averageRating, reviewCount, creatorName);
+            var (cityName, country) = space.CityId.HasValue && cityInfos.TryGetValue(space.CityId.Value.ToString(), out var city)
+                ? (city.Name, city.Country)
+                : (null, null);
+            return MapToResponseSync(space, votes, averageRating, reviewCount, creatorName, cityName, country);
         }).ToList();
     }
 
@@ -661,11 +705,33 @@ public class CoworkingApplicationService : ICoworkingService
             }
         }
 
+        // 获取城市信息（城市名称和国家）
+        string? cityName = null;
+        string? country = null;
+        if (space.CityId.HasValue)
+        {
+            try
+            {
+                var cityInfo = await _cityServiceClient.GetCityInfoAsync(space.CityId.Value.ToString());
+                if (cityInfo != null)
+                {
+                    cityName = cityInfo.Name;
+                    country = cityInfo.Country;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "获取城市信息失败: {CityId}", space.CityId);
+            }
+        }
+
         return new CoworkingSpaceResponse
         {
             Id = space.Id,
             Name = space.Name,
             CityId = space.CityId,
+            City = cityName,
+            Country = country,
             CreatedBy = space.CreatedBy,
             CreatorName = creatorName,
             Address = space.Address,
@@ -711,13 +777,17 @@ public class CoworkingApplicationService : ICoworkingService
         int verificationVotes = 0, 
         double averageRating = 0, 
         int reviewCount = 0,
-        string? creatorName = null)
+        string? creatorName = null,
+        string? cityName = null,
+        string? country = null)
     {
         return new CoworkingSpaceResponse
         {
             Id = space.Id,
             Name = space.Name,
             CityId = space.CityId,
+            City = cityName,
+            Country = country,
             CreatedBy = space.CreatedBy,
             CreatorName = creatorName,
             Address = space.Address,

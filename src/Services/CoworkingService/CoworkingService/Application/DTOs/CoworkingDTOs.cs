@@ -43,6 +43,8 @@ public class CoworkingSpaceResponse
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public Guid? CityId { get; set; }
+    public string? City { get; set; }
+    public string? Country { get; set; }
     public Guid? CreatedBy { get; set; }
     public string? CreatorName { get; set; }
     public string Address { get; set; } = string.Empty;
