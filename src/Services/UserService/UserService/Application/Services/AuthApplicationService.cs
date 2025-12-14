@@ -1,8 +1,11 @@
+using System.Collections.Concurrent;
 using System.Security.Claims;
 using GoNomads.Shared.Security;
+using Microsoft.Extensions.Options;
 using UserService.Application.DTOs;
 using UserService.Domain.Entities;
 using UserService.Domain.Repositories;
+using UserService.Infrastructure.Configuration;
 
 namespace UserService.Application.Services;
 
@@ -16,16 +19,28 @@ public class AuthApplicationService : IAuthService
     private readonly ILogger<AuthApplicationService> _logger;
     private readonly IRoleRepository _roleRepository;
     private readonly IUserRepository _userRepository;
+    private readonly IAliyunSmsService _smsService;
+    private readonly AliyunSmsSettings _smsSettings;
+
+    /// <summary>
+    ///     验证码缓存 (手机号 -> (验证码, 过期时间))
+    ///     生产环境建议使用 Redis
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, (string Code, DateTime ExpiresAt)> _verificationCodes = new();
 
     public AuthApplicationService(
         IUserRepository userRepository,
         IRoleRepository roleRepository,
         JwtTokenService jwtTokenService,
+        IAliyunSmsService smsService,
+        IOptions<AliyunSmsSettings> smsSettings,
         ILogger<AuthApplicationService> logger)
     {
         _userRepository = userRepository;
         _roleRepository = roleRepository;
         _jwtTokenService = jwtTokenService;
+        _smsService = smsService;
+        _smsSettings = smsSettings.Value;
         _logger = logger;
     }
 
@@ -233,6 +248,187 @@ public class AuthApplicationService : IAuthService
             _logger.LogError(ex, "❌ 用户 {UserId} 修改密码失败", userId);
             throw new Exception("修改密码失败,请稍后重试");
         }
+    }
+
+    /// <summary>
+    ///     发送短信验证码
+    /// </summary>
+    public async Task<SendSmsCodeResponse> SendSmsCodeAsync(
+        SendSmsCodeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📱 发送验证码请求: {Phone}, 用途: {Purpose}",
+            MaskPhoneNumber(request.PhoneNumber), request.Purpose);
+
+        try
+        {
+            // 生成验证码
+            var code = _smsService.GenerateVerificationCode(_smsSettings.CodeLength);
+
+            // 发送短信
+            var result = await _smsService.SendVerificationCodeAsync(
+                request.PhoneNumber, code, cancellationToken);
+
+            if (!result.Success)
+            {
+                _logger.LogWarning("⚠️ 验证码发送失败: {Phone}, {Message}",
+                    MaskPhoneNumber(request.PhoneNumber), result.Message);
+
+                return new SendSmsCodeResponse
+                {
+                    Success = false,
+                    Message = result.Message,
+                    RequestId = result.RequestId
+                };
+            }
+
+            // 存储验证码（用于后续验证）
+            var expiresAt = DateTime.UtcNow.AddMinutes(_smsSettings.CodeExpirationMinutes);
+            var normalizedPhone = NormalizePhoneNumber(request.PhoneNumber);
+            _verificationCodes[normalizedPhone] = (code, expiresAt);
+
+            // 清理过期的验证码
+            CleanupExpiredCodes();
+
+            _logger.LogInformation("✅ 验证码发送成功: {Phone}", MaskPhoneNumber(request.PhoneNumber));
+
+            return new SendSmsCodeResponse
+            {
+                Success = true,
+                Message = "验证码已发送",
+                ExpiresInSeconds = _smsSettings.CodeExpirationMinutes * 60,
+                RequestId = result.RequestId
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 发送验证码异常: {Phone}", MaskPhoneNumber(request.PhoneNumber));
+            return new SendSmsCodeResponse
+            {
+                Success = false,
+                Message = "发送验证码失败,请稍后重试"
+            };
+        }
+    }
+
+    /// <summary>
+    ///     手机号验证码登录
+    /// </summary>
+    public async Task<AuthResponseDto> LoginWithPhoneAsync(
+        PhoneLoginRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📱 手机号登录: {Phone}", MaskPhoneNumber(request.PhoneNumber));
+
+        try
+        {
+            // 验证验证码
+            var normalizedPhone = NormalizePhoneNumber(request.PhoneNumber);
+            if (!ValidateCode(normalizedPhone, request.Code))
+            {
+                throw new InvalidOperationException("验证码错误或已过期");
+            }
+
+            // 移除已使用的验证码
+            _verificationCodes.TryRemove(normalizedPhone, out _);
+
+            // 查找用户（通过手机号）
+            var user = await _userRepository.GetByPhoneAsync(normalizedPhone, cancellationToken);
+
+            if (user == null)
+            {
+                // 自动注册新用户
+                _logger.LogInformation("📝 手机号首次登录,自动注册: {Phone}", MaskPhoneNumber(request.PhoneNumber));
+
+                var defaultRole = await _roleRepository.GetByNameAsync(Role.RoleNames.User, cancellationToken);
+                if (defaultRole == null)
+                {
+                    throw new InvalidOperationException("系统配置错误: 默认用户角色不存在");
+                }
+
+                user = User.CreateWithPhone(
+                    $"用户{normalizedPhone[^4..]}",
+                    normalizedPhone,
+                    defaultRole.Id);
+
+                user = await _userRepository.CreateAsync(user, cancellationToken);
+
+                _logger.LogInformation("✅ 新用户注册成功: {UserId}", user.Id);
+
+                return BuildAuthResponse(user, defaultRole.Name);
+            }
+
+            // 获取用户角色
+            var role = await _roleRepository.GetByIdAsync(user.RoleId, cancellationToken);
+            var roleName = role?.Name ?? Role.RoleNames.User;
+
+            _logger.LogInformation("✅ 手机号登录成功: {UserId}", user.Id);
+
+            return BuildAuthResponse(user, roleName);
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 手机号登录失败: {Phone}", MaskPhoneNumber(request.PhoneNumber));
+            throw new Exception("登录失败,请稍后重试");
+        }
+    }
+
+    /// <summary>
+    ///     验证验证码
+    /// </summary>
+    private bool ValidateCode(string phoneNumber, string code)
+    {
+        if (!_verificationCodes.TryGetValue(phoneNumber, out var stored))
+        {
+            return false;
+        }
+
+        if (DateTime.UtcNow > stored.ExpiresAt)
+        {
+            _verificationCodes.TryRemove(phoneNumber, out _);
+            return false;
+        }
+
+        return stored.Code == code;
+    }
+
+    /// <summary>
+    ///     清理过期的验证码
+    /// </summary>
+    private static void CleanupExpiredCodes()
+    {
+        var now = DateTime.UtcNow;
+        var expiredKeys = _verificationCodes
+            .Where(kv => kv.Value.ExpiresAt < now)
+            .Select(kv => kv.Key)
+            .ToList();
+
+        foreach (var key in expiredKeys)
+        {
+            _verificationCodes.TryRemove(key, out _);
+        }
+    }
+
+    /// <summary>
+    ///     规范化手机号
+    /// </summary>
+    private static string NormalizePhoneNumber(string phoneNumber)
+    {
+        return new string(phoneNumber.Where(char.IsDigit).ToArray());
+    }
+
+    /// <summary>
+    ///     脱敏手机号
+    /// </summary>
+    private static string MaskPhoneNumber(string phoneNumber)
+    {
+        if (string.IsNullOrEmpty(phoneNumber) || phoneNumber.Length < 7)
+            return "***";
+        return phoneNumber[..3] + "****" + phoneNumber[^4..];
     }
 
     #region 私有辅助方法

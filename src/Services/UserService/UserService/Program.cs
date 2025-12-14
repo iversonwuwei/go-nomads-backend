@@ -27,6 +27,10 @@ builder.Services.AddHttpClient<IPayPalService, PayPalService>();
 builder.Services.Configure<AlipaySettings>(builder.Configuration.GetSection("Alipay"));
 builder.Services.AddSingleton<IAlipayService, AlipayService>();
 
+// 配置阿里云短信
+builder.Services.Configure<AliyunSmsSettings>(builder.Configuration.GetSection(AliyunSmsSettings.SectionName));
+builder.Services.AddSingleton<IAliyunSmsService, AliyunSmsService>();
+
 // Register Domain Repositories (Infrastructure Layer)
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();

@@ -110,6 +110,33 @@ public class User : BaseModel
         return user;
     }
 
+    /// <summary>
+    ///     创建用户（通过手机号，无密码）
+    /// </summary>
+    public static User CreateWithPhone(string name, string phone, string roleId)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+            throw new ArgumentException("手机号不能为空", nameof(phone));
+
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("用户名不能为空", nameof(name));
+
+        // 使用手机号生成临时邮箱（用于唯一性约束）
+        var tempEmail = $"{phone}@phone.gonomads.app";
+
+        return new User
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = name,
+            Email = tempEmail,
+            Phone = phone,
+            RoleId = roleId,
+            PasswordHash = string.Empty, // 手机号登录无需密码
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
+
     #endregion
 
     #region 领域方法

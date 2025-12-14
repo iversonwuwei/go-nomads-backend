@@ -10,6 +10,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="AlibabaCloud.SDK.Dysmsapi20170525" Version="3.0.0" />
         <PackageReference Include="Alipay.AopSdk.Core" Version="2.5.0.1" />
         <PackageReference Include="Dapr.AspNetCore" Version="1.16.0" />
         <PackageReference Include="Grpc.AspNetCore" Version="2.70.0" />

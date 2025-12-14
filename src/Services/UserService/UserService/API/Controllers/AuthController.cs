@@ -295,6 +295,111 @@ public class AuthController : ControllerBase
             });
         }
     }
+
+    /// <summary>
+    ///     发送短信验证码
+    /// </summary>
+    [HttpPost("sms/send-code")]
+    public async Task<ActionResult<ApiResponse<SendSmsCodeResponse>>> SendSmsCode(
+        [FromBody] SendSmsCodeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📱 发送验证码请求: {Phone}", request.PhoneNumber);
+
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<SendSmsCodeResponse>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        try
+        {
+            var result = await _authService.SendSmsCodeAsync(request, cancellationToken);
+
+            if (!result.Success)
+            {
+                return BadRequest(new ApiResponse<SendSmsCodeResponse>
+                {
+                    Success = false,
+                    Message = result.Message,
+                    Data = result
+                });
+            }
+
+            return Ok(new ApiResponse<SendSmsCodeResponse>
+            {
+                Success = true,
+                Message = "验证码已发送",
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 发送验证码失败: {Phone}", request.PhoneNumber);
+            return StatusCode(500, new ApiResponse<SendSmsCodeResponse>
+            {
+                Success = false,
+                Message = "发送验证码失败,请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     手机号验证码登录
+    /// </summary>
+    [HttpPost("login/phone")]
+    public async Task<ActionResult<ApiResponse<AuthResponseDto>>> LoginWithPhone(
+        [FromBody] PhoneLoginRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📱 手机号登录: {Phone}", request.PhoneNumber);
+
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        try
+        {
+            var authResponse = await _authService.LoginWithPhoneAsync(request, cancellationToken);
+
+            return Ok(new ApiResponse<AuthResponseDto>
+            {
+                Success = true,
+                Message = "登录成功",
+                Data = authResponse
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 手机号登录失败: {Phone}, {Message}", request.PhoneNumber, ex.Message);
+            return BadRequest(new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 手机号登录异常: {Phone}", request.PhoneNumber);
+            return StatusCode(500, new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = "登录失败,请稍后重试"
+            });
+        }
+    }
 }
 
 /// <summary>
