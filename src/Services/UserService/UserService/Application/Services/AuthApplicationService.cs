@@ -115,14 +115,15 @@ public class AuthApplicationService : IAuthService
             if (user == null)
             {
                 _logger.LogWarning("⚠️ 用户不存在: {Email}", request.Email);
-                throw new UnauthorizedAccessException("用户名或密码错误");
+                // 邮箱登录时明确提示用户不存在，引导用户去注册
+                throw new KeyNotFoundException("该邮箱尚未注册，请先注册账号");
             }
 
             // 验证密码
             if (!user.ValidatePassword(request.Password))
             {
                 _logger.LogWarning("⚠️ 用户 {Email} 密码错误", request.Email);
-                throw new UnauthorizedAccessException("用户名或密码错误");
+                throw new UnauthorizedAccessException("密码错误");
             }
 
             // 获取角色名称
@@ -134,6 +135,10 @@ public class AuthApplicationService : IAuthService
             return BuildAuthResponse(user, roleName);
         }
         catch (UnauthorizedAccessException)
+        {
+            throw;
+        }
+        catch (KeyNotFoundException)
         {
             throw;
         }
@@ -382,6 +387,13 @@ public class AuthApplicationService : IAuthService
     /// </summary>
     private bool ValidateCode(string phoneNumber, string code)
     {
+        // 测试验证码：123456 始终有效（用于开发测试）
+        if (code == "123456")
+        {
+            _logger.LogWarning("⚠️ 使用测试验证码登录: {Phone}", MaskPhoneNumber(phoneNumber));
+            return true;
+        }
+
         if (!_verificationCodes.TryGetValue(phoneNumber, out var stored))
         {
             return false;
@@ -429,6 +441,77 @@ public class AuthApplicationService : IAuthService
         if (string.IsNullOrEmpty(phoneNumber) || phoneNumber.Length < 7)
             return "***";
         return phoneNumber[..3] + "****" + phoneNumber[^4..];
+    }
+
+    /// <summary>
+    ///     社交登录（用户不存在时自动创建）
+    /// </summary>
+    public async Task<AuthResponseDto> SocialLoginAsync(
+        SocialLoginRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔐 社交登录: Provider={Provider}", request.Provider);
+
+        try
+        {
+            var provider = request.Provider.ToLower();
+
+            // 必须提供 OpenId 或可以从 code/accessToken 获取
+            var openId = request.OpenId;
+            if (string.IsNullOrEmpty(openId))
+            {
+                // TODO: 如果没有 OpenId，需要通过 code 或 accessToken 调用社交平台 API 获取
+                // 这里暂时要求客户端直接提供 OpenId
+                throw new InvalidOperationException("社交登录需要提供 OpenId");
+            }
+
+            // 查找已存在的用户
+            var user = await _userRepository.GetBySocialLoginAsync(provider, openId, cancellationToken);
+
+            if (user == null)
+            {
+                // 自动注册新用户
+                _logger.LogInformation("📝 社交登录首次使用,自动注册: Provider={Provider}", provider);
+
+                var defaultRole = await _roleRepository.GetByNameAsync(Role.RoleNames.User, cancellationToken);
+                if (defaultRole == null)
+                {
+                    throw new InvalidOperationException("系统配置错误: 默认用户角色不存在");
+                }
+
+                // 生成默认用户名
+                var defaultName = $"{provider}用户{openId[^4..]}";
+
+                user = User.CreateWithSocialLogin(
+                    defaultName,
+                    provider,
+                    openId,
+                    defaultRole.Id);
+
+                user = await _userRepository.CreateAsync(user, cancellationToken);
+
+                _logger.LogInformation("✅ 社交登录新用户注册成功: {UserId}", user.Id);
+
+                return BuildAuthResponse(user, defaultRole.Name);
+            }
+
+            // 获取用户角色
+            var role = await _roleRepository.GetByIdAsync(user.RoleId, cancellationToken);
+            var roleName = role?.Name ?? Role.RoleNames.User;
+
+            _logger.LogInformation("✅ 社交登录成功: {UserId}", user.Id);
+
+            return BuildAuthResponse(user, roleName);
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 社交登录失败: Provider={Provider}", request.Provider);
+            throw new Exception("社交登录失败,请稍后重试");
+        }
     }
 
     #region 私有辅助方法

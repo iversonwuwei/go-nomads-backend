@@ -451,4 +451,37 @@ public class UserRepository : IUserRepository
             throw;
         }
     }
+
+    public async Task<User?> GetBySocialLoginAsync(string provider, string openId, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 根据社交登录查询用户: Provider={Provider}, OpenId={OpenId}",
+            provider, MaskSocialOpenId(openId));
+
+        try
+        {
+            var normalizedProvider = provider.ToLower();
+            var response = await _supabaseClient
+                .From<User>()
+                .Where(u => u.SocialProvider == normalizedProvider && u.SocialOpenId == openId)
+                .Single(cancellationToken);
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 未找到社交登录用户: Provider={Provider}, OpenId={OpenId}",
+                provider, MaskSocialOpenId(openId));
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     脱敏社交平台 OpenId
+    /// </summary>
+    private static string MaskSocialOpenId(string openId)
+    {
+        if (string.IsNullOrEmpty(openId) || openId.Length < 8)
+            return "***";
+        return openId[..4] + "****" + openId[^4..];
+    }
 }

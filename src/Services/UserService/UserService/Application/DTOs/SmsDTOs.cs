@@ -65,3 +65,30 @@ public class PhoneLoginRequest
     [StringLength(6, MinimumLength = 4, ErrorMessage = "验证码长度为 4-6 位")]
     public string Code { get; set; } = string.Empty;
 }
+
+/// <summary>
+///     社交登录请求
+/// </summary>
+public class SocialLoginRequest
+{
+    /// <summary>
+    ///     社交平台（wechat, qq, alipay, apple, google）
+    /// </summary>
+    [Required(ErrorMessage = "社交平台不能为空")]
+    public string Provider { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     授权码（OAuth code）
+    /// </summary>
+    public string? Code { get; set; }
+
+    /// <summary>
+    ///     访问令牌（某些平台直接返回）
+    /// </summary>
+    public string? AccessToken { get; set; }
+
+    /// <summary>
+    ///     用户唯一标识（OpenID）
+    /// </summary>
+    public string? OpenId { get; set; }
+}

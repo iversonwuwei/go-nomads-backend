@@ -121,6 +121,16 @@ public class AuthController : ControllerBase
                 Message = ex.Message
             });
         }
+        catch (KeyNotFoundException ex)
+        {
+            // 用户不存在 - 返回 404 并提示注册
+            _logger.LogWarning(ex, "⚠️ 用户 {Email} 不存在", dto.Email);
+            return NotFound(new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ 用户 {Email} 登录时发生错误", dto.Email);
@@ -393,6 +403,59 @@ public class AuthController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ 手机号登录异常: {Phone}", request.PhoneNumber);
+            return StatusCode(500, new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = "登录失败,请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     社交登录（微信/QQ/支付宝等）
+    ///     用户不存在时自动创建
+    /// </summary>
+    [HttpPost("social-login")]
+    public async Task<ActionResult<ApiResponse<AuthResponseDto>>> SocialLogin(
+        [FromBody] SocialLoginRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔐 社交登录: Provider={Provider}", request.Provider);
+
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        try
+        {
+            var authResponse = await _authService.SocialLoginAsync(request, cancellationToken);
+
+            return Ok(new ApiResponse<AuthResponseDto>
+            {
+                Success = true,
+                Message = "登录成功",
+                Data = authResponse
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 社交登录失败: {Provider}, {Message}", request.Provider, ex.Message);
+            return BadRequest(new ApiResponse<AuthResponseDto>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 社交登录异常: {Provider}", request.Provider);
             return StatusCode(500, new ApiResponse<AuthResponseDto>
             {
                 Success = false,

@@ -45,6 +45,16 @@ public class User : BaseModel
 
     [Column("role_id")] public string RoleId { get; set; } = string.Empty;
 
+    /// <summary>
+    ///     社交登录提供商（wechat, qq, alipay, apple, google）
+    /// </summary>
+    [Column("social_provider")] public string? SocialProvider { get; set; }
+
+    /// <summary>
+    ///     社交登录平台用户唯一标识（OpenID）
+    /// </summary>
+    [Column("social_open_id")] public string? SocialOpenId { get; set; }
+
     [Column("created_at")] public DateTime CreatedAt { get; set; }
 
     [Column("updated_at")] public DateTime UpdatedAt { get; set; }
@@ -132,6 +142,38 @@ public class User : BaseModel
             Phone = phone,
             RoleId = roleId,
             PasswordHash = string.Empty, // 手机号登录无需密码
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
+
+    /// <summary>
+    ///     创建用户（通过社交登录）
+    /// </summary>
+    public static User CreateWithSocialLogin(string name, string provider, string openId, string roleId, string? avatarUrl = null)
+    {
+        if (string.IsNullOrWhiteSpace(provider))
+            throw new ArgumentException("社交平台不能为空", nameof(provider));
+
+        if (string.IsNullOrWhiteSpace(openId))
+            throw new ArgumentException("社交平台用户标识不能为空", nameof(openId));
+
+        if (string.IsNullOrWhiteSpace(name))
+            name = $"{provider}用户{openId[^4..]}";
+
+        // 使用社交平台信息生成临时邮箱（用于唯一性约束）
+        var tempEmail = $"{provider}_{openId}@social.gonomads.app";
+
+        return new User
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = name,
+            Email = tempEmail,
+            SocialProvider = provider.ToLower(),
+            SocialOpenId = openId,
+            AvatarUrl = avatarUrl,
+            RoleId = roleId,
+            PasswordHash = string.Empty, // 社交登录无需密码
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
