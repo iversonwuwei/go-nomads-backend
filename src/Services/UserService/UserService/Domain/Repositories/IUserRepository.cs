@@ -23,6 +23,11 @@ public interface IUserRepository
     Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     根据手机号获取用户
+    /// </summary>
+    Task<User?> GetByPhoneAsync(string phone, CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     根据邮箱获取用户（带角色信息，单次 JOIN 查询）
     /// </summary>
     Task<UserWithRole?> GetByEmailWithRoleAsync(string email, CancellationToken cancellationToken = default);

@@ -32,4 +32,16 @@ public interface IAuthService
     /// </summary>
     Task ChangePasswordAsync(string userId, string oldPassword, string newPassword,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     发送短信验证码
+    /// </summary>
+    Task<SendSmsCodeResponse> SendSmsCodeAsync(SendSmsCodeRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     手机号验证码登录
+    /// </summary>
+    Task<AuthResponseDto> LoginWithPhoneAsync(PhoneLoginRequest request,
+        CancellationToken cancellationToken = default);
 }

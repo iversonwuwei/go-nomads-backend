@@ -82,6 +82,36 @@ public class UserRepository : IUserRepository
         }
     }
 
+    public async Task<User?> GetByPhoneAsync(string phone, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 根据手机号查询用户: {Phone}", MaskPhoneNumber(phone));
+
+        try
+        {
+            var response = await _supabaseClient
+                .From<User>()
+                .Where(u => u.Phone == phone)
+                .Single(cancellationToken);
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 未找到用户: {Phone}", MaskPhoneNumber(phone));
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     脱敏手机号
+    /// </summary>
+    private static string MaskPhoneNumber(string phoneNumber)
+    {
+        if (string.IsNullOrEmpty(phoneNumber) || phoneNumber.Length < 7)
+            return "***";
+        return phoneNumber[..3] + "****" + phoneNumber[^4..];
+    }
+
     public async Task<UserWithRole?> GetByEmailWithRoleAsync(string email, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("🔍 根据邮箱查询用户(含角色): {Email}", email);
