@@ -12,6 +12,11 @@ public class AlipaySettings
     public bool UseSandbox { get; set; } = true;
     
     /// <summary>
+    /// 合作伙伴 ID (PID)，用于授权登录
+    /// </summary>
+    public string? PartnerId { get; set; }
+    
+    /// <summary>
     /// 获取网关地址
     /// </summary>
     public string GatewayUrl => UseSandbox 

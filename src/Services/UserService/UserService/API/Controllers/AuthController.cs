@@ -18,13 +18,16 @@ namespace UserService.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IAlipayService _alipayService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         IAuthService authService,
+        IAlipayService alipayService,
         ILogger<AuthController> logger)
     {
         _authService = authService;
+        _alipayService = alipayService;
         _logger = logger;
     }
 
@@ -407,6 +410,37 @@ public class AuthController : ControllerBase
             {
                 Success = false,
                 Message = "登录失败,请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     获取支付宝授权登录信息
+    ///     用于客户端调用支付宝 SDK 进行授权登录
+    /// </summary>
+    [HttpGet("alipay/auth-info")]
+    public ActionResult<ApiResponse<object>> GetAlipayAuthInfo()
+    {
+        _logger.LogInformation("📱 获取支付宝授权信息");
+
+        try
+        {
+            var authInfo = _alipayService.CreateAuthInfoString();
+
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "获取成功",
+                Data = new { authInfo }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取支付宝授权信息失败");
+            return StatusCode(500, new ApiResponse<object>
+            {
+                Success = false,
+                Message = "获取支付宝授权信息失败"
             });
         }
     }
