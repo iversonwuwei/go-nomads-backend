@@ -15,6 +15,10 @@ public class RouteAuthorizationConfig
         "/api/v1/auth/register",
         "/api/v1/auth/refresh",
         "/api/v1/auth/logout",
+        "/api/v1/auth/social-login",
+        "/api/v1/auth/alipay/auth-info",
+        "/api/v1/auth/sms/send",
+        "/api/v1/auth/sms/login",
 
         // Legacy routes (for backward compatibility - remove after migration)
         "/api/users/login",

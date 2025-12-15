@@ -21,6 +21,11 @@ public interface IAlipayService
     /// 验证异步通知签名
     /// </summary>
     bool VerifyNotify(IDictionary<string, string> parameters);
+    
+    /// <summary>
+    /// 创建支付宝授权登录信息字符串
+    /// </summary>
+    string CreateAuthInfoString();
 }
 
 /// <summary>
@@ -265,5 +270,41 @@ public class AlipayService : IAlipayService
             }
         }
         return sb.ToString();
+    }
+    
+    /// <summary>
+    /// 创建支付宝授权登录信息字符串
+    /// </summary>
+    public string CreateAuthInfoString()
+    {
+        _logger.LogInformation("📝 创建支付宝授权登录信息");
+
+        // 构建请求参数
+        var parameters = new SortedDictionary<string, string>
+        {
+            ["apiname"] = "com.alipay.account.auth",
+            ["method"] = "alipay.open.auth.sdk.code.get",
+            ["app_id"] = _settings.AppId,
+            ["app_name"] = "mc",
+            ["biz_type"] = "openservice",
+            ["pid"] = _settings.PartnerId ?? _settings.AppId, // 如果没有 PartnerId，使用 AppId
+            ["product_id"] = "APP_FAST_LOGIN",
+            ["scope"] = "kuaijie",
+            ["target_id"] = Guid.NewGuid().ToString("N"), // 唯一标识
+            ["auth_type"] = "AUTHACCOUNT",
+            ["sign_type"] = "RSA2"
+        };
+
+        // 生成签名
+        var signContent = BuildSignContent(parameters);
+        var sign = SignWithRsa2(signContent);
+        parameters["sign"] = sign;
+
+        // 构建最终的授权信息字符串
+        var authInfo = BuildOrderString(parameters);
+        
+        _logger.LogInformation("✅ 支付宝授权信息生成成功");
+        
+        return authInfo;
     }
 }
