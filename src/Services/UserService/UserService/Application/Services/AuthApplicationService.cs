@@ -387,10 +387,10 @@ public class AuthApplicationService : IAuthService
     /// </summary>
     private bool ValidateCode(string phoneNumber, string code)
     {
-        // 测试验证码：123456 始终有效（用于开发测试）
-        if (code == "123456")
+        // 测试验证码：123456 仅在配置允许时有效（用于开发测试）
+        if (_smsSettings.AllowTestCode && code == "123456")
         {
-            _logger.LogWarning("⚠️ 使用测试验证码登录: {Phone}", MaskPhoneNumber(phoneNumber));
+            _logger.LogWarning("⚠️ 使用测试验证码登录: {Phone}（测试模式已启用）", MaskPhoneNumber(phoneNumber));
             return true;
         }
 
