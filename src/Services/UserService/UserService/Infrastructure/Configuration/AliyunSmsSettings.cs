@@ -46,4 +46,10 @@ public class AliyunSmsSettings
     ///     验证码长度
     /// </summary>
     public int CodeLength { get; set; } = 6;
+
+    /// <summary>
+    ///     是否允许测试验证码（123456）
+    ///     生产环境应设置为 false
+    /// </summary>
+    public bool AllowTestCode { get; set; } = false;
 }
