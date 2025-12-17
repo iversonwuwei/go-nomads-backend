@@ -70,6 +70,7 @@ public class CityApplicationService : ICityService
         // 设置用户上下文
         foreach (var cityDto in cityDtos) cityDto.SetUserContext(userId, userRole);
 
+        // 数据库已按 OverallScore 降序排序，无需再次排序
         return cityDtos;
     }
 
@@ -613,10 +614,15 @@ public class CityApplicationService : ICityService
             // 🆕 通过 CacheService 批量获取城市平均费用
             var averageCosts = await GetCityCostsFromCacheServiceAsync(cityIds);
 
-            // 填充数据
+            // 填充数据（仅当 CacheService 返回有效值时更新，保留数据库原有排序）
             foreach (var city in cities)
             {
-                city.OverallScore = overallScores.GetValueOrDefault(city.Id);
+                // 只有当 CacheService 返回了有效评分时才更新，否则保留数据库原值
+                if (overallScores.TryGetValue(city.Id, out var score) && score > 0)
+                {
+                    city.OverallScore = score;
+                }
+                // AverageCost 可以直接更新
                 city.AverageCost = averageCosts.GetValueOrDefault(city.Id);
 
                 _logger.LogDebug("📊 城市 {CityName}({CityId}): OverallScore={OverallScore}, AverageCost={AverageCost}",

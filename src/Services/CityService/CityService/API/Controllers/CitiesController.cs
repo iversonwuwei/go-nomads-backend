@@ -571,9 +571,16 @@ public class CitiesController : ControllerBase
             var cityIdsWithCoworking = coworkingCountByCity.Keys.ToList();
             var totalCount = cityIdsWithCoworking.Count;
 
+            // 第二步：获取这些城市的详细信息并按评分降序排序
+            var userId = TryGetCurrentUserId();
+            var userRole = TryGetCurrentUserRole();
+            var allCities = (await _cityService.GetCitiesByIdsAsync(cityIdsWithCoworking))
+                .OrderByDescending(c => c.OverallScore ?? 0)
+                .ToList();
+
             // 计算分页的偏移量
             var skip = (page - 1) * pageSize;
-            
+
             // 如果偏移量超过总数，返回空列表
             if (skip >= totalCount)
             {
@@ -591,17 +598,11 @@ public class CitiesController : ControllerBase
                 });
             }
 
-            // 分页获取城市ID
-            var pagedCityIds = cityIdsWithCoworking
+            // 分页后的城市列表（已按评分降序排序）
+            var cityList = allCities
                 .Skip(skip)
                 .Take(pageSize)
                 .ToList();
-
-            // 第二步：获取这些城市的详细信息
-            var userId = TryGetCurrentUserId();
-            var userRole = TryGetCurrentUserRole();
-            var cities = await _cityService.GetCitiesByIdsAsync(pagedCityIds);
-            var cityList = cities.ToList();
 
             // 填充 coworking 数量
             foreach (var city in cityList)

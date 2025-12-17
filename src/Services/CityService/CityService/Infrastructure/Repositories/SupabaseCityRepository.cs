@@ -154,7 +154,9 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         if (criteria.Tags is { Count: > 0 })
             cities = cities.Where(c => c.Tags != null && criteria.Tags.All(tag => c.Tags.Contains(tag)));
 
+        // 确保最终结果按评分降序排序（过滤后重新排序）
         return cities
+            .OrderByDescending(c => c.OverallScore ?? 0)
             .Skip((criteria.PageNumber - 1) * criteria.PageSize)
             .Take(criteria.PageSize)
             .ToList();
