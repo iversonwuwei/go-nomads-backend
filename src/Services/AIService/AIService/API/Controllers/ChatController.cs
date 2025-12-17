@@ -952,7 +952,8 @@ public class ChatController : ControllerBase
         [FromServices] IRedisCache cache,
         [FromServices] IAIChatService chatService,
         [FromServices] ITravelPlanRepository travelPlanRepository,
-        [FromServices] ICityGrpcClient cityGrpcClient)
+        [FromServices] ICityGrpcClient cityGrpcClient,
+        [FromServices] IImageGenerationService imageGenerationService)
     {
         try
         {
@@ -1030,28 +1031,96 @@ public class ChatController : ControllerBase
 
                     // 保存结果到 Redis
                     var planId = travelPlan.Id;
+                    
+                    // 生成旅行计划封面图片
+                    string? cityImage = null;
+                    try
+                    {
+                        // 发送图片生成进度
+                        await publishEndpoint.Publish(new AIProgressMessage
+                        {
+                            TaskId = taskId,
+                            UserId = userId.ToString(),
+                            Progress = 88,
+                            Message = "正在生成旅行计划封面图片...",
+                            TaskType = "travel-plan",
+                            CurrentStage = "正在生成旅行计划封面图片...",
+                            Status = "processing",
+                            Timestamp = DateTime.UtcNow
+                        });
+                        
+                        _logger.LogInformation("🎨 开始生成旅行计划封面图片: PlanId={PlanId}, CityName={CityName}", planId, request.CityName);
+                        
+                        // 构建图片生成提示词
+                        var imagePrompt = $"A stunning travel photography of {request.CityName}, showcasing the most iconic landmarks and atmosphere of this destination, " +
+                                         $"beautiful lighting, professional travel magazine quality, vibrant colors, inviting atmosphere for travelers, " +
+                                         $"4K ultra high definition, cinematic composition";
+                        
+                        var imageRequest = new GenerateImageRequest
+                        {
+                            Prompt = imagePrompt,
+                            NegativePrompt = "blurry, low quality, watermark, text, logo, cartoon, anime, illustration, painting",
+                            Style = "photography",
+                            Size = "1280*720", // 横屏适合卡片展示
+                            Count = 1,
+                            Bucket = "city-photos",
+                            PathPrefix = $"travel-plans/{planId}"
+                        };
+                        
+                        var imageResult = await imageGenerationService.GenerateImageAsync(imageRequest, userId);
+                        
+                        if (imageResult.Success && imageResult.Images?.Count > 0)
+                        {
+                            cityImage = imageResult.Images.First().Url;
+                            travelPlan.CityImage = cityImage;
+                            _logger.LogInformation("✅ 旅行计划封面图片生成成功: PlanId={PlanId}, ImageUrl={ImageUrl}", planId, cityImage);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("⚠️ 旅行计划封面图片生成失败，尝试获取城市默认图片: PlanId={PlanId}, Error={Error}", 
+                                planId, imageResult.ErrorMessage);
+                            
+                            // 降级：尝试从 CityService 获取城市默认图片
+                            if (!string.IsNullOrEmpty(request.CityId) && Guid.TryParse(request.CityId, out var cityIdGuid))
+                            {
+                                cityImage = await cityGrpcClient.GetCityImageAsync(cityIdGuid);
+                                if (!string.IsNullOrEmpty(cityImage))
+                                {
+                                    travelPlan.CityImage = cityImage;
+                                    _logger.LogInformation("✅ 使用城市默认图片: CityId={CityId}, ImageUrl={ImageUrl}", request.CityId, cityImage);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception imgEx)
+                    {
+                        _logger.LogWarning(imgEx, "⚠️ 生成旅行计划封面图片异常（不影响主流程）: PlanId={PlanId}", planId);
+                        
+                        // 降级：尝试从 CityService 获取城市默认图片
+                        try
+                        {
+                            if (!string.IsNullOrEmpty(request.CityId) && Guid.TryParse(request.CityId, out var cityIdGuid))
+                            {
+                                cityImage = await cityGrpcClient.GetCityImageAsync(cityIdGuid);
+                                if (!string.IsNullOrEmpty(cityImage))
+                                {
+                                    travelPlan.CityImage = cityImage;
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // 忽略降级失败
+                        }
+                    }
+                    
+                    // 更新 JSON 包含图片 URL
                     var planJson = JsonSerializer.Serialize(travelPlan);
                     await cache.SetStringAsync($"plan:{planId}", planJson, TimeSpan.FromHours(24));
 
                     // 保存到数据库 (持久化存储)
                     try
                     {
-                        // 如果请求中没有城市图片，尝试从 CityService 获取
-                        var cityImage = request.CityImage;
-                        if (string.IsNullOrEmpty(cityImage) && !string.IsNullOrEmpty(request.CityId) && Guid.TryParse(request.CityId, out var cityIdGuid))
-                        {
-                            _logger.LogInformation("📸 尝试从 CityService 获取城市图片: CityId={CityId}", request.CityId);
-                            cityImage = await cityGrpcClient.GetCityImageAsync(cityIdGuid);
-                            if (!string.IsNullOrEmpty(cityImage))
-                            {
-                                _logger.LogInformation("✅ 成功获取城市图片: CityId={CityId}, ImageUrl={ImageUrl}", request.CityId, cityImage);
-                            }
-                            else
-                            {
-                                _logger.LogWarning("⚠️ 未能获取城市图片，将使用空值: CityId={CityId}", request.CityId);
-                            }
-                        }
-
                         var dbPlan = new AiTravelPlan
                         {
                             Id = Guid.Parse(planId),
@@ -1073,7 +1142,7 @@ public class ChatController : ControllerBase
                         };
 
                         await travelPlanRepository.SaveAsync(dbPlan);
-                        _logger.LogInformation("💾 旅行计划已保存到数据库: PlanId={PlanId}, UserId={UserId}", planId, userId);
+                        _logger.LogInformation("💾 旅行计划已保存到数据库: PlanId={PlanId}, UserId={UserId}, CityImage={CityImage}", planId, userId, cityImage ?? "null");
                     }
                     catch (Exception dbEx)
                     {
