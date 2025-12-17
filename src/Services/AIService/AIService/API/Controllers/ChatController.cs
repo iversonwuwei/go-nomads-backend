@@ -1060,7 +1060,7 @@ public class ChatController : ControllerBase
                         {
                             Prompt = imagePrompt,
                             NegativePrompt = "blurry, low quality, watermark, text, logo, cartoon, anime, illustration, painting",
-                            Style = "photography",
+                            Style = "<photography>",
                             Size = "1280*720", // 横屏适合卡片展示
                             Count = 1,
                             Bucket = "city-photos",
