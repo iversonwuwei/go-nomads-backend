@@ -5,6 +5,7 @@ using CityService.Domain.Repositories;
 using Dapr.Client;
 using GoNomads.Shared.Models;
 using GoNomads.Shared.Middleware;
+using GoNomads.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -18,6 +19,7 @@ public class CityRatingsController : ControllerBase
 {
     private readonly ICityRatingCategoryRepository _categoryRepository;
     private readonly ICityRatingRepository _ratingRepository;
+    private readonly ICurrentUserService _currentUser;
     private readonly DaprClient _daprClient;
     private readonly ILogger<CityRatingsController> _logger;
     private readonly RatingCategorySeeder _ratingSeeder;
@@ -25,58 +27,17 @@ public class CityRatingsController : ControllerBase
     public CityRatingsController(
         ICityRatingCategoryRepository categoryRepository,
         ICityRatingRepository ratingRepository,
+        ICurrentUserService currentUser,
         DaprClient daprClient,
         ILogger<CityRatingsController> logger,
         RatingCategorySeeder ratingSeeder)
     {
         _categoryRepository = categoryRepository;
         _ratingRepository = ratingRepository;
+        _currentUser = currentUser;
         _daprClient = daprClient;
         _logger = logger;
         _ratingSeeder = ratingSeeder;
-    }
-
-    private Guid? GetCurrentUserId()
-    {
-        try
-        {
-            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-            if (userContext?.IsAuthenticated == true && !string.IsNullOrEmpty(userContext.UserId))
-            {
-                if (Guid.TryParse(userContext.UserId, out var userId))
-                {
-                    _logger.LogInformation("✅ 获取当前用户ID: {UserId}", userId);
-                    return userId;
-                }
-            }
-            
-            _logger.LogInformation("ℹ️ 未找到认证用户信息");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "获取当前用户ID失败，将返回 null");
-        }
-
-        return null;
-    }
-
-    private bool IsAdmin()
-    {
-        try
-        {
-            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-            return userContext?.Role == "admin";
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private bool IsModerator(Guid cityId)
-    {
-        // TODO: 实现版主权限检查
-        return User.IsInRole("moderator");
     }
 
     /// <summary>
@@ -93,7 +54,7 @@ public class CityRatingsController : ControllerBase
             var averageRatings = await _ratingRepository.GetCityAverageRatingsAsync(cityId);
             var allCityRatings = await _ratingRepository.GetCityRatingsAsync(cityId);
 
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = _currentUser.TryGetUserId();
             List<CityRating> userRatings = new();
             if (currentUserId.HasValue)
             {
@@ -241,7 +202,7 @@ public class CityRatingsController : ControllerBase
     {
         try
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.TryGetUserId();
             if (!userId.HasValue)
                 return Unauthorized(new ApiResponse<CityRatingDto>
                 {
@@ -367,7 +328,7 @@ public class CityRatingsController : ControllerBase
     {
         try
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.TryGetUserId();
             if (!userId.HasValue)
                 return Unauthorized(new ApiResponse<CityRatingCategoryDto>
                 {
@@ -434,7 +395,7 @@ public class CityRatingsController : ControllerBase
     {
         try
         {
-            if (!IsAdmin() && !IsModerator(cityId))
+            if (!_currentUser.HasAdminOrModeratorPrivileges())
                 return Forbid();
 
             var category = await _categoryRepository.GetByIdAsync(categoryId);
@@ -493,7 +454,7 @@ public class CityRatingsController : ControllerBase
     {
         try
         {
-            if (!IsAdmin() && !IsModerator(cityId))
+            if (!_currentUser.HasAdminOrModeratorPrivileges())
                 return Forbid();
 
             var category = await _categoryRepository.GetByIdAsync(categoryId);

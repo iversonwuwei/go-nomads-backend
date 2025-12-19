@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using GoNomads.Shared.Middleware;
+using GoNomads.Shared.Services;
 using UserService.Application.DTOs;
 using UserService.Application.Services;
 using UserService.Domain.Repositories;
@@ -18,33 +19,18 @@ public class MembershipController : ControllerBase
     private readonly ILogger<MembershipController> _logger;
     private readonly IMembershipService _membershipService;
     private readonly IMembershipPlanRepository _membershipPlanRepository;
+    private readonly ICurrentUserService _currentUser;
 
     public MembershipController(
         IMembershipService membershipService,
         IMembershipPlanRepository membershipPlanRepository,
+        ICurrentUserService currentUser,
         ILogger<MembershipController> logger)
     {
         _membershipService = membershipService;
         _membershipPlanRepository = membershipPlanRepository;
+        _currentUser = currentUser;
         _logger = logger;
-    }
-
-    /// <summary>
-    ///     从 UserContext 获取当前用户 ID
-    /// </summary>
-    private string? GetCurrentUserId()
-    {
-        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-        return userContext?.IsAuthenticated == true ? userContext.UserId : null;
-    }
-
-    /// <summary>
-    ///     检查是否为管理员
-    /// </summary>
-    private bool IsAdmin()
-    {
-        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-        return userContext?.Role?.Equals("Admin", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     /// <summary>
@@ -79,7 +65,7 @@ public class MembershipController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<MembershipResponse>> GetMembership()
     {
-        var userId = GetCurrentUserId();
+        var userId = _currentUser.GetUserIdString();
         if (string.IsNullOrEmpty(userId))
             return Unauthorized(new { message = "用户未登录" });
 
@@ -94,7 +80,7 @@ public class MembershipController : ControllerBase
     [HttpPost("upgrade")]
     public async Task<ActionResult<MembershipResponse>> Upgrade([FromBody] UpgradeMembershipRequest request)
     {
-        var userId = GetCurrentUserId();
+        var userId = _currentUser.GetUserIdString();
         if (string.IsNullOrEmpty(userId))
             return Unauthorized(new { message = "用户未登录" });
 
@@ -110,7 +96,7 @@ public class MembershipController : ControllerBase
     [HttpPost("deposit")]
     public async Task<ActionResult<MembershipResponse>> PayDeposit([FromBody] PayDepositRequest request)
     {
-        var userId = GetCurrentUserId();
+        var userId = _currentUser.GetUserIdString();
         if (string.IsNullOrEmpty(userId))
             return Unauthorized(new { message = "用户未登录" });
 
@@ -125,7 +111,7 @@ public class MembershipController : ControllerBase
     [HttpPost("auto-renew")]
     public async Task<ActionResult<MembershipResponse>> SetAutoRenew([FromBody] SetAutoRenewRequest request)
     {
-        var userId = GetCurrentUserId();
+        var userId = _currentUser.GetUserIdString();
         if (string.IsNullOrEmpty(userId))
             return Unauthorized(new { message = "用户未登录" });
 
@@ -140,7 +126,7 @@ public class MembershipController : ControllerBase
     [HttpPost("ai-usage")]
     public async Task<ActionResult<bool>> RecordAiUsage()
     {
-        var userId = GetCurrentUserId();
+        var userId = _currentUser.GetUserIdString();
         if (string.IsNullOrEmpty(userId))
             return Unauthorized(new { message = "用户未登录" });
 
@@ -156,7 +142,7 @@ public class MembershipController : ControllerBase
     public async Task<ActionResult<IEnumerable<MembershipResponse>>> GetExpiringMemberships(
         [FromQuery] int daysBeforeExpiry = 7)
     {
-        if (!IsAdmin())
+        if (!_currentUser.IsAdmin())
             return Forbid();
 
         _logger.LogInformation("📅 获取即将过期的会员: DaysBeforeExpiry={Days}", daysBeforeExpiry);
@@ -170,7 +156,7 @@ public class MembershipController : ControllerBase
     [HttpPost("process-renewals")]
     public async Task<IActionResult> ProcessAutoRenewals()
     {
-        if (!IsAdmin())
+        if (!_currentUser.IsAdmin())
             return Forbid();
 
         _logger.LogInformation("🔄 手动触发自动续费处理");
@@ -184,7 +170,7 @@ public class MembershipController : ControllerBase
     [HttpPost("process-expired")]
     public async Task<IActionResult> ProcessExpiredMemberships()
     {
-        if (!IsAdmin())
+        if (!_currentUser.IsAdmin())
             return Forbid();
 
         _logger.LogInformation("⏰ 手动触发过期会员处理");

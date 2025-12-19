@@ -2,6 +2,7 @@ using CityService.Application.DTOs;
 using CityService.Application.Services;
 using CityService.DTOs;
 using GoNomads.Shared.Middleware;
+using GoNomads.Shared.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CityService.API.Controllers;
@@ -14,16 +15,19 @@ namespace CityService.API.Controllers;
 public class UserFavoriteCitiesController : ControllerBase
 {
     private readonly ICityService _cityService;
+    private readonly ICurrentUserService _currentUser;
     private readonly IUserFavoriteCityService _favoriteCityService;
     private readonly ILogger<UserFavoriteCitiesController> _logger;
 
     public UserFavoriteCitiesController(
         IUserFavoriteCityService favoriteCityService,
         ICityService cityService,
+        ICurrentUserService currentUser,
         ILogger<UserFavoriteCitiesController> logger)
     {
         _favoriteCityService = favoriteCityService;
         _cityService = cityService;
+        _currentUser = currentUser;
         _logger = logger;
     }
 
@@ -38,7 +42,7 @@ public class UserFavoriteCitiesController : ControllerBase
     {
         try
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.GetUserId();
             var isFavorited = await _favoriteCityService.IsCityFavoritedAsync(userId, cityId);
 
             return Ok(new CheckFavoriteStatusResponse { IsFavorited = isFavorited });
@@ -62,7 +66,7 @@ public class UserFavoriteCitiesController : ControllerBase
     {
         try
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.GetUserId();
 
             // 检查是否已存在
             var exists = await _favoriteCityService.IsCityFavoritedAsync(userId, request.CityId);
@@ -106,7 +110,7 @@ public class UserFavoriteCitiesController : ControllerBase
     {
         try
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.GetUserId();
             var success = await _favoriteCityService.RemoveFavoriteCityAsync(userId, cityId);
 
             if (!success) return NotFound(new { error = "收藏记录不存在" });
@@ -130,7 +134,7 @@ public class UserFavoriteCitiesController : ControllerBase
     {
         try
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.GetUserId();
             var cityIds = await _favoriteCityService.GetUserFavoriteCityIdsAsync(userId);
 
             return Ok(cityIds);
@@ -182,7 +186,7 @@ public class UserFavoriteCitiesController : ControllerBase
     {
         try
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.GetUserId();
             var (items, total) = await _favoriteCityService.GetUserFavoriteCitiesAsync(userId, page, pageSize);
 
             var dtos = items.Select(item => new UserFavoriteCityDto
@@ -225,7 +229,7 @@ public class UserFavoriteCitiesController : ControllerBase
     {
         try
         {
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.GetUserId();
             
             // 获取收藏记录
             var (items, total) = await _favoriteCityService.GetUserFavoriteCitiesAsync(userId, page, pageSize);
@@ -273,17 +277,5 @@ public class UserFavoriteCitiesController : ControllerBase
             _logger.LogError(ex, "获取收藏城市详情列表失败");
             return StatusCode(500, new { error = "获取收藏列表失败" });
         }
-    }
-
-    /// <summary>
-    ///     获取当前用户ID（从 UserContext 中获取）
-    /// </summary>
-    private Guid GetCurrentUserId()
-    {
-        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-        if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-            throw new UnauthorizedAccessException("用户未认证");
-
-        return Guid.Parse(userContext.UserId);
     }
 }

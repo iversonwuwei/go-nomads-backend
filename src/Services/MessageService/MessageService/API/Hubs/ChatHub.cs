@@ -323,8 +323,26 @@ public class ChatHub : Hub
                 Timestamp = savedMessage.Timestamp
             };
 
-            // 广播消息到聊天室
+            // 广播消息到聊天室组
             await Clients.Group(request.RoomId).SendAsync("NewMessage", messageResponse);
+
+            // 获取房间信息，判断是否为私聊
+            var room = await _chatService.GetRoomByIdAsync(actualRoomId);
+            if (room?.RoomType == "direct")
+            {
+                // 对于私聊，额外向房间成员的个人频道发送消息
+                // 这样即使对方没有加入房间的 SignalR 组，也能收到消息
+                var members = await _chatService.GetMembersAsync(actualRoomId);
+                foreach (var member in members)
+                {
+                    // 不需要给发送者再发一次（他已经在房间组里收到了）
+                    if (member.UserId != userInfo.UserId)
+                    {
+                        await Clients.Group($"user-{member.UserId}").SendAsync("NewMessage", messageResponse);
+                        _logger.LogDebug("私聊消息已发送到用户个人频道: user-{UserId}", member.UserId);
+                    }
+                }
+            }
 
             _logger.LogInformation("用户 {UserId} 在聊天室 {RoomId} 发送消息", 
                 userInfo.UserId, request.RoomId);

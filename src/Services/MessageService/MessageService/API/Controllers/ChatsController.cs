@@ -1,4 +1,5 @@
 using GoNomads.Shared.Middleware;
+using GoNomads.Shared.Services;
 using MessageService.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,39 +15,15 @@ namespace MessageService.API.Controllers;
 public class ChatsController : ControllerBase
 {
     private readonly IChatService _chatService;
+    private readonly ICurrentUserService _currentUser;
     private readonly ILogger<ChatsController> _logger;
 
-    public ChatsController(IChatService chatService, ILogger<ChatsController> logger)
+    public ChatsController(IChatService chatService, ICurrentUserService currentUser, ILogger<ChatsController> logger)
     {
         _chatService = chatService;
+        _currentUser = currentUser;
         _logger = logger;
     }
-
-    #region 私有辅助方法
-
-    /// <summary>
-    ///     从 UserContext 中获取当前用户ID
-    /// </summary>
-    private string? GetCurrentUserId()
-    {
-        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-        if (userContext?.IsAuthenticated == true && !string.IsNullOrEmpty(userContext.UserId))
-        {
-            return userContext.UserId;
-        }
-        return null;
-    }
-
-    /// <summary>
-    ///     从 UserContext 中获取当前用户 Email（作为用户名）
-    /// </summary>
-    private string? GetCurrentUserEmail()
-    {
-        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-        return userContext?.Email;
-    }
-
-    #endregion
 
     #region 聊天室管理
 
@@ -115,8 +92,8 @@ public class ChatsController : ControllerBase
             }
 
             // 优先从 UserContext 获取组织者信息（Gateway 传递）
-            var organizerId = GetCurrentUserId();
-            var organizerName = GetCurrentUserEmail() ?? request.OrganizerName;
+            var organizerId = _currentUser.GetUserIdString();
+            var organizerName = _currentUser.GetUserEmail() ?? request.OrganizerName;
             var organizerAvatar = request.OrganizerAvatar;
             
             // 如果 UserContext 中没有用户信息，尝试从请求体获取
@@ -158,8 +135,8 @@ public class ChatsController : ControllerBase
         try
         {
             // 优先从 UserContext 获取当前用户信息
-            var currentUserId = GetCurrentUserId();
-            var currentUserName = GetCurrentUserEmail() ?? request.CurrentUserName;
+            var currentUserId = _currentUser.GetUserIdString();
+            var currentUserName = _currentUser.GetUserEmail() ?? request.CurrentUserName;
             var currentUserAvatar = request.CurrentUserAvatar;
             
             // 如果 UserContext 中没有，尝试从请求体获取
@@ -234,8 +211,8 @@ public class ChatsController : ControllerBase
         try
         {
             // 优先从 UserContext 获取用户信息（Gateway 传递）
-            var userId = GetCurrentUserId();
-            var userName = GetCurrentUserEmail() ?? "User";
+            var userId = _currentUser.GetUserIdString();
+            var userName = _currentUser.GetUserEmail() ?? "User";
             var userAvatar = request?.UserAvatar;
             
             // 如果 UserContext 中没有用户信息，尝试从请求体获取
@@ -299,7 +276,7 @@ public class ChatsController : ControllerBase
         try
         {
             // 优先从 UserContext 获取用户信息
-            var userId = GetCurrentUserId();
+            var userId = _currentUser.GetUserIdString();
             
             // 如果 UserContext 中没有，尝试从请求体获取
             if (string.IsNullOrEmpty(userId) && !string.IsNullOrEmpty(request?.UserId))

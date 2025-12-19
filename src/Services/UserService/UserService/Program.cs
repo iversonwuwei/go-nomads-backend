@@ -16,6 +16,9 @@ var builder = WebApplication.CreateBuilder(args);
 // 添加 Supabase 客户端（使用 Shared 扩展方法）
 builder.Services.AddSupabase(builder.Configuration);
 
+// 添加当前用户服务（统一的用户身份和权限检查）
+builder.Services.AddCurrentUserService();
+
 // 添加 JWT Token 服务
 builder.Services.AddSingleton<JwtTokenService>();
 
