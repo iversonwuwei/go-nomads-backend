@@ -6,6 +6,7 @@ using CityService.Domain.Repositories;
 using Dapr.Client;
 using GoNomads.Shared.Middleware;
 using GoNomads.Shared.Models;
+using GoNomads.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Postgrest.Attributes;
@@ -22,6 +23,7 @@ namespace CityService.API.Controllers;
 public class CitiesController : ControllerBase
 {
     private readonly ICityService _cityService;
+    private readonly ICurrentUserService _currentUser;
     private readonly DaprClient _daprClient;
     private readonly IDigitalNomadGuideService _guideService;
     private readonly INearbyCityService _nearbyCityService;
@@ -36,6 +38,7 @@ public class CitiesController : ControllerBase
         ICityModeratorRepository moderatorRepository,
         DaprClient daprClient,
         Client supabaseClient,
+        ICurrentUserService currentUser,
         ILogger<CitiesController> logger)
     {
         _cityService = cityService;
@@ -44,6 +47,7 @@ public class CitiesController : ControllerBase
         _moderatorRepository = moderatorRepository;
         _daprClient = daprClient;
         _supabaseClient = supabaseClient;
+        _currentUser = currentUser;
         _logger = logger;
     }
 
@@ -59,8 +63,8 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            var userId = TryGetCurrentUserId();
-            var userRole = TryGetCurrentUserRole();
+            var userId = _currentUser.TryGetUserId();
+            var userRole = _currentUser.GetUserRole();
 
             IEnumerable<CityDto> cities;
             int totalCount;
@@ -165,7 +169,7 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            var userId = TryGetCurrentUserId();
+            var userId = _currentUser.TryGetUserId();
             var cities = await _cityService.GetRecommendedCitiesAsync(count, userId);
             return Ok(new ApiResponse<IEnumerable<CityDto>>
             {
@@ -286,8 +290,8 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            var userId = TryGetCurrentUserId();
-            var userRole = TryGetCurrentUserRole();
+            var userId = _currentUser.TryGetUserId();
+            var userRole = _currentUser.GetUserRole();
             var cities = await _cityService.SearchCitiesAsync(searchDto, userId, userRole);
             return Ok(new ApiResponse<IEnumerable<CityDto>>
             {
@@ -317,8 +321,8 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            var userId = TryGetCurrentUserId();
-            var userRole = TryGetCurrentUserRole();
+            var userId = _currentUser.TryGetUserId();
+            var userRole = _currentUser.GetUserRole();
             var city = await _cityService.GetCityByIdAsync(id, userId, userRole);
             if (city == null)
                 return NotFound(new ApiResponse<CityDto>
@@ -436,7 +440,7 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            var userId = GetUserId();
+            var userId = _currentUser.GetUserId();
             var city = await _cityService.CreateCityAsync(createCityDto, userId);
             return CreatedAtAction(
                 nameof(GetCity),
@@ -469,7 +473,7 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            var userId = GetUserId();
+            var userId = _currentUser.GetUserId();
             var city = await _cityService.UpdateCityAsync(id, updateCityDto, userId);
             if (city == null)
                 return NotFound(new ApiResponse<CityDto>
@@ -572,8 +576,8 @@ public class CitiesController : ControllerBase
             var totalCount = cityIdsWithCoworking.Count;
 
             // 第二步：获取这些城市的详细信息并按评分降序排序
-            var userId = TryGetCurrentUserId();
-            var userRole = TryGetCurrentUserRole();
+            var userId = _currentUser.TryGetUserId();
+            var userRole = _currentUser.GetUserRole();
             var allCities = (await _cityService.GetCitiesByIdsAsync(cityIdsWithCoworking))
                 .OrderByDescending(c => c.OverallScore ?? 0)
                 .ToList();
@@ -682,58 +686,6 @@ public class CitiesController : ControllerBase
         [Column("is_active")]
         public bool IsActive { get; set; }
     }
-
-    #region Helper Methods
-
-    private Guid GetUserId()
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return Guid.TryParse(userIdClaim, out var userId) ? userId : Guid.Empty;
-    }
-
-    /// <summary>
-    ///     尝试获取当前用户ID（从 UserContext 中获取）
-    ///     如果用户未认证，返回 null
-    /// </summary>
-    private Guid? TryGetCurrentUserId()
-    {
-        try
-        {
-            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-            if (userContext?.IsAuthenticated == true && !string.IsNullOrEmpty(userContext.UserId))
-                if (Guid.TryParse(userContext.UserId, out var userId))
-                    return userId;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "获取当前用户ID失败，将返回 null");
-        }
-
-        return null;
-    }
-
-    private string? TryGetCurrentUserRole()
-    {
-        try
-        {
-            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-            return userContext?.Role;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "获取当前用户角色失败，将返回 null");
-            return null;
-        }
-    }
-
-    private Guid GetCurrentUserId()
-    {
-        var userId = TryGetCurrentUserId();
-        if (!userId.HasValue) throw new UnauthorizedAccessException("用户未登录");
-        return userId.Value;
-    }
-
-    #endregion
 
     #region Digital Nomad Guide APIs
 
@@ -929,8 +881,7 @@ public class CitiesController : ControllerBase
         try
         {
             // 检查用户角色 (从 Gateway 传递的 UserContext 获取)
-            var userRole = TryGetCurrentUserRole();
-            if (userRole?.ToLower() != "admin")
+            if (!_currentUser.IsAdmin())
             {
                 return StatusCode(403, new ApiResponse<bool>
                 {

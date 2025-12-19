@@ -51,6 +51,9 @@ builder.Services.AddOpenApi(options =>
 // 注册 Supabase 客户端
 builder.Services.AddSupabase(builder.Configuration);
 
+// 添加当前用户服务（统一的用户身份和权限检查）
+builder.Services.AddCurrentUserService();
+
 // 注册 Consul 客户端
 builder.Services.AddSingleton<IConsulClient, ConsulClient>(p => new ConsulClient(consulConfig =>
 {

@@ -25,6 +25,9 @@ builder.Host.UseSerilog();
 // 注册 Supabase 客户端
 builder.Services.AddSupabase(builder.Configuration);
 
+// 添加当前用户服务（统一的用户身份和权限检查）
+builder.Services.AddCurrentUserService();
+
 // 注册仓储 (Infrastructure Layer)
 builder.Services.AddScoped<IAIConversationRepository, AIConversationRepository>();
 builder.Services.AddScoped<IAIMessageRepository, AIMessageRepository>();

@@ -58,6 +58,9 @@ builder.Services.AddOpenApi(options =>
 // 添加 Supabase 客户端
 builder.Services.AddSupabase(builder.Configuration);
 
+// 添加当前用户服务（统一的用户身份和权限检查）
+builder.Services.AddCurrentUserService();
+
 // 配置 DaprClient - 使用 gRPC 端点
 var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50001";
 builder.Services.AddDaprClient(daprClientBuilder =>

@@ -2,6 +2,7 @@ using CoworkingService.Application.DTOs.Review;
 using CoworkingService.Application.Services;
 using GoNomads.Shared.DTOs;
 using GoNomads.Shared.Middleware;
+using GoNomads.Shared.Services;
 using Microsoft.AspNetCore.Mvc;
 using SharedModels = GoNomads.Shared.Models;
 
@@ -16,13 +17,16 @@ public class CoworkingReviewController : ControllerBase
 {
     private readonly ICoworkingReviewService _reviewService;
     private readonly ILogger<CoworkingReviewController> _logger;
+    private readonly ICurrentUserService _currentUser;
 
     public CoworkingReviewController(
         ICoworkingReviewService reviewService,
-        ILogger<CoworkingReviewController> logger)
+        ILogger<CoworkingReviewController> logger,
+        ICurrentUserService currentUser)
     {
         _reviewService = reviewService;
         _logger = logger;
+        _currentUser = currentUser;
     }
 
     /// <summary>
@@ -94,8 +98,7 @@ public class CoworkingReviewController : ControllerBase
     {
         try
         {
-            var userContext = GetUserContext();
-            var userId = GetUserId(userContext);
+            var userId = _currentUser.GetUserId();
 
             var review = await _reviewService.GetUserReviewForCoworkingAsync(coworkingId, userId);
 
@@ -129,8 +132,7 @@ public class CoworkingReviewController : ControllerBase
     {
         try
         {
-            var userContext = GetUserContext();
-            var userId = GetUserId(userContext);
+            var userId = _currentUser.GetUserId();
 
             _logger.LogInformation("用户 {UserId} 添加 Coworking {CoworkingId} 评论", userId, coworkingId);
             _logger.LogInformation("📥 收到评论请求: Rating={Rating}, Title={Title}, ContentLength={ContentLength}, PhotoUrlsCount={PhotoUrlsCount}", 
@@ -189,8 +191,7 @@ public class CoworkingReviewController : ControllerBase
     {
         try
         {
-            var userContext = GetUserContext();
-            var userId = GetUserId(userContext);
+            var userId = _currentUser.GetUserId();
 
             _logger.LogInformation("用户 {UserId} 更新评论 {ReviewId}", userId, reviewId);
 
@@ -236,8 +237,7 @@ public class CoworkingReviewController : ControllerBase
     {
         try
         {
-            var userContext = GetUserContext();
-            var userId = GetUserId(userContext);
+            var userId = _currentUser.GetUserId();
 
             _logger.LogInformation("用户 {UserId} 删除评论 {ReviewId}", userId, reviewId);
 
@@ -265,41 +265,4 @@ public class CoworkingReviewController : ControllerBase
                 new List<string> { ex.Message }));
         }
     }
-
-    #region 私有辅助方法
-
-    /// <summary>
-    /// 获取用户上下文
-    /// </summary>
-    private SharedModels.UserContext? GetUserContext()
-    {
-        try
-        {
-            return UserContextMiddleware.GetUserContext(HttpContext);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// 获取当前用户 ID（必须存在）
-    /// </summary>
-    private Guid GetUserId(SharedModels.UserContext? userContext)
-    {
-        if (userContext == null || string.IsNullOrWhiteSpace(userContext.UserId))
-        {
-            throw new UnauthorizedAccessException("未登录或用户信息无效");
-        }
-
-        if (Guid.TryParse(userContext.UserId, out var userId))
-        {
-            return userId;
-        }
-
-        throw new UnauthorizedAccessException("用户 ID 格式无效");
-    }
-
-    #endregion
 }
