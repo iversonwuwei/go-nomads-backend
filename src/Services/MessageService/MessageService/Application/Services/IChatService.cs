@@ -79,7 +79,21 @@ public interface IChatService
     ///     获取消息列表
     /// </summary>
     Task<List<ChatMessageDto>> GetMessagesAsync(string roomId, int page = 1, int pageSize = 50);
-    
+
+    /// <summary>
+    ///     搜索消息
+    /// </summary>
+    /// <param name="roomId">聊天室ID（可选，为空则搜索所有消息）</param>
+    /// <param name="keyword">搜索关键词</param>
+    /// <param name="page">页码</param>
+    /// <param name="pageSize">每页大小</param>
+    Task<List<ChatMessageDto>> SearchMessagesAsync(string? roomId, string keyword, int page = 1, int pageSize = 20);
+
+    /// <summary>
+    ///     获取搜索结果数量
+    /// </summary>
+    Task<int> GetSearchCountAsync(string? roomId, string keyword);
+
     /// <summary>
     ///     删除消息
     /// </summary>

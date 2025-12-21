@@ -339,6 +339,82 @@ public class ChatsController : ControllerBase
     }
 
     /// <summary>
+    ///     搜索聊天室消息
+    /// </summary>
+    [HttpGet("{roomId}/messages/search")]
+    public async Task<IActionResult> SearchMessages(
+        string roomId,
+        [FromQuery] string keyword,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(keyword))
+            {
+                return BadRequest(new { error = "搜索关键词不能为空" });
+            }
+
+            // 处理 meetup_ 格式的 roomId
+            var actualRoomId = roomId;
+            if (roomId.StartsWith("meetup_"))
+            {
+                var meetupIdStr = roomId.Substring(7);
+                if (Guid.TryParse(meetupIdStr, out var meetupId))
+                {
+                    var meetupRoom = await _chatService.GetOrCreateMeetupRoomAsync(meetupId, "Meetup Chat", null);
+                    actualRoomId = meetupRoom.Id;
+                }
+            }
+
+            var messages = await _chatService.SearchMessagesAsync(actualRoomId, keyword, page, pageSize);
+            return Ok(messages);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "搜索消息失败: RoomId={RoomId}, Keyword={Keyword}", roomId, keyword);
+            return StatusCode(500, new { error = "搜索消息失败" });
+        }
+    }
+
+    /// <summary>
+    ///     获取搜索结果数量
+    /// </summary>
+    [HttpGet("{roomId}/messages/search/count")]
+    public async Task<IActionResult> GetSearchCount(
+        string roomId,
+        [FromQuery] string keyword)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(keyword))
+            {
+                return Ok(new { count = 0 });
+            }
+
+            // 处理 meetup_ 格式的 roomId
+            var actualRoomId = roomId;
+            if (roomId.StartsWith("meetup_"))
+            {
+                var meetupIdStr = roomId.Substring(7);
+                if (Guid.TryParse(meetupIdStr, out var meetupId))
+                {
+                    var meetupRoom = await _chatService.GetOrCreateMeetupRoomAsync(meetupId, "Meetup Chat", null);
+                    actualRoomId = meetupRoom.Id;
+                }
+            }
+
+            var count = await _chatService.GetSearchCountAsync(actualRoomId, keyword);
+            return Ok(new { count });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取搜索数量失败: RoomId={RoomId}, Keyword={Keyword}", roomId, keyword);
+            return StatusCode(500, new { error = "获取搜索数量失败" });
+        }
+    }
+
+    /// <summary>
     ///     发送消息（REST API 方式，建议使用 SignalR）
     /// </summary>
     [HttpPost("{roomId}/messages")]

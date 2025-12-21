@@ -269,6 +269,38 @@ public class ChatApplicationService : IChatService
         return messages.Select(MapToDto).ToList();
     }
 
+    public async Task<List<ChatMessageDto>> SearchMessagesAsync(string? roomId, string keyword, int page = 1, int pageSize = 20)
+    {
+        if (string.IsNullOrWhiteSpace(keyword))
+        {
+            return new List<ChatMessageDto>();
+        }
+
+        // 如果指定了 roomId，在该聊天室中搜索
+        if (!string.IsNullOrEmpty(roomId))
+        {
+            var messages = await _messageRepository.SearchMessagesAsync(roomId, keyword, page, pageSize);
+            return messages.Select(MapToDto).ToList();
+        }
+
+        // TODO: 如果没有指定 roomId，可以在所有聊天室中搜索（需要 Repository 支持）
+        // 目前返回空列表
+        _logger.LogWarning("搜索消息时未指定 roomId，暂不支持全局搜索");
+        return new List<ChatMessageDto>();
+    }
+
+    public async Task<int> GetSearchCountAsync(string? roomId, string keyword)
+    {
+        if (string.IsNullOrWhiteSpace(keyword) || string.IsNullOrEmpty(roomId))
+        {
+            return 0;
+        }
+
+        // 获取搜索结果总数（使用大页面获取计数）
+        var messages = await _messageRepository.SearchMessagesAsync(roomId, keyword, 1, 10000);
+        return messages.Count;
+    }
+
     public async Task<bool> DeleteMessageAsync(string messageId, string userId)
     {
         if (!Guid.TryParse(messageId, out var msgGuid))
