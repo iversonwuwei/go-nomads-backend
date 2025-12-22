@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: city-service
+  namespace: go-nomads
+  labels:
+    app: city-service
+    app.kubernetes.io/name: city-service
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: city-service
+  template:
+    metadata:
+      labels:
+        app: city-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8002"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: city-service
+          image: ${DOCKER_REGISTRY}/go-nomads-city-service:${IMAGE_TAG:-latest}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8002
+              name: http
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ASPNETCORE_ENVIRONMENT
+            - name: ASPNETCORE_URLS
+              value: "http://+:8002"
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: DATABASE_CONNECTION_STRING
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: REDIS_CONNECTION_STRING
+            - name: ConnectionStrings__Elasticsearch
+              value: "http://elasticsearch-service:9200"
+            - name: RabbitMQ__Host
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: RABBITMQ_HOST
+            - name: RabbitMQ__Username
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RabbitMQ__Password
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: RABBITMQ_DEFAULT_PASS
+            - name: Supabase__Url
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_URL
+            - name: Supabase__Key
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_KEY
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      imagePullSecrets:
+        - name: docker-registry-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: city-service
+  namespace: go-nomads
+  labels:
+    app: city-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8002
+      targetPort: 8002
+      name: http
+  selector:
+    app: city-service
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: city-service-hpa
+  namespace: go-nomads
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: city-service
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

@@ -1,0 +1,168 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: go-nomads
+  labels:
+    app: gateway
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/component: api-gateway
+    app.kubernetes.io/part-of: go-nomads-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: gateway
+          image: ${DOCKER_REGISTRY}/go-nomads-gateway:${IMAGE_TAG:-latest}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ASPNETCORE_ENVIRONMENT
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
+            # Redis 配置
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: REDIS_CONNECTION_STRING
+            # 服务发现配置
+            - name: ServiceUrls__UserService
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: USER_SERVICE_URL
+            - name: ServiceUrls__CityService
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: CITY_SERVICE_URL
+            - name: ServiceUrls__CoworkingService
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: COWORKING_SERVICE_URL
+            - name: ServiceUrls__AccommodationService
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ACCOMMODATION_SERVICE_URL
+            - name: ServiceUrls__EventService
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: EVENT_SERVICE_URL
+            - name: ServiceUrls__AIService
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: AI_SERVICE_URL
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      imagePullSecrets:
+        - name: docker-registry-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  namespace: go-nomads
+  labels:
+    app: gateway
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http
+  selector:
+    app: gateway
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway-ingress
+  namespace: go-nomads
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+    - hosts:
+        - api.go-nomads.com
+      secretName: go-nomads-tls
+  rules:
+    - host: api.go-nomads.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway-hpa
+  namespace: go-nomads
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gateway
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

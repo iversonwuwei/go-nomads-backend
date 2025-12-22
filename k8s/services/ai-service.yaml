@@ -1,0 +1,153 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-service
+  namespace: go-nomads
+  labels:
+    app: ai-service
+    app.kubernetes.io/name: ai-service
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ai-service
+  template:
+    metadata:
+      labels:
+        app: ai-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: ai-service
+          image: ${DOCKER_REGISTRY}/go-nomads-ai-service:${IMAGE_TAG:-latest}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ASPNETCORE_ENVIRONMENT
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
+            - name: ConnectionStrings__SupabaseDb
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: DATABASE_CONNECTION_STRING
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: REDIS_CONNECTION_STRING
+            - name: ConnectionStrings__QianWenApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: QIANWEN_API_KEY
+            - name: Consul__Address
+              value: "http://consul-service:8500"
+            - name: Consul__ServiceAddress
+              value: "ai-service"
+            - name: Consul__ServicePort
+              value: "8080"
+            - name: RabbitMQ__HostName
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: RABBITMQ_HOST
+            - name: Redis__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: REDIS_CONNECTION_STRING
+            - name: OpenAI__ApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: OPENAI_API_KEY
+            - name: DeepSeek__ApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: DEEPSEEK_API_KEY
+            - name: Supabase__Url
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_URL
+            - name: Supabase__Key
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_KEY
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "300m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 40
+            periodSeconds: 15
+      imagePullSecrets:
+        - name: docker-registry-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-service
+  namespace: go-nomads
+  labels:
+    app: ai-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  selector:
+    app: ai-service
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-service-hpa
+  namespace: go-nomads
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ai-service
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70
