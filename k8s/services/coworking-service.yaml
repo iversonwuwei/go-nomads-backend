@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coworking-service
+  namespace: go-nomads
+  labels:
+    app: coworking-service
+    app.kubernetes.io/name: coworking-service
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: coworking-service
+  template:
+    metadata:
+      labels:
+        app: coworking-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8003"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: coworking-service
+          image: ${DOCKER_REGISTRY}/go-nomads-coworking-service:${IMAGE_TAG:-latest}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8003
+              name: http
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ASPNETCORE_ENVIRONMENT
+            - name: ASPNETCORE_URLS
+              value: "http://+:8003"
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: DATABASE_CONNECTION_STRING
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: REDIS_CONNECTION_STRING
+            - name: Supabase__Url
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_URL
+            - name: Supabase__Key
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_KEY
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8003
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8003
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      imagePullSecrets:
+        - name: docker-registry-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coworking-service
+  namespace: go-nomads
+  labels:
+    app: coworking-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8003
+      targetPort: 8003
+      name: http
+  selector:
+    app: coworking-service
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: coworking-service-hpa
+  namespace: go-nomads
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: coworking-service
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-nomads-config
+  namespace: go-nomads
+  labels:
+    app.kubernetes.io/name: go-nomads
+    app.kubernetes.io/part-of: go-nomads-platform
+data:
+  # ASP.NET Core 配置
+  ASPNETCORE_ENVIRONMENT: "Production"
+  
+  # Redis 配置
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  
+  # RabbitMQ 配置
+  RABBITMQ_HOST: "rabbitmq-service"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_MANAGEMENT_PORT: "15672"
+  
+  # Elasticsearch 配置
+  ELASTICSEARCH_HOST: "elasticsearch-service"
+  ELASTICSEARCH_PORT: "9200"
+  
+  # Consul 配置
+  CONSUL_HOST: "consul-service"
+  CONSUL_PORT: "8500"
+  
+  # Zipkin 配置
+  ZIPKIN_HOST: "zipkin-service"
+  ZIPKIN_PORT: "9411"
+  
+  # 服务发现配置
+  GATEWAY_URL: "http://gateway-service:80"
+  USER_SERVICE_URL: "http://user-service:80"
+  CITY_SERVICE_URL: "http://city-service:8002"
+  COWORKING_SERVICE_URL: "http://coworking-service:8003"
+  ACCOMMODATION_SERVICE_URL: "http://accommodation-service:8004"
+  EVENT_SERVICE_URL: "http://event-service:8005"
+  INNOVATION_SERVICE_URL: "http://innovation-service:8006"
+  TRAVEL_PLANNING_SERVICE_URL: "http://travel-planning-service:8007"
+  ECOMMERCE_SERVICE_URL: "http://ecommerce-service:8008"
+  AI_SERVICE_URL: "http://ai-service:8080"
+  MESSAGE_SERVICE_URL: "http://message-service:8010"
+  CACHE_SERVICE_URL: "http://cache-service:8011"

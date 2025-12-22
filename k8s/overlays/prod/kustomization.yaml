@@ -1,0 +1,93 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: go-nomads
+
+# 引用基础配置
+resources:
+  - ../../
+
+# 生产环境特定配置
+commonLabels:
+  environment: production
+
+# ConfigMap 覆盖
+configMapGenerator:
+  - name: go-nomads-config
+    behavior: merge
+    literals:
+      - ASPNETCORE_ENVIRONMENT=Production
+
+# 镜像配置 (生产环境使用特定版本标签)
+images:
+  - name: ${DOCKER_REGISTRY}/go-nomads-gateway
+    newTag: v1.0.0
+  - name: ${DOCKER_REGISTRY}/go-nomads-user-service
+    newTag: v1.0.0
+  - name: ${DOCKER_REGISTRY}/go-nomads-city-service
+    newTag: v1.0.0
+  - name: ${DOCKER_REGISTRY}/go-nomads-coworking-service
+    newTag: v1.0.0
+  - name: ${DOCKER_REGISTRY}/go-nomads-event-service
+    newTag: v1.0.0
+  - name: ${DOCKER_REGISTRY}/go-nomads-ai-service
+    newTag: v1.0.0
+  - name: ${DOCKER_REGISTRY}/go-nomads-message-service
+    newTag: v1.0.0
+  - name: ${DOCKER_REGISTRY}/go-nomads-cache-service
+    newTag: v1.0.0
+
+# 副本数调整 (生产环境使用完整副本数)
+replicas:
+  - name: gateway
+    count: 3
+  - name: user-service
+    count: 2
+  - name: city-service
+    count: 2
+  - name: coworking-service
+    count: 2
+  - name: event-service
+    count: 2
+  - name: ai-service
+    count: 3
+  - name: message-service
+    count: 2
+  - name: cache-service
+    count: 2
+
+# 生产环境补丁 - 增加资源限制
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "512Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "300m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "1Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "1000m"
+    target:
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/component=backend"
+  # AI Service 需要更多资源
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "1Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "500m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "2Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "2000m"
+    target:
+      kind: Deployment
+      name: ai-service
