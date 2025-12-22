@@ -1,5 +1,6 @@
 # 本地开发环境 - 业务服务部署配置
 # 使用本地构建的 Docker 镜像
+# 支持动态 Consul 服务发现（使用 Pod IP 进行健康检查）
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -30,6 +31,14 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
@@ -38,16 +47,10 @@ spec:
               value: "redis-service:6379,abortConnect=false"
             - name: Consul__Address
               value: "http://consul-service:8500"
-            - name: ServiceUrls__UserService
-              value: "http://user-service:80"
-            - name: ServiceUrls__CityService
-              value: "http://city-service:8002"
-            - name: ServiceUrls__CoworkingService
-              value: "http://coworking-service:8003"
-            - name: ServiceUrls__EventService
-              value: "http://event-service:8005"
-            - name: ServiceUrls__AIService
-              value: "http://ai-service:8080"
+            - name: Consul__ServiceName
+              value: "gateway"
+            - name: Consul__ServicePort
+              value: "8080"
           resources:
             requests:
               memory: "128Mi"
@@ -99,6 +102,14 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
@@ -107,6 +118,10 @@ spec:
               value: "redis-service:6379,abortConnect=false"
             - name: Consul__Address
               value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "user-service"
+            - name: Consul__ServicePort
+              value: "8080"
             - name: Kestrel__Endpoints__Grpc__Url
               value: "http://0.0.0.0:50003"
           resources:
@@ -159,6 +174,14 @@ spec:
           ports:
             - containerPort: 8002
           env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
@@ -175,6 +198,10 @@ spec:
               value: "guest"
             - name: Consul__Address
               value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "city-service"
+            - name: Consul__ServicePort
+              value: "8002"
           resources:
             requests:
               memory: "128Mi"
@@ -225,6 +252,14 @@ spec:
           ports:
             - containerPort: 8003
           env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
@@ -233,6 +268,10 @@ spec:
               value: "redis-service:6379,abortConnect=false"
             - name: Consul__Address
               value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "coworking-service"
+            - name: Consul__ServicePort
+              value: "8003"
           resources:
             requests:
               memory: "128Mi"
@@ -283,6 +322,14 @@ spec:
           ports:
             - containerPort: 8005
           env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
@@ -293,6 +340,10 @@ spec:
               value: "rabbitmq-service"
             - name: Consul__Address
               value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "event-service"
+            - name: Consul__ServicePort
+              value: "8005"
           resources:
             requests:
               memory: "128Mi"
@@ -343,6 +394,14 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
@@ -353,6 +412,10 @@ spec:
               value: "redis-service:6379,abortConnect=false"
             - name: Consul__Address
               value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "ai-service"
+            - name: Consul__ServicePort
+              value: "8080"
             - name: RabbitMQ__HostName
               value: "rabbitmq-service"
           resources:
@@ -405,6 +468,14 @@ spec:
           ports:
             - containerPort: 8011
           env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
@@ -413,6 +484,10 @@ spec:
               value: "redis-service:6379,abortConnect=false"
             - name: Consul__Address
               value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "cache-service"
+            - name: Consul__ServicePort
+              value: "8011"
           resources:
             requests:
               memory: "64Mi"
@@ -433,3 +508,80 @@ spec:
       targetPort: 8011
   selector:
     app: cache-service
+---
+# Message Service - 聊天和通知服务（SignalR WebSocket）
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: message-service
+  namespace: go-nomads
+  labels:
+    app: message-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: message-service
+  template:
+    metadata:
+      labels:
+        app: message-service
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "message-service"
+        dapr.io/app-port: "8010"
+        dapr.io/enable-api-logging: "true"
+    spec:
+      containers:
+        - name: message-service
+          image: go-nomads-message-service:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8010
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ASPNETCORE_URLS
+              value: "http://+:8010"
+            - name: ConnectionStrings__Redis
+              value: "redis-service:6379,abortConnect=false"
+            - name: RabbitMQ__Host
+              value: "rabbitmq-service"
+            - name: RabbitMQ__Username
+              value: "guest"
+            - name: RabbitMQ__Password
+              value: "guest"
+            - name: Consul__Address
+              value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "message-service"
+            - name: Consul__ServicePort
+              value: "8010"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: message-service
+  namespace: go-nomads
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8010
+      targetPort: 8010
+  selector:
+    app: message-service

@@ -1,8 +1,10 @@
 using GoNomads.Shared.Middleware;
 using GoNomads.Shared.Services;
+using MessageService.API.Hubs;
 using MessageService.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 
 namespace MessageService.API.Controllers;
 
@@ -17,12 +19,18 @@ public class ChatsController : ControllerBase
     private readonly IChatService _chatService;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<ChatsController> _logger;
+    private readonly IHubContext<ChatHub> _chatHub;
 
-    public ChatsController(IChatService chatService, ICurrentUserService currentUser, ILogger<ChatsController> logger)
+    public ChatsController(
+        IChatService chatService, 
+        ICurrentUserService currentUser, 
+        ILogger<ChatsController> logger,
+        IHubContext<ChatHub> chatHub)
     {
         _chatService = chatService;
         _currentUser = currentUser;
         _logger = logger;
+        _chatHub = chatHub;
     }
 
     #region 聊天室管理
@@ -445,6 +453,43 @@ public class ChatsController : ControllerBase
                 ReplyToId = request.ReplyToId,
                 Mentions = request.Mentions
             });
+
+            // 构建消息响应并通过 SignalR 广播
+            var messageResponse = new
+            {
+                Id = savedMessage.Id,
+                RoomId = roomId,
+                Author = new
+                {
+                    UserId = request.UserId,
+                    UserName = request.UserName,
+                    UserAvatar = request.UserAvatar
+                },
+                Message = request.Message,
+                MessageType = request.MessageType ?? "text",
+                ReplyTo = savedMessage.ReplyTo,
+                Mentions = request.Mentions ?? new List<string>(),
+                Timestamp = savedMessage.Timestamp
+            };
+
+            // 广播消息到聊天室组
+            await _chatHub.Clients.Group(roomId).SendAsync("NewMessage", messageResponse);
+            _logger.LogInformation("消息已通过 SignalR 广播到聊天室: {RoomId}", roomId);
+
+            // 对于私聊，额外向房间成员的个人频道发送消息
+            var room = await _chatService.GetRoomByIdAsync(actualRoomId);
+            if (room?.RoomType == "direct")
+            {
+                var members = await _chatService.GetMembersAsync(actualRoomId);
+                foreach (var member in members)
+                {
+                    if (member.UserId != request.UserId)
+                    {
+                        await _chatHub.Clients.Group($"user-{member.UserId}").SendAsync("NewMessage", messageResponse);
+                        _logger.LogDebug("私聊消息已发送到用户个人频道: user-{UserId}", member.UserId);
+                    }
+                }
+            }
 
             return Ok(savedMessage);
         }
