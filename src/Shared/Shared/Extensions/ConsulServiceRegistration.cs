@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -33,14 +35,12 @@ public static class ConsulServiceRegistration
         var consulAddress = consulConfig["Address"] ?? "http://localhost:8500";
         var serviceName = consulConfig["ServiceName"] ?? app.Environment.ApplicationName;
 
-        // 获取服务地址和端口
-        var serviceAddress = await GetServiceAddressAsync(app);
+        // 获取服务地址和端口（优先使用 Pod IP）
+        var serviceAddress = await GetServiceAddressAsync(app, logger);
         var servicePort = GetServicePort(app);
 
-        // 使用固定的 ServiceId：serviceName-hostname:port
-        // 这样同一个服务在同一个主机/端口上重启时会复用同一个 ID
-        var hostname = serviceAddress.Replace("http://", "").Replace("https://", "").Split(':')[0];
-        var serviceId = consulConfig["ServiceId"] ?? $"{serviceName}-{hostname}:{servicePort}";
+        // 使用固定的 ServiceId：serviceName-podIP:port
+        var serviceId = consulConfig["ServiceId"] ?? $"{serviceName}-{serviceAddress}:{servicePort}";
 
         // 健康检查配置
         var healthCheckPath = consulConfig["HealthCheckPath"] ?? "/health";
@@ -49,33 +49,33 @@ public static class ConsulServiceRegistration
 
         // 服务元数据
         var version = consulConfig["ServiceVersion"] ?? "1.0.0";
-        var protocol = serviceAddress.StartsWith("https") ? "https" : "http";
+        const string protocol = "http";
 
         var registration = new
         {
             ID = serviceId,
             Name = serviceName,
-            Address = serviceAddress.Replace("http://", "").Replace("https://", "").Split(':')[0],
+            Address = serviceAddress,
             Port = servicePort,
-            Tags = new[] { version, protocol, "api", "microservice" },
+            Tags = new[] { version, protocol, "api", "microservice", "k8s" },
             Meta = new Dictionary<string, string>
             {
                 { "version", version },
                 { "protocol", protocol },
-                { "metrics_path", "/metrics" }
+                { "metrics_path", "/metrics" },
+                { "pod_name", Environment.GetEnvironmentVariable("HOSTNAME") ?? "unknown" }
             },
             Check = new
             {
-                HTTP =
-                    $"{protocol}://{serviceAddress.Replace("http://", "").Replace("https://", "").Split(':')[0]}:{servicePort}{healthCheckPath}",
+                HTTP = $"{protocol}://{serviceAddress}:{servicePort}{healthCheckPath}",
                 Interval = healthCheckInterval,
                 Timeout = healthCheckTimeout,
-                DeregisterCriticalServiceAfter = "30s"
+                DeregisterCriticalServiceAfter = "60s"
             }
         };
 
         // 先注销可能存在的旧实例（相同 ServiceId），然后注册新实例
-        using var httpClient = new HttpClient();
+        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         try
         {
             await httpClient.PutAsync($"{consulAddress}/v1/agent/service/deregister/{serviceId}", null);
@@ -89,6 +89,10 @@ public static class ConsulServiceRegistration
         var json = JsonSerializer.Serialize(registration);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
+        logger.LogInformation("📝 正在注册服务到 Consul: {ServiceName} ({ServiceId}) at {Address}:{Port}",
+            serviceName, serviceId, serviceAddress, servicePort);
+        logger.LogDebug("📝 Consul 注册请求: {Json}", json);
+
         try
         {
             var response = await httpClient.PutAsync($"{consulAddress}/v1/agent/service/register", content);
@@ -100,7 +104,7 @@ public static class ConsulServiceRegistration
             else
             {
                 var error = await response.Content.ReadAsStringAsync();
-                logger.LogError("❌ Consul 注册失败: {Error}", error);
+                logger.LogError("❌ Consul 注册失败: {StatusCode} - {Error}", response.StatusCode, error);
             }
         }
         catch (Exception ex)
@@ -113,8 +117,9 @@ public static class ConsulServiceRegistration
         {
             try
             {
+                using var deregisterClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
                 var deregisterResponse =
-                    await httpClient.PutAsync($"{consulAddress}/v1/agent/service/deregister/{serviceId}", null);
+                    await deregisterClient.PutAsync($"{consulAddress}/v1/agent/service/deregister/{serviceId}", null);
                 if (deregisterResponse.IsSuccessStatusCode)
                     logger.LogInformation("✅ 服务已从 Consul 注销: {ServiceId}", serviceId);
             }
@@ -125,34 +130,71 @@ public static class ConsulServiceRegistration
         });
     }
 
-    private static async Task<string> GetServiceAddressAsync(WebApplication app)
+    private static async Task<string> GetServiceAddressAsync(WebApplication app, ILogger logger)
     {
-        // 从配置读取
+        // 1. 优先从配置读取（允许手动指定）
         var configAddress = app.Configuration["Consul:ServiceAddress"];
-        if (!string.IsNullOrEmpty(configAddress)) return configAddress;
+        if (!string.IsNullOrEmpty(configAddress))
+        {
+            logger.LogDebug("使用配置的服务地址: {Address}", configAddress);
+            return configAddress;
+        }
 
-        // 从环境变量读取（容器环境）
+        // 2. 尝试从 POD_IP 环境变量获取（K8s Downward API）
+        var podIp = Environment.GetEnvironmentVariable("POD_IP");
+        if (!string.IsNullOrEmpty(podIp))
+        {
+            logger.LogDebug("使用 POD_IP 环境变量: {Address}", podIp);
+            return podIp;
+        }
+
+        // 3. 尝试获取本机 IP 地址（适用于 K8s Pod）
+        try
+        {
+            var hostName = Dns.GetHostName();
+            var hostEntry = await Dns.GetHostEntryAsync(hostName);
+            
+            // 优先选择 IPv4 地址
+            var ipAddress = hostEntry.AddressList
+                .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork 
+                                      && !IPAddress.IsLoopback(ip)
+                                      && !ip.ToString().StartsWith("127."));
+            
+            if (ipAddress != null)
+            {
+                logger.LogDebug("使用 DNS 解析获取的 IP: {Address}", ipAddress);
+                return ipAddress.ToString();
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "DNS 解析失败，尝试其他方式获取 IP");
+        }
+
+        // 4. 通过连接外部地址获取本机 IP
+        try
+        {
+            using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            // 连接到一个外部地址（不需要真正建立连接）
+            socket.Connect("8.8.8.8", 53);
+            var localEndPoint = socket.LocalEndPoint as IPEndPoint;
+            if (localEndPoint != null)
+            {
+                logger.LogDebug("使用 Socket 获取的本机 IP: {Address}", localEndPoint.Address);
+                return localEndPoint.Address.ToString();
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Socket 方式获取 IP 失败");
+        }
+
+        // 5. 回退到 hostname（非 K8s 环境）
         var hostname = Environment.GetEnvironmentVariable("HOSTNAME")
                        ?? Environment.GetEnvironmentVariable("SERVICE_HOST")
                        ?? "localhost";
-
-        // 如果是容器环境，使用容器主机名
-        if (hostname != "localhost" && !hostname.StartsWith("192.168") && !hostname.StartsWith("127.")) return hostname;
-
-        // 从服务器地址获取
-        await Task.Delay(100); // 等待服务器启动
-        var server = app.Services.GetRequiredService<IServer>();
-        var addresses = server.Features.Get<IServerAddressesFeature>();
-
-        if (addresses?.Addresses.Any() == true)
-        {
-            var address = addresses.Addresses.First();
-            var uri = new Uri(address);
-            return uri.Host == "localhost" || uri.Host == "0.0.0.0" || uri.Host == "[::]"
-                ? hostname
-                : uri.Host;
-        }
-
+        
+        logger.LogWarning("无法获取 Pod IP，回退使用 hostname: {Hostname}", hostname);
         return hostname;
     }
 

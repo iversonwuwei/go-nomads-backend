@@ -75,7 +75,15 @@ builder.Services.AddScoped<IChatMemberRepository, SupabaseChatMemberRepository>(
 builder.Services.AddScoped<IChatService, ChatApplicationService>();
 
 // 配置 SignalR + Redis Backplane
-builder.Services.AddSignalR()
+builder.Services.AddSignalR(options =>
+    {
+        // 增加超时配置，防止连接超时
+        options.ClientTimeoutInterval = TimeSpan.FromSeconds(60); // 客户端超时 60 秒
+        options.KeepAliveInterval = TimeSpan.FromSeconds(15); // 保持连接间隔 15 秒
+        options.HandshakeTimeout = TimeSpan.FromSeconds(30); // 握手超时 30 秒
+        options.MaximumReceiveMessageSize = 1024 * 1024; // 最大消息大小 1MB
+        options.StreamBufferCapacity = 20; // 流缓冲区容量
+    })
     .AddStackExchangeRedis(builder.Configuration.GetConnectionString("Redis")
                            ?? "localhost:6379",
         options => { options.Configuration.ChannelPrefix = RedisChannel.Literal("MessageService"); });
@@ -233,9 +241,17 @@ var consulClient = app.Services.GetRequiredService<IConsulClient>();
 var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
 
 var serviceId = $"message-service-{Guid.NewGuid()}";
-var serviceName = "message-service";
-var serviceAddress = builder.Configuration["ServiceAddress"] ?? "go-nomads-message-service";
-var servicePort = 8080;
+var serviceName = builder.Configuration["Consul:ServiceName"] ?? "message-service";
+
+// 优先使用 POD_IP 环境变量（K8s 部署），否则使用配置的 ServiceAddress
+var podIp = Environment.GetEnvironmentVariable("POD_IP");
+var serviceAddress = !string.IsNullOrEmpty(podIp) 
+    ? podIp 
+    : builder.Configuration["ServiceAddress"] ?? "localhost";
+var servicePort = int.Parse(builder.Configuration["Consul:ServicePort"] ?? "8010");
+
+Log.Information("Consul 服务注册: ServiceName={ServiceName}, Address={Address}, Port={Port}, POD_IP={PodIp}", 
+    serviceName, serviceAddress, servicePort, podIp ?? "N/A");
 
 var registration = new AgentServiceRegistration
 {
