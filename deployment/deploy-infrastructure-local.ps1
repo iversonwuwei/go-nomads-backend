@@ -86,6 +86,8 @@ function Start-Redis {
     & $RUNTIME run -d `
         --name go-nomads-redis `
         --network $NETWORK_NAME `
+        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.service=redis" `
         -p 6379:6379 `
         redis:7-alpine | Out-Null
     
@@ -127,6 +129,8 @@ function Start-Consul {
     & $RUNTIME run -d `
         --name go-nomads-consul `
         --network $NETWORK_NAME `
+        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.service=consul" `
         -p 7500:7500 `
         -p 7502:7502 `
         -p 7600:7600/udp `
@@ -143,6 +147,8 @@ function Start-Zipkin {
     & $RUNTIME run -d `
         --name go-nomads-zipkin `
         --network $NETWORK_NAME `
+        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.service=zipkin" `
         -p 9811:9411 `
         openzipkin/zipkin:latest | Out-Null
     
@@ -209,6 +215,8 @@ function Start-Prometheus {
     & $RUNTIME run -d `
         --name go-nomads-prometheus `
         --network $NETWORK_NAME `
+        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.service=prometheus" `
         -p 9090:9090 `
         -v "${promConfigPath}:/etc/prometheus/prometheus.yml:ro" `
         prom/prometheus:latest | Out-Null
@@ -227,6 +235,8 @@ function Start-Grafana {
     & $RUNTIME run -d `
         --name go-nomads-grafana `
         --network $NETWORK_NAME `
+        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.service=grafana" `
         -p 3000:3000 `
         -e GF_SECURITY_ADMIN_PASSWORD=admin `
         -v "${grafanaProvisioningPath}:/etc/grafana/provisioning:ro" `
@@ -242,6 +252,8 @@ function Start-Elasticsearch {
     & $RUNTIME run -d `
         --name go-nomads-elasticsearch `
         --network $NETWORK_NAME `
+        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.service=elasticsearch" `
         -p 10200:9200 `
         -p 10300:9300 `
         -e "discovery.type=single-node" `
@@ -259,6 +271,8 @@ function Start-RabbitMQ {
     & $RUNTIME run -d `
         --name go-nomads-rabbitmq `
         --network $NETWORK_NAME `
+        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.service=rabbitmq" `
         -p 5672:5672 `
         -p 15672:15672 `
         -e RABBITMQ_DEFAULT_USER=guest `
@@ -276,6 +290,8 @@ function Start-Nginx {
     & $RUNTIME run -d `
         --name go-nomads-nginx `
         --network $NETWORK_NAME `
+        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.service=nginx" `
         -p 80:80 `
         -p 443:443 `
         nginx:latest | Out-Null
