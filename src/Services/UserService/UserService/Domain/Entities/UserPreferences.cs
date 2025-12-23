@@ -36,6 +36,12 @@ public class UserPreferences : BaseModel
     public bool TravelHistoryVisible { get; set; } = true;
 
     /// <summary>
+    ///     是否启用自动旅行检测
+    /// </summary>
+    [Column("auto_travel_detection_enabled")]
+    public bool AutoTravelDetectionEnabled { get; set; } = false;
+
+    /// <summary>
     ///     个人资料是否公开
     /// </summary>
     [Column("profile_public")]
@@ -81,6 +87,7 @@ public class UserPreferences : BaseModel
             UserId = userId,
             NotificationsEnabled = true,
             TravelHistoryVisible = true,
+            AutoTravelDetectionEnabled = false,
             ProfilePublic = true,
             Currency = "USD",
             TemperatureUnit = "Celsius",
@@ -100,6 +107,7 @@ public class UserPreferences : BaseModel
     public void Update(
         bool? notificationsEnabled = null,
         bool? travelHistoryVisible = null,
+        bool? autoTravelDetectionEnabled = null,
         bool? profilePublic = null,
         string? currency = null,
         string? temperatureUnit = null,
@@ -110,6 +118,9 @@ public class UserPreferences : BaseModel
 
         if (travelHistoryVisible.HasValue)
             TravelHistoryVisible = travelHistoryVisible.Value;
+
+        if (autoTravelDetectionEnabled.HasValue)
+            AutoTravelDetectionEnabled = autoTravelDetectionEnabled.Value;
 
         if (profilePublic.HasValue)
             ProfilePublic = profilePublic.Value;

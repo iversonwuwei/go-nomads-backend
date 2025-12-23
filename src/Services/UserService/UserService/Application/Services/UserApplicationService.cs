@@ -14,6 +14,7 @@ public class UserApplicationService : IUserService
     private readonly IMembershipService _membershipService;
     private readonly IRoleRepository _roleRepository;
     private readonly ISkillService _skillService;
+    private readonly ITravelHistoryService _travelHistoryService;
     private readonly IUserRepository _userRepository;
 
     public UserApplicationService(
@@ -22,6 +23,7 @@ public class UserApplicationService : IUserService
         ISkillService skillService,
         IInterestService interestService,
         IMembershipService membershipService,
+        ITravelHistoryService travelHistoryService,
         ILogger<UserApplicationService> logger)
     {
         _userRepository = userRepository;
@@ -29,6 +31,7 @@ public class UserApplicationService : IUserService
         _skillService = skillService;
         _interestService = interestService;
         _membershipService = membershipService;
+        _travelHistoryService = travelHistoryService;
         _logger = logger;
     }
 
@@ -85,6 +88,17 @@ public class UserApplicationService : IUserService
             // 即使加载失败也返回用户基本信息
             userDto.Skills = new List<UserSkillDto>();
             userDto.Interests = new List<UserInterestDto>();
+        }
+
+        // 加载用户最新旅行历史
+        try
+        {
+            userDto.LatestTravelHistory = await _travelHistoryService.GetLatestTravelHistoryAsync(id, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 加载用户最新旅行历史失败: UserId={UserId}", id);
+            userDto.LatestTravelHistory = null;
         }
 
         return userDto;

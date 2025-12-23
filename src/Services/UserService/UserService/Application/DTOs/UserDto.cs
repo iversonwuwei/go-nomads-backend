@@ -18,6 +18,9 @@ public class UserDto
     
     // 会员信息
     public UserMembershipDto? Membership { get; set; }
+    
+    // 最新旅行历史（用于 Profile 页面显示）
+    public TravelHistoryDto? LatestTravelHistory { get; set; }
 }
 
 /// <summary>
