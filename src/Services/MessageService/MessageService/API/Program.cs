@@ -246,9 +246,9 @@ var serviceName = builder.Configuration["Consul:ServiceName"] ?? "message-servic
 // 优先使用 POD_IP 环境变量（K8s 部署），否则使用配置的 ServiceAddress
 var podIp = Environment.GetEnvironmentVariable("POD_IP");
 var serviceAddress = !string.IsNullOrEmpty(podIp) 
-    ? podIp 
-    : builder.Configuration["ServiceAddress"] ?? "localhost";
-var servicePort = int.Parse(builder.Configuration["Consul:ServicePort"] ?? "8010");
+    ? podIp
+    : builder.Configuration["Consul:ServiceAddress"] ?? "localhost";
+var servicePort = int.Parse(builder.Configuration["Consul:ServicePort"] ?? "8080");
 
 Log.Information("Consul 服务注册: ServiceName={ServiceName}, Address={Address}, Port={Port}, POD_IP={PodIp}", 
     serviceName, serviceAddress, servicePort, podIp ?? "N/A");

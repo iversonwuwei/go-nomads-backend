@@ -211,6 +211,14 @@ foreach ($svc in $services) {
         )
     }
     
+    # message-service 需要指定 ServiceAddress（它有自己的 Consul 注册逻辑）
+    if ($svc.Name -eq "message-service") {
+        $extraEnvArgs = @(
+            "-e", "Consul__ServiceAddress=go-nomads-$($svc.Name)",
+            "-e", "Consul__ServicePort=8080"
+        )
+    }
+    
     # 启动应用容器（暴露应用端口和 Dapr HTTP 端口）
     # Dapr sidecar 将共享此容器的网络命名空间
     # 配置 Dapr gRPC: 通过环境变量 DAPR_GRPC_PORT 启用 gRPC 通信
@@ -220,6 +228,8 @@ foreach ($svc in $services) {
         "run", "-d",
         "--name", $container,
         "--network", $NETWORK_NAME,
+        "--label", "com.docker.compose.project=go-nomads",
+        "--label", "com.docker.compose.service=$($svc.Name)",
         "-p", "$($svc.Port):8080",
         "-p", "$($svc.DaprPort):$($svc.DaprPort)",
         "-e", "ASPNETCORE_URLS=http://+:8080",
@@ -255,7 +265,7 @@ foreach ($svc in $services) {
     # 应用和 Dapr 通过 localhost 通信，端口已在应用容器暴露
     Write-Host "  启动 Dapr sidecar (container sidecar 模式)..." -ForegroundColor Yellow
     
-    & $RUNTIME run -d --name $dapr --network "container:$container" daprio/daprd:latest ./daprd --app-id $svc.AppId --app-port 8080 --dapr-http-port $svc.DaprPort --dapr-grpc-port 50001 --log-level info | Out-Null
+    & $RUNTIME run -d --name $dapr --network "container:$container" --label "com.docker.compose.project=go-nomads" --label "com.docker.compose.service=$($svc.Name)-dapr" daprio/daprd:latest ./daprd --app-id $svc.AppId --app-port 8080 --dapr-http-port $svc.DaprPort --dapr-grpc-port 50001 --log-level info | Out-Null
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  [错误] Dapr sidecar 启动失败" -ForegroundColor Red
