@@ -14,7 +14,6 @@ namespace UserService.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/travel-history")]
-[Authorize]
 public class TravelHistoryController : ControllerBase
 {
     private readonly ILogger<TravelHistoryController> _logger;

@@ -6,36 +6,36 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
   
-  # Consul service discovery - auto discover all registered services
+  # 完全依赖 Consul 自动服务发现 - 无需手动配置服务列表
   - job_name: 'consul-services'
     metrics_path: /metrics
     consul_sd_configs:
-      - server: 'go-nomads-consul:8500'
-        # Auto discover all services without specifying names
+      - server: 'go-nomads-consul:7500'
+        # 不指定 services，自动发现所有已注册的服务
     relabel_configs:
-      # Only scrape services with metrics_path metadata
+      # 只抓取有 metrics_path 元数据的服务
       - source_labels: [__meta_consul_service_metadata_metrics_path]
         action: keep
         regex: /.+
       
-      # Use custom metrics path if provided
+      # 使用自定义 metrics 路径（如果有）
       - source_labels: [__meta_consul_service_metadata_metrics_path]
         target_label: __metrics_path__
         regex: (.+)
         replacement: $1
       
-      # Service name label
+      # 服务名称标签
       - source_labels: [__meta_consul_service]
         target_label: service
       
-      # Version label
+      # 版本标签
       - source_labels: [__meta_consul_service_metadata_version]
         target_label: version
       
-      # Protocol label
+      # 协议标签
       - source_labels: [__meta_consul_service_metadata_protocol]
         target_label: protocol
       
-      # Instance label
+      # 实例标签
       - source_labels: [__address__]
         target_label: instance
