@@ -9,6 +9,7 @@ public class UserPreferencesDto
     public string UserId { get; set; } = string.Empty;
     public bool NotificationsEnabled { get; set; } = true;
     public bool TravelHistoryVisible { get; set; } = true;
+    public bool AutoTravelDetectionEnabled { get; set; } = false;
     public bool ProfilePublic { get; set; } = true;
     public string Currency { get; set; } = "USD";
     public string TemperatureUnit { get; set; } = "Celsius";
@@ -24,6 +25,7 @@ public class UpdateUserPreferencesRequest
 {
     public bool? NotificationsEnabled { get; set; }
     public bool? TravelHistoryVisible { get; set; }
+    public bool? AutoTravelDetectionEnabled { get; set; }
     public bool? ProfilePublic { get; set; }
     public string? Currency { get; set; }
     public string? TemperatureUnit { get; set; }
