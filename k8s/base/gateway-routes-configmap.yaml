@@ -50,6 +50,12 @@ data:
               "Path": "/api/v1/ai/{**catch-all}"
             }
           },
+          "hotels-route": {
+            "ClusterId": "accommodation-service",
+            "Match": {
+              "Path": "/api/v1/hotels/{**catch-all}"
+            }
+          },
           "home-route": {
             "ClusterId": "city-service",
             "Match": {
@@ -90,6 +96,13 @@ data:
             "Destinations": {
               "ai-service-1": {
                 "Address": "http://ai-service:8080"
+              }
+            }
+          },
+          "accommodation-service": {
+            "Destinations": {
+              "accommodation-service-1": {
+                "Address": "http://accommodation-service:8012"
               }
             }
           }
