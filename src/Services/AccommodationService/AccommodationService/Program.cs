@@ -41,6 +41,7 @@ builder.Services.AddDaprClient(daprClientBuilder =>
 // Infrastructure Layer - 仓储实现
 builder.Services.AddScoped<IHotelRepository, HotelRepository>();
 builder.Services.AddScoped<IRoomTypeRepository, RoomTypeRepository>();
+builder.Services.AddScoped<IHotelReviewRepository, HotelReviewRepository>();
 
 // Application Layer - 应用服务
 builder.Services.AddScoped<IHotelService, HotelApplicationService>();
