@@ -111,7 +111,8 @@ $services = @(
     @{Name="coworking-service"; Port=8006; DaprPort=3506; AppId="coworking-service"; Path="src/Services/CoworkingService/CoworkingService"; Dll="CoworkingService.dll"; Container="go-nomads-coworking-service"},
     @{Name="ai-service"; Port=8009; DaprPort=3509; AppId="ai-service"; Path="src/Services/AIService/AIService"; Dll="AIService.dll"; Container="go-nomads-ai-service"},
     @{Name="cache-service"; Port=8010; DaprPort=3512; AppId="cache-service"; Path="src/Services/CacheService/CacheService"; Dll="CacheService.dll"; Container="go-nomads-cache-service"},
-    @{Name="message-service"; Port=5005; DaprPort=3511; AppId="message-service"; Path="src/Services/MessageService/MessageService/API"; Dll="MessageService.dll"; Container="go-nomads-message-service"}
+    @{Name="message-service"; Port=5005; DaprPort=3511; AppId="message-service"; Path="src/Services/MessageService/MessageService/API"; Dll="MessageService.dll"; Container="go-nomads-message-service"},
+    @{Name="accommodation-service"; Port=8012; DaprPort=3513; AppId="accommodation-service"; Path="src/Services/AccommodationService/AccommodationService"; Dll="AccommodationService.dll"; Container="go-nomads-accommodation-service"}
 )
 
 if (-not $SkipBuild) {
@@ -140,7 +141,7 @@ Write-Host "============================================================`n" -For
 
 # 停止并删除旧容器（如果存在）
 Write-Host "`n清理旧容器和镜像..." -ForegroundColor Yellow
-$oldContainers = @("go-nomads-gateway", "go-nomads-user-service", "go-nomads-product-service", "go-nomads-document-service", "go-nomads-city-service", "go-nomads-event-service", "go-nomads-coworking-service", "go-nomads-ai-service", "go-nomads-cache-service", "go-nomads-message-service")
+$oldContainers = @("go-nomads-gateway", "go-nomads-user-service", "go-nomads-product-service", "go-nomads-document-service", "go-nomads-city-service", "go-nomads-event-service", "go-nomads-coworking-service", "go-nomads-ai-service", "go-nomads-cache-service", "go-nomads-message-service", "go-nomads-accommodation-service")
 foreach ($oldName in $oldContainers) {
     $exists = & $RUNTIME ps -a --filter "name=^${oldName}$" --format '{{.Names}}' 2>$null
     if ($exists) {
@@ -218,6 +219,14 @@ foreach ($svc in $services) {
             "-e", "Consul__ServicePort=8080"
         )
     }
+
+    # accommodation-service 需要指定 ServiceAddress
+    if ($svc.Name -eq "accommodation-service") {
+        $extraEnvArgs = @(
+            "-e", "Consul__ServiceAddress=go-nomads-$($svc.Name)",
+            "-e", "Consul__ServicePort=8080"
+        )
+    }
     
     # 启动应用容器（暴露应用端口和 Dapr HTTP 端口）
     # Dapr sidecar 将共享此容器的网络命名空间
@@ -290,17 +299,18 @@ Write-Host "所有服务部署完成!" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "服务访问地址:" -ForegroundColor Cyan
-Write-Host "  Gateway:           http://localhost:5000" -ForegroundColor Green
-Write-Host "  User Service:      http://localhost:5001" -ForegroundColor Green
-Write-Host "  Product Service:   http://localhost:5002" -ForegroundColor Green
-Write-Host "  Document Service:  http://localhost:5003" -ForegroundColor Green
-Write-Host "  City Service:      http://localhost:8002" -ForegroundColor Green
-Write-Host "  Event Service:     http://localhost:8005" -ForegroundColor Green
-Write-Host "  Coworking Service: http://localhost:8006" -ForegroundColor Green
-Write-Host "  AI Service:        http://localhost:8009" -ForegroundColor Green
-Write-Host "  Cache Service:     http://localhost:8010" -ForegroundColor Green
-Write-Host "  Message Service:   http://localhost:5005" -ForegroundColor Green
-Write-Host "  Message Swagger:   http://localhost:5005/swagger" -ForegroundColor Green
+Write-Host "  Gateway:              http://localhost:5000" -ForegroundColor Green
+Write-Host "  User Service:         http://localhost:5001" -ForegroundColor Green
+Write-Host "  Product Service:      http://localhost:5002" -ForegroundColor Green
+Write-Host "  Document Service:     http://localhost:5003" -ForegroundColor Green
+Write-Host "  City Service:         http://localhost:8002" -ForegroundColor Green
+Write-Host "  Event Service:        http://localhost:8005" -ForegroundColor Green
+Write-Host "  Coworking Service:    http://localhost:8006" -ForegroundColor Green
+Write-Host "  AI Service:           http://localhost:8009" -ForegroundColor Green
+Write-Host "  Cache Service:        http://localhost:8010" -ForegroundColor Green
+Write-Host "  Message Service:      http://localhost:5005" -ForegroundColor Green
+Write-Host "  Accommodation Service: http://localhost:8012" -ForegroundColor Green
+Write-Host "  Message Swagger:      http://localhost:5005/swagger" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "Dapr 配置:" -ForegroundColor Cyan

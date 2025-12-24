@@ -469,23 +469,34 @@ main() {
         "message-service"
     echo ""
     
+    # 部署 AccommodationService
+    deploy_service_local \
+        "accommodation-service" \
+        "src/Services/AccommodationService/AccommodationService" \
+        "8012" \
+        "AccommodationService.dll" \
+        "3513" \
+        "accommodation-service"
+    echo ""
+    
     # 显示部署摘要
     show_header "部署摘要"
     
     echo -e "${GREEN}所有服务部署完成!${NC}"
     echo ""
     echo -e "${BLUE}服务访问地址:${NC}"
-    echo -e "  ${GREEN}Gateway:          http://localhost:5000${NC}"
-    echo -e "  ${GREEN}User Service:     http://localhost:5001${NC}"
-    echo -e "  ${GREEN}Product Service:  http://localhost:5002${NC}"
-    echo -e "  ${GREEN}Document Service: http://localhost:5003${NC}"
-    echo -e "  ${GREEN}City Service:     http://localhost:8002${NC}"
-    echo -e "  ${GREEN}Event Service:    http://localhost:8005${NC}"
-    echo -e "  ${GREEN}Coworking Service: http://localhost:8006${NC}"
-    echo -e "  ${GREEN}AI Service:       http://localhost:8009${NC}"
-    echo -e "  ${GREEN}Cache Service:    http://localhost:8010${NC}"
-    echo -e "  ${GREEN}Message Service:  http://localhost:5005${NC}"
-    echo -e "  ${GREEN}Message Swagger:  http://localhost:5005/swagger${NC}"
+    echo -e "  ${GREEN}Gateway:             http://localhost:5000${NC}"
+    echo -e "  ${GREEN}User Service:        http://localhost:5001${NC}"
+    echo -e "  ${GREEN}Product Service:     http://localhost:5002${NC}"
+    echo -e "  ${GREEN}Document Service:    http://localhost:5003${NC}"
+    echo -e "  ${GREEN}City Service:        http://localhost:8002${NC}"
+    echo -e "  ${GREEN}Event Service:       http://localhost:8005${NC}"
+    echo -e "  ${GREEN}Coworking Service:   http://localhost:8006${NC}"
+    echo -e "  ${GREEN}AI Service:          http://localhost:8009${NC}"
+    echo -e "  ${GREEN}Cache Service:       http://localhost:8010${NC}"
+    echo -e "  ${GREEN}Accommodation Service: http://localhost:8012${NC}"
+    echo -e "  ${GREEN}Message Service:     http://localhost:5005${NC}"
+    echo -e "  ${GREEN}Message Swagger:     http://localhost:5005/swagger${NC}"
     echo ""
     echo -e "${BLUE}Dapr 配置:${NC}"
     echo -e "  ${GREEN}模式:             Container Sidecar (共享网络命名空间)${NC}"

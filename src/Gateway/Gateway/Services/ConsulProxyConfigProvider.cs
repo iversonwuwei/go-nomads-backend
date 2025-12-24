@@ -506,6 +506,11 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                 ("/api/v1/coworking", 1),
                 ("/api/v1/coworking/{**catch-all}", 2)
             },
+            "accommodation-service" => new List<(string, int)>
+            {
+                ("/api/v1/hotels", 1),
+                ("/api/v1/hotels/{**catch-all}", 2)
+            },
             "product-service" => new List<(string, int)>
             {
                 ("/api/v1/products", 1),

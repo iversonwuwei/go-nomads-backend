@@ -12,6 +12,7 @@ public class JwtAuthenticationInterceptor
     private readonly ILogger<JwtAuthenticationInterceptor> _logger;
     private readonly RequestDelegate _next;
     private readonly HashSet<string> _publicPaths;
+    private readonly HashSet<string> _publicGetPaths;
 
     public JwtAuthenticationInterceptor(
         RequestDelegate next,
@@ -21,34 +22,41 @@ public class JwtAuthenticationInterceptor
         _next = next;
         _logger = logger;
 
-        // 从配置读取公开路径白名单
+        // 从配置读取公开路径白名单（完全公开，任何方法都不需要认证）
         var publicPaths = configuration.GetSection("Authentication:PublicPaths").Get<string[]>() ??
                           Array.Empty<string>();
         _publicPaths = new HashSet<string>(publicPaths, StringComparer.OrdinalIgnoreCase);
 
+        // 从配置读取 GET 请求公开路径（只有 GET 请求不需要认证）
+        var publicGetPaths = configuration.GetSection("Authentication:PublicGetPaths").Get<string[]>() ??
+                             Array.Empty<string>();
+        _publicGetPaths = new HashSet<string>(publicGetPaths, StringComparer.OrdinalIgnoreCase);
+
         _logger.LogInformation("🔓 Public paths configured: {Paths}", string.Join(", ", _publicPaths));
+        _logger.LogInformation("🔓 Public GET paths configured: {Paths}", string.Join(", ", _publicGetPaths));
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
         var path = context.Request.Path.Value ?? string.Empty;
+        var method = context.Request.Method;
 
-        _logger.LogInformation("🔍 JWT Interceptor - Path: {Path}", path);
+        _logger.LogInformation("🔍 JWT Interceptor - {Method} {Path}", method, path);
 
-        // 检查是否是公开路径
-        if (IsPublicPath(path))
+        // 检查是否是公开路径（完全公开或 GET 请求公开）
+        if (IsPublicPath(path, method))
         {
-            _logger.LogInformation("⚪ Public path: {Path} - Skipping authentication", path);
+            _logger.LogInformation("⚪ Public path: {Method} {Path} - Skipping authentication", method, path);
             await _next(context);
             return;
         }
 
-        _logger.LogInformation("🔒 Protected path: {Path} - Validating JWT", path);
+        _logger.LogInformation("🔒 Protected path: {Method} {Path} - Validating JWT", method, path);
 
         // 检查是否有 Authorization header
         if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader))
         {
-            _logger.LogWarning("❌ Missing Authorization header for path: {Path}", path);
+            _logger.LogWarning("❌ Missing Authorization header for path: {Method} {Path}", method, path);
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsJsonAsync(new
@@ -63,7 +71,7 @@ public class JwtAuthenticationInterceptor
         var token = authHeader.ToString();
         if (string.IsNullOrWhiteSpace(token))
         {
-            _logger.LogWarning("❌ Empty Authorization header for path: {Path}", path);
+            _logger.LogWarning("❌ Empty Authorization header for path: {Method} {Path}", method, path);
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsJsonAsync(new
@@ -133,15 +141,22 @@ public class JwtAuthenticationInterceptor
         await _next(context);
     }
 
-    private bool IsPublicPath(string path)
+    private bool IsPublicPath(string path, string method)
     {
-        // 精确匹配
+        // 检查完全公开路径（任何方法都不需要认证）
         if (_publicPaths.Contains(path)) return true;
-
-        // 前缀匹配
         foreach (var publicPath in _publicPaths)
             if (path.StartsWith(publicPath, StringComparison.OrdinalIgnoreCase))
                 return true;
+
+        // 检查 GET 请求公开路径
+        if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_publicGetPaths.Contains(path)) return true;
+            foreach (var publicGetPath in _publicGetPaths)
+                if (path.StartsWith(publicGetPath, StringComparison.OrdinalIgnoreCase))
+                    return true;
+        }
 
         return false;
     }
