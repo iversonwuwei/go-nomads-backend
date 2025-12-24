@@ -90,33 +90,58 @@ public class TravelHistoryRepository : ITravelHistoryRepository
         bool? isConfirmed = null,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("🔍 查询用户旅行历史记录: UserId={UserId}, Page={Page}, PageSize={PageSize}", userId, page, pageSize);
+        _logger.LogInformation("🔍 查询用户旅行历史记录: UserId={UserId}, Page={Page}, PageSize={PageSize}, IsConfirmed={IsConfirmed}", 
+            userId, page, pageSize, isConfirmed);
 
         try
         {
             var offset = (page - 1) * pageSize;
 
-            var query = _supabaseClient
-                .From<TravelHistory>()
-                .Where(t => t.UserId == userId);
+            // 构建基础查询 - 注意：Supabase 查询每次都要重新构建完整的条件链
+            int total;
+            List<TravelHistory> items;
 
             if (isConfirmed.HasValue)
             {
-                query = query.Where(t => t.IsConfirmed == isConfirmed.Value);
+                // 获取总数（带 isConfirmed 筛选）
+                total = await _supabaseClient
+                    .From<TravelHistory>()
+                    .Where(t => t.UserId == userId)
+                    .Where(t => t.IsConfirmed == isConfirmed.Value)
+                    .Count(Constants.CountType.Exact, cancellationToken);
+
+                // 获取分页数据（带 isConfirmed 筛选）
+                var dataResponse = await _supabaseClient
+                    .From<TravelHistory>()
+                    .Where(t => t.UserId == userId)
+                    .Where(t => t.IsConfirmed == isConfirmed.Value)
+                    .Order(t => t.ArrivalTime, Constants.Ordering.Descending)
+                    .Range(offset, offset + pageSize - 1)
+                    .Get(cancellationToken);
+                
+                items = dataResponse.Models;
+            }
+            else
+            {
+                // 获取总数（不带 isConfirmed 筛选）
+                total = await _supabaseClient
+                    .From<TravelHistory>()
+                    .Where(t => t.UserId == userId)
+                    .Count(Constants.CountType.Exact, cancellationToken);
+
+                // 获取分页数据（不带 isConfirmed 筛选）
+                var dataResponse = await _supabaseClient
+                    .From<TravelHistory>()
+                    .Where(t => t.UserId == userId)
+                    .Order(t => t.ArrivalTime, Constants.Ordering.Descending)
+                    .Range(offset, offset + pageSize - 1)
+                    .Get(cancellationToken);
+                
+                items = dataResponse.Models;
             }
 
-            // 获取总数
-            var total = await query
-                .Count(Constants.CountType.Exact, cancellationToken);
-
-            // 获取分页数据
-            var dataResponse = await query
-                .Order(t => t.ArrivalTime, Constants.Ordering.Descending)
-                .Range(offset, offset + pageSize - 1)
-                .Get(cancellationToken);
-
-            _logger.LogInformation("✅ 查询到 {Count}/{Total} 条旅行历史记录", dataResponse.Models.Count, total);
-            return (dataResponse.Models, total);
+            _logger.LogInformation("✅ 查询到 {Count}/{Total} 条旅行历史记录", items.Count, total);
+            return (items, total);
         }
         catch (Exception ex)
         {

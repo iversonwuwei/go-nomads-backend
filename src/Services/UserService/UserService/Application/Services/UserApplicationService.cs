@@ -94,6 +94,10 @@ public class UserApplicationService : IUserService
         try
         {
             userDto.LatestTravelHistory = await _travelHistoryService.GetLatestTravelHistoryAsync(id, cancellationToken);
+            _logger.LogInformation("📍 用户最新旅行历史: UserId={UserId}, HasData={HasData}, City={City}",
+                id,
+                userDto.LatestTravelHistory != null,
+                userDto.LatestTravelHistory?.City ?? "null");
         }
         catch (Exception ex)
         {
