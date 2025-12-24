@@ -497,9 +497,9 @@ public class CoworkingApplicationService : ICoworkingService
 
         _logger.LogInformation("认证成功: CoworkingId={CoworkingId}, UserId={UserId}, 当前投票数={Votes}", id, userId, votes);
 
-        // 4. 检查是否需要自动更新验证状态（超过 3 票自动变为已认证）
+        // 4. 检查是否需要自动更新验证状态（达到 3 票自动变为已认证）
         var isVerified = coworkingSpace.VerificationStatus == CoworkingVerificationStatus.Verified;
-        if (coworkingSpace.VerificationStatus == CoworkingVerificationStatus.Unverified && votes > 3)
+        if (coworkingSpace.VerificationStatus == CoworkingVerificationStatus.Unverified && votes >= 3)
         {
             _logger.LogInformation("自动更新认证状态: CoworkingId={CoworkingId}, Votes={Votes}", id, votes);
             coworkingSpace.SetVerificationStatus(CoworkingVerificationStatus.Verified, userId);
