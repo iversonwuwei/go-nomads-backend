@@ -30,6 +30,7 @@ resources:
   - services/ai-service.yaml
   - services/message-service.yaml
   - services/cache-service.yaml
+  - services/accommodation-service.yaml
 
 # 通用标签
 commonLabels:
