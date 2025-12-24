@@ -65,7 +65,13 @@ builder.Services.AddDaprClient(daprClientBuilder =>
     daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
 });
 
-builder.Services.AddControllers().AddDapr();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    })
+    .AddDapr();
 
 // 添加 JWT 认证
 var jwtSettings = builder.Configuration.GetSection("Jwt");
