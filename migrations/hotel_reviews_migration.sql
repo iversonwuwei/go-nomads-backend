@@ -28,9 +28,10 @@ CREATE INDEX IF NOT EXISTS idx_hotel_reviews_rating ON hotel_reviews(rating);
 CREATE INDEX IF NOT EXISTS idx_hotel_reviews_created_at ON hotel_reviews(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_hotel_reviews_helpful_count ON hotel_reviews(helpful_count DESC);
 
--- 创建唯一约束：一个用户只能对一个酒店评论一次
-CREATE UNIQUE INDEX IF NOT EXISTS idx_hotel_reviews_unique_user_hotel 
-ON hotel_reviews(hotel_id, user_id);
+-- 注意：允许用户对同一酒店发表多条评论，不再限制唯一性
+-- 如需恢复限制，取消下面注释：
+-- CREATE UNIQUE INDEX IF NOT EXISTS idx_hotel_reviews_unique_user_hotel 
+-- ON hotel_reviews(hotel_id, user_id);
 
 -- 2. 添加外键约束（如果 hotels 表存在）
 -- ALTER TABLE hotel_reviews 

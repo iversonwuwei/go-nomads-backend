@@ -132,13 +132,6 @@ public class HotelReviewController : ControllerBase
             return NotFound(new { message = "Hotel not found" });
         }
 
-        // 检查用户是否已经评论过
-        var existingReview = await _reviewRepository.GetUserReviewForHotelAsync(hotelId, userId.Value);
-        if (existingReview != null)
-        {
-            return BadRequest(new { message = "您已经评论过这家酒店了" });
-        }
-
         // 验证评分范围
         if (request.Rating < 1 || request.Rating > 5)
         {
