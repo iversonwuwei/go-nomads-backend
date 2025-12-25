@@ -1453,6 +1453,7 @@ public class ChatController : ControllerBase
                 BudgetLevel = p.BudgetLevel,
                 TravelStyle = p.TravelStyle,
                 Status = p.Status,
+                DepartureDate = p.DepartureDate,
                 CreatedAt = p.CreatedAt
             }).ToList();
 

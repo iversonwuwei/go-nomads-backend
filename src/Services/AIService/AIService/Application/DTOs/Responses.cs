@@ -517,6 +517,11 @@ public class AiTravelPlanSummary
     public string Status { get; set; } = string.Empty;
 
     /// <summary>
+    ///     计划出行日期
+    /// </summary>
+    public DateTime? DepartureDate { get; set; }
+
+    /// <summary>
     ///     创建时间
     /// </summary>
     public DateTime CreatedAt { get; set; }
