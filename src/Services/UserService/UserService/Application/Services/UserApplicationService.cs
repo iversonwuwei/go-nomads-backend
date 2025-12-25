@@ -105,6 +105,32 @@ public class UserApplicationService : IUserService
             userDto.LatestTravelHistory = null;
         }
 
+        // 加载用户旅行统计数据（从 travel_history 表计算）
+        try
+        {
+            var travelStats = await _travelHistoryService.GetUserTravelStatsAsync(id, cancellationToken);
+            userDto.Stats = new UserTravelStatsDto
+            {
+                CountriesVisited = travelStats.CountriesVisited,
+                CitiesVisited = travelStats.CitiesVisited,
+                TotalDays = travelStats.TotalDays,
+                TotalTrips = travelStats.ConfirmedTrips
+            };
+            _logger.LogInformation("📊 用户旅行统计: UserId={UserId}, Countries={Countries}, Cities={Cities}",
+                id, travelStats.CountriesVisited, travelStats.CitiesVisited);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 加载用户旅行统计失败: UserId={UserId}", id);
+            userDto.Stats = new UserTravelStatsDto
+            {
+                CountriesVisited = 0,
+                CitiesVisited = 0,
+                TotalDays = 0,
+                TotalTrips = 0
+            };
+        }
+
         return userDto;
     }
 
