@@ -30,7 +30,8 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
         ["event-service"] = "http://event-service:8005",
         ["ai-service"] = "http://ai-service:8080",
         ["cache-service"] = "http://cache-service:8011",
-        ["message-service"] = "http://message-service:8010"
+        ["message-service"] = "http://message-service:8010",
+        ["innovation-service"] = "http://innovation-service:8011"
     };
 
     public ConsulProxyConfigProvider(
@@ -529,6 +530,13 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                 ("/hubs/notifications/{**catch-all}", 8),
                 ("/hubs/ai-progress", 9),
                 ("/hubs/ai-progress/{**catch-all}", 10)
+            },
+            "innovation-service" => new List<(string, int)>
+            {
+                ("/api/innovations", 1),
+                ("/api/innovations/{**catch-all}", 2),
+                ("/api/v1/innovations", 3),
+                ("/api/v1/innovations/{**catch-all}", 4)
             },
             _ => new List<(string, int)>
             {
