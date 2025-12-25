@@ -19,6 +19,28 @@ public class Innovation : BaseModel
 
     [Required] [Column("description")] public string Description { get; set; } = string.Empty;
 
+    [Column("elevator_pitch")] public string? ElevatorPitch { get; set; }
+
+    [Column("problem")] public string? Problem { get; set; }
+
+    [Column("solution")] public string? Solution { get; set; }
+
+    [Column("target_audience")] public string? TargetAudience { get; set; }
+
+    [MaxLength(100)]
+    [Column("product_type")]
+    public string? ProductType { get; set; }
+
+    [Column("key_features")] public string? KeyFeatures { get; set; }
+
+    [Column("competitive_advantage")] public string? CompetitiveAdvantage { get; set; }
+
+    [Column("business_model")] public string? BusinessModel { get; set; }
+
+    [Column("market_opportunity")] public string? MarketOpportunity { get; set; }
+
+    [Column("ask")] public string? Ask { get; set; }
+
     [Required] [Column("creator_id")] public Guid CreatorId { get; set; }
 
     [MaxLength(50)]
@@ -62,6 +84,41 @@ public class Innovation : BaseModel
     [Column("created_by")] public Guid? CreatedBy { get; set; }
 
     [Column("updated_by")] public Guid? UpdatedBy { get; set; }
+
+    [Column("created_at")] public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [Column("updated_at")] public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+///     创新项目团队成员实体模型
+/// </summary>
+[Table("innovation_team_members")]
+public class InnovationTeamMember : BaseModel
+{
+    [PrimaryKey("id")] public Guid Id { get; set; }
+
+    [Required] [Column("innovation_id")] public Guid InnovationId { get; set; }
+
+    [Column("user_id")] public Guid? UserId { get; set; }
+
+    [Required]
+    [MaxLength(100)]
+    [Column("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(100)]
+    [Column("role")]
+    public string Role { get; set; } = string.Empty;
+
+    [Column("description")] public string? Description { get; set; }
+
+    [Column("avatar_url")] public string? AvatarUrl { get; set; }
+
+    [Column("is_founder")] public bool IsFounder { get; set; }
+
+    [Column("joined_at")] public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
 
     [Column("created_at")] public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

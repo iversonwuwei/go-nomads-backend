@@ -478,7 +478,7 @@ services:
       - message-service
 
   # ============================================================
-  # Innovation Service (No Dapr needed)
+  # Innovation Service
   # ============================================================
   innovation-service:
     build:
@@ -487,16 +487,39 @@ services:
     container_name: go-nomads-innovation-service
     ports:
       - "8011:8011"
+      - "3514:3514"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8011
+      - DAPR_HTTP_PORT=3514
+      - DAPR_GRPC_PORT=50001
       - Consul__Address=http://go-nomads-consul:7500
       - Consul__ServiceAddress=go-nomads-innovation-service
       - Consul__ServicePort=8011
-      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=innovationservice_db;Username=postgres;Password=postgres
-      - ConnectionStrings__Redis=go-nomads-redis:6379
+      - Supabase__Url=${SUPABASE_URL}
+      - Supabase__Key=${SUPABASE_KEY}
     networks:
       - go-nomads-network
+    depends_on:
+      - dapr-placement
+
+  innovation-service-dapr:
+    image: daprio/daprd:latest
+    container_name: go-nomads-innovation-service-dapr
+    command: ["./daprd",
+      "--app-id", "innovation-service",
+      "--app-port", "8011",
+      "--dapr-http-port", "3514",
+      "--dapr-grpc-port", "50001",
+      "--placement-host-address", "go-nomads-dapr-placement:50006",
+      "--components-path", "/components",
+      "--log-level", "info"
+    ]
+    volumes:
+      - ./deployment/dapr/components:/components
+    network_mode: "service:innovation-service"
+    depends_on:
+      - innovation-service
 
   # ============================================================
   # Travel Planning Service (No Dapr needed)

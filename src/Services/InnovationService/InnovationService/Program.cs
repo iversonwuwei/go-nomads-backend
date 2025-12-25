@@ -1,18 +1,81 @@
+using GoNomads.Shared.Extensions;
+using InnovationService.Repositories;
+using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 配置 DaprClient
-builder.Services.AddDaprClient();
+// Configure Serilog
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .WriteTo.File("logs/innovationservice-.txt", rollingInterval: RollingInterval.Day)
+    .CreateLogger();
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-builder.Services.AddControllers().AddDapr();
+builder.Host.UseSerilog();
+
+// Add services to the container
+builder.Services.AddControllers()
+    .AddDapr()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, context, cancellationToken) =>
+    {
+        document.Servers = new List<OpenApiServer>
+        {
+            new() { Url = "http://localhost:8011", Description = "Local Development" }
+        };
+        return Task.CompletedTask;
+    });
+});
+
+// 添加 Supabase 客户端
+builder.Services.AddSupabase(builder.Configuration);
+
+// 添加当前用户服务（统一的用户身份和权限检查）
+builder.Services.AddCurrentUserService();
+
+// 配置 DaprClient - 使用 gRPC 端点
+var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50005";
+builder.Services.AddDaprClient(daprClientBuilder =>
+{
+    daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
+});
+
+// 注册 Repository
+builder.Services.AddScoped<IInnovationRepository, InnovationRepository>();
+
+// CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policyBuilder =>
+    {
+        policyBuilder.AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+    });
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
+// 配置 HTTP 请求管道
+app.UseCors("AllowAll");
+
+app.UseSerilogRequestLogging();
+
+app.UseRouting();
+
+// 使用用户上下文中间件 - 从 Gateway 传递的请求头中提取用户信息
+app.UseUserContext();
+
 app.MapOpenApi();
 app.MapScalarApiReference(options =>
 {
@@ -22,28 +85,14 @@ app.MapScalarApiReference(options =>
         .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
 });
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+// 健康检查端点
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "innovation-service", timestamp = DateTime.UtcNow }));
 
-app.MapGet("/weatherforecast", () =>
-    {
-        var forecast = Enumerable.Range(1, 5).Select(index =>
-                new WeatherForecast
-                (
-                    DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                    Random.Shared.Next(-20, 55),
-                    summaries[Random.Shared.Next(summaries.Length)]
-                ))
-            .ToArray();
-        return forecast;
-    })
-    .WithName("GetWeatherForecast");
+app.MapControllers();
+app.UseCloudEvents();
+app.MapSubscribeHandler();
+
+// 自动注册到 Consul
+await app.RegisterWithConsulAsync();
 
 app.Run();
-
-internal record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
