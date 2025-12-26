@@ -1,5 +1,6 @@
 using InnovationService.DTOs;
 using InnovationService.Models;
+using InnovationService.Services;
 using Supabase;
 
 namespace InnovationService.Repositories;
@@ -34,11 +35,16 @@ public class InnovationRepository : IInnovationRepository
 {
     private readonly Client _supabase;
     private readonly ILogger<InnovationRepository> _logger;
+    private readonly IUserServiceClient _userServiceClient;
 
-    public InnovationRepository(Client supabase, ILogger<InnovationRepository> logger)
+    public InnovationRepository(
+        Client supabase, 
+        ILogger<InnovationRepository> logger, 
+        IUserServiceClient userServiceClient)
     {
         _supabase = supabase;
         _logger = logger;
+        _userServiceClient = userServiceClient;
     }
 
     public async Task<PagedResponse<InnovationListItem>> GetAllAsync(int page, int pageSize, string? category = null, string? stage = null, string? search = null)
@@ -164,6 +170,14 @@ public class InnovationRepository : IInnovationRepository
                 CreatedAt = result.CreatedAt,
                 UpdatedAt = result.UpdatedAt
             };
+
+            // 获取创建者信息
+            var creatorInfo = await GetUserBasicInfoAsync(result.CreatorId);
+            if (creatorInfo != null)
+            {
+                response.CreatorName = creatorInfo.Name;
+                response.CreatorAvatar = creatorInfo.AvatarUrl;
+            }
 
             // 获取团队成员
             response.Team = (await GetTeamMembersAsync(id)).Select(m => new TeamMemberResponse
@@ -628,8 +642,51 @@ public class InnovationRepository : IInnovationRepository
 
     private async Task EnrichCreatorInfoAsync(List<InnovationListItem> items)
     {
-        // TODO: 通过 Dapr 调用 UserService 获取用户信息
-        // 暂时留空，可以后续通过 Dapr 集成
+        if (items.Count == 0) return;
+
+        try
+        {
+            // 收集所有不重复的 CreatorId
+            var creatorIds = items.Select(i => i.CreatorId).Distinct().ToList();
+
+            _logger.LogInformation("🔄 通过 UserServiceClient 批量获取 {Count} 个用户信息", creatorIds.Count);
+
+            // 通过 UserServiceClient 批量获取用户信息
+            var userMap = await _userServiceClient.GetUsersInfoBatchAsync(creatorIds);
+
+            // 填充创建者信息
+            foreach (var item in items)
+            {
+                if (userMap.TryGetValue(item.CreatorId, out var user))
+                {
+                    item.CreatorName = user.Name;
+                    item.CreatorAvatar = user.AvatarUrl;
+                }
+            }
+
+            _logger.LogInformation("✅ 成功获取 {Count} 个用户信息", userMap.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 获取用户信息失败，跳过填充创建者信息");
+            // 不抛出异常，允许 API 正常返回（只是没有创建者详细信息）
+        }
+    }
+
+    /// <summary>
+    ///     获取单个用户的基本信息（用于详情页）
+    /// </summary>
+    private async Task<UserInfoDto?> GetUserBasicInfoAsync(Guid userId)
+    {
+        try
+        {
+            return await _userServiceClient.GetUserInfoAsync(userId.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 获取用户 {UserId} 信息失败", userId);
+            return null;
+        }
     }
 
     private async Task UpdateLikeCountAsync(Guid innovationId, int delta)

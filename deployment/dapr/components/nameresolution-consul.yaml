@@ -8,9 +8,9 @@ spec:
   version: v1
   metadata:
   - name: client
-    value: "go-nomads-consul:8500"
+    value: "go-nomads-consul:7500"
   - name: selfRegister
-    value: "true"
+    value: "false"
   - name: queryOptions
     value: |
       {
