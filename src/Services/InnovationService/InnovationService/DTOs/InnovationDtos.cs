@@ -52,6 +52,8 @@ public class InnovationListItem
     public Guid Id { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? ElevatorPitch { get; set; }
+    public string? ProductType { get; set; }
+    public string? KeyFeatures { get; set; }
     public string? Category { get; set; }
     public string Stage { get; set; } = "idea";
     public string? ImageUrl { get; set; }
