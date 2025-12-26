@@ -40,6 +40,7 @@ public class InnovationResponse
     public bool IsFeatured { get; set; }
     public bool IsPublic { get; set; }
     public bool IsLiked { get; set; }
+    public bool CanEdit { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -65,6 +66,8 @@ public class InnovationListItem
     public int ViewCount { get; set; }
     public int CommentCount { get; set; }
     public bool IsFeatured { get; set; }
+    public bool IsLiked { get; set; }
+    public bool CanEdit { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 
@@ -143,6 +146,7 @@ public class UpdateInnovationRequest
     public string[]? LookingFor { get; set; }
     public string[]? SkillsNeeded { get; set; }
     public bool? IsPublic { get; set; }
+    public List<TeamMemberRequest>? Team { get; set; }
 }
 
 /// <summary>

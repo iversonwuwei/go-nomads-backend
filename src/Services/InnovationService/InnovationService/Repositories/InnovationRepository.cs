@@ -10,7 +10,7 @@ namespace InnovationService.Repositories;
 /// </summary>
 public interface IInnovationRepository
 {
-    Task<PagedResponse<InnovationListItem>> GetAllAsync(int page, int pageSize, string? category = null, string? stage = null, string? search = null);
+    Task<PagedResponse<InnovationListItem>> GetAllAsync(int page, int pageSize, string? category = null, string? stage = null, string? search = null, Guid? currentUserId = null);
     Task<InnovationResponse?> GetByIdAsync(Guid id, Guid? currentUserId = null);
     Task<Innovation> CreateAsync(Innovation innovation);
     Task<Innovation?> UpdateAsync(Guid id, UpdateInnovationRequest request, Guid userId);
@@ -47,7 +47,7 @@ public class InnovationRepository : IInnovationRepository
         _userServiceClient = userServiceClient;
     }
 
-    public async Task<PagedResponse<InnovationListItem>> GetAllAsync(int page, int pageSize, string? category = null, string? stage = null, string? search = null)
+    public async Task<PagedResponse<InnovationListItem>> GetAllAsync(int page, int pageSize, string? category = null, string? stage = null, string? search = null, Guid? currentUserId = null)
     {
         try
         {
@@ -109,6 +109,12 @@ public class InnovationRepository : IInnovationRepository
 
             // 获取创建者信息
             await EnrichCreatorInfoAsync(items);
+
+            // 填充当前用户的点赞状态
+            if (currentUserId.HasValue && items.Count > 0)
+            {
+                await EnrichLikeStatusAsync(items, currentUserId.Value);
+            }
 
             return new PagedResponse<InnovationListItem>
             {
@@ -203,6 +209,9 @@ public class InnovationRepository : IInnovationRepository
                     .Get();
 
                 response.IsLiked = likeResult.Models.Any();
+                
+                // 检查当前用户是否可以编辑（创建者可以编辑）
+                response.CanEdit = response.CreatorId == currentUserId.Value;
             }
 
             return response;
@@ -273,11 +282,56 @@ public class InnovationRepository : IInnovationRepository
             var result = await _supabase.From<Innovation>()
                 .Update(existing);
 
+            // 处理团队成员更新
+            if (request.Team != null)
+            {
+                await UpdateTeamMembersAsync(id, request.Team);
+            }
+
             return result.Models.FirstOrDefault();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "更新创新项目失败: {Id}", id);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 更新团队成员（先删除再插入）
+    /// </summary>
+    private async Task UpdateTeamMembersAsync(Guid innovationId, List<TeamMemberRequest> teamMembers)
+    {
+        try
+        {
+            // 先删除现有团队成员
+            await _supabase.From<InnovationTeamMember>()
+                .Filter("innovation_id", Postgrest.Constants.Operator.Equals, innovationId.ToString())
+                .Delete();
+
+            // 插入新团队成员
+            if (teamMembers.Any())
+            {
+                var members = teamMembers.Select(m => new InnovationTeamMember
+                {
+                    Id = Guid.NewGuid(),
+                    InnovationId = innovationId,
+                    UserId = m.UserId,
+                    Name = m.Name,
+                    Role = m.Role,
+                    Description = m.Description,
+                    AvatarUrl = m.AvatarUrl,
+                    IsFounder = m.IsFounder,
+                    CreatedAt = DateTime.UtcNow
+                }).ToList();
+
+                await _supabase.From<InnovationTeamMember>().Insert(members);
+                _logger.LogInformation("✅ 更新团队成员成功: {Count} 人", members.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "更新团队成员失败: InnovationId={Id}", innovationId);
             throw;
         }
     }
@@ -678,6 +732,41 @@ public class InnovationRepository : IInnovationRepository
         {
             _logger.LogWarning(ex, "⚠️ 获取用户信息失败，跳过填充创建者信息");
             // 不抛出异常，允许 API 正常返回（只是没有创建者详细信息）
+        }
+    }
+
+    /// <summary>
+    ///     批量填充点赞状态
+    /// </summary>
+    private async Task EnrichLikeStatusAsync(List<InnovationListItem> items, Guid userId)
+    {
+        try
+        {
+            var innovationIds = items.Select(i => i.Id).ToList();
+
+            // 查询当前用户对这些项目的点赞记录
+            var likeResult = await _supabase.From<InnovationLike>()
+                .Select("innovation_id")
+                .Filter("user_id", Postgrest.Constants.Operator.Equals, userId.ToString())
+                .Get();
+
+            var likedIds = likeResult.Models
+                .Select(l => l.InnovationId)
+                .ToHashSet();
+
+            // 填充点赞状态和编辑权限
+            foreach (var item in items)
+            {
+                item.IsLiked = likedIds.Contains(item.Id);
+                // 检查当前用户是否可以编辑（创建者可以编辑）
+                item.CanEdit = item.CreatorId == userId;
+            }
+
+            _logger.LogInformation("✅ 成功获取 {Count} 个项目的点赞状态和编辑权限", items.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 获取点赞状态失败");
         }
     }
 
