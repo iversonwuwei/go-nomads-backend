@@ -559,15 +559,24 @@ public class TravelHistoryController : ControllerBase
     }
 
     /// <summary>
-    ///     获取指定用户的已确认旅行历史（公开接口，用于查看他人 profile）
+    ///     获取指定用户的已确认旅行历史（需要认证，用于查看他人 profile）
+    ///     只返回公开信息，保护用户隐私
     /// </summary>
     [HttpGet("user/{userId}")]
-    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<List<TravelHistorySummaryDto>>>> GetUserTravelHistory(
         [FromRoute] string userId,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("📋 GetUserTravelHistory - UserId: {UserId}", userId);
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true)
+            return Unauthorized(new ApiResponse<List<TravelHistorySummaryDto>>
+            {
+                Success = false,
+                Message = "未授权访问"
+            });
+
+        _logger.LogInformation("📋 GetUserTravelHistory - RequestedUserId: {UserId}, RequestingUserId: {RequestingUserId}",
+            userId, userContext.UserId);
 
         try
         {
