@@ -1,3 +1,4 @@
+using GoNomads.Shared.Models;
 using GoNomads.Shared.Services;
 using InnovationService.DTOs;
 using InnovationService.Models;

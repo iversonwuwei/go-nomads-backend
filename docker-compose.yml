@@ -496,8 +496,6 @@ services:
       - Consul__Address=http://go-nomads-consul:7500
       - Consul__ServiceAddress=go-nomads-innovation-service
       - Consul__ServicePort=8011
-      - Supabase__Url=${SUPABASE_URL}
-      - Supabase__Key=${SUPABASE_KEY}
     networks:
       - go-nomads-network
     depends_on:

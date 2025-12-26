@@ -182,16 +182,6 @@ public class CommentResponse
 }
 
 /// <summary>
-///     API 响应包装器
-/// </summary>
-public class ApiResponse<T>
-{
-    public bool Success { get; set; }
-    public string? Message { get; set; }
-    public T? Data { get; set; }
-}
-
-/// <summary>
 ///     分页响应
 /// </summary>
 public class PagedResponse<T>
