@@ -60,10 +60,11 @@ public class InnovationsController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("📋 获取创新项目列表: Page={Page}, PageSize={PageSize}, Category={Category}, Stage={Stage}, Search={Search}",
-                page, pageSize, category, stage, search);
+            var userId = GetCurrentUserId();
+            _logger.LogInformation("📋 获取创新项目列表: Page={Page}, PageSize={PageSize}, Category={Category}, Stage={Stage}, Search={Search}, UserId={UserId}",
+                page, pageSize, category, stage, search, userId);
 
-            var result = await _repository.GetAllAsync(page, pageSize, category, stage, search);
+            var result = await _repository.GetAllAsync(page, pageSize, category, stage, search, userId);
 
             return Ok(new ApiResponse<PagedResponse<InnovationListItem>>
             {
