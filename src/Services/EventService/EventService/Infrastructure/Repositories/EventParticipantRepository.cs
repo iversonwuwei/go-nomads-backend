@@ -70,7 +70,8 @@ public class EventParticipantRepository : IEventParticipantRepository
         {
             var result = await _supabaseClient
                 .From<EventParticipant>()
-                .Where(p => p.EventId == eventId && p.UserId == userId)
+                .Filter("event_id", Constants.Operator.Equals, eventId.ToString())
+                .Filter("user_id", Constants.Operator.Equals, userId.ToString())
                 .Get();
 
             return result.Models.FirstOrDefault();

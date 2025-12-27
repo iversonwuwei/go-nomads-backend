@@ -32,6 +32,7 @@ builder.Services.AddScoped<IEventRepository, EventRepository>();
 builder.Services.AddScoped<IEventParticipantRepository, EventParticipantRepository>();
 builder.Services.AddScoped<IEventFollowerRepository, EventFollowerRepository>();
 builder.Services.AddScoped<IEventTypeRepository, EventTypeRepository>();
+builder.Services.AddScoped<IEventInvitationRepository, EventInvitationRepository>();
 
 // 注册 gRPC 客户端 (通过 Dapr Service Invocation)
 builder.Services.AddScoped<ICityGrpcClient, CityGrpcClient>();

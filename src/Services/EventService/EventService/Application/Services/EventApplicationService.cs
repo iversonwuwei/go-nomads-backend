@@ -13,6 +13,7 @@ public class EventApplicationService : IEventService
     private readonly ICityGrpcClient _cityGrpcClient;
     private readonly IEventRepository _eventRepository;
     private readonly IEventFollowerRepository _followerRepository;
+    private readonly IEventInvitationRepository _invitationRepository;
     private readonly ILogger<EventApplicationService> _logger;
     private readonly IEventParticipantRepository _participantRepository;
     private readonly IUserGrpcClient _userGrpcClient;
@@ -22,6 +23,7 @@ public class EventApplicationService : IEventService
         IEventRepository eventRepository,
         IEventParticipantRepository participantRepository,
         IEventFollowerRepository followerRepository,
+        IEventInvitationRepository invitationRepository,
         ICityGrpcClient cityGrpcClient,
         IUserGrpcClient userGrpcClient,
         IEventTypeRepository eventTypeRepository,
@@ -30,6 +32,7 @@ public class EventApplicationService : IEventService
         _eventRepository = eventRepository;
         _participantRepository = participantRepository;
         _followerRepository = followerRepository;
+        _invitationRepository = invitationRepository;
         _cityGrpcClient = cityGrpcClient;
         _userGrpcClient = userGrpcClient;
         _eventTypeRepository = eventTypeRepository;
@@ -632,6 +635,236 @@ public class EventApplicationService : IEventService
         await EnrichEventResponsesWithRelatedDataAsync(responsesList);
 
         return (responsesList, total);
+    }
+
+    #endregion
+
+    #region 邀请相关
+
+    /// <summary>
+    ///     邀请用户参加活动
+    /// </summary>
+    public async Task<EventInvitationResponse> InviteToEventAsync(Guid eventId, Guid inviterId, InviteToEventRequest request)
+    {
+        _logger.LogInformation("📨 用户 {InviterId} 邀请用户 {InviteeId} 参加活动 {EventId}",
+            inviterId, request.InviteeId, eventId);
+
+        // 1. 检查活动是否存在
+        var @event = await _eventRepository.GetByIdAsync(eventId);
+        if (@event == null) throw new KeyNotFoundException($"活动 {eventId} 不存在");
+
+        // 2. 检查活动状态是否为 upcoming
+        if (@event.Status != "upcoming")
+            throw new InvalidOperationException("只能邀请用户参加即将举行的活动");
+
+        // 3. 检查邀请人是否是活动组织者或参与者（有权限邀请）
+        var isOrganizer = @event.OrganizerId == inviterId;
+        var isParticipant = await _participantRepository.IsParticipantAsync(eventId, inviterId);
+        if (!isOrganizer && !isParticipant)
+            throw new UnauthorizedAccessException("只有活动组织者或参与者才能邀请其他用户");
+
+        // 4. 检查被邀请人是否已经是参与者
+        if (await _participantRepository.IsParticipantAsync(eventId, request.InviteeId))
+            throw new InvalidOperationException("该用户已经是活动参与者");
+
+        // 5. 检查是否已存在待处理的邀请
+        if (await _invitationRepository.ExistsAsync(eventId, request.InviteeId))
+            throw new InvalidOperationException("已存在待处理的邀请");
+
+        // 6. 检查活动是否已满
+        if (@event.MaxParticipants.HasValue && @event.CurrentParticipants >= @event.MaxParticipants.Value)
+            throw new InvalidOperationException("活动人数已满，无法发送邀请");
+
+        // 7. 创建邀请
+        var invitation = EventInvitation.Create(eventId, inviterId, request.InviteeId, request.Message);
+        var createdInvitation = await _invitationRepository.CreateAsync(invitation);
+
+        _logger.LogInformation("✅ 邀请创建成功，ID: {InvitationId}", createdInvitation.Id);
+
+        // 8. 返回邀请响应（包含关联数据）
+        return await MapToInvitationResponseAsync(createdInvitation, @event);
+    }
+
+    /// <summary>
+    ///     响应邀请（接受或拒绝）
+    /// </summary>
+    public async Task<EventInvitationResponse> RespondToInvitationAsync(Guid invitationId, Guid userId, string response)
+    {
+        _logger.LogInformation("📩 用户 {UserId} 响应邀请 {InvitationId}: {Response}",
+            userId, invitationId, response);
+
+        // 1. 获取邀请
+        var invitation = await _invitationRepository.GetByIdAsync(invitationId);
+        if (invitation == null) throw new KeyNotFoundException($"邀请 {invitationId} 不存在");
+
+        // 2. 验证是否是被邀请人
+        if (invitation.InviteeId != userId)
+            throw new UnauthorizedAccessException("只有被邀请人才能响应邀请");
+
+        // 3. 检查邀请状态
+        if (invitation.Status != "pending")
+            throw new InvalidOperationException($"邀请已处理，当前状态: {invitation.Status}");
+
+        // 4. 检查邀请是否过期
+        if (invitation.IsExpired())
+            throw new InvalidOperationException("邀请已过期");
+
+        // 5. 处理响应
+        if (response.ToLower() == "accept")
+        {
+            // 接受邀请 - 自动加入活动
+            invitation.Accept();
+
+            // 检查是否已经是参与者
+            if (!await _participantRepository.IsParticipantAsync(invitation.EventId, userId))
+            {
+                // 创建参与记录
+                var participant = EventParticipant.Create(invitation.EventId, userId);
+                await _participantRepository.CreateAsync(participant);
+
+                // 更新活动参与人数
+                var @event = await _eventRepository.GetByIdAsync(invitation.EventId);
+                if (@event != null)
+                {
+                    @event.CurrentParticipants++;
+                    await _eventRepository.UpdateAsync(@event);
+                }
+
+                _logger.LogInformation("✅ 用户 {UserId} 接受邀请并加入活动 {EventId}", userId, invitation.EventId);
+            }
+        }
+        else if (response.ToLower() == "reject")
+        {
+            invitation.Reject();
+            _logger.LogInformation("❌ 用户 {UserId} 拒绝了邀请 {InvitationId}", userId, invitationId);
+        }
+        else
+        {
+            throw new ArgumentException("无效的响应，请使用 'accept' 或 'reject'");
+        }
+
+        // 6. 更新邀请
+        var updatedInvitation = await _invitationRepository.UpdateAsync(invitation);
+
+        return await MapToInvitationResponseAsync(updatedInvitation);
+    }
+
+    /// <summary>
+    ///     获取用户收到的邀请列表
+    /// </summary>
+    public async Task<List<EventInvitationResponse>> GetReceivedInvitationsAsync(Guid userId, string? status = null)
+    {
+        _logger.LogInformation("📋 获取用户 {UserId} 收到的邀请, Status: {Status}", userId, status ?? "all");
+
+        var invitations = await _invitationRepository.GetReceivedInvitationsAsync(userId, status);
+        var responses = new List<EventInvitationResponse>();
+
+        foreach (var invitation in invitations)
+        {
+            responses.Add(await MapToInvitationResponseAsync(invitation));
+        }
+
+        return responses;
+    }
+
+    /// <summary>
+    ///     获取用户发出的邀请列表
+    /// </summary>
+    public async Task<List<EventInvitationResponse>> GetSentInvitationsAsync(Guid userId, string? status = null)
+    {
+        _logger.LogInformation("📋 获取用户 {UserId} 发出的邀请, Status: {Status}", userId, status ?? "all");
+
+        var invitations = await _invitationRepository.GetSentInvitationsAsync(userId, status);
+        var responses = new List<EventInvitationResponse>();
+
+        foreach (var invitation in invitations)
+        {
+            responses.Add(await MapToInvitationResponseAsync(invitation));
+        }
+
+        return responses;
+    }
+
+    /// <summary>
+    ///     获取邀请详情
+    /// </summary>
+    public async Task<EventInvitationResponse> GetInvitationAsync(Guid invitationId)
+    {
+        var invitation = await _invitationRepository.GetByIdAsync(invitationId);
+        if (invitation == null) throw new KeyNotFoundException($"邀请 {invitationId} 不存在");
+
+        return await MapToInvitationResponseAsync(invitation);
+    }
+
+    /// <summary>
+    ///     映射邀请实体到响应DTO
+    /// </summary>
+    private async Task<EventInvitationResponse> MapToInvitationResponseAsync(EventInvitation invitation, Event? @event = null)
+    {
+        var response = new EventInvitationResponse
+        {
+            Id = invitation.Id,
+            EventId = invitation.EventId,
+            InviterId = invitation.InviterId,
+            InviteeId = invitation.InviteeId,
+            Status = invitation.Status,
+            Message = invitation.Message,
+            CreatedAt = invitation.CreatedAt,
+            RespondedAt = invitation.RespondedAt,
+            ExpiresAt = invitation.ExpiresAt
+        };
+
+        // 获取活动信息
+        if (@event == null)
+        {
+            @event = await _eventRepository.GetByIdAsync(invitation.EventId);
+        }
+        if (@event != null)
+        {
+            response.Event = await MapToResponseAsync(@event);
+        }
+
+        // 获取邀请人信息
+        try
+        {
+            var inviterInfo = await _userGrpcClient.GetUserByIdAsync(invitation.InviterId);
+            if (inviterInfo != null)
+            {
+                response.Inviter = new UserInfo
+                {
+                    Id = inviterInfo.Id,
+                    Name = inviterInfo.Name,
+                    Email = inviterInfo.Email,
+                    Avatar = inviterInfo.AvatarUrl
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "获取邀请人信息失败: {InviterId}", invitation.InviterId);
+        }
+
+        // 获取被邀请人信息
+        try
+        {
+            var inviteeInfo = await _userGrpcClient.GetUserByIdAsync(invitation.InviteeId);
+            if (inviteeInfo != null)
+            {
+                response.Invitee = new UserInfo
+                {
+                    Id = inviteeInfo.Id,
+                    Name = inviteeInfo.Name,
+                    Email = inviteeInfo.Email,
+                    Avatar = inviteeInfo.AvatarUrl
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "获取被邀请人信息失败: {InviteeId}", invitation.InviteeId);
+        }
+
+        return response;
     }
 
     #endregion

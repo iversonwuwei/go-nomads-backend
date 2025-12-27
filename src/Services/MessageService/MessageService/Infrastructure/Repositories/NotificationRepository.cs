@@ -74,7 +74,8 @@ public class NotificationRepository : INotificationRepository
         {
             var response = await _supabaseClient
                 .From<Notification>()
-                .Where(n => n.UserId == userId && n.IsRead == false)
+                .Where(n => n.UserId == userId)
+                .Where(n => n.IsRead == false)
                 .Get(cancellationToken);
 
             var count = response.Models.Count;

@@ -103,4 +103,33 @@ public interface IEventService
         Guid userId,
         int page = 1,
         int pageSize = 20);
+
+    #region 邀请相关
+
+    /// <summary>
+    ///     邀请用户参加活动
+    /// </summary>
+    Task<EventInvitationResponse> InviteToEventAsync(Guid eventId, Guid inviterId, InviteToEventRequest request);
+
+    /// <summary>
+    ///     响应邀请（接受或拒绝）
+    /// </summary>
+    Task<EventInvitationResponse> RespondToInvitationAsync(Guid invitationId, Guid userId, string response);
+
+    /// <summary>
+    ///     获取用户收到的邀请列表
+    /// </summary>
+    Task<List<EventInvitationResponse>> GetReceivedInvitationsAsync(Guid userId, string? status = null);
+
+    /// <summary>
+    ///     获取用户发出的邀请列表
+    /// </summary>
+    Task<List<EventInvitationResponse>> GetSentInvitationsAsync(Guid userId, string? status = null);
+
+    /// <summary>
+    ///     获取邀请详情
+    /// </summary>
+    Task<EventInvitationResponse> GetInvitationAsync(Guid invitationId);
+
+    #endregion
 }
