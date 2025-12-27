@@ -28,7 +28,8 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
             var skip = (page - 1) * pageSize;
             var response = await _supabaseClient
                 .From<ChatRoomModel>()
-                .Where(r => r.IsPublic == true && r.IsDeleted == false)
+                .Where(r => r.IsPublic == true)
+                .Where(r => r.IsDeleted == false)
                 .Order("created_at", Constants.Ordering.Descending)
                 .Range(skip, skip + pageSize - 1)
                 .Get();
@@ -48,7 +49,9 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
         {
             var response = await _supabaseClient
                 .From<ChatRoomModel>()
-                .Where(r => r.City == city && r.Country == country && r.IsDeleted == false)
+                .Where(r => r.City == city)
+                .Where(r => r.Country == country)
+                .Where(r => r.IsDeleted == false)
                 .Get();
 
             return response.Models.Select(MapToDomain).ToList();
@@ -66,7 +69,8 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
         {
             var response = await _supabaseClient
                 .From<ChatRoomModel>()
-                .Where(r => r.MeetupId == meetupId && r.IsDeleted == false)
+                .Where(r => r.MeetupId == meetupId)
+                .Where(r => r.IsDeleted == false)
                 .Single();
 
             return response != null ? MapToDomain(response) : null;
@@ -98,7 +102,8 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
 
             var response = await _supabaseClient
                 .From<ChatRoomModel>()
-                .Where(r => r.Id == guid && r.IsDeleted == false)
+                .Where(r => r.Id == guid)
+                .Where(r => r.IsDeleted == false)
                 .Single();
 
             return response != null ? MapToDomain(response) : null;
@@ -191,7 +196,8 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
             // 先获取用户加入的聊天室 ID 列表
             var memberResponse = await _supabaseClient
                 .From<ChatRoomMemberModel>()
-                .Where(m => m.UserId == userId && m.HasLeft == false)
+                .Where(m => m.UserId == userId)
+                .Where(m => m.HasLeft == false)
                 .Select("room_id")
                 .Get();
 
@@ -226,13 +232,29 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
     {
         try
         {
+            _logger.LogInformation("查询私聊房间: DirectChatKey={Key}", directChatKey);
+
             // 私聊房间的 Name 字段存储了 directChatKey
+            // 使用 Get() + FirstOrDefault 代替 Single()，更加稳定
             var response = await _supabaseClient
                 .From<ChatRoomModel>()
-                .Where(r => r.RoomType == "direct" && r.Name == directChatKey && r.IsDeleted == false)
-                .Single();
+                .Where(r => r.RoomType == "direct")
+                .Where(r => r.Name == directChatKey)
+                .Where(r => r.IsDeleted == false)
+                .Order("created_at", Postgrest.Constants.Ordering.Ascending)
+                .Limit(1)
+                .Get();
 
-            return response != null ? MapToDomain(response) : null;
+            var room = response.Models.FirstOrDefault();
+
+            if (room != null)
+            {
+                _logger.LogInformation("找到私聊房间: RoomId={RoomId}, Name={Name}", room.Id, room.Name);
+                return MapToDomain(room);
+            }
+
+            _logger.LogInformation("未找到私聊房间: DirectChatKey={Key}", directChatKey);
+            return null;
         }
         catch (Exception ex)
         {

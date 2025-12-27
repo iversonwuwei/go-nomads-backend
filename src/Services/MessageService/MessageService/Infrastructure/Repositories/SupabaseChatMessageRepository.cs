@@ -28,7 +28,8 @@ public class SupabaseChatMessageRepository : IChatMessageRepository
             var skip = (page - 1) * pageSize;
             var response = await _supabaseClient
                 .From<ChatRoomMessageModel>()
-                .Where(m => m.RoomId == roomId && m.IsDeleted == false)
+                .Where(m => m.RoomId == roomId)
+                .Where(m => m.IsDeleted == false)
                 .Order("timestamp", Constants.Ordering.Descending)
                 .Range(skip, skip + pageSize - 1)
                 .Get();
@@ -131,7 +132,8 @@ public class SupabaseChatMessageRepository : IChatMessageRepository
         {
             var response = await _supabaseClient
                 .From<ChatRoomMessageModel>()
-                .Where(m => m.RoomId == roomId && m.IsDeleted == false)
+                .Where(m => m.RoomId == roomId)
+                .Where(m => m.IsDeleted == false)
                 .Get();
 
             return response.Models.Count;
