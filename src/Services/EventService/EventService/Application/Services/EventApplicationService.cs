@@ -556,45 +556,62 @@ public class EventApplicationService : IEventService
 
     /// <summary>
     ///     获取用户已加入的活动列表(分页)
+    ///     包含: 1. 用户加入的活动 2. 用户创建的活动
+    ///     排除: 已过期和已取消的活动
     /// </summary>
     public async Task<(List<EventResponse> Events, int Total)> GetJoinedEventsAsync(
         Guid userId,
         int page = 1,
         int pageSize = 20)
     {
-        // ✅ 优化方案:使用Repository层过滤,避免内存加载全部数据
+        // ✅ 优化方案:同时获取用户加入和创建的活动
         
-        // 1. 只查询未取消的参与记录
+        // 1. 获取用户未取消的参与记录
         var participants = await _participantRepository.GetByUserIdWithStatusAsync(userId);
         var activeParticipants = participants
             .Where(p => p.Status != "cancelled")
             .ToList();
 
-        if (!activeParticipants.Any())
+        var joinedEventIds = activeParticipants.Select(p => p.EventId).ToHashSet();
+
+        // 2. 获取用户创建的活动
+        var createdEvents = await _eventRepository.GetByOrganizerIdAsync(userId);
+        var createdEventIds = createdEvents.Select(e => e.Id).ToHashSet();
+
+        // 3. 合并所有活动 ID（去重）
+        var allEventIds = joinedEventIds.Union(createdEventIds).ToList();
+
+        if (!allEventIds.Any())
         {
             return (new List<EventResponse>(), 0);
         }
 
-        var eventIds = activeParticipants.Select(p => p.EventId).ToList();
+        _logger.LogInformation("🔍 获取用户活动，用户ID: {UserId}, 加入: {JoinedCount}, 创建: {CreatedCount}, 合计: {TotalCount}", 
+            userId, joinedEventIds.Count, createdEventIds.Count, allEventIds.Count);
 
-        // 2. 使用批量查询,在数据库层过滤status=upcoming并分页
+        // 4. 使用批量查询,在数据库层过滤status=upcoming或ongoing(排除已过期和取消的),并分页
         var (events, total) = await _eventRepository.GetByIdsAsync(
-            eventIds,
-            status: "upcoming",
+            allEventIds,
+            status: "upcoming,ongoing",
             page: page,
             pageSize: pageSize);
 
-        // 3. 转换为 DTO
+        // 5. 转换为 DTO
         var responses = await Task.WhenAll(events.Select(e => MapToResponseAsync(e)));
         var responsesList = responses.ToList();
 
-        // 4. 批量获取关联数据
+        // 6. 批量获取关联数据
         await EnrichEventResponsesWithRelatedDataAsync(responsesList);
 
-        // 5. 设置 IsParticipant 为 true(因为都是已加入的活动)
+        // 7. 设置 IsParticipant 和 IsOrganizer 标志
         foreach (var response in responsesList)
         {
-            response.IsParticipant = true;
+            response.IsParticipant = joinedEventIds.Contains(response.Id);
+            // IsOrganizer 通常已在 MapToResponseAsync 中设置，但这里确保正确
+            if (createdEventIds.Contains(response.Id))
+            {
+                response.IsOrganizer = true;
+            }
         }
 
         return (responsesList, total);

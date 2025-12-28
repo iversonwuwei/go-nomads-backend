@@ -140,9 +140,26 @@ public class EventRepository : IEventRepository
                 query = (ISupabaseTable<Event, RealtimeChannel>)
                     query.Where(e => e.Category == category);
 
+            // 支持多状态查询，用逗号分隔
             if (!string.IsNullOrEmpty(status))
-                query = (ISupabaseTable<Event, RealtimeChannel>)
-                    query.Where(e => e.Status == status);
+            {
+                var statuses = status.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.Trim())
+                    .ToList();
+                
+                if (statuses.Count == 1)
+                {
+                    // 单状态查询：使用 Filter 的 Equals 操作符
+                    query = (ISupabaseTable<Event, RealtimeChannel>)
+                        query.Filter("status", Constants.Operator.Equals, statuses[0]);
+                }
+                else if (statuses.Count > 1)
+                {
+                    // 多状态查询：使用 Filter 的 In 操作符 - 需要传入 List<string>
+                    query = (ISupabaseTable<Event, RealtimeChannel>)
+                        query.Filter("status", Constants.Operator.In, statuses);
+                }
+            }
 
             var offset = (page - 1) * pageSize;
             var result = await query
@@ -229,6 +246,29 @@ public class EventRepository : IEventRepository
         }
     }
 
+    public async Task<List<Event>> GetActiveEventsForStatusUpdateAsync()
+    {
+        try
+        {
+            _logger.LogInformation("🔍 查询需要检查状态更新的活动（upcoming 或 ongoing）");
+
+            // 查询状态为 upcoming 或 ongoing 的活动
+            var statuses = new List<string> { "upcoming", "ongoing" };
+            var result = await _supabaseClient
+                .From<Event>()
+                .Filter("status", Constants.Operator.In, statuses)
+                .Get();
+
+            _logger.LogInformation("✅ 找到 {Count} 个活动需要检查状态", result.Models.Count);
+            return result.Models.ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取活动列表失败");
+            throw;
+        }
+    }
+
     public async Task<(List<Event> Events, int Total)> GetByIdsAsync(
         List<Guid> eventIds,
         string? status = null,
@@ -247,10 +287,21 @@ public class EventRepository : IEventRepository
             // 构建查询
             var query = _supabaseClient.From<Event>();
             
-            // 在数据库层过滤状态
+            // 在数据库层过滤状态 - 支持逗号分隔的多状态值
             if (!string.IsNullOrEmpty(status))
             {
-                query = (ISupabaseTable<Event, RealtimeChannel>)query.Filter("status", Constants.Operator.Equals, status);
+                if (status.Contains(','))
+                {
+                    // 多状态查询：使用 In 操作符 - 需要传入 List<string>
+                    var statuses = status.Split(',').Select(s => s.Trim()).ToList();
+                    _logger.LogInformation("🔍 多状态查询，状态列表: {Statuses}", string.Join(", ", statuses));
+                    query = (ISupabaseTable<Event, RealtimeChannel>)query.Filter("status", Constants.Operator.In, statuses);
+                }
+                else
+                {
+                    // 单状态查询
+                    query = (ISupabaseTable<Event, RealtimeChannel>)query.Where(e => e.Status == status);
+                }
             }
 
             var result = await query.Get();
