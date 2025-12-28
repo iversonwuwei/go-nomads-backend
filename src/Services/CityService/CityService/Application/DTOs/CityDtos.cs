@@ -125,6 +125,35 @@ public class ModeratorDto
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? Avatar { get; set; }
+
+    // 旅行统计
+    public ModeratorTravelStatsDto? Stats { get; set; }
+
+    // 最新旅行历史
+    public ModeratorTravelHistoryDto? LatestTravelHistory { get; set; }
+}
+
+/// <summary>
+///     版主旅行统计 DTO
+/// </summary>
+public class ModeratorTravelStatsDto
+{
+    public int CountriesVisited { get; set; }
+    public int CitiesVisited { get; set; }
+    public int TotalDays { get; set; }
+    public int TotalTrips { get; set; }
+}
+
+/// <summary>
+///     版主最新旅行历史 DTO
+/// </summary>
+public class ModeratorTravelHistoryDto
+{
+    public string? CityName { get; set; }
+    public string? CountryName { get; set; }
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
+    public string? Status { get; set; }
 }
 
 /// <summary>

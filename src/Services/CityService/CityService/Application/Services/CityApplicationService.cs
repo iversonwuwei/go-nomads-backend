@@ -918,10 +918,25 @@ public class CityApplicationService : ICityService
                         Id = userInfo.Id,
                         Name = userInfo.Name,
                         Email = userInfo.Email,
-                        Avatar = userInfo.Avatar
+                        Avatar = userInfo.Avatar,
+                        Stats = userInfo.Stats != null ? new ModeratorTravelStatsDto
+                        {
+                            CountriesVisited = userInfo.Stats.CountriesVisited,
+                            CitiesVisited = userInfo.Stats.CitiesVisited,
+                            TotalDays = userInfo.Stats.TotalDays,
+                            TotalTrips = userInfo.Stats.TotalTrips
+                        } : null,
+                        LatestTravelHistory = userInfo.LatestTravelHistory != null ? new ModeratorTravelHistoryDto
+                        {
+                            CityName = userInfo.LatestTravelHistory.CityName,
+                            CountryName = userInfo.LatestTravelHistory.CountryName,
+                            StartDate = userInfo.LatestTravelHistory.StartDate,
+                            EndDate = userInfo.LatestTravelHistory.EndDate,
+                            Status = userInfo.LatestTravelHistory.Status
+                        } : null
                     };
-                    _logger.LogInformation("✅ [EnrichModerator] 已填充版主信息 - Name: {Name}, Email: {Email}", 
-                        userInfo.Name, userInfo.Email);
+                    _logger.LogInformation("✅ [EnrichModerator] 已填充版主信息 - Name: {Name}, Email: {Email}, Stats: {HasStats}, TravelHistory: {HasTravelHistory}",
+                        userInfo.Name, userInfo.Email, userInfo.Stats != null, userInfo.LatestTravelHistory != null);
                 }
                 else
                 {
@@ -1168,6 +1183,40 @@ internal class SimpleUserDto
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
-    public string? Avatar { get; set; }
+    public string? AvatarUrl { get; set; }
     public string Role { get; set; } = string.Empty;
+
+    // 兼容性属性：将 AvatarUrl 映射到 Avatar
+    public string? Avatar => AvatarUrl;
+
+    // 旅行统计
+    public SimpleUserTravelStatsDto? Stats { get; set; }
+
+    // 最新旅行历史
+    public SimpleUserTravelHistoryDto? LatestTravelHistory { get; set; }
+}
+
+internal class SimpleUserTravelStatsDto
+{
+    public int CountriesVisited { get; set; }
+    public int CitiesVisited { get; set; }
+    public int TotalDays { get; set; }
+    public int TotalTrips { get; set; }
+}
+
+internal class SimpleUserTravelHistoryDto
+{
+    // 匹配 UserService 的 TravelHistoryDto 字段名
+    public string? City { get; set; }
+    public string? Country { get; set; }
+    public DateTime ArrivalTime { get; set; }
+    public DateTime? DepartureTime { get; set; }
+    public bool IsOngoing { get; set; }
+
+    // 兼容性属性
+    public string? CityName => City;
+    public string? CountryName => Country;
+    public DateTime? StartDate => ArrivalTime;
+    public DateTime? EndDate => DepartureTime;
+    public string? Status => IsOngoing ? "current" : "completed";
 }
