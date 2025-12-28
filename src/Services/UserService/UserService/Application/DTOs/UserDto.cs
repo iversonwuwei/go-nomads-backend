@@ -21,7 +21,10 @@ public class UserDto
     
     // 最新旅行历史（用于 Profile 页面显示）
     public TravelHistoryDto? LatestTravelHistory { get; set; }
-    
+
+    // 旅行历史列表（用于 Profile 页面显示，最多返回最近 10 条已确认的旅行记录）
+    public List<TravelHistoryDto>? TravelHistory { get; set; }
+
     // 旅行统计数据（从 travel_history 表计算，去重后的国家/城市数）
     public UserTravelStatsDto? Stats { get; set; }
 }

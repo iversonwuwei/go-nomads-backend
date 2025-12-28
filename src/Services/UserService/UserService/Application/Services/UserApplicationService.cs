@@ -105,6 +105,19 @@ public class UserApplicationService : IUserService
             userDto.LatestTravelHistory = null;
         }
 
+        // 加载用户旅行历史列表（最多 10 条已确认的记录）
+        try
+        {
+            userDto.TravelHistory = await _travelHistoryService.GetConfirmedTravelHistoryAsync(id, cancellationToken);
+            _logger.LogInformation("📜 用户旅行历史列表: UserId={UserId}, Count={Count}",
+                id, userDto.TravelHistory?.Count ?? 0);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 加载用户旅行历史列表失败: UserId={UserId}", id);
+            userDto.TravelHistory = new List<DTOs.TravelHistoryDto>();
+        }
+
         // 加载用户旅行统计数据（从 travel_history 表计算）
         try
         {
