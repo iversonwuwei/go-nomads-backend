@@ -53,6 +53,11 @@ public interface IEventRepository
     Task<List<Event>> GetExpiredEventsAsync(DateTime currentTime);
 
     /// <summary>
+    ///     获取需要检查状态更新的活动（状态为 upcoming 或 ongoing）
+    /// </summary>
+    Task<List<Event>> GetActiveEventsForStatusUpdateAsync();
+
+    /// <summary>
     ///     根据ID列表批量获取活动（支持状态过滤和分页）
     /// </summary>
     Task<(List<Event> Events, int Total)> GetByIdsAsync(
