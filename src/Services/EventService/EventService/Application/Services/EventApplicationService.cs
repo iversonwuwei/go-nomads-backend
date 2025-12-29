@@ -104,21 +104,29 @@ public class EventApplicationService : IEventService
         // 获取参与者列表
         var participants = await GetParticipantsAsync(id);
 
+        // 🔧 过滤掉组织者，确保参与者列表不包含组织者
+        var participantsExcludeOrganizer = participants
+            .Where(p => p.UserId != @event.OrganizerId)
+            .ToList();
+        
+        _logger.LogInformation("👥 活动 {EventId} 参与者总数: {Total}, 排除组织者后: {Filtered}", 
+            id, participants.Count, participantsExcludeOrganizer.Count);
+
         // 🔧 为参与者填充用户信息（通过 gRPC 调用 UserService）
-        if (participants.Any())
+        if (participantsExcludeOrganizer.Any())
         {
-            var userIds = participants.Select(p => p.UserId).Distinct().ToList();
+            var userIds = participantsExcludeOrganizer.Select(p => p.UserId).Distinct().ToList();
             _logger.LogInformation("📞 通过 gRPC 获取 {Count} 个参与者的完整用户信息", userIds.Count);
 
             try
             {
                 var users = await _userGrpcClient.GetUsersInfoByIdsAsync(userIds);
 
-                foreach (var participant in participants)
+                foreach (var participant in participantsExcludeOrganizer)
                     if (users.TryGetValue(participant.UserId, out var userInfo))
                         participant.User = userInfo;
 
-                _logger.LogInformation("✅ 成功为 {Count} 个参与者填充用户信息", participants.Count(p => p.User != null));
+                _logger.LogInformation("✅ 成功为 {Count} 个参与者填充用户信息", participantsExcludeOrganizer.Count(p => p.User != null));
             }
             catch (Exception ex)
             {
@@ -127,10 +135,10 @@ public class EventApplicationService : IEventService
             }
         }
 
-        response.Participants = participants.ToList();
+        response.Participants = participantsExcludeOrganizer;
 
-        // 🔧 修正参与者数量:使用实际参与者列表的长度,确保数据准确
-        response.CurrentParticipants = participants.Count;
+        // 🔧 修正参与者数量:使用排除组织者后的参与者列表长度
+        response.CurrentParticipants = participantsExcludeOrganizer.Count;
 
         // 填充关联数据
         await EnrichEventResponsesWithRelatedDataAsync(new List<EventResponse> { response });
