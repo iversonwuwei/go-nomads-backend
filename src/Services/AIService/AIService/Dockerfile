@@ -6,6 +6,7 @@ EXPOSE 8009
 # 使用 .NET 9.0 SDK 镜像进行构建
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
+COPY NuGet.Config .
 
 # 复制 .csproj 文件并还原依赖
 COPY ["src/Services/AIService/AIService/AIService.csproj", "src/Services/AIService/AIService/"]

@@ -4,6 +4,7 @@ EXPOSE 8004
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
+COPY NuGet.Config .
 COPY ["src/Services/AccommodationService/AccommodationService/AccommodationService.csproj", "src/Services/AccommodationService/AccommodationService/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 RUN dotnet restore "src/Services/AccommodationService/AccommodationService/AccommodationService.csproj"

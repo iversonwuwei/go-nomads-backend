@@ -5,6 +5,7 @@ EXPOSE 8080
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
+COPY NuGet.Config .
 
 # 复制项目文件（保持目录结构）
 COPY ["src/Services/MessageService/MessageService/API/MessageService.csproj", "src/Services/MessageService/MessageService/API/"]

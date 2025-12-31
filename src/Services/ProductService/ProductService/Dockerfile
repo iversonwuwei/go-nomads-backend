@@ -12,6 +12,7 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+COPY NuGet.Config .
 COPY ["src/Services/ProductService/ProductService/ProductService.csproj", "src/Services/ProductService/ProductService/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 RUN dotnet restore "./src/Services/ProductService/ProductService/ProductService.csproj"

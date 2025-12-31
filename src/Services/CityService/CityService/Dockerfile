@@ -4,6 +4,7 @@ EXPOSE 8002
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
+COPY NuGet.Config .
 COPY ["src/Services/CityService/CityService/CityService.csproj", "src/Services/CityService/CityService/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 RUN dotnet restore "src/Services/CityService/CityService/CityService.csproj"

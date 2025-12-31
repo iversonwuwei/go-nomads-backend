@@ -4,6 +4,7 @@ EXPOSE 8007
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
+COPY NuGet.Config .
 COPY ["src/Services/TravelPlanningService/TravelPlanningService/TravelPlanningService.csproj", "src/Services/TravelPlanningService/TravelPlanningService/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 RUN dotnet restore "src/Services/TravelPlanningService/TravelPlanningService/TravelPlanningService.csproj"
