@@ -210,7 +210,7 @@ public class Event : BaseModel
     /// </summary>
     public void UpdateStatusByTime()
     {
-        var now = DateTime.UtcNow;
+        var now = DateTime.Now; // 使用本地时间，因为 Supabase 存储的是本地时间
 
         // 已取消的活动不自动更新状态
         if (Status == EventStatus.Cancelled) return;

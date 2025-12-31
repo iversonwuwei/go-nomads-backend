@@ -141,11 +141,16 @@ public class EventRepository : IEventRepository
                     query.Where(e => e.Category == category);
 
             // 支持多状态查询，用逗号分隔
+            var isQueryingActiveEvents = false;
             if (!string.IsNullOrEmpty(status))
             {
                 var statuses = status.Split(',', StringSplitOptions.RemoveEmptyEntries)
                     .Select(s => s.Trim())
                     .ToList();
+                
+                // 检查是否在查询活动中的状态（upcoming, ongoing）
+                isQueryingActiveEvents = statuses.Any(s => s == "upcoming" || s == "ongoing") 
+                    && !statuses.Any(s => s == "completed" || s == "cancelled");
                 
                 if (statuses.Count == 1)
                 {
@@ -167,7 +172,45 @@ public class EventRepository : IEventRepository
                 .Range(offset, offset + pageSize - 1)
                 .Get();
 
-            return (result.Models.ToList(), result.Models.Count);
+            var events = result.Models.ToList();
+            
+            // 如果查询的是活动中的状态（upcoming, ongoing），在应用层过滤掉实际上已经过期的活动
+            // 这是为了确保即使状态更新服务还没来得及更新，也不会显示已过期的活动
+            if (isQueryingActiveEvents)
+            {
+                // 使用 Unix 时间戳进行比较，避免时区问题
+                var nowTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var originalCount = events.Count;
+                
+                _logger.LogInformation("🕒 当前 UTC 时间戳: {Timestamp}", nowTimestamp);
+                
+                events = events.Where(e => {
+                    // 将 StartTime 和 EndTime 转为时间戳（假设数据库存储的是本地时间，需要转为 UTC）
+                    var startTimestamp = new DateTimeOffset(e.StartTime, TimeSpan.FromHours(8)).ToUnixTimeSeconds();
+                    var endTimestamp = e.EndTime.HasValue 
+                        ? new DateTimeOffset(e.EndTime.Value, TimeSpan.FromHours(8)).ToUnixTimeSeconds() 
+                        : (long?)null;
+                    
+                    // 判断活动是否还有效（未过期）：
+                    // 1. 如果还没开始（start_time > now），肯定有效
+                    if (startTimestamp > nowTimestamp) return true;
+                    
+                    // 2. 如果已经开始，但有 end_time 且 end_time > now，说明还在进行中
+                    if (endTimestamp.HasValue && endTimestamp.Value > nowTimestamp) return true;
+                    
+                    // 3. 其他情况（已开始且没有end_time，或end_time已过）都认为已过期
+                    _logger.LogInformation("🔍 过滤掉已过期活动: {Title}, StartTime: {Start}, EndTime: {End}", 
+                        e.Title, e.StartTime, e.EndTime);
+                    return false;
+                }).ToList();
+                
+                if (originalCount != events.Count)
+                {
+                    _logger.LogInformation("🔍 应用层过滤掉 {Count} 个已过期活动", originalCount - events.Count);
+                }
+            }
+
+            return (events, events.Count);
         }
         catch (Exception ex)
         {
@@ -288,14 +331,20 @@ public class EventRepository : IEventRepository
             var query = _supabaseClient.From<Event>();
             
             // 在数据库层过滤状态 - 支持逗号分隔的多状态值
+            var isQueryingActiveEvents = false;
             if (!string.IsNullOrEmpty(status))
             {
-                if (status.Contains(','))
+                var statusList = status.Split(',').Select(s => s.Trim()).ToList();
+                
+                // 检查是否在查询活动中的状态（upcoming, ongoing）
+                isQueryingActiveEvents = statusList.Any(s => s == "upcoming" || s == "ongoing") 
+                    && !statusList.Any(s => s == "completed" || s == "cancelled");
+                
+                if (statusList.Count > 1)
                 {
                     // 多状态查询：使用 In 操作符 - 需要传入 List<string>
-                    var statuses = status.Split(',').Select(s => s.Trim()).ToList();
-                    _logger.LogInformation("🔍 多状态查询，状态列表: {Statuses}", string.Join(", ", statuses));
-                    query = (ISupabaseTable<Event, RealtimeChannel>)query.Filter("status", Constants.Operator.In, statuses);
+                    _logger.LogInformation("🔍 多状态查询，状态列表: {Statuses}", string.Join(", ", statusList));
+                    query = (ISupabaseTable<Event, RealtimeChannel>)query.Filter("status", Constants.Operator.In, statusList);
                 }
                 else
                 {
@@ -311,6 +360,32 @@ public class EventRepository : IEventRepository
                 .Where(e => eventIds.Contains(e.Id))
                 .OrderByDescending(e => e.StartTime)
                 .ToList();
+            
+            // 如果查询的是活动中的状态（upcoming, ongoing），在应用层过滤掉实际上已经过期的活动
+            if (isQueryingActiveEvents && events.Count > 0)
+            {
+                // 使用 Unix 时间戳进行比较，避免时区问题
+                var nowTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var originalCount = events.Count;
+                
+                events = events.Where(e => {
+                    // 将 StartTime 和 EndTime 转为时间戳（假设数据库存储的是北京时间 UTC+8）
+                    var startTimestamp = new DateTimeOffset(e.StartTime, TimeSpan.FromHours(8)).ToUnixTimeSeconds();
+                    var endTimestamp = e.EndTime.HasValue 
+                        ? new DateTimeOffset(e.EndTime.Value, TimeSpan.FromHours(8)).ToUnixTimeSeconds() 
+                        : (long?)null;
+                    
+                    // 判断活动是否还有效（未过期）
+                    if (startTimestamp > nowTimestamp) return true;
+                    if (endTimestamp.HasValue && endTimestamp.Value > nowTimestamp) return true;
+                    return false;
+                }).ToList();
+                
+                if (originalCount != events.Count)
+                {
+                    _logger.LogInformation("🔍 已加入列表过滤掉 {Count} 个已过期活动", originalCount - events.Count);
+                }
+            }
 
             // 分页
             var total = events.Count;
