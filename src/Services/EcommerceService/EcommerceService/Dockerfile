@@ -4,6 +4,7 @@ EXPOSE 8008
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
+COPY NuGet.Config .
 COPY ["src/Services/EcommerceService/EcommerceService/EcommerceService.csproj", "src/Services/EcommerceService/EcommerceService/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 RUN dotnet restore "src/Services/EcommerceService/EcommerceService/EcommerceService.csproj"

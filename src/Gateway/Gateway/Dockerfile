@@ -12,6 +12,7 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+COPY NuGet.Config .
 COPY ["src/Gateway/Gateway/Gateway.csproj", "src/Gateway/Gateway/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 RUN dotnet restore "src/Gateway/Gateway/Gateway.csproj"

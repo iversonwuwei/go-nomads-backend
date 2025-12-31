@@ -4,6 +4,7 @@ EXPOSE 8006
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
+COPY NuGet.Config .
 COPY ["src/Services/CoworkingService/CoworkingService/CoworkingService.csproj", "src/Services/CoworkingService/CoworkingService/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 RUN dotnet restore "src/Services/CoworkingService/CoworkingService/CoworkingService.csproj"
