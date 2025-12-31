@@ -238,6 +238,57 @@ public class EventRepository : IEventRepository
         }
     }
 
+    public async Task<(List<Event> Events, int Total)> GetByOrganizerAsync(
+        Guid organizerId,
+        string? status = null,
+        int page = 1,
+        int pageSize = 20)
+    {
+        try
+        {
+            // 构建计数查询
+            var countQuery = _supabaseClient.From<Event>();
+            countQuery = (Supabase.Interfaces.ISupabaseTable<Event, Supabase.Realtime.RealtimeChannel>)
+                countQuery.Where(e => e.OrganizerId == organizerId);
+            if (!string.IsNullOrEmpty(status))
+            {
+                countQuery = (Supabase.Interfaces.ISupabaseTable<Event, Supabase.Realtime.RealtimeChannel>)
+                    countQuery.Where(e => e.Status == status);
+            }
+
+            // 获取总数
+            var total = await countQuery.Count(Constants.CountType.Exact);
+
+            // 重新构建数据查询（Count 会消费查询对象）
+            var dataQuery = _supabaseClient.From<Event>();
+            dataQuery = (Supabase.Interfaces.ISupabaseTable<Event, Supabase.Realtime.RealtimeChannel>)
+                dataQuery.Where(e => e.OrganizerId == organizerId);
+            if (!string.IsNullOrEmpty(status))
+            {
+                dataQuery = (Supabase.Interfaces.ISupabaseTable<Event, Supabase.Realtime.RealtimeChannel>)
+                    dataQuery.Where(e => e.Status == status);
+            }
+
+            // 获取分页数据
+            var offset = (page - 1) * pageSize;
+            var result = await dataQuery
+                .Order(e => e.CreatedAt, Constants.Ordering.Descending)
+                .Range(offset, offset + pageSize - 1)
+                .Get();
+
+            _logger.LogInformation("✅ 获取组织者活动列表成功，OrganizerId: {OrganizerId}, Status: {Status}, Total: {Total}, Items: {Items}",
+                organizerId, status ?? "all", total, result.Models.Count);
+
+            return (result.Models.ToList(), total);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取组织者活动列表失败，OrganizerId: {OrganizerId}, Status: {Status}",
+                organizerId, status);
+            throw;
+        }
+    }
+
     public async Task<bool> ExistsAsync(Guid id)
     {
         try
@@ -327,9 +378,13 @@ public class EventRepository : IEventRepository
 
             _logger.LogInformation("🔍 批量查询活动，ID数量: {Count}, Status: {Status}", eventIds.Count, status ?? "all");
 
-            // 构建查询
+            // 构建查询 - 首先按 ID 过滤
             var query = _supabaseClient.From<Event>();
-            
+
+            // 使用 In 操作符按 eventIds 过滤
+            var eventIdStrings = eventIds.Select(id => id.ToString()).ToList();
+            query = (ISupabaseTable<Event, RealtimeChannel>)query.Filter("id", Constants.Operator.In, eventIdStrings);
+
             // 在数据库层过滤状态 - 支持逗号分隔的多状态值
             var isQueryingActiveEvents = false;
             if (!string.IsNullOrEmpty(status))
@@ -354,10 +409,9 @@ public class EventRepository : IEventRepository
             }
 
             var result = await query.Get();
-            
-            // 在内存中过滤eventIds并排序
+
+            // 排序（按开始时间降序）
             var events = result.Models
-                .Where(e => eventIds.Contains(e.Id))
                 .OrderByDescending(e => e.StartTime)
                 .ToList();
             

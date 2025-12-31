@@ -626,37 +626,30 @@ public class EventApplicationService : IEventService
     }
 
     /// <summary>
-    ///     获取用户取消参与的活动列表(分页)
+    ///     获取用户取消的活动列表(作为创建者取消的活动)
     /// </summary>
     public async Task<(List<EventResponse> Events, int Total)> GetCancelledEventsByUserAsync(
         Guid userId,
         int page = 1,
         int pageSize = 20)
     {
-        // ✅ 优化方案:使用Repository层过滤,避免N+1查询
-        
-        // 1. 只查询已取消的参与记录
-        var cancelledParticipants = await _participantRepository.GetByUserIdWithStatusAsync(userId, "cancelled");
+        // 查询当前用户作为组织者创建的、状态为 cancelled 的活动
+        var (events, total) = await _eventRepository.GetByOrganizerAsync(
+            userId,
+            status: "cancelled",
+            page: page,
+            pageSize: pageSize);
 
-        if (!cancelledParticipants.Any())
+        if (!events.Any())
         {
             return (new List<EventResponse>(), 0);
         }
 
-        var eventIds = cancelledParticipants.Select(p => p.EventId).ToList();
-
-        // 2. 使用批量查询并分页
-        var (events, total) = await _eventRepository.GetByIdsAsync(
-            eventIds,
-            status: null,  // 不过滤状态,显示所有已取消参与的活动
-            page: page,
-            pageSize: pageSize);
-
-        // 3. 转换为 DTO
+        // 转换为 DTO
         var responses = await Task.WhenAll(events.Select(e => MapToResponseAsync(e)));
         var responsesList = responses.ToList();
 
-        // 4. 批量获取关联数据
+        // 批量获取关联数据
         await EnrichEventResponsesWithRelatedDataAsync(responsesList);
 
         return (responsesList, total);

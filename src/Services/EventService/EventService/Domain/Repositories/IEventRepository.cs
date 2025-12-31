@@ -65,4 +65,13 @@ public interface IEventRepository
         string? status = null,
         int page = 1,
         int pageSize = 20);
+
+    /// <summary>
+    ///     获取用户作为组织者创建的活动（支持状态过滤和分页）
+    /// </summary>
+    Task<(List<Event> Events, int Total)> GetByOrganizerAsync(
+        Guid organizerId,
+        string? status = null,
+        int page = 1,
+        int pageSize = 20);
 }
