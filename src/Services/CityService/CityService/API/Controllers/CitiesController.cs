@@ -191,6 +191,37 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
+    ///     Get popular cities
+    ///     GET /api/v1/cities/popular?limit=10
+    /// </summary>
+    [HttpGet("popular")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<IEnumerable<CityDto>>>> GetPopularCities([FromQuery] int limit = 10)
+    {
+        try
+        {
+            var userId = _currentUser.TryGetUserId();
+            var cities = await _cityService.GetPopularCitiesAsync(limit, userId);
+            return Ok(new ApiResponse<IEnumerable<CityDto>>
+            {
+                Success = true,
+                Message = "Popular cities retrieved successfully",
+                Data = cities.ToList()
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting popular cities");
+            return StatusCode(500, new ApiResponse<IEnumerable<CityDto>>
+            {
+                Success = false,
+                Message = "An error occurred while retrieving popular cities",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
     ///     Get cities by country ID (Query parameter approach)
     ///     GET /api/v1/cities?countryId={guid}
     /// </summary>

@@ -239,6 +239,17 @@ public class CityApplicationService : ICityService
         return cityDtos;
     }
 
+    public async Task<IEnumerable<CityDto>> GetPopularCitiesAsync(int limit, Guid? userId = null)
+    {
+        var cities = await _cityRepository.GetPopularAsync(limit);
+        var cityDtos = cities.Select(MapToDto).ToList();
+
+        // 填充收藏状态
+        if (userId.HasValue) await EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value);
+
+        return cityDtos;
+    }
+
     public async Task<CityStatisticsDto?> GetCityStatisticsAsync(Guid id)
     {
         var city = await _cityRepository.GetByIdAsync(id);

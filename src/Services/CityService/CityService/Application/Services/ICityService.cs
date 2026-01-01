@@ -17,6 +17,7 @@ public interface ICityService
     Task<bool> DeleteCityAsync(Guid id);
     Task<int> GetTotalCountAsync();
     Task<IEnumerable<CityDto>> GetRecommendedCitiesAsync(int count, Guid? userId = null);
+    Task<IEnumerable<CityDto>> GetPopularCitiesAsync(int limit, Guid? userId = null);
     Task<CityStatisticsDto?> GetCityStatisticsAsync(Guid id);
     Task<IEnumerable<CountryCitiesDto>> GetCitiesGroupedByCountryAsync();
     Task<IEnumerable<CitySummaryDto>> GetCitiesByCountryIdAsync(Guid countryId);

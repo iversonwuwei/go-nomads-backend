@@ -424,6 +424,21 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         return response.Models;
     }
 
+    public async Task<IEnumerable<City>> GetPopularAsync(int limit)
+    {
+        // 热门城市按照评分、社区活跃度排序
+        var response = await SupabaseClient
+            .From<City>()
+            .Filter("is_active", Constants.Operator.Equals, "true")
+            .Order(x => x.OverallScore!, Constants.Ordering.Descending)
+            .Order(x => x.CommunityScore!, Constants.Ordering.Descending)
+            .Order(x => x.Name, Constants.Ordering.Ascending)
+            .Limit(limit)
+            .Get();
+
+        return response.Models;
+    }
+
     public async Task<IEnumerable<City>> GetByCountryAsync(string countryName)
     {
         var response = await SupabaseClient
