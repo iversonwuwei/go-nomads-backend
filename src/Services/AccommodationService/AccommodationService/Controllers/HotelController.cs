@@ -101,7 +101,8 @@ public class HotelController : ControllerBase
 
         try
         {
-            var hotel = await _hotelService.UpdateAsync(id, request, userId.Value);
+            var isAdmin = _currentUser.IsAdmin();
+            var hotel = await _hotelService.UpdateAsync(id, request, userId.Value, isAdmin);
             if (hotel == null)
             {
                 return NotFound(new { message = "Hotel not found" });
@@ -110,7 +111,7 @@ public class HotelController : ControllerBase
         }
         catch (UnauthorizedAccessException)
         {
-            return Forbid();
+            return StatusCode(403, new { message = "您没有权限更新此酒店", errors = new[] { "只有酒店创建者或管理员可以更新" } });
         }
         catch (Exception ex)
         {
@@ -120,7 +121,7 @@ public class HotelController : ControllerBase
     }
 
     /// <summary>
-    ///     删除酒店（只有创建者可以删除）
+    ///     删除酒店（只有创建者或管理员可以删除）
     /// </summary>
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult> Delete(Guid id)
@@ -133,7 +134,8 @@ public class HotelController : ControllerBase
 
         try
         {
-            var result = await _hotelService.DeleteAsync(id, userId.Value);
+            var isAdmin = _currentUser.IsAdmin();
+            var result = await _hotelService.DeleteAsync(id, userId.Value, isAdmin);
             if (!result)
             {
                 return NotFound(new { message = "Hotel not found" });
@@ -142,7 +144,7 @@ public class HotelController : ControllerBase
         }
         catch (UnauthorizedAccessException)
         {
-            return Forbid();
+            return StatusCode(403, new { message = "您没有权限删除此酒店", errors = new[] { "只有酒店创建者或管理员可以删除" } });
         }
         catch (Exception ex)
         {

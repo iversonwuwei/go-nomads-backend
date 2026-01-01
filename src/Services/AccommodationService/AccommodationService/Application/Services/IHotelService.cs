@@ -28,14 +28,14 @@ public interface IHotelService
     Task<HotelDto> CreateAsync(CreateHotelRequest request, Guid userId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     更新酒店
+    ///     更新酒店（只有创建者或管理员可以更新）
     /// </summary>
-    Task<HotelDto?> UpdateAsync(Guid id, UpdateHotelRequest request, Guid userId, CancellationToken cancellationToken = default);
+    Task<HotelDto?> UpdateAsync(Guid id, UpdateHotelRequest request, Guid userId, bool isAdmin = false, CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     删除酒店
+    ///     删除酒店（只有创建者或管理员可以删除）
     /// </summary>
-    Task<bool> DeleteAsync(Guid id, Guid userId, CancellationToken cancellationToken = default);
+    Task<bool> DeleteAsync(Guid id, Guid userId, bool isAdmin = false, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     获取用户创建的酒店

@@ -194,7 +194,7 @@ public class HotelReviewController : ControllerBase
         // 检查权限
         if (review.UserId != userId.Value)
         {
-            return Forbid();
+            return StatusCode(403, new { message = "您没有权限修改此评论", errors = new[] { "只有评论作者可以修改" } });
         }
 
         // 验证评分范围
@@ -249,7 +249,7 @@ public class HotelReviewController : ControllerBase
         // 检查权限
         if (review.UserId != userId.Value)
         {
-            return Forbid();
+            return StatusCode(403, new { message = "您没有权限删除此评论", errors = new[] { "只有评论作者可以删除" } });
         }
 
         try

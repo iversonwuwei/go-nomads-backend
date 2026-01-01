@@ -134,7 +134,7 @@ public class HotelApplicationService : IHotelService
         return await GetByIdAsync(created.Id, cancellationToken) ?? MapToDto(created);
     }
 
-    public async Task<HotelDto?> UpdateAsync(Guid id, UpdateHotelRequest request, Guid userId, CancellationToken cancellationToken = default)
+    public async Task<HotelDto?> UpdateAsync(Guid id, UpdateHotelRequest request, Guid userId, bool isAdmin = false, CancellationToken cancellationToken = default)
     {
         var hotel = await _hotelRepository.GetByIdAsync(id, cancellationToken);
         if (hotel == null)
@@ -143,8 +143,8 @@ public class HotelApplicationService : IHotelService
             return null;
         }
 
-        // 验证权限：只有创建者可以更新
-        if (hotel.CreatedBy != userId)
+        // 验证权限：只有创建者或管理员可以更新
+        if (!isAdmin && hotel.CreatedBy != userId)
         {
             _logger.LogWarning("User {UserId} attempted to update hotel {HotelId} created by {CreatedBy}", 
                 userId, id, hotel.CreatedBy);
@@ -249,7 +249,7 @@ public class HotelApplicationService : IHotelService
         return await GetByIdAsync(updated.Id, cancellationToken) ?? MapToDto(updated);
     }
 
-    public async Task<bool> DeleteAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(Guid id, Guid userId, bool isAdmin = false, CancellationToken cancellationToken = default)
     {
         var hotel = await _hotelRepository.GetByIdAsync(id, cancellationToken);
         if (hotel == null)
@@ -257,8 +257,8 @@ public class HotelApplicationService : IHotelService
             return false;
         }
 
-        // 验证权限：只有创建者可以删除
-        if (hotel.CreatedBy != userId)
+        // 验证权限：只有创建者或管理员可以删除
+        if (!isAdmin && hotel.CreatedBy != userId)
         {
             _logger.LogWarning("User {UserId} attempted to delete hotel {HotelId} created by {CreatedBy}", 
                 userId, id, hotel.CreatedBy);
