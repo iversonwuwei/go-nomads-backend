@@ -886,4 +886,48 @@ public class EventApplicationService : IEventService
     }
 
     #endregion
+    
+    #region 城市统计
+
+    /// <summary>
+    ///     批量获取城市活动数量
+    /// </summary>
+    public async Task<Dictionary<string, int>> GetCitiesEventCountsAsync(List<string> cityIds)
+    {
+        var result = new Dictionary<string, int>();
+        
+        if (cityIds.Count == 0)
+            return result;
+
+        try
+        {
+            _logger.LogInformation("📊 批量获取城市活动数量: {Count} 个城市", cityIds.Count);
+
+            // 获取所有指定城市的活动数量
+            foreach (var cityIdStr in cityIds)
+            {
+                if (Guid.TryParse(cityIdStr, out var cityId))
+                {
+                    // 只统计 upcoming 状态的活动
+                    var (events, total) = await _eventRepository.GetListAsync(
+                        cityId: cityId, 
+                        status: "upcoming", 
+                        page: 1, 
+                        pageSize: 1);
+                    
+                    result[cityIdStr] = total;
+                }
+            }
+
+            _logger.LogInformation("✅ 成功获取 {Count} 个城市的活动数量", result.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "批量获取城市活动数量失败");
+        }
+
+        return result;
+    }
+
+    #endregion
 }

@@ -176,4 +176,50 @@ public class CityRatingRepository : ICityRatingRepository
             throw;
         }
     }
+
+    /// <summary>
+    /// 批量获取城市评分总数（去重后的用户数量）
+    /// </summary>
+    public async Task<Dictionary<Guid, int>> GetCityReviewCountsBatchAsync(IEnumerable<Guid> cityIds)
+    {
+        var result = new Dictionary<Guid, int>();
+        var cityIdList = cityIds.ToList();
+        
+        if (!cityIdList.Any())
+            return result;
+
+        try
+        {
+            // 获取所有指定城市的评分
+            var cityIdStrings = cityIdList.Select(id => id.ToString()).ToList();
+            var response = await _supabaseClient
+                .From<CityRating>()
+                .Filter("city_id", Constants.Operator.In, cityIdStrings)
+                .Get();
+
+            if (response?.Models != null)
+            {
+                // 按城市ID分组，每个城市统计唯一用户数量
+                var reviewCounts = response.Models
+                    .GroupBy(r => r.CityId)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.Select(r => r.UserId).Distinct().Count()
+                    );
+
+                foreach (var kvp in reviewCounts)
+                {
+                    result[kvp.Key] = kvp.Value;
+                }
+            }
+
+            _logger.LogInformation("✅ 批量获取城市评分数量: {Count} 个城市", result.Count);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量获取城市评分数量失败");
+            return result;
+        }
+    }
 }

@@ -976,4 +976,42 @@ public class CoworkingApplicationService : ICoworkingService
     }
 
     #endregion
+    
+    #region 城市统计
+
+    /// <summary>
+    ///     批量获取城市 Coworking 空间数量
+    /// </summary>
+    public async Task<Dictionary<string, int>> GetCitiesCoworkingCountsAsync(List<string> cityIds)
+    {
+        var result = new Dictionary<string, int>();
+        
+        if (cityIds.Count == 0)
+            return result;
+
+        try
+        {
+            _logger.LogInformation("📊 批量获取城市 Coworking 数量: {Count} 个城市", cityIds.Count);
+
+            // 获取所有指定城市的 Coworking 数量
+            foreach (var cityIdStr in cityIds)
+            {
+                if (Guid.TryParse(cityIdStr, out var cityId))
+                {
+                    var coworkingSpaces = await _coworkingRepository.GetByCityIdAsync(cityId);
+                    result[cityIdStr] = coworkingSpaces?.Count ?? 0;
+                }
+            }
+
+            _logger.LogInformation("✅ 成功获取 {Count} 个城市的 Coworking 数量", result.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "批量获取城市 Coworking 数量失败");
+        }
+
+        return result;
+    }
+
+    #endregion
 }
