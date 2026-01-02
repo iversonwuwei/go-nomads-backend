@@ -5,7 +5,7 @@ services:
   # Dapr Placement Service (Required for Actors)
   # ============================================================
   dapr-placement:
-    image: daprio/dapr:latest
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/dapr:latest
     container_name: go-nomads-dapr-placement
     command: ["./placement", "-port", "50006"]
     ports:
@@ -43,7 +43,7 @@ services:
       - go-nomads-network
 
   gateway-dapr:
-    image: daprio/daprd:latest
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/daprd:latest
     container_name: go-nomads-gateway-dapr
     command: ["./daprd",
       "--app-id", "gateway",
@@ -87,7 +87,7 @@ services:
       - dapr-placement
 
   user-service-dapr:
-    image: daprio/daprd:latest
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/daprd:latest
     container_name: go-nomads-user-service-dapr
     command: ["./daprd",
       "--app-id", "user-service",
@@ -135,7 +135,7 @@ services:
       - dapr-placement
 
   city-service-dapr:
-    image: daprio/daprd:latest
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/daprd:latest
     container_name: go-nomads-city-service-dapr
     command: ["./daprd",
       "--app-id", "city-service",
@@ -179,7 +179,7 @@ services:
       - dapr-placement
 
   coworking-service-dapr:
-    image: daprio/daprd:latest
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/daprd:latest
     container_name: go-nomads-coworking-service-dapr
     command: ["./daprd",
       "--app-id", "coworking-service",
@@ -222,7 +222,7 @@ services:
       - dapr-placement
 
   cache-service-dapr:
-    image: daprio/daprd:latest
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/daprd:latest
     container_name: go-nomads-cache-service-dapr
     command: ["./daprd",
       "--app-id", "cache-service",
@@ -266,7 +266,7 @@ services:
       - dapr-placement
 
   accommodation-service-dapr:
-    image: daprio/daprd:latest
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/daprd:latest
     container_name: go-nomads-accommodation-service-dapr
     command: ["./daprd",
       "--app-id", "accommodation-service",
@@ -312,7 +312,7 @@ services:
       - dapr-placement
 
   event-service-dapr:
-    image: daprio/daprd:latest
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/daprd:latest
     container_name: go-nomads-event-service-dapr
     command: ["./daprd",
       "--app-id", "event-service",
@@ -355,7 +355,7 @@ services:
       - go-nomads-network
 
   product-service-dapr:
-    image: daprio/daprd:latest
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/daprd:latest
     container_name: go-nomads-product-service-dapr
     command: ["./daprd",
       "--app-id", "product-service",
@@ -414,7 +414,7 @@ services:
       - dapr-placement
 
   ai-service-dapr:
-    image: daprio/daprd:latest
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/daprd:latest
     container_name: go-nomads-ai-service-dapr
     command: ["./daprd",
       "--app-id", "ai-service",
@@ -461,7 +461,7 @@ services:
       - dapr-placement
 
   message-service-dapr:
-    image: daprio/daprd:latest
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/daprd:latest
     container_name: go-nomads-message-service-dapr
     command: ["./daprd",
       "--app-id", "message-service",
@@ -503,7 +503,7 @@ services:
       - dapr-placement
 
   innovation-service-dapr:
-    image: daprio/daprd:latest
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/daprd:latest
     container_name: go-nomads-innovation-service-dapr
     command: ["./daprd",
       "--app-id", "innovation-service",
