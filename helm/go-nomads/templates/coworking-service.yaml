@@ -1,0 +1,3 @@
+{{- if .Values.coworkingService.enabled }}
+{{ include "go-nomads.microservice" (dict "root" . "name" "coworking-service" "config" .Values.coworkingService "component" "backend") }}
+{{- end }}

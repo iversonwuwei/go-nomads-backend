@@ -1,0 +1,13 @@
+apiVersion: v2
+name: go-nomads
+description: A Helm chart for Go-Nomads microservices platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - microservices
+  - go-nomads
+  - digital-nomad
+maintainers:
+  - name: Go-Nomads Team
+    email: team@go-nomads.com

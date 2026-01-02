@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-nomads-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "go-nomads.labels" . | nindent 4 }}
+data:
+  # ASP.NET Core 配置
+  ASPNETCORE_ENVIRONMENT: {{ .Values.config.aspnetcoreEnvironment | quote }}
+  
+  # Redis 配置
+  REDIS_HOST: {{ .Values.config.redis.host | quote }}
+  REDIS_PORT: {{ .Values.config.redis.port | quote }}
+  
+  # RabbitMQ 配置
+  RABBITMQ_HOST: {{ .Values.config.rabbitmq.host | quote }}
+  RABBITMQ_PORT: {{ .Values.config.rabbitmq.port | quote }}
+  RABBITMQ_MANAGEMENT_PORT: {{ .Values.config.rabbitmq.managementPort | quote }}
+  
+  # Elasticsearch 配置
+  ELASTICSEARCH_HOST: {{ .Values.config.elasticsearch.host | quote }}
+  ELASTICSEARCH_PORT: {{ .Values.config.elasticsearch.port | quote }}
+  
+  # Consul 配置
+  CONSUL_HOST: {{ .Values.config.consul.host | quote }}
+  CONSUL_PORT: {{ .Values.config.consul.port | quote }}
+  
+  # Zipkin 配置
+  ZIPKIN_HOST: {{ .Values.config.zipkin.host | quote }}
+  ZIPKIN_PORT: {{ .Values.config.zipkin.port | quote }}
+  
+  # 服务发现配置
+  GATEWAY_URL: {{ .Values.config.serviceUrls.gateway | quote }}
+  USER_SERVICE_URL: {{ .Values.config.serviceUrls.userService | quote }}
+  CITY_SERVICE_URL: {{ .Values.config.serviceUrls.cityService | quote }}
+  COWORKING_SERVICE_URL: {{ .Values.config.serviceUrls.coworkingService | quote }}
+  ACCOMMODATION_SERVICE_URL: {{ .Values.config.serviceUrls.accommodationService | quote }}
+  EVENT_SERVICE_URL: {{ .Values.config.serviceUrls.eventService | quote }}
+  AI_SERVICE_URL: {{ .Values.config.serviceUrls.aiService | quote }}
+  MESSAGE_SERVICE_URL: {{ .Values.config.serviceUrls.messageService | quote }}
+  CACHE_SERVICE_URL: {{ .Values.config.serviceUrls.cacheService | quote }}

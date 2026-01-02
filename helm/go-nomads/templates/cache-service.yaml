@@ -1,0 +1,3 @@
+{{- if .Values.cacheService.enabled }}
+{{ include "go-nomads.microservice" (dict "root" . "name" "cache-service" "config" .Values.cacheService "component" "backend") }}
+{{- end }}
