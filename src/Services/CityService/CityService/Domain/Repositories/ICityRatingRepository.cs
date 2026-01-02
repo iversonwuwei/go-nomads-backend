@@ -27,4 +27,9 @@ public interface ICityRatingRepository
     Task<Dictionary<Guid, double>> GetCityAverageRatingsAsync(Guid cityId);
     Task<CityRating> UpdateAsync(CityRating rating);
     Task DeleteAsync(Guid id);
+    
+    /// <summary>
+    /// 批量获取城市评分总数（去重后的用户数量）
+    /// </summary>
+    Task<Dictionary<Guid, int>> GetCityReviewCountsBatchAsync(IEnumerable<Guid> cityIds);
 }

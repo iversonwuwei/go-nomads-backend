@@ -132,4 +132,13 @@ public interface IEventService
     Task<EventInvitationResponse> GetInvitationAsync(Guid invitationId);
 
     #endregion
+    
+    #region 城市统计
+
+    /// <summary>
+    ///     批量获取城市活动数量
+    /// </summary>
+    Task<Dictionary<string, int>> GetCitiesEventCountsAsync(List<string> cityIds);
+
+    #endregion
 }

@@ -113,4 +113,9 @@ public interface ICoworkingService
     ///     删除评论
     /// </summary>
     Task DeleteCommentAsync(Guid id, Guid userId);
+    
+    /// <summary>
+    ///     批量获取城市 Coworking 空间数量
+    /// </summary>
+    Task<Dictionary<string, int>> GetCitiesCoworkingCountsAsync(List<string> cityIds);
 }

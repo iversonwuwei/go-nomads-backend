@@ -20,6 +20,7 @@ public class CityApplicationService : ICityService
     private readonly IMemoryCache _cache;
     private readonly ICityRepository _cityRepository;
     private readonly ICountryRepository _countryRepository;
+    private readonly ICityRatingRepository _ratingRepository;
     private readonly DaprClient _daprClient;
     private readonly IUserFavoriteCityService _favoriteCityService;
     private readonly ILogger<CityApplicationService> _logger;
@@ -30,6 +31,7 @@ public class CityApplicationService : ICityService
     public CityApplicationService(
         ICityRepository cityRepository,
         ICountryRepository countryRepository,
+        ICityRatingRepository ratingRepository,
         IWeatherService weatherService,
         IUserFavoriteCityService favoriteCityService,
         ICityModeratorRepository moderatorRepository,
@@ -40,6 +42,7 @@ public class CityApplicationService : ICityService
     {
         _cityRepository = cityRepository;
         _countryRepository = countryRepository;
+        _ratingRepository = ratingRepository;
         _weatherService = weatherService;
         _favoriteCityService = favoriteCityService;
         _moderatorRepository = moderatorRepository;
@@ -59,12 +62,13 @@ public class CityApplicationService : ICityService
         var weatherTask = EnrichCitiesWithWeatherAsync(cityDtos);
         var moderatorTask = EnrichCitiesWithModeratorInfoAsync(cityDtos);
         var ratingsAndCostsTask = EnrichCitiesWithRatingsAndCostsAsync(cityDtos);
+        var meetupAndCoworkingTask = EnrichCitiesWithMeetupAndCoworkingCountsAsync(cityDtos);
         var favoriteTask = userId.HasValue
             ? EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value)
             : Task.CompletedTask;
 
         // 等待所有任务完成（即使某些任务失败，其他任务也会继续执行）
-        var allTasks = new[] { weatherTask, moderatorTask, ratingsAndCostsTask, favoriteTask };
+        var allTasks = new[] { weatherTask, moderatorTask, ratingsAndCostsTask, meetupAndCoworkingTask, favoriteTask };
         await Task.WhenAll(allTasks.Select(t => t.ContinueWith(_ => { })));
 
         // 设置用户上下文
@@ -624,6 +628,9 @@ public class CityApplicationService : ICityService
 
             // 🆕 通过 CacheService 批量获取城市平均费用
             var averageCosts = await GetCityCostsFromCacheServiceAsync(cityIds);
+            
+            // 🆕 批量获取城市评论数量（去重后的用户数）
+            var reviewCounts = await _ratingRepository.GetCityReviewCountsBatchAsync(cityIds);
 
             // 填充数据（仅当 CacheService 返回有效值时更新，保留数据库原有排序）
             foreach (var city in cities)
@@ -635,18 +642,162 @@ public class CityApplicationService : ICityService
                 }
                 // AverageCost 可以直接更新
                 city.AverageCost = averageCosts.GetValueOrDefault(city.Id);
+                
+                // 填充 ReviewCount
+                city.ReviewCount = reviewCounts.GetValueOrDefault(city.Id);
 
-                _logger.LogDebug("📊 城市 {CityName}({CityId}): OverallScore={OverallScore}, AverageCost={AverageCost}",
-                    city.Name, city.Id, city.OverallScore, city.AverageCost);
+                _logger.LogDebug("📊 城市 {CityName}({CityId}): OverallScore={OverallScore}, AverageCost={AverageCost}, ReviewCount={ReviewCount}",
+                    city.Name, city.Id, city.OverallScore, city.AverageCost, city.ReviewCount);
             }
 
-            _logger.LogInformation("💰 批量填充评分和花费信息完成: {Count} 个城市, 总评分: {ScoreCount} 个, 费用: {CostCount} 个",
-                cities.Count, overallScores.Count, averageCosts.Count);
+            _logger.LogInformation("💰 批量填充评分和花费信息完成: {Count} 个城市, 总评分: {ScoreCount} 个, 费用: {CostCount} 个, 评论: {ReviewCount} 个",
+                cities.Count, overallScores.Count, averageCosts.Count, reviewCounts.Count);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "批量填充评分和花费信息失败");
         }
+    }
+    
+    /// <summary>
+    /// 批量填充城市的 Meetup 和 Coworking 数量
+    /// </summary>
+    private async Task EnrichCitiesWithMeetupAndCoworkingCountsAsync(List<CityDto> cities)
+    {
+        if (cities.Count == 0) return;
+
+        _logger.LogInformation("🔧 开始批量填充 Meetup 和 Coworking 数量: {Count} 个城市", cities.Count);
+
+        try
+        {
+            var cityIds = cities.Select(c => c.Id).ToList();
+
+            // 并行获取 Meetup 和 Coworking 数量
+            var meetupCountsTask = GetMeetupCountsFromEventServiceAsync(cityIds);
+            var coworkingCountsTask = GetCoworkingCountsFromCoworkingServiceAsync(cityIds);
+
+            await Task.WhenAll(meetupCountsTask, coworkingCountsTask);
+
+            var meetupCounts = await meetupCountsTask;
+            var coworkingCounts = await coworkingCountsTask;
+
+            // 填充数据
+            foreach (var city in cities)
+            {
+                city.MeetupCount = meetupCounts.GetValueOrDefault(city.Id);
+                city.CoworkingCount = coworkingCounts.GetValueOrDefault(city.Id);
+            }
+
+            _logger.LogInformation("✅ 批量填充 Meetup 和 Coworking 数量完成: Meetup={MeetupCount} 个城市, Coworking={CoworkingCount} 个城市",
+                meetupCounts.Count, coworkingCounts.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "批量填充 Meetup 和 Coworking 数量失败");
+        }
+    }
+
+    /// <summary>
+    /// 从 EventService 批量获取城市 Meetup 数量
+    /// </summary>
+    private async Task<Dictionary<Guid, int>> GetMeetupCountsFromEventServiceAsync(List<Guid> cityIds)
+    {
+        var counts = new Dictionary<Guid, int>();
+
+        if (cityIds.Count == 0) return counts;
+
+        try
+        {
+            _logger.LogDebug("🔍 通过 EventService 批量获取城市 Meetup 数量: {Count} 个城市", cityIds.Count);
+
+            // 调用 EventService 的批量获取接口
+            var cityIdStrings = cityIds.Select(id => id.ToString()).ToList();
+            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchCountResponse>(
+                HttpMethod.Post,
+                "event-service",
+                "api/v1/events/cities/counts",
+                cityIdStrings
+            );
+
+            if (response?.Counts != null)
+            {
+                foreach (var item in response.Counts)
+                {
+                    if (Guid.TryParse(item.CityId, out var cityId))
+                    {
+                        counts[cityId] = item.Count;
+                    }
+                }
+
+                _logger.LogInformation("✅ 成功获取城市 Meetup 数量: {Count} 个城市", counts.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 从 EventService 获取 Meetup 数量失败");
+        }
+
+        return counts;
+    }
+
+    /// <summary>
+    /// 从 CoworkingService 批量获取城市 Coworking 数量
+    /// </summary>
+    private async Task<Dictionary<Guid, int>> GetCoworkingCountsFromCoworkingServiceAsync(List<Guid> cityIds)
+    {
+        var counts = new Dictionary<Guid, int>();
+
+        if (cityIds.Count == 0) return counts;
+
+        try
+        {
+            _logger.LogDebug("🔍 通过 CoworkingService 批量获取城市 Coworking 数量: {Count} 个城市", cityIds.Count);
+
+            // 调用 CoworkingService 的批量获取接口
+            var cityIdStrings = cityIds.Select(id => id.ToString()).ToList();
+            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchCountResponse>(
+                HttpMethod.Post,
+                "coworking-service",
+                "api/v1/coworking/cities/counts",
+                cityIdStrings
+            );
+
+            if (response?.Counts != null)
+            {
+                foreach (var item in response.Counts)
+                {
+                    if (Guid.TryParse(item.CityId, out var cityId))
+                    {
+                        counts[cityId] = item.Count;
+                    }
+                }
+
+                _logger.LogInformation("✅ 成功获取城市 Coworking 数量: {Count} 个城市", counts.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 从 CoworkingService 获取 Coworking 数量失败");
+        }
+
+        return counts;
+    }
+
+    /// <summary>
+    /// 批量获取数量响应模型
+    /// </summary>
+    private class BatchCountResponse
+    {
+        public List<CityCountItem> Counts { get; set; } = new();
+    }
+
+    /// <summary>
+    /// 城市数量项模型
+    /// </summary>
+    private class CityCountItem
+    {
+        public string CityId { get; set; } = string.Empty;
+        public int Count { get; set; }
     }
 
     /// <summary>
