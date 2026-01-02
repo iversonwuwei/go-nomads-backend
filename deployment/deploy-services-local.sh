@@ -296,7 +296,7 @@ deploy_service_local() {
         --network "container:go-nomads-$service_name" \
         --label "com.docker.compose.project=go-nomads" \
         --label "com.docker.compose.service=$service_name-dapr" \
-        daprio/daprd:latest \
+        swr.ap-southeast-3.myhuaweicloud.com/go-nomads/daprd:latest \
         ./daprd \
         --app-id "$app_id" \
         --app-port 8080 \

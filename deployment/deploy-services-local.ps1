@@ -274,7 +274,7 @@ foreach ($svc in $services) {
     # 应用和 Dapr 通过 localhost 通信，端口已在应用容器暴露
     Write-Host "  启动 Dapr sidecar (container sidecar 模式)..." -ForegroundColor Yellow
     
-    & $RUNTIME run -d --name $dapr --network "container:$container" --label "com.docker.compose.project=go-nomads" --label "com.docker.compose.service=$($svc.Name)-dapr" daprio/daprd:latest ./daprd --app-id $svc.AppId --app-port 8080 --dapr-http-port $svc.DaprPort --dapr-grpc-port 50001 --log-level info | Out-Null
+    & $RUNTIME run -d --name $dapr --network "container:$container" --label "com.docker.compose.project=go-nomads" --label "com.docker.compose.service=$($svc.Name)-dapr" swr.ap-southeast-3.myhuaweicloud.com/go-nomads/daprd:latest ./daprd --app-id $svc.AppId --app-port 8080 --dapr-http-port $svc.DaprPort --dapr-grpc-port 50001 --log-level info | Out-Null
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  [错误] Dapr sidecar 启动失败" -ForegroundColor Red
