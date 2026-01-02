@@ -1,0 +1,3 @@
+{{- if .Values.aiService.enabled }}
+{{ include "go-nomads.microservice" (dict "root" . "name" "ai-service" "config" .Values.aiService "component" "ai") }}
+{{- end }}

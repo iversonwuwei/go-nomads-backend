@@ -1,0 +1,1273 @@
+---
+# Source: go-nomads/templates/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: go-nomads
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: go-nomads-platform
+---
+# Source: go-nomads/templates/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: go-nomads-secrets
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: go-nomads
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: go-nomads-platform
+type: Opaque
+stringData:
+  # RabbitMQ 凭证
+  RABBITMQ_DEFAULT_USER: "guest"
+  RABBITMQ_DEFAULT_PASS: "guest"
+  
+  # Grafana 凭证
+  GF_SECURITY_ADMIN_PASSWORD: "admin"
+  
+  # 数据库连接字符串
+  DATABASE_CONNECTION_STRING: "Host=postgres-service;Port=5432;Database=go_nomads;Username=postgres;Password=changeme"
+  
+  # Redis 连接字符串
+  REDIS_CONNECTION_STRING: "redis-service:6379,abortConnect=false"
+  
+  # Supabase 配置
+  SUPABASE_URL: "https://your-project.supabase.co"
+  SUPABASE_KEY: "your-supabase-key"
+  SUPABASE_SERVICE_ROLE_KEY: "your-service-role-key"
+  
+  # AI API Keys
+  OPENAI_API_KEY: ""
+  QIANWEN_API_KEY: ""
+  DEEPSEEK_API_KEY: ""
+---
+# Source: go-nomads/templates/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: docker-registry-secret
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: go-nomads
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: go-nomads-platform
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: e30=
+---
+# Source: go-nomads/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-nomads-config
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: go-nomads
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: go-nomads-platform
+data:
+  # ASP.NET Core 配置
+  ASPNETCORE_ENVIRONMENT: "Production"
+  
+  # Redis 配置
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  
+  # RabbitMQ 配置
+  RABBITMQ_HOST: "rabbitmq-service"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_MANAGEMENT_PORT: "15672"
+  
+  # Elasticsearch 配置
+  ELASTICSEARCH_HOST: "elasticsearch-service"
+  ELASTICSEARCH_PORT: "9200"
+  
+  # Consul 配置
+  CONSUL_HOST: "consul-service"
+  CONSUL_PORT: "8500"
+  
+  # Zipkin 配置
+  ZIPKIN_HOST: "zipkin-service"
+  ZIPKIN_PORT: "9411"
+  
+  # 服务发现配置
+  GATEWAY_URL: "http://gateway-service:80"
+  USER_SERVICE_URL: "http://user-service:80"
+  CITY_SERVICE_URL: "http://city-service:8002"
+  COWORKING_SERVICE_URL: "http://coworking-service:8003"
+  ACCOMMODATION_SERVICE_URL: "http://accommodation-service:8004"
+  EVENT_SERVICE_URL: "http://event-service:8005"
+  AI_SERVICE_URL: "http://ai-service:8080"
+  MESSAGE_SERVICE_URL: "http://message-service:8010"
+  CACHE_SERVICE_URL: "http://cache-service:8011"
+---
+# Source: go-nomads/templates/accommodation-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: accommodation-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: accommodation-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8004
+      targetPort: 8004
+      name: http
+  selector:
+    app: accommodation-service
+---
+# Source: go-nomads/templates/ai-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: ai-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: ai
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  selector:
+    app: ai-service
+---
+# Source: go-nomads/templates/cache-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: cache-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8011
+      targetPort: 8011
+      name: http
+  selector:
+    app: cache-service
+---
+# Source: go-nomads/templates/city-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: city-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: city-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8002
+      targetPort: 8002
+      name: http
+  selector:
+    app: city-service
+---
+# Source: go-nomads/templates/coworking-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: coworking-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: coworking-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8003
+      targetPort: 8003
+      name: http
+  selector:
+    app: coworking-service
+---
+# Source: go-nomads/templates/event-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: event-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8005
+      targetPort: 8005
+      name: http
+  selector:
+    app: event-service
+---
+# Source: go-nomads/templates/gateway.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: api-gateway
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http
+  selector:
+    app: gateway
+---
+# Source: go-nomads/templates/message-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: message-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: message-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8010
+      targetPort: 8010
+      name: http
+  selector:
+    app: message-service
+---
+# Source: go-nomads/templates/rabbitmq.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: messaging
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5672
+      targetPort: 5672
+      name: amqp
+    - port: 15672
+      targetPort: 15672
+      name: management
+  selector:
+    app: rabbitmq
+---
+# Source: go-nomads/templates/redis.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+  selector:
+    app: redis
+---
+# Source: go-nomads/templates/user-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: user-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http
+  selector:
+    app: user-service
+---
+# Source: go-nomads/templates/accommodation-service.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: accommodation-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: accommodation-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: accommodation-service
+  template:
+    metadata:
+      labels:
+        app: accommodation-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8004"
+        prometheus.io/path: "/metrics"
+    spec:
+      
+      imagePullSecrets:
+        - name: docker-registry-secret
+      containers:
+        - name: accommodation-service
+          image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/go-nomads-accommodation-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8004
+              name: http
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ASPNETCORE_ENVIRONMENT
+            - name: ASPNETCORE_URLS
+              value: "http://+:8004"
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: DATABASE_CONNECTION_STRING
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: REDIS_CONNECTION_STRING
+            - name: Supabase__Url
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_URL
+            - name: Supabase__Key
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_KEY
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8004
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8004
+            initialDelaySeconds: 30
+            periodSeconds: 15
+---
+# Source: go-nomads/templates/ai-service.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: ai-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: ai
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-service
+  template:
+    metadata:
+      labels:
+        app: ai-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      
+      imagePullSecrets:
+        - name: docker-registry-secret
+      containers:
+        - name: ai-service
+          image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/go-nomads-ai-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ASPNETCORE_ENVIRONMENT
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: DATABASE_CONNECTION_STRING
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: REDIS_CONNECTION_STRING
+            - name: Supabase__Url
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_URL
+            - name: Supabase__Key
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_KEY
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+---
+# Source: go-nomads/templates/cache-service.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cache-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: cache-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cache-service
+  template:
+    metadata:
+      labels:
+        app: cache-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8011"
+        prometheus.io/path: "/metrics"
+    spec:
+      
+      imagePullSecrets:
+        - name: docker-registry-secret
+      containers:
+        - name: cache-service
+          image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/go-nomads-cache-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8011
+              name: http
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ASPNETCORE_ENVIRONMENT
+            - name: ASPNETCORE_URLS
+              value: "http://+:8011"
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: DATABASE_CONNECTION_STRING
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: REDIS_CONNECTION_STRING
+            - name: Supabase__Url
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_URL
+            - name: Supabase__Key
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_KEY
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8011
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8011
+            initialDelaySeconds: 30
+            periodSeconds: 15
+---
+# Source: go-nomads/templates/city-service.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: city-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: city-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: city-service
+  template:
+    metadata:
+      labels:
+        app: city-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8002"
+        prometheus.io/path: "/metrics"
+    spec:
+      
+      imagePullSecrets:
+        - name: docker-registry-secret
+      containers:
+        - name: city-service
+          image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/go-nomads-city-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8002
+              name: http
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ASPNETCORE_ENVIRONMENT
+            - name: ASPNETCORE_URLS
+              value: "http://+:8002"
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: DATABASE_CONNECTION_STRING
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: REDIS_CONNECTION_STRING
+            - name: Supabase__Url
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_URL
+            - name: Supabase__Key
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_KEY
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 30
+            periodSeconds: 15
+---
+# Source: go-nomads/templates/coworking-service.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coworking-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: coworking-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coworking-service
+  template:
+    metadata:
+      labels:
+        app: coworking-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8003"
+        prometheus.io/path: "/metrics"
+    spec:
+      
+      imagePullSecrets:
+        - name: docker-registry-secret
+      containers:
+        - name: coworking-service
+          image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/go-nomads-coworking-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8003
+              name: http
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ASPNETCORE_ENVIRONMENT
+            - name: ASPNETCORE_URLS
+              value: "http://+:8003"
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: DATABASE_CONNECTION_STRING
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: REDIS_CONNECTION_STRING
+            - name: Supabase__Url
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_URL
+            - name: Supabase__Key
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_KEY
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8003
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8003
+            initialDelaySeconds: 30
+            periodSeconds: 15
+---
+# Source: go-nomads/templates/event-service.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: event-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: event-service
+  template:
+    metadata:
+      labels:
+        app: event-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8005"
+        prometheus.io/path: "/metrics"
+    spec:
+      
+      imagePullSecrets:
+        - name: docker-registry-secret
+      containers:
+        - name: event-service
+          image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/go-nomads-event-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8005
+              name: http
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ASPNETCORE_ENVIRONMENT
+            - name: ASPNETCORE_URLS
+              value: "http://+:8005"
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: DATABASE_CONNECTION_STRING
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: REDIS_CONNECTION_STRING
+            - name: Supabase__Url
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_URL
+            - name: Supabase__Key
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_KEY
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8005
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8005
+            initialDelaySeconds: 30
+            periodSeconds: 15
+---
+# Source: go-nomads/templates/gateway.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: api-gateway
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      
+      imagePullSecrets:
+        - name: docker-registry-secret
+      containers:
+        - name: gateway
+          image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/go-nomads-gateway:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ASPNETCORE_ENVIRONMENT
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: REDIS_CONNECTION_STRING
+            - name: ServiceUrls__UserService
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: USER_SERVICE_URL
+            - name: ServiceUrls__CityService
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: CITY_SERVICE_URL
+            - name: ServiceUrls__CoworkingService
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: COWORKING_SERVICE_URL
+            - name: ServiceUrls__AccommodationService
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ACCOMMODATION_SERVICE_URL
+            - name: ServiceUrls__EventService
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: EVENT_SERVICE_URL
+            - name: ServiceUrls__AIService
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: AI_SERVICE_URL
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+---
+# Source: go-nomads/templates/message-service.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: message-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: message-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: message-service
+  template:
+    metadata:
+      labels:
+        app: message-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8010"
+        prometheus.io/path: "/metrics"
+    spec:
+      
+      imagePullSecrets:
+        - name: docker-registry-secret
+      containers:
+        - name: message-service
+          image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/go-nomads-message-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8010
+              name: http
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ASPNETCORE_ENVIRONMENT
+            - name: ASPNETCORE_URLS
+              value: "http://+:8010"
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: DATABASE_CONNECTION_STRING
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: REDIS_CONNECTION_STRING
+            - name: Supabase__Url
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_URL
+            - name: Supabase__Key
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_KEY
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8010
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8010
+            initialDelaySeconds: 30
+            periodSeconds: 15
+---
+# Source: go-nomads/templates/rabbitmq.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: messaging
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: "rabbitmq:3-management-alpine"
+          ports:
+            - containerPort: 5672
+              name: amqp
+            - containerPort: 15672
+              name: management
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: RABBITMQ_DEFAULT_PASS
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          readinessProbe:
+            tcpSocket:
+              port: 5672
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 5672
+            initialDelaySeconds: 30
+            periodSeconds: 20
+---
+# Source: go-nomads/templates/redis.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: "redis:7-alpine"
+          ports:
+            - containerPort: 6379
+          command:
+            - redis-server
+            - --appendonly
+            - "yes"
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          readinessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+# Source: go-nomads/templates/user-service.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: default
+  labels:
+    helm.sh/chart: go-nomads-1.0.0
+    app.kubernetes.io/name: user-service
+    app.kubernetes.io/instance: go-nomads
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: go-nomads-platform
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "80"
+        prometheus.io/path: "/metrics"
+    spec:
+      
+      imagePullSecrets:
+        - name: docker-registry-secret
+      containers:
+        - name: user-service
+          image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/go-nomads-user-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+              name: http
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: go-nomads-config
+                  key: ASPNETCORE_ENVIRONMENT
+            - name: ASPNETCORE_URLS
+              value: "http://+:80"
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: DATABASE_CONNECTION_STRING
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: REDIS_CONNECTION_STRING
+            - name: Supabase__Url
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_URL
+            - name: Supabase__Key
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: SUPABASE_KEY
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 15

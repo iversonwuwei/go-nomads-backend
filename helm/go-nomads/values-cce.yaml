@@ -1,0 +1,188 @@
+# Go-Nomads Helm Chart - CCE Production Values
+# 针对华为云 CCE 优化的配置
+
+global:
+  namespace: default  # CCE 使用 default namespace
+  imageRegistry: swr.ap-southeast-3.myhuaweicloud.com/go-nomads
+  imageTag: latest
+  imagePullPolicy: Always
+  imagePullSecrets:
+    - name: docker-registry-secret
+  environment: Production
+
+# 降低资源配置以适应小型集群
+gateway:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  autoscaling:
+    enabled: false
+  ingress:
+    enabled: false  # CCE 可能需要单独配置 ELB
+
+userService:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  autoscaling:
+    enabled: false
+
+cityService:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  autoscaling:
+    enabled: false
+
+coworkingService:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  autoscaling:
+    enabled: false
+
+accommodationService:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  autoscaling:
+    enabled: false
+
+eventService:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  autoscaling:
+    enabled: false
+
+aiService:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  autoscaling:
+    enabled: false
+
+messageService:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  autoscaling:
+    enabled: false
+
+cacheService:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  autoscaling:
+    enabled: false
+
+# 基础设施 - 使用最小资源
+redis:
+  enabled: true
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+  persistence:
+    enabled: false  # CCE 需要单独配置存储类
+
+rabbitmq:
+  enabled: true
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  persistence:
+    enabled: false
+
+# 监控 - 默认禁用
+elasticsearch:
+  enabled: false
+
+consul:
+  enabled: false
+
+prometheus:
+  enabled: false
+
+grafana:
+  enabled: false
+
+zipkin:
+  enabled: false
+
+# Secrets - 部署时需要覆盖这些值
+secrets:
+  databaseConnectionString: "Host=postgres-service;Port=5432;Database=go_nomads;Username=postgres;Password=changeme"
+  redisConnectionString: "redis-service:6379,abortConnect=false"
+  rabbitmqUser: "guest"
+  rabbitmqPassword: "guest"
+  supabaseUrl: "https://your-project.supabase.co"
+  supabaseKey: "your-supabase-key"
+  supabaseServiceRoleKey: "your-service-role-key"
+  openaiApiKey: ""
+  qianwenApiKey: ""
+  deepseekApiKey: ""
+  grafanaAdminPassword: "admin"
+  # 需要替换为实际的 SWR 凭证
+  dockerConfigJson: "e30="
