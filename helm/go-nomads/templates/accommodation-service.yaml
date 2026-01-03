@@ -1,3 +1,0 @@
-{{- if .Values.accommodationService.enabled }}
-{{ include "go-nomads.microservice" (dict "root" . "name" "accommodation-service" "config" .Values.accommodationService "component" "backend") }}
-{{- end }}

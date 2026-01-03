@@ -1,3 +1,0 @@
-{{- if .Values.cityService.enabled }}
-{{ include "go-nomads.microservice" (dict "root" . "name" "city-service" "config" .Values.cityService "component" "backend") }}
-{{- end }}

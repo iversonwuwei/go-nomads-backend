@@ -1,0 +1,102 @@
+{{- if .Values.consul.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consul
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "go-nomads-infra.componentLabels" (dict "root" . "name" "consul" "component" "service-discovery") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "go-nomads-infra.selectorLabels" (dict "name" "consul") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "go-nomads-infra.selectorLabels" (dict "name" "consul") | nindent 8 }}
+    spec:
+      containers:
+        - name: consul
+          image: "{{ .Values.consul.image.repository }}:{{ .Values.consul.image.tag }}"
+          ports:
+            - containerPort: 8500
+              name: http
+            - containerPort: 8502
+              name: grpc
+            - containerPort: 8600
+              name: dns
+              protocol: UDP
+          args:
+            - agent
+            - -server
+            - -bootstrap-expect=1
+            - -ui
+            - -client=0.0.0.0
+            - -bind=0.0.0.0
+          resources:
+            {{- toYaml .Values.consul.resources | nindent 12 }}
+          {{- if .Values.consul.persistence.enabled }}
+          volumeMounts:
+            - name: consul-data
+              mountPath: /consul/data
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /v1/status/leader
+              port: 8500
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /v1/status/leader
+              port: 8500
+            initialDelaySeconds: 30
+            periodSeconds: 20
+      {{- if .Values.consul.persistence.enabled }}
+      volumes:
+        - name: consul-data
+          persistentVolumeClaim:
+            claimName: consul-pvc
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: consul-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "go-nomads-infra.componentLabels" (dict "root" . "name" "consul" "component" "service-discovery") | nindent 4 }}
+spec:
+  type: {{ .Values.consul.service.type }}
+  ports:
+    - port: {{ .Values.consul.service.httpPort }}
+      targetPort: 8500
+      name: http
+    - port: {{ .Values.consul.service.grpcPort }}
+      targetPort: 8502
+      name: grpc
+    - port: {{ .Values.consul.service.dnsPort }}
+      targetPort: 8600
+      name: dns
+      protocol: UDP
+  selector:
+    {{- include "go-nomads-infra.selectorLabels" (dict "name" "consul") | nindent 4 }}
+{{- if .Values.consul.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: consul-pvc
+  namespace: {{ .Values.global.namespace }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.consul.persistence.size }}
+  {{- if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+{{- end }}
+{{- end }}

@@ -1,3 +1,0 @@
-{{- if .Values.messageService.enabled }}
-{{ include "go-nomads.microservice" (dict "root" . "name" "message-service" "config" .Values.messageService "component" "backend") }}
-{{- end }}
