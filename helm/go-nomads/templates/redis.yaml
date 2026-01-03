@@ -5,26 +5,27 @@ metadata:
   name: redis
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "go-nomads.componentLabels" (dict "root" . "name" "redis" "component" "cache") | nindent 4 }}
+    {{- include "go-nomads-infra.componentLabels" (dict "root" . "name" "redis" "component" "cache") | nindent 4 }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "go-nomads.componentSelectorLabels" (dict "name" "redis") | nindent 6 }}
+      {{- include "go-nomads-infra.selectorLabels" (dict "name" "redis") | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "go-nomads.componentSelectorLabels" (dict "name" "redis") | nindent 8 }}
+        {{- include "go-nomads-infra.selectorLabels" (dict "name" "redis") | nindent 8 }}
     spec:
       containers:
         - name: redis
           image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
           ports:
             - containerPort: 6379
+              name: redis
+          {{- if .Values.redis.command }}
           command:
-            - redis-server
-            - --appendonly
-            - "yes"
+            {{- toYaml .Values.redis.command | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.redis.resources | nindent 12 }}
           {{- if .Values.redis.persistence.enabled }}
@@ -55,14 +56,15 @@ metadata:
   name: redis-service
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "go-nomads.componentLabels" (dict "root" . "name" "redis" "component" "cache") | nindent 4 }}
+    {{- include "go-nomads-infra.componentLabels" (dict "root" . "name" "redis" "component" "cache") | nindent 4 }}
 spec:
   type: {{ .Values.redis.service.type }}
   ports:
     - port: {{ .Values.redis.service.port }}
       targetPort: 6379
+      name: redis
   selector:
-    {{- include "go-nomads.componentSelectorLabels" (dict "name" "redis") | nindent 4 }}
+    {{- include "go-nomads-infra.selectorLabels" (dict "name" "redis") | nindent 4 }}
 {{- if .Values.redis.persistence.enabled }}
 ---
 apiVersion: v1
@@ -76,8 +78,8 @@ spec:
   resources:
     requests:
       storage: {{ .Values.redis.persistence.size }}
-  {{- if .Values.redis.persistence.storageClass }}
-  storageClassName: {{ .Values.redis.persistence.storageClass }}
+  {{- if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
   {{- end }}
 {{- end }}
 {{- end }}

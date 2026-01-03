@@ -5,16 +5,16 @@ metadata:
   name: rabbitmq
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "go-nomads.componentLabels" (dict "root" . "name" "rabbitmq" "component" "messaging") | nindent 4 }}
+    {{- include "go-nomads-infra.componentLabels" (dict "root" . "name" "rabbitmq" "component" "messaging") | nindent 4 }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "go-nomads.componentSelectorLabels" (dict "name" "rabbitmq") | nindent 6 }}
+      {{- include "go-nomads-infra.selectorLabels" (dict "name" "rabbitmq") | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "go-nomads.componentSelectorLabels" (dict "name" "rabbitmq") | nindent 8 }}
+        {{- include "go-nomads-infra.selectorLabels" (dict "name" "rabbitmq") | nindent 8 }}
     spec:
       containers:
         - name: rabbitmq
@@ -26,15 +26,9 @@ spec:
               name: management
           env:
             - name: RABBITMQ_DEFAULT_USER
-              valueFrom:
-                secretKeyRef:
-                  name: go-nomads-secrets
-                  key: RABBITMQ_DEFAULT_USER
+              value: {{ .Values.rabbitmq.auth.username | quote }}
             - name: RABBITMQ_DEFAULT_PASS
-              valueFrom:
-                secretKeyRef:
-                  name: go-nomads-secrets
-                  key: RABBITMQ_DEFAULT_PASS
+              value: {{ .Values.rabbitmq.auth.password | quote }}
           resources:
             {{- toYaml .Values.rabbitmq.resources | nindent 12 }}
           {{- if .Values.rabbitmq.persistence.enabled }}
@@ -65,18 +59,18 @@ metadata:
   name: rabbitmq-service
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "go-nomads.componentLabels" (dict "root" . "name" "rabbitmq" "component" "messaging") | nindent 4 }}
+    {{- include "go-nomads-infra.componentLabels" (dict "root" . "name" "rabbitmq" "component" "messaging") | nindent 4 }}
 spec:
   type: {{ .Values.rabbitmq.service.type }}
   ports:
-    - port: {{ .Values.rabbitmq.service.port }}
+    - port: {{ .Values.rabbitmq.service.amqpPort }}
       targetPort: 5672
       name: amqp
     - port: {{ .Values.rabbitmq.service.managementPort }}
       targetPort: 15672
       name: management
   selector:
-    {{- include "go-nomads.componentSelectorLabels" (dict "name" "rabbitmq") | nindent 4 }}
+    {{- include "go-nomads-infra.selectorLabels" (dict "name" "rabbitmq") | nindent 4 }}
 {{- if .Values.rabbitmq.persistence.enabled }}
 ---
 apiVersion: v1
@@ -90,8 +84,8 @@ spec:
   resources:
     requests:
       storage: {{ .Values.rabbitmq.persistence.size }}
-  {{- if .Values.rabbitmq.persistence.storageClass }}
-  storageClassName: {{ .Values.rabbitmq.persistence.storageClass }}
+  {{- if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
   {{- end }}
 {{- end }}
 {{- end }}

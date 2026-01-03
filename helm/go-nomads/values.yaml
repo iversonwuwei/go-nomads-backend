@@ -1,302 +1,12 @@
-# Go-Nomads Helm Chart Values
+# Go-Nomads Infrastructure Helm Chart Values
+# 仅包含基础设施组件（对应 docker-compose-infras.yml）
+
 # 全局配置
 global:
-  # 命名空间
   namespace: go-nomads
-  
-  # Docker Registry 配置
-  imageRegistry: swr.ap-southeast-3.myhuaweicloud.com/go-nomads
-  imageTag: latest
-  imagePullPolicy: Always
-  
-  # 镜像拉取密钥
-  imagePullSecrets:
-    - name: docker-registry-secret
-  
-  # 环境
-  environment: Production
+  storageClass: ""  # 使用默认存储类
 
-# ConfigMap 配置
-config:
-  aspnetcoreEnvironment: "Production"
-  redis:
-    host: "redis-service"
-    port: "6379"
-  rabbitmq:
-    host: "rabbitmq-service"
-    port: "5672"
-    managementPort: "15672"
-  elasticsearch:
-    host: "elasticsearch-service"
-    port: "9200"
-  consul:
-    host: "consul-service"
-    port: "8500"
-  zipkin:
-    host: "zipkin-service"
-    port: "9411"
-  # 服务 URLs (自动生成)
-  serviceUrls:
-    gateway: "http://gateway-service:80"
-    userService: "http://user-service:80"
-    cityService: "http://city-service:8002"
-    coworkingService: "http://coworking-service:8003"
-    accommodationService: "http://accommodation-service:8004"
-    eventService: "http://event-service:8005"
-    aiService: "http://ai-service:8080"
-    messageService: "http://message-service:8010"
-    cacheService: "http://cache-service:8011"
-
-# Secrets 配置 (部署时覆盖)
-secrets:
-  # 数据库
-  databaseConnectionString: "Host=postgres-service;Port=5432;Database=go_nomads;Username=postgres;Password=changeme"
-  # Redis
-  redisConnectionString: "redis-service:6379,abortConnect=false"
-  # RabbitMQ
-  rabbitmqUser: "guest"
-  rabbitmqPassword: "guest"
-  # Supabase
-  supabaseUrl: "https://your-project.supabase.co"
-  supabaseKey: "your-supabase-key"
-  supabaseServiceRoleKey: "your-service-role-key"
-  # AI Keys
-  openaiApiKey: ""
-  qianwenApiKey: ""
-  deepseekApiKey: ""
-  # Grafana
-  grafanaAdminPassword: "admin"
-  # Docker Registry (base64 encoded)
-  dockerConfigJson: "e30="
-
-# ============ 服务配置 ============
-
-# Gateway
-gateway:
-  enabled: true
-  replicaCount: 2
-  image:
-    repository: go-nomads-gateway
-    tag: ""  # 使用 global.imageTag
-  service:
-    type: ClusterIP
-    port: 80
-    targetPort: 8080
-  resources:
-    requests:
-      memory: "256Mi"
-      cpu: "100m"
-    limits:
-      memory: "512Mi"
-      cpu: "500m"
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 70
-  ingress:
-    enabled: true
-    className: nginx
-    host: api.go-nomads.com
-    tls:
-      enabled: true
-      secretName: go-nomads-tls
-
-# User Service
-userService:
-  enabled: true
-  replicaCount: 2
-  image:
-    repository: go-nomads-user-service
-    tag: ""
-  service:
-    type: ClusterIP
-    port: 80
-    targetPort: 80
-  resources:
-    requests:
-      memory: "256Mi"
-      cpu: "100m"
-    limits:
-      memory: "512Mi"
-      cpu: "500m"
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 70
-
-# City Service
-cityService:
-  enabled: true
-  replicaCount: 2
-  image:
-    repository: go-nomads-city-service
-    tag: ""
-  service:
-    type: ClusterIP
-    port: 8002
-    targetPort: 8002
-  resources:
-    requests:
-      memory: "256Mi"
-      cpu: "100m"
-    limits:
-      memory: "512Mi"
-      cpu: "500m"
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 70
-
-# Coworking Service
-coworkingService:
-  enabled: true
-  replicaCount: 2
-  image:
-    repository: go-nomads-coworking-service
-    tag: ""
-  service:
-    type: ClusterIP
-    port: 8003
-    targetPort: 8003
-  resources:
-    requests:
-      memory: "256Mi"
-      cpu: "100m"
-    limits:
-      memory: "512Mi"
-      cpu: "500m"
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 70
-
-# Accommodation Service
-accommodationService:
-  enabled: true
-  replicaCount: 1
-  image:
-    repository: go-nomads-accommodation-service
-    tag: ""
-  service:
-    type: ClusterIP
-    port: 8004
-    targetPort: 8004
-  resources:
-    requests:
-      memory: "256Mi"
-      cpu: "50m"
-    limits:
-      memory: "512Mi"
-      cpu: "500m"
-  autoscaling:
-    enabled: false
-    minReplicas: 1
-    maxReplicas: 3
-    targetCPUUtilizationPercentage: 70
-
-# Event Service
-eventService:
-  enabled: true
-  replicaCount: 2
-  image:
-    repository: go-nomads-event-service
-    tag: ""
-  service:
-    type: ClusterIP
-    port: 8005
-    targetPort: 8005
-  resources:
-    requests:
-      memory: "256Mi"
-      cpu: "100m"
-    limits:
-      memory: "512Mi"
-      cpu: "500m"
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 70
-
-# AI Service
-aiService:
-  enabled: true
-  replicaCount: 2
-  image:
-    repository: go-nomads-ai-service
-    tag: ""
-  service:
-    type: ClusterIP
-    port: 8080
-    targetPort: 8080
-  resources:
-    requests:
-      memory: "512Mi"
-      cpu: "200m"
-    limits:
-      memory: "1Gi"
-      cpu: "1000m"
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 70
-
-# Message Service
-messageService:
-  enabled: true
-  replicaCount: 2
-  image:
-    repository: go-nomads-message-service
-    tag: ""
-  service:
-    type: ClusterIP
-    port: 8010
-    targetPort: 8010
-  resources:
-    requests:
-      memory: "256Mi"
-      cpu: "100m"
-    limits:
-      memory: "512Mi"
-      cpu: "500m"
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 70
-
-# Cache Service
-cacheService:
-  enabled: true
-  replicaCount: 2
-  image:
-    repository: go-nomads-cache-service
-    tag: ""
-  service:
-    type: ClusterIP
-    port: 8011
-    targetPort: 8011
-  resources:
-    requests:
-      memory: "256Mi"
-      cpu: "100m"
-    limits:
-      memory: "512Mi"
-      cpu: "500m"
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 70
-
-# ============ 基础设施 ============
-
-# Redis
+# ============ Redis ============
 redis:
   enabled: true
   image:
@@ -315,9 +25,12 @@ redis:
   persistence:
     enabled: true
     size: 5Gi
-    storageClass: ""  # 使用默认存储类
+  command:
+    - redis-server
+    - --appendonly
+    - "yes"
 
-# RabbitMQ
+# ============ RabbitMQ ============
 rabbitmq:
   enabled: true
   image:
@@ -325,7 +38,7 @@ rabbitmq:
     tag: "3-management-alpine"
   service:
     type: ClusterIP
-    port: 5672
+    amqpPort: 5672
     managementPort: 15672
   resources:
     requests:
@@ -337,17 +50,20 @@ rabbitmq:
   persistence:
     enabled: true
     size: 5Gi
-    storageClass: ""
+  auth:
+    username: guest
+    password: guest
 
-# Elasticsearch
+# ============ Elasticsearch ============
 elasticsearch:
-  enabled: false  # 可选，默认禁用
+  enabled: false  # 默认禁用，资源消耗大
   image:
-    repository: elasticsearch
+    repository: docker.elastic.co/elasticsearch/elasticsearch
     tag: "8.11.0"
   service:
     type: ClusterIP
-    port: 9200
+    httpPort: 9200
+    transportPort: 9300
   resources:
     requests:
       memory: "1Gi"
@@ -358,17 +74,22 @@ elasticsearch:
   persistence:
     enabled: true
     size: 10Gi
-    storageClass: ""
+  env:
+    discoveryType: single-node
+    xpackSecurityEnabled: "false"
+    javaOpts: "-Xms512m -Xmx512m"
 
-# Consul
+# ============ Consul ============
 consul:
-  enabled: false  # 可选，默认禁用
+  enabled: false  # 默认禁用
   image:
-    repository: consul
-    tag: "1.15"
+    repository: hashicorp/consul
+    tag: "latest"
   service:
     type: ClusterIP
-    port: 8500
+    httpPort: 8500
+    grpcPort: 8502
+    dnsPort: 8600
   resources:
     requests:
       memory: "128Mi"
@@ -376,15 +97,33 @@ consul:
     limits:
       memory: "256Mi"
       cpu: "200m"
+  persistence:
+    enabled: true
+    size: 2Gi
 
-# ============ 监控 ============
+# ============ Zipkin ============
+zipkin:
+  enabled: false  # 默认禁用
+  image:
+    repository: openzipkin/zipkin
+    tag: "latest"
+  service:
+    type: ClusterIP
+    port: 9411
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
 
-# Prometheus
+# ============ Prometheus ============
 prometheus:
-  enabled: false
+  enabled: false  # 默认禁用
   image:
     repository: prom/prometheus
-    tag: "v2.47.0"
+    tag: "latest"
   service:
     type: ClusterIP
     port: 9090
@@ -398,14 +137,13 @@ prometheus:
   persistence:
     enabled: true
     size: 10Gi
-    storageClass: ""
 
-# Grafana
+# ============ Grafana ============
 grafana:
-  enabled: false
+  enabled: false  # 默认禁用
   image:
     repository: grafana/grafana
-    tag: "10.1.0"
+    tag: "latest"
   service:
     type: ClusterIP
     port: 3000
@@ -419,21 +157,4 @@ grafana:
   persistence:
     enabled: true
     size: 5Gi
-    storageClass: ""
-
-# Zipkin
-zipkin:
-  enabled: false
-  image:
-    repository: openzipkin/zipkin
-    tag: "2.24"
-  service:
-    type: ClusterIP
-    port: 9411
-  resources:
-    requests:
-      memory: "256Mi"
-      cpu: "100m"
-    limits:
-      memory: "512Mi"
-      cpu: "500m"
+  adminPassword: admin

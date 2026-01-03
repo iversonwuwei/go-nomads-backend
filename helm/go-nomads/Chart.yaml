@@ -1,13 +1,15 @@
 apiVersion: v2
-name: go-nomads
-description: A Helm chart for Go-Nomads microservices platform
+name: go-nomads-infra
+description: A Helm chart for Go-Nomads infrastructure services (Redis, RabbitMQ, Elasticsearch, Consul, Zipkin, Prometheus, Grafana)
 type: application
 version: 1.0.0
 appVersion: "1.0.0"
 keywords:
-  - microservices
-  - go-nomads
-  - digital-nomad
+  - infrastructure
+  - redis
+  - rabbitmq
+  - elasticsearch
+  - monitoring
 maintainers:
   - name: Go-Nomads Team
     email: team@go-nomads.com

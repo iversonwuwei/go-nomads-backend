@@ -1,0 +1,95 @@
+{{- if .Values.elasticsearch.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elasticsearch
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "go-nomads-infra.componentLabels" (dict "root" . "name" "elasticsearch" "component" "search") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "go-nomads-infra.selectorLabels" (dict "name" "elasticsearch") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "go-nomads-infra.selectorLabels" (dict "name" "elasticsearch") | nindent 8 }}
+    spec:
+      containers:
+        - name: elasticsearch
+          image: "{{ .Values.elasticsearch.image.repository }}:{{ .Values.elasticsearch.image.tag }}"
+          ports:
+            - containerPort: 9200
+              name: http
+            - containerPort: 9300
+              name: transport
+          env:
+            - name: discovery.type
+              value: {{ .Values.elasticsearch.env.discoveryType | quote }}
+            - name: xpack.security.enabled
+              value: {{ .Values.elasticsearch.env.xpackSecurityEnabled | quote }}
+            - name: ES_JAVA_OPTS
+              value: {{ .Values.elasticsearch.env.javaOpts | quote }}
+          resources:
+            {{- toYaml .Values.elasticsearch.resources | nindent 12 }}
+          {{- if .Values.elasticsearch.persistence.enabled }}
+          volumeMounts:
+            - name: elasticsearch-data
+              mountPath: /usr/share/elasticsearch/data
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /_cluster/health
+              port: 9200
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_cluster/health
+              port: 9200
+            initialDelaySeconds: 60
+            periodSeconds: 30
+      {{- if .Values.elasticsearch.persistence.enabled }}
+      volumes:
+        - name: elasticsearch-data
+          persistentVolumeClaim:
+            claimName: elasticsearch-pvc
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "go-nomads-infra.componentLabels" (dict "root" . "name" "elasticsearch" "component" "search") | nindent 4 }}
+spec:
+  type: {{ .Values.elasticsearch.service.type }}
+  ports:
+    - port: {{ .Values.elasticsearch.service.httpPort }}
+      targetPort: 9200
+      name: http
+    - port: {{ .Values.elasticsearch.service.transportPort }}
+      targetPort: 9300
+      name: transport
+  selector:
+    {{- include "go-nomads-infra.selectorLabels" (dict "name" "elasticsearch") | nindent 4 }}
+{{- if .Values.elasticsearch.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: elasticsearch-pvc
+  namespace: {{ .Values.global.namespace }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.elasticsearch.persistence.size }}
+  {{- if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+{{- end }}
+{{- end }}

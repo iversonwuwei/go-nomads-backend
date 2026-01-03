@@ -1,14 +1,38 @@
-# Go-Nomads Helm Chart
+# Go-Nomads Infrastructure Helm Chart
 
 ## 概述
 
-本 Helm Chart 用于部署 Go-Nomads 微服务平台到 Kubernetes 集群。
+本 Helm Chart **仅用于部署基础设施服务**（对应 `docker-compose-infras.yml`）。
+
+**业务服务**（`docker-compose.yml` 中定义）继续使用 **Kustomize** 部署（`k8s/` 目录）。
+
+## 部署架构
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    Go-Nomads 部署                    │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  基础设施 (Helm)              业务服务 (Kustomize)   │
+│  ──────────────              ──────────────────     │
+│  • Redis                     • Gateway              │
+│  • RabbitMQ                  • User Service         │
+│  • Elasticsearch             • City Service         │
+│  • Consul                    • Coworking Service    │
+│  • Zipkin                    • Event Service        │
+│  • Prometheus                • AI Service           │
+│  • Grafana                   • Message Service      │
+│                              • Cache Service        │
+│                              • Accommodation Svc    │
+│                                                     │
+│  ./helm-deploy.sh            ./k8s/deploy.sh        │
+└─────────────────────────────────────────────────────┘
+```
 
 ## 前提条件
 
 - Kubernetes 1.23+
 - Helm 3.0+
-- 已配置的镜像仓库（默认: 华为云 SWR）
 
 ## 目录结构
 
@@ -16,166 +40,132 @@
 helm/go-nomads/
 ├── Chart.yaml              # Chart 元数据
 ├── values.yaml             # 默认配置
-├── values-cce.yaml         # 华为云 CCE 配置
-├── templates/
-│   ├── _helpers.tpl        # 模板辅助函数
-│   ├── _microservice.tpl   # 微服务通用模板
-│   ├── namespace.yaml      # 命名空间
-│   ├── configmap.yaml      # 配置映射
-│   ├── secrets.yaml        # 密钥
-│   ├── gateway.yaml        # API 网关
-│   ├── user-service.yaml   # 用户服务
-│   ├── city-service.yaml   # 城市服务
-│   ├── coworking-service.yaml
-│   ├── accommodation-service.yaml
-│   ├── event-service.yaml
-│   ├── ai-service.yaml
-│   ├── message-service.yaml
-│   ├── cache-service.yaml
-│   ├── redis.yaml          # Redis
-│   └── rabbitmq.yaml       # RabbitMQ
+├── values-cce.yaml         # 华为云 CCE 配置（低资源）
+├── .helmignore
+└── templates/
+    ├── _helpers.tpl        # 模板辅助函数
+    ├── redis.yaml          # Redis
+    ├── rabbitmq.yaml       # RabbitMQ
+    ├── elasticsearch.yaml  # Elasticsearch
+    ├── consul.yaml         # Consul
+    ├── zipkin.yaml         # Zipkin
+    ├── prometheus.yaml     # Prometheus
+    └── grafana.yaml        # Grafana
 ```
 
 ## 快速开始
 
-### 1. 安装到本地集群
+### 1. 部署基础设施 (Helm)
 
 ```bash
-# 使用默认配置
-helm install go-nomads ./helm/go-nomads
-
-# 或使用部署脚本
+# 开发环境
 ./helm-deploy.sh dev install
-```
 
-### 2. 部署到华为云 CCE
-
-```bash
-# 设置 SWR 凭证
-export SWR_USERNAME="ap-southeast-3@your-ak"
-export SWR_PASSWORD="your-login-key"
-
-# 部署
+# 华为云 CCE
 ./helm-deploy.sh cce install
 
-# 或手动部署
-helm install go-nomads ./helm/go-nomads \
-  -f ./helm/go-nomads/values-cce.yaml \
-  -n default
+# 或直接用 Helm
+helm install go-nomads-infra ./helm/go-nomads -n go-nomads --create-namespace
 ```
 
-### 3. 渲染模板（调试）
+### 2. 部署业务服务 (Kustomize)
 
 ```bash
-# 渲染为 YAML 文件
-./helm-deploy.sh cce template
+# 使用 Kustomize
+kubectl apply -k k8s/overlays/dev
 
-# 查看输出
-cat k8s/manifests/helm-rendered-cce.yaml
+# 或使用部署脚本
+./k8s/deploy.sh dev deploy
+```
+
+### 3. 一键部署全部
+
+```bash
+# 先部署基础设施
+./helm-deploy.sh dev install
+
+# 再部署业务服务
+./k8s/deploy.sh dev deploy
 ```
 
 ## 配置说明
 
-### 全局配置
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `global.namespace` | 命名空间 | `go-nomads` |
-| `global.imageRegistry` | 镜像仓库 | `swr.ap-southeast-3.myhuaweicloud.com/go-nomads` |
-| `global.imageTag` | 镜像标签 | `latest` |
-| `global.imagePullPolicy` | 拉取策略 | `Always` |
-
-### 服务配置
-
-每个服务都支持以下配置：
-
-| 参数 | 说明 |
-|------|------|
-| `<service>.enabled` | 是否启用 |
-| `<service>.replicaCount` | 副本数 |
-| `<service>.image.repository` | 镜像名称 |
-| `<service>.image.tag` | 镜像标签（覆盖全局） |
-| `<service>.resources` | 资源限制 |
-| `<service>.autoscaling.enabled` | 是否启用 HPA |
-
-### Secrets 配置
-
-部署时需要覆盖以下敏感配置：
+### 启用/禁用组件
 
 ```yaml
-secrets:
-  databaseConnectionString: "实际数据库连接字符串"
-  supabaseUrl: "https://your-project.supabase.co"
-  supabaseKey: "your-supabase-key"
-  # ...
+# values.yaml
+redis:
+  enabled: true       # 默认启用
+
+rabbitmq:
+  enabled: true       # 默认启用
+
+elasticsearch:
+  enabled: false      # 默认禁用（资源消耗大）
+
+consul:
+  enabled: false      # 默认禁用
+
+zipkin:
+  enabled: false      # 默认禁用
+
+prometheus:
+  enabled: false      # 默认禁用
+
+grafana:
+  enabled: false      # 默认禁用
 ```
 
-可以通过以下方式覆盖：
+### 启用监控套件
 
 ```bash
-helm install go-nomads ./helm/go-nomads \
-  --set secrets.supabaseUrl="https://xxx.supabase.co" \
-  --set secrets.supabaseKey="your-key"
+helm install go-nomads-infra ./helm/go-nomads \
+  --set prometheus.enabled=true \
+  --set grafana.enabled=true \
+  --set zipkin.enabled=true
+```
+
+### 持久化存储
+
+```yaml
+redis:
+  persistence:
+    enabled: true
+    size: 5Gi
+
+rabbitmq:
+  persistence:
+    enabled: true
+    size: 5Gi
 ```
 
 ## 常用命令
 
 ```bash
 # 安装
-helm install go-nomads ./helm/go-nomads -n go-nomads --create-namespace
+helm install go-nomads-infra ./helm/go-nomads -n go-nomads --create-namespace
 
 # 升级
-helm upgrade go-nomads ./helm/go-nomads -n go-nomads
+helm upgrade go-nomads-infra ./helm/go-nomads -n go-nomads
 
 # 查看状态
-helm status go-nomads -n go-nomads
+helm status go-nomads-infra -n go-nomads
 
-# 查看已渲染的值
-helm get values go-nomads -n go-nomads
+# 渲染模板（调试）
+./helm-deploy.sh dev template
 
 # 卸载
-helm uninstall go-nomads -n go-nomads
+helm uninstall go-nomads-infra -n go-nomads
 ```
 
-## 从 Kustomize 迁移
+## CCE 部署
 
-原有的 Kustomize 配置位于 `k8s/` 目录，现已迁移到 Helm。主要变化：
+华为云 CCE 使用 `values-cce.yaml`，特点：
 
-1. **配置管理**: 从 `kustomization.yaml` 迁移到 `values.yaml`
-2. **环境区分**: 从 `overlays/` 迁移到 `values-<env>.yaml`
-3. **模板化**: 使用 Helm 模板替代 Kustomize patches
-4. **部署脚本**: 从 `deploy.sh` 迁移到 `helm-deploy.sh`
-
-## 故障排除
-
-### 镜像拉取失败
+- 使用 `default` 命名空间
+- 禁用持久化（需单独配置存储类）
+- 降低资源请求
 
 ```bash
-# 检查 Secret 是否存在
-kubectl get secret docker-registry-secret -n <namespace>
-
-# 手动创建 Secret
-kubectl create secret docker-registry docker-registry-secret \
-  --docker-server=swr.ap-southeast-3.myhuaweicloud.com \
-  --docker-username="ap-southeast-3@xxx" \
-  --docker-password="xxx" \
-  -n <namespace>
-```
-
-### 资源不足
-
-修改 `values-cce.yaml` 中的资源限制：
-
-```yaml
-gateway:
-  resources:
-    requests:
-      memory: "64Mi"
-      cpu: "25m"
-```
-
-### 查看 Pod 日志
-
-```bash
-kubectl logs -l app=gateway -n <namespace> -f
+./helm-deploy.sh cce install
 ```

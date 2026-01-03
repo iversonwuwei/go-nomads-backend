@@ -1,6 +1,9 @@
 #!/bin/bash
 #
-# Go-Nomads Helm 部署脚本
+# Go-Nomads Infrastructure Helm 部署脚本
+# 仅用于基础设施服务 (docker-compose-infras.yml 对应的组件)
+# 业务服务请继续使用 Kustomize (k8s/)
+#
 # 使用方法: ./helm-deploy.sh [环境] [操作]
 # 环境: dev, staging, prod, cce (默认: dev)
 # 操作: install, upgrade, uninstall, template, dry-run (默认: install)
@@ -20,7 +23,7 @@ ENVIRONMENT=${1:-dev}
 ACTION=${2:-install}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHART_DIR="$SCRIPT_DIR/helm/go-nomads"
-RELEASE_NAME="go-nomads"
+RELEASE_NAME="go-nomads-infra"
 
 # 打印函数
 print_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
@@ -74,31 +77,6 @@ get_values_file() {
     esac
 }
 
-# 创建 SWR 镜像拉取 Secret
-create_image_pull_secret() {
-    local namespace=${1:-default}
-    
-    if [ -z "$SWR_USERNAME" ] || [ -z "$SWR_PASSWORD" ]; then
-        print_warning "SWR_USERNAME 或 SWR_PASSWORD 未设置，跳过创建镜像拉取 Secret"
-        print_info "请设置环境变量后重新运行，或手动创建 Secret:"
-        print_info "  kubectl create secret docker-registry docker-registry-secret \\"
-        print_info "    --docker-server=swr.ap-southeast-3.myhuaweicloud.com \\"
-        print_info "    --docker-username=<username> \\"
-        print_info "    --docker-password=<password> \\"
-        print_info "    -n $namespace"
-        return
-    fi
-    
-    print_info "创建镜像拉取 Secret..."
-    kubectl create secret docker-registry docker-registry-secret \
-        --docker-server=swr.ap-southeast-3.myhuaweicloud.com \
-        --docker-username="$SWR_USERNAME" \
-        --docker-password="$SWR_PASSWORD" \
-        -n "$namespace" \
-        --dry-run=client -o yaml | kubectl apply -f -
-    print_success "镜像拉取 Secret 已创建/更新"
-}
-
 # 安装/升级
 helm_install() {
     local values_file=$(get_values_file)
@@ -108,18 +86,24 @@ helm_install() {
         namespace="default"
     fi
     
-    print_info "========== Helm 部署: $ENVIRONMENT 环境 =========="
+    print_info "========== Helm 部署基础设施: $ENVIRONMENT 环境 =========="
     print_info "Release: $RELEASE_NAME"
     print_info "Namespace: $namespace"
     print_info "Values: $values_file"
+    print_info ""
+    print_info "包含组件:"
+    print_info "  - Redis"
+    print_info "  - RabbitMQ"
+    print_info "  - Elasticsearch (可选)"
+    print_info "  - Consul (可选)"
+    print_info "  - Zipkin (可选)"
+    print_info "  - Prometheus (可选)"
+    print_info "  - Grafana (可选)"
     
     # 创建命名空间（如果不存在）
     if [ "$namespace" != "default" ]; then
         kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl apply -f -
     fi
-    
-    # 创建镜像拉取 Secret
-    create_image_pull_secret "$namespace"
     
     # Helm 安装/升级
     helm upgrade --install "$RELEASE_NAME" "$CHART_DIR" \
@@ -129,10 +113,16 @@ helm_install() {
         --wait \
         --timeout 10m
     
-    print_success "Helm 部署完成！"
+    print_success "基础设施 Helm 部署完成！"
+    print_info ""
+    print_info "接下来请使用 Kustomize 部署业务服务:"
+    print_info "  kubectl apply -k k8s/overlays/$ENVIRONMENT"
+    print_info "  或"
+    print_info "  ./k8s/deploy.sh $ENVIRONMENT"
     
     # 显示状态
-    print_info "查看部署状态:"
+    print_info ""
+    print_info "查看基础设施状态:"
     helm status "$RELEASE_NAME" -n "$namespace"
 }
 
@@ -145,13 +135,13 @@ helm_uninstall() {
     
     print_info "卸载 Helm Release: $RELEASE_NAME"
     helm uninstall "$RELEASE_NAME" -n "$namespace" || true
-    print_success "卸载完成"
+    print_success "基础设施卸载完成"
 }
 
 # 模板渲染（调试用）
 helm_template() {
     local values_file=$(get_values_file)
-    local output_file="$SCRIPT_DIR/k8s/manifests/helm-rendered-$ENVIRONMENT.yaml"
+    local output_file="$SCRIPT_DIR/k8s/manifests/helm-infra-$ENVIRONMENT.yaml"
     
     print_info "渲染 Helm 模板..."
     helm template "$RELEASE_NAME" "$CHART_DIR" \
@@ -180,7 +170,7 @@ helm_dry_run() {
 # 主函数
 main() {
     print_info "=========================================="
-    print_info "Go-Nomads Helm 部署工具"
+    print_info "Go-Nomads 基础设施 Helm 部署工具"
     print_info "环境: $ENVIRONMENT"
     print_info "操作: $ACTION"
     print_info "=========================================="
