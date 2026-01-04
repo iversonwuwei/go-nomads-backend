@@ -147,7 +147,11 @@ builder.Services.AddHostedService<WeatherCacheRefreshService>();
 
 // 注册天气服务
 builder.Services.AddHttpClient<IWeatherService, WeatherService>();
-builder.Services.AddHttpClient<IAmapGeocodingService, AmapGeocodingService>();
+builder.Services.AddHttpClient<IAmapGeocodingService, CityService.Infrastructure.Integrations.Geocoding.AmapGeocodingService>();
+
+// 注册城市匹配服务
+builder.Services.AddScoped<IGeocodingService, CityService.Application.Services.AmapGeocodingService>();
+builder.Services.AddScoped<ICityMatchingService, CityMatchingService>();
 
 // 注册 AIService 客户端 (使用 Dapr Service Invocation)
 builder.Services.AddScoped<CityService.Infrastructure.Clients.IAIServiceClient, CityService.Infrastructure.Clients.AIServiceClient>();

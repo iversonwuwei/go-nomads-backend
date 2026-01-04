@@ -82,6 +82,14 @@ public interface ITravelHistoryRepository
     ///     获取用户旅行统计
     /// </summary>
     Task<TravelHistoryStats> GetUserStatsAsync(string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     获取用户在指定城市的旅行历史记录
+    /// </summary>
+    Task<List<TravelHistory>> GetByUserIdAndCityIdAsync(
+        string userId,
+        string cityId,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>

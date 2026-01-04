@@ -1,6 +1,7 @@
 using UserService.Application.DTOs;
 using UserService.Domain.Entities;
 using UserService.Domain.Repositories;
+using UserService.Infrastructure.Services;
 
 namespace UserService.Application.Services;
 
@@ -12,14 +13,17 @@ public class VisitedPlaceService : IVisitedPlaceService
     private readonly ILogger<VisitedPlaceService> _logger;
     private readonly IVisitedPlaceRepository _visitedPlaceRepository;
     private readonly ITravelHistoryRepository _travelHistoryRepository;
+    private readonly ICityServiceClient _cityServiceClient;
 
     public VisitedPlaceService(
         IVisitedPlaceRepository visitedPlaceRepository,
         ITravelHistoryRepository travelHistoryRepository,
+        ICityServiceClient cityServiceClient,
         ILogger<VisitedPlaceService> logger)
     {
         _visitedPlaceRepository = visitedPlaceRepository;
         _travelHistoryRepository = travelHistoryRepository;
+        _cityServiceClient = cityServiceClient;
         _logger = logger;
     }
 
@@ -327,6 +331,93 @@ public class VisitedPlaceService : IVisitedPlaceService
             TotalDurationMinutes = stats.TotalDurationMinutes,
             PlaceTypeDistribution = stats.PlaceTypeDistribution
         };
+    }
+
+    public async Task<VisitedPlacesCitySummaryDto> GetCitySummaryAsync(
+        string userId,
+        string cityId,
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🏙️ 获取城市访问摘要 - UserId: {UserId}, CityId: {CityId}, Page: {Page}",
+            userId, cityId, page);
+
+        var result = new VisitedPlacesCitySummaryDto
+        {
+            CityId = cityId
+        };
+
+        // 并行获取城市详情、天气和共享办公数量
+        var cityDetailTask = _cityServiceClient.GetCityDetailAsync(cityId, cancellationToken);
+        var weatherTask = _cityServiceClient.GetCityWeatherAsync(cityId, cancellationToken);
+        var coworkingCountTask = _cityServiceClient.GetCoworkingCountAsync(cityId, cancellationToken);
+        var travelHistoriesTask = _travelHistoryRepository.GetByUserIdAndCityIdAsync(userId, cityId, cancellationToken);
+        var visitedPlacesTask = _visitedPlaceRepository.GetByUserIdAndCityIdAsync(userId, cityId, page, pageSize, cancellationToken);
+
+        await Task.WhenAll(cityDetailTask, weatherTask, coworkingCountTask, travelHistoriesTask, visitedPlacesTask);
+
+        // 城市详情
+        var cityDetail = await cityDetailTask;
+        if (cityDetail != null)
+        {
+            result.CityName = cityDetail.Name;
+            result.CityNameEn = cityDetail.NameEn;
+            result.Country = cityDetail.Country;
+            result.ImageUrl = cityDetail.ImageUrl;
+            result.OverallScore = cityDetail.OverallScore;
+            result.AverageMonthlyCost = cityDetail.AverageCostOfLiving;
+        }
+        else
+        {
+            _logger.LogWarning("⚠️ 未找到城市详情: CityId={CityId}", cityId);
+        }
+
+        // 天气信息
+        var weather = await weatherTask;
+        if (weather != null)
+        {
+            result.Weather = new CityWeatherDto
+            {
+                Temperature = weather.Temperature,
+                FeelsLike = weather.FeelsLike,
+                Condition = weather.Condition, // 使用属性映射
+                Icon = weather.Icon, // 使用属性映射
+                Humidity = weather.Humidity,
+                WindSpeed = weather.WindSpeed?.ToString()
+            };
+        }
+
+        // 共享办公数量
+        result.CoworkingSpaceCount = await coworkingCountTask;
+
+        // 旅行历史 - 计算日期和停留时长
+        var travelHistories = await travelHistoriesTask;
+        if (travelHistories.Any())
+        {
+            result.TravelDate = travelHistories.Min(t => t.ArrivalTime);
+            result.LastVisitDate = travelHistories.Max(t => t.DepartureTime ?? t.ArrivalTime);
+
+            // 计算总停留天数
+            result.TotalDurationDays = travelHistories
+                .Where(t => t.DepartureTime.HasValue)
+                .Sum(t => Math.Max(1, (t.DepartureTime!.Value - t.ArrivalTime).Days));
+        }
+
+        // 访问地点分页列表
+        var (places, total) = await visitedPlacesTask;
+        result.VisitedPlaces = new PaginatedVisitedPlacesDto
+        {
+            Items = places.Select(MapToDto).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
+
+        _logger.LogInformation("✅ 获取城市访问摘要成功 - CityName: {CityName}, TravelDate: {TravelDate}, Places: {PlaceCount}",
+            result.CityName, result.TravelDate, result.VisitedPlaces.TotalCount);
+
+        return result;
     }
 
     #region 私有方法
