@@ -2,6 +2,7 @@ using System.Text.Json;
 using UserService.Application.DTOs;
 using UserService.Domain.Entities;
 using UserService.Domain.Repositories;
+using UserService.Infrastructure.Services;
 
 namespace UserService.Application.Services;
 
@@ -12,12 +13,15 @@ public class TravelHistoryService : ITravelHistoryService
 {
     private readonly ILogger<TravelHistoryService> _logger;
     private readonly ITravelHistoryRepository _travelHistoryRepository;
+    private readonly ICityServiceClient _cityServiceClient;
 
     public TravelHistoryService(
         ITravelHistoryRepository travelHistoryRepository,
+        ICityServiceClient cityServiceClient,
         ILogger<TravelHistoryService> logger)
     {
         _travelHistoryRepository = travelHistoryRepository;
+        _cityServiceClient = cityServiceClient;
         _logger = logger;
     }
 
@@ -101,6 +105,14 @@ public class TravelHistoryService : ITravelHistoryService
             throw new InvalidOperationException("已存在相似的旅行记录");
         }
 
+        // 如果没有提供 CityId，尝试自动匹配
+        var cityId = dto.CityId;
+        if (string.IsNullOrEmpty(cityId) && dto.Latitude.HasValue && dto.Longitude.HasValue)
+        {
+            cityId = await TryMatchCityAsync(dto.City, dto.Country, dto.CountryCode,
+                dto.Latitude.Value, dto.Longitude.Value, cancellationToken);
+        }
+
         var travelHistory = TravelHistory.Create(
             userId,
             dto.City,
@@ -110,7 +122,7 @@ public class TravelHistoryService : ITravelHistoryService
             dto.Latitude,
             dto.Longitude,
             dto.IsConfirmed,
-            dto.CityId
+            cityId
         );
 
         // 设置国家代码
@@ -156,6 +168,14 @@ public class TravelHistoryService : ITravelHistoryService
                 continue;
             }
 
+            // 如果没有提供 CityId，尝试自动匹配
+            var cityId = item.CityId;
+            if (string.IsNullOrEmpty(cityId) && item.Latitude.HasValue && item.Longitude.HasValue)
+            {
+                cityId = await TryMatchCityAsync(item.City, item.Country, item.CountryCode,
+                    item.Latitude.Value, item.Longitude.Value, cancellationToken);
+            }
+
             var travelHistory = TravelHistory.Create(
                 userId,
                 item.City,
@@ -165,7 +185,7 @@ public class TravelHistoryService : ITravelHistoryService
                 item.Latitude,
                 item.Longitude,
                 item.IsConfirmed,
-                item.CityId
+                cityId
             );
 
             if (!string.IsNullOrEmpty(item.Review))
@@ -275,6 +295,49 @@ public class TravelHistoryService : ITravelHistoryService
     }
 
     #region 私有方法
+
+    /// <summary>
+    ///     尝试匹配城市 - 调用 CityService API
+    /// </summary>
+    private async Task<string?> TryMatchCityAsync(
+        string cityName,
+        string country,
+        string? countryCode,
+        double latitude,
+        double longitude,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var request = new CityMatchRequest
+            {
+                Latitude = latitude,
+                Longitude = longitude,
+                CityName = cityName,
+                CityNameEn = cityName, // 可能是英文名，同时放两个字段
+                CountryName = country,
+                CountryCode = countryCode
+            };
+
+            var result = await _cityServiceClient.MatchCityAsync(request, cancellationToken);
+            
+            if (result?.IsMatched == true && !string.IsNullOrEmpty(result.CityId))
+            {
+                _logger.LogInformation(
+                    "✅ 城市匹配成功: {CityName} -> CityId={CityId}, Method={Method}",
+                    cityName, result.CityId, result.MatchMethod);
+                return result.CityId;
+            }
+
+            _logger.LogInformation("ℹ️ 未找到匹配的城市: {CityName}, {Country}", cityName, country);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 城市匹配失败: {CityName}", cityName);
+            return null;
+        }
+    }
 
     private TravelHistoryDto MapToDto(TravelHistory entity)
     {

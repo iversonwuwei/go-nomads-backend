@@ -23,6 +23,7 @@ namespace CityService.API.Controllers;
 public class CitiesController : ControllerBase
 {
     private readonly ICityService _cityService;
+    private readonly ICityMatchingService _cityMatchingService;
     private readonly ICurrentUserService _currentUser;
     private readonly DaprClient _daprClient;
     private readonly IDigitalNomadGuideService _guideService;
@@ -33,6 +34,7 @@ public class CitiesController : ControllerBase
 
     public CitiesController(
         ICityService cityService,
+        ICityMatchingService cityMatchingService,
         IDigitalNomadGuideService guideService,
         INearbyCityService nearbyCityService,
         ICityModeratorRepository moderatorRepository,
@@ -42,6 +44,7 @@ public class CitiesController : ControllerBase
         ILogger<CitiesController> logger)
     {
         _cityService = cityService;
+        _cityMatchingService = cityMatchingService;
         _guideService = guideService;
         _nearbyCityService = nearbyCityService;
         _moderatorRepository = moderatorRepository;
@@ -154,6 +157,52 @@ public class CitiesController : ControllerBase
             {
                 Success = false,
                 Message = "An error occurred while retrieving cities",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    ///     城市匹配 - 根据经纬度和城市名称匹配现有城市
+    ///     POST /api/v1/cities/match
+    /// </summary>
+    [HttpPost("match")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<CityMatchResult>>> MatchCity([FromBody] CityMatchRequest request)
+    {
+        try
+        {
+            _logger.LogInformation(
+                "📍 [MatchCity] 接收城市匹配请求: Lat={Lat}, Lng={Lng}, CityName={CityName}, CityNameEn={CityNameEn}",
+                request.Latitude, request.Longitude, request.CityName, request.CityNameEn);
+
+            var result = await _cityMatchingService.MatchCityAsync(request);
+
+            if (result.IsMatched)
+            {
+                _logger.LogInformation(
+                    "✅ [MatchCity] 匹配成功: CityId={CityId}, Method={Method}, Confidence={Confidence}",
+                    result.CityId, result.MatchMethod, result.Confidence);
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ [MatchCity] 匹配失败: {ErrorMessage}", result.ErrorMessage);
+            }
+
+            return Ok(new ApiResponse<CityMatchResult>
+            {
+                Success = result.IsMatched,
+                Message = result.IsMatched ? "城市匹配成功" : "未找到匹配的城市",
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MatchCity] 城市匹配出错");
+            return StatusCode(500, new ApiResponse<CityMatchResult>
+            {
+                Success = false,
+                Message = "城市匹配过程中发生错误",
                 Errors = new List<string> { ex.Message }
             });
         }
@@ -458,6 +507,46 @@ public class CitiesController : ControllerBase
                 Success = false,
                 Message = "An error occurred while retrieving city weather",
                 Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    ///     Get coworking space count for a city
+    ///     GET /api/v1/cities/{id}/coworking-count
+    /// </summary>
+    [HttpGet("{id:guid}/coworking-count")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<CoworkingCountDto>>> GetCityCoworkingCount(Guid id)
+    {
+        try
+        {
+            // 调用 CoworkingService 获取数量
+            var cityIdStrings = new List<string> { id.ToString() };
+            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchCountResponse>(
+                HttpMethod.Post,
+                "coworking-service",
+                "api/v1/coworking/cities/counts",
+                cityIdStrings
+            );
+
+            var count = response?.Counts?.FirstOrDefault(c => c.CityId == id.ToString())?.Count ?? 0;
+
+            return Ok(new ApiResponse<CoworkingCountDto>
+            {
+                Success = true,
+                Message = "Coworking count retrieved successfully",
+                Data = new CoworkingCountDto { CityId = id.ToString(), Count = count }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting coworking count for city {CityId}", id);
+            return Ok(new ApiResponse<CoworkingCountDto>
+            {
+                Success = true,
+                Message = "Coworking count retrieved (default)",
+                Data = new CoworkingCountDto { CityId = id.ToString(), Count = 0 }
             });
         }
     }
@@ -1618,4 +1707,30 @@ public class SimpleRoleDto
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+}
+
+/// <summary>
+///     Coworking 数量 DTO
+/// </summary>
+public class CoworkingCountDto
+{
+    public string CityId { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
+/// <summary>
+///     批量获取数量响应模型 - 用于 Dapr 服务间调用
+/// </summary>
+internal class BatchCountResponse
+{
+    public List<CityCountItem> Counts { get; set; } = new();
+}
+
+/// <summary>
+///     城市数量项模型
+/// </summary>
+internal class CityCountItem
+{
+    public string CityId { get; set; } = string.Empty;
+    public int Count { get; set; }
 }

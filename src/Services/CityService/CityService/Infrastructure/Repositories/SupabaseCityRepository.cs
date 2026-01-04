@@ -10,7 +10,7 @@ namespace CityService.Infrastructure.Repositories;
 /// <summary>
 ///     基于 Supabase 的城市仓储实现
 /// </summary>
-public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityRepository
+public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityRepository
 {
     private readonly IConfiguration _configuration;
 
@@ -556,4 +556,141 @@ internal class CityUpdatePayload : Postgrest.Models.BaseModel
 
     [Postgrest.Attributes.Column("updated_at")] 
     public DateTime? UpdatedAt { get; set; }
+}
+
+// ============ 城市匹配相关方法 ============
+
+public partial class SupabaseCityRepository
+{
+    /// <summary>
+    ///     按城市名称搜索（支持中英文、模糊匹配）
+    /// </summary>
+    public async Task<IEnumerable<City>> SearchByNameAsync(
+        string name,
+        string? countryCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return Enumerable.Empty<City>();
+
+        try
+        {
+            var query = SupabaseClient
+                .From<City>()
+                .Filter("is_active", Constants.Operator.Equals, "true");
+
+            // 如果指定了国家代码，添加国家过滤
+            if (!string.IsNullOrWhiteSpace(countryCode))
+            {
+                query = query.Filter("country_code", Constants.Operator.Equals, countryCode.ToUpperInvariant());
+            }
+
+            var response = await query.Get();
+
+            // 在内存中进行名称模糊匹配（支持中英文）
+            var cities = response.Models.Where(c =>
+                (!string.IsNullOrWhiteSpace(c.Name) &&
+                 c.Name.Contains(name, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(c.NameEn) &&
+                 c.NameEn.Contains(name, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+
+            Logger.LogInformation(
+                "🔍 [SearchByNameAsync] 搜索城市: Name={Name}, CountryCode={CountryCode}, Found={Count}",
+                name, countryCode, cities.Count);
+
+            return cities;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ [SearchByNameAsync] 搜索城市失败: Name={Name}", name);
+            return Enumerable.Empty<City>();
+        }
+    }
+
+    /// <summary>
+    ///     查找最近的城市（基于经纬度）
+    /// </summary>
+    public async Task<City?> FindNearestCityAsync(
+        double latitude,
+        double longitude,
+        double maxDistanceKm = 50.0,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // 获取所有活跃城市
+            var response = await SupabaseClient
+                .From<City>()
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Get();
+
+            // 在内存中计算距离并找出最近的城市
+            City? nearestCity = null;
+            var minDistance = double.MaxValue;
+
+            foreach (var city in response.Models)
+            {
+                // 跳过没有坐标的城市
+                if (!city.Latitude.HasValue || !city.Longitude.HasValue)
+                    continue;
+
+                var distance = CalculateDistanceKm(
+                    latitude, longitude,
+                    city.Latitude.Value, city.Longitude.Value);
+
+                if (distance < minDistance && distance <= maxDistanceKm)
+                {
+                    minDistance = distance;
+                    nearestCity = city;
+                }
+            }
+
+            if (nearestCity != null)
+            {
+                Logger.LogInformation(
+                    "📍 [FindNearestCityAsync] 找到最近城市: CityId={CityId}, CityName={CityName}, Distance={Distance}km",
+                    nearestCity.Id, nearestCity.Name, minDistance);
+            }
+            else
+            {
+                Logger.LogInformation(
+                    "📍 [FindNearestCityAsync] 未找到 {MaxDistance}km 范围内的城市: Lat={Lat}, Lng={Lng}",
+                    maxDistanceKm, latitude, longitude);
+            }
+
+            return nearestCity;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ [FindNearestCityAsync] 查找最近城市失败: Lat={Lat}, Lng={Lng}", latitude, longitude);
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     计算两点之间的距离（Haversine公式）
+    /// </summary>
+    private static double CalculateDistanceKm(
+        double lat1, double lon1,
+        double lat2, double lon2)
+    {
+        const double R = 6371; // 地球半径（公里）
+
+        var dLat = ToRadians(lat2 - lat1);
+        var dLon = ToRadians(lon2 - lon1);
+
+        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) *
+                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+
+        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+        return R * c;
+    }
+
+    private static double ToRadians(double degrees)
+    {
+        return degrees * Math.PI / 180;
+    }
 }

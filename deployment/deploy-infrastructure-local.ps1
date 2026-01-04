@@ -1,4 +1,4 @@
-# Go-Nomads Local Infrastructure Deployment (Docker/Podman for Windows)
+# Go-Nomads Local Infrastructure Deployment (Docker only)
 # Usage: .\deploy-infrastructure-local.ps1 [start|stop|restart|status|clean|help]
 
 param(
@@ -12,21 +12,15 @@ $ErrorActionPreference = 'Stop'
 $NETWORK_NAME = "go-nomads-network"
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# Detect container runtime
-function Get-ContainerRuntime {
-    if (Get-Command podman -ErrorAction SilentlyContinue) {
-        return "podman"
-    }
-    elseif (Get-Command docker -ErrorAction SilentlyContinue) {
-        return "docker"
-    }
-    else {
-        Write-Error "Not found Docker or Podman. Please install container runtime first."
+# Require Docker
+function Require-Docker {
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        Write-Error "[ERROR] Docker is required for this script."
         exit 1
     }
 }
 
-$RUNTIME = Get-ContainerRuntime
+$RUNTIME = "docker"
 
 function Write-Header {
     param([string]$Message)
@@ -176,7 +170,7 @@ function Start-Prometheus {
         '  - job_name: ''consul-services''',
         '    metrics_path: /metrics',
         '    consul_sd_configs:',
-        '      - server: ''go-nomads-consul:8500''',
+        '      - server: ''go-nomads-consul:7500''',
         '        # Auto discover all services without specifying names',
         '    relabel_configs:',
         '      # Only scrape services with metrics_path metadata',
@@ -287,6 +281,15 @@ function Start-Nginx {
     Write-Header "Deploying Nginx"
     Remove-Container "go-nomads-nginx"
     
+    $nginxConf = Join-Path $SCRIPT_DIR "nginx\nginx.conf"
+    if (-not (Test-Path $nginxConf)) {
+        Write-Host "[WARNING] Nginx config not found: $nginxConf" -ForegroundColor Yellow
+        Write-Host "Skipping Nginx deployment. Run deploy-services-local.ps1 to deploy Nginx with gateway." -ForegroundColor Yellow
+        return
+    }
+    
+    $nginxConfPath = $nginxConf -replace '\\', '/'
+    
     & $RUNTIME run -d `
         --name go-nomads-nginx `
         --network $NETWORK_NAME `
@@ -294,14 +297,16 @@ function Start-Nginx {
         --label "com.docker.compose.service=nginx" `
         -p 80:80 `
         -p 443:443 `
-        nginx:latest | Out-Null
+        -v "${nginxConfPath}:/etc/nginx/conf.d/default.conf:ro" `
+        --restart unless-stopped `
+        nginx:alpine | Out-Null
     
     Write-Host "Nginx running at: http://localhost" -ForegroundColor Green
-    Write-Host "  Note: Mount custom nginx.conf using volumes if needed" -ForegroundColor Gray
 }
 
 function Start-Infrastructure {
-    Write-Header "Starting Go-Nomads Infrastructure"
+    Write-Header "Go-Nomads Local Infrastructure"
+    Require-Docker
     
     New-Network
     Start-Redis
@@ -313,21 +318,13 @@ function Start-Infrastructure {
     Start-Elasticsearch
     Start-Nginx
     
-    Write-Host "All infrastructure containers started!" -ForegroundColor Green
-    Write-Host "`nAccess URLs:" -ForegroundColor Cyan
-    Write-Host "  Nginx:          http://localhost" -ForegroundColor White
-    Write-Host "  Redis:          redis://localhost:6379" -ForegroundColor White
-    Write-Host "  RabbitMQ:       amqp://localhost:5672" -ForegroundColor White
-    Write-Host "  RabbitMQ UI:    http://localhost:15672 (guest/guest)" -ForegroundColor White
-    Write-Host "  Consul:         http://localhost:8500" -ForegroundColor White
-    Write-Host "  Zipkin:         http://localhost:9411" -ForegroundColor White
-    Write-Host "  Prometheus:     http://localhost:9090" -ForegroundColor White
-    Write-Host "  Grafana:        http://localhost:3000 (admin/admin)" -ForegroundColor White
-    Write-Host "  Elasticsearch:  http://localhost:9200" -ForegroundColor White
+    Show-Status
+    Write-Host "Infrastructure ready." -ForegroundColor Green
 }
 
 function Stop-Infrastructure {
-    Write-Header "Stopping Infrastructure Containers"
+    Write-Header "Stopping local infrastructure"
+    Require-Docker
     
     $containers = @(
         "go-nomads-nginx",
@@ -336,6 +333,7 @@ function Stop-Infrastructure {
         "go-nomads-prometheus",
         "go-nomads-zipkin",
         "go-nomads-consul",
+        "go-nomads-rabbitmq",
         "go-nomads-redis"
     )
     
@@ -345,8 +343,6 @@ function Stop-Infrastructure {
             & $RUNTIME stop $container 2>&1 | Out-Null
         }
     }
-    
-    Write-Host "All infrastructure containers stopped." -ForegroundColor Green
 }
 
 function Restart-Infrastructure {
@@ -356,7 +352,8 @@ function Restart-Infrastructure {
 }
 
 function Remove-Infrastructure {
-    Write-Header "Cleaning Up Infrastructure"
+    Write-Header "Cleaning local infrastructure"
+    Require-Docker
     
     Stop-Infrastructure
     
@@ -367,6 +364,7 @@ function Remove-Infrastructure {
         "go-nomads-prometheus",
         "go-nomads-zipkin",
         "go-nomads-consul",
+        "go-nomads-rabbitmq",
         "go-nomads-redis"
     )
     
@@ -383,34 +381,31 @@ function Remove-Infrastructure {
     $promDir = Join-Path $SCRIPT_DIR "prometheus"
     
     if (Test-Path $consulDir) {
-        Write-Host "Removing Consul config directory..." -ForegroundColor Yellow
         Remove-Item -Path $consulDir -Recurse -Force
     }
     
     if (Test-Path $promDir) {
-        Write-Host "Removing Prometheus config directory..." -ForegroundColor Yellow
         Remove-Item -Path $promDir -Recurse -Force
     }
     
-    Write-Host "Cleanup complete." -ForegroundColor Green
+    Write-Host "Clean complete." -ForegroundColor Green
 }
 
 function Show-Status {
-    Write-Header "Infrastructure Status"
+    Write-Header "Infrastructure status"
+    Require-Docker
     
-    Write-Host "`nInfrastructure containers status:" -ForegroundColor Cyan
     & $RUNTIME ps --filter "name=go-nomads" --format 'table {{.Names}}`t{{.Status}}`t{{.Ports}}'
     
-    Write-Host "`nAccess URLs:" -ForegroundColor Cyan
-    Write-Host "  Nginx:          http://localhost" -ForegroundColor White
-    Write-Host "  Redis:          redis://localhost:6379" -ForegroundColor White
-    Write-Host "  RabbitMQ:       amqp://localhost:5672" -ForegroundColor White
-    Write-Host "  RabbitMQ UI:    http://localhost:15672 (guest/guest)" -ForegroundColor White
-    Write-Host "  Consul:         http://localhost:7500" -ForegroundColor White
-    Write-Host "  Zipkin:         http://localhost:9811" -ForegroundColor White
-    Write-Host "  Prometheus:     http://localhost:9090" -ForegroundColor White
-    Write-Host "  Grafana:        http://localhost:3000 (admin/admin)" -ForegroundColor White
-    Write-Host "  Elasticsearch:  http://localhost:10200" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Access URLs:"
+    Write-Host "  Nginx:          http://localhost"
+    Write-Host "  Redis:          redis://localhost:6379"
+    Write-Host "  Consul:         http://localhost:7500"
+    Write-Host "  Zipkin:         http://localhost:9811"
+    Write-Host "  Prometheus:     http://localhost:9090"
+    Write-Host "  Grafana:        http://localhost:3000 (admin/admin)"
+    Write-Host "  Elasticsearch:  http://localhost:10200"
 }
 
 function Show-Help {

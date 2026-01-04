@@ -56,6 +56,9 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<ITravelHistoryService, TravelHistoryService>();
 builder.Services.AddScoped<IVisitedPlaceService, VisitedPlaceService>();
 
+// Register Service Clients (for inter-service communication)
+builder.Services.AddScoped<ICityServiceClient, CityServiceClient>();
+
 // 配置 DaprClient 连接到 Dapr sidecar
 // Dapr sidecar 与应用共享网络命名空间，通过 localhost 访问
 // 使用 gRPC 端点（性能更好：2-3x 吞吐量，30-50% 更小的负载）

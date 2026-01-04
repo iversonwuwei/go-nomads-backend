@@ -156,6 +156,51 @@ public class VisitedPlaceController : ControllerBase
     }
 
     /// <summary>
+    ///     获取城市访问摘要（用于 Visited Places 页面）
+    ///     包含：城市信息、天气、评分、花费、共享办公数量、访问地点列表（分页）
+    /// </summary>
+    [HttpGet("city-summary/{cityId}")]
+    public async Task<ActionResult<ApiResponse<VisitedPlacesCitySummaryDto>>> GetCitySummary(
+        [FromRoute] string cityId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true)
+            return Unauthorized(new ApiResponse<VisitedPlacesCitySummaryDto>
+            {
+                Success = false,
+                Message = "未授权访问"
+            });
+
+        _logger.LogInformation("🏙️ GetCitySummary - CityId: {CityId}, UserId: {UserId}, Page: {Page}",
+            cityId, userContext.UserId, page);
+
+        try
+        {
+            var summary = await _visitedPlaceService.GetCitySummaryAsync(
+                userContext.UserId!, cityId, page, pageSize, cancellationToken);
+
+            return Ok(new ApiResponse<VisitedPlacesCitySummaryDto>
+            {
+                Success = true,
+                Message = "获取城市访问摘要成功",
+                Data = summary
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取城市访问摘要失败: CityId={CityId}", cityId);
+            return StatusCode(500, new ApiResponse<VisitedPlacesCitySummaryDto>
+            {
+                Success = false,
+                Message = "获取城市访问摘要失败"
+            });
+        }
+    }
+
+    /// <summary>
     ///     获取访问地点详情
     /// </summary>
     [HttpGet("{id}")]

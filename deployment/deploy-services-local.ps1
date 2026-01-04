@@ -98,6 +98,14 @@ foreach ($svc in $required) {
     Write-Host "  $svc 运行正常" -ForegroundColor Green
 }
 
+# 检查 Nginx（非必须）
+$nginxRunning = & $RUNTIME ps --filter "name=go-nomads-nginx" --filter "status=running" --format '{{.Names}}' 2>$null
+if ($nginxRunning -ne "go-nomads-nginx") {
+    Write-Host "  [提示] Nginx 未运行，可通过 deploy-infrastructure-local.ps1 部署" -ForegroundColor Yellow
+} else {
+    Write-Host "  Nginx 运行正常" -ForegroundColor Green
+}
+
 Write-Host "  前置条件检查完成" -ForegroundColor Green
 Write-Host ""
 
@@ -220,44 +228,62 @@ foreach ($svc in $services) {
         )
     }
 
-    # accommodation-service 需要指定 ServiceAddress
-    if ($svc.Name -eq "accommodation-service") {
-        $extraEnvArgs = @(
-            "-e", "Consul__ServiceAddress=go-nomads-$($svc.Name)",
-            "-e", "Consul__ServicePort=8080"
+    # 启动应用容器
+    Write-Host "  启动应用容器..." -ForegroundColor Yellow
+    
+    if ($svc.Name -eq "gateway") {
+        # Gateway 容器配置（不需要 Dapr）
+        $runArgs = @(
+            "run", "-d",
+            "--name", $container,
+            "--network", $NETWORK_NAME,
+            "--label", "com.docker.compose.project=go-nomads",
+            "--label", "com.docker.compose.service=$($svc.Name)",
+            "-p", "$($svc.Port):8080",
+            "-e", "ASPNETCORE_URLS=http://+:8080",
+            "-e", "ASPNETCORE_ENVIRONMENT=$aspnetEnv",
+            "-e", "Consul__Address=http://go-nomads-consul:7500",
+            "-e", "HTTP_PROXY=",
+            "-e", "HTTPS_PROXY=",
+            "-e", "NO_PROXY="
+        )
+        $runArgs += $extraEnvArgs
+        $runArgs += @(
+            "-v", "${publish}:/app:ro",
+            "-w", "/app",
+            "mcr.microsoft.com/dotnet/aspnet:9.0",
+            "dotnet", $svc.Dll
+        )
+    } else {
+        # 其他服务需要 Dapr 支持
+        $runArgs = @(
+            "run", "-d",
+            "--name", $container,
+            "--network", $NETWORK_NAME,
+            "--label", "com.docker.compose.project=go-nomads",
+            "--label", "com.docker.compose.service=$($svc.Name)",
+            "-p", "$($svc.Port):8080",
+            "-p", "$($svc.DaprPort):$($svc.DaprPort)",
+            "-e", "ASPNETCORE_URLS=http://+:8080",
+            "-e", "ASPNETCORE_ENVIRONMENT=$aspnetEnv",
+            "-e", "DAPR_GRPC_PORT=50001",
+            "-e", "DAPR_HTTP_PORT=$($svc.DaprPort)",
+            "-e", "Consul__Address=http://go-nomads-consul:7500",
+            "-e", "Consul__ServicePort=8080",
+            "-e", "DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=true",
+            "-e", "HTTP_PROXY=",
+            "-e", "HTTPS_PROXY=",
+            "-e", "NO_PROXY="
+        )
+        $runArgs += $extraEnvArgs
+        $runArgs += @(
+            "-v", "${publish}:/app:ro",
+            "-w", "/app",
+            "mcr.microsoft.com/dotnet/aspnet:9.0",
+            "dotnet", $svc.Dll
         )
     }
     
-    # 启动应用容器（暴露应用端口和 Dapr HTTP 端口）
-    # Dapr sidecar 将共享此容器的网络命名空间
-    # 配置 Dapr gRPC: 通过环境变量 DAPR_GRPC_PORT 启用 gRPC 通信
-    Write-Host "  启动应用容器..." -ForegroundColor Yellow
-    
-    $runArgs = @(
-        "run", "-d",
-        "--name", $container,
-        "--network", $NETWORK_NAME,
-        "--label", "com.docker.compose.project=go-nomads",
-        "--label", "com.docker.compose.service=$($svc.Name)",
-        "-p", "$($svc.Port):8080",
-        "-p", "$($svc.DaprPort):$($svc.DaprPort)",
-        "-e", "ASPNETCORE_URLS=http://+:8080",
-        "-e", "ASPNETCORE_ENVIRONMENT=$aspnetEnv",
-        "-e", "DAPR_GRPC_PORT=50001",
-        "-e", "DAPR_HTTP_PORT=$($svc.DaprPort)",
-        "-e", "Consul__Address=http://go-nomads-consul:7500",
-        "-e", "Consul__ServicePort=8080",
-        "-e", "HTTP_PROXY=",
-        "-e", "HTTPS_PROXY=",
-        "-e", "NO_PROXY="
-    )
-    $runArgs += $extraEnvArgs
-    $runArgs += @(
-        "-v", "${publish}:/app:ro",
-        "-w", "/app",
-        "mcr.microsoft.com/dotnet/aspnet:9.0",
-        "dotnet", $svc.Dll
-    )
     & $RUNTIME $runArgs | Out-Null
     
     if ($LASTEXITCODE -ne 0) { 
@@ -269,12 +295,21 @@ foreach ($svc in $services) {
     
     Start-Sleep -Seconds 2
     
+    # Gateway 不需要 Dapr sidecar（只使用 YARP 反向代理 + JWT 验证）
+    if ($svc.Name -eq "gateway") {
+        Write-Host "  跳过 Dapr sidecar (Gateway 不需要 Dapr)" -ForegroundColor Yellow
+        Write-Host "  $($svc.Name) 部署成功!" -ForegroundColor Green
+        Write-Host "  应用端口: http://localhost:$($svc.Port)" -ForegroundColor Green
+        Start-Sleep -Seconds 2
+        continue
+    }
+    
     # 启动 Dapr sidecar（共享应用容器的网络命名空间）
     # 使用 --network container:<app-container> 实现真正的 sidecar 模式
     # 应用和 Dapr 通过 localhost 通信，端口已在应用容器暴露
     Write-Host "  启动 Dapr sidecar (container sidecar 模式)..." -ForegroundColor Yellow
     
-    & $RUNTIME run -d --name $dapr --network "container:$container" --label "com.docker.compose.project=go-nomads" --label "com.docker.compose.service=$($svc.Name)-dapr" swr.ap-southeast-3.myhuaweicloud.com/go-nomads/daprd:latest ./daprd --app-id $svc.AppId --app-port 8080 --dapr-http-port $svc.DaprPort --dapr-grpc-port 50001 --log-level info | Out-Null
+    & $RUNTIME run -d --name $dapr --network "container:$container" --label "com.docker.compose.project=go-nomads" --label "com.docker.compose.service=$($svc.Name)-dapr" daprio/daprd:latest ./daprd --app-id $svc.AppId --app-port 8080 --dapr-http-port $svc.DaprPort --dapr-grpc-port 50001 --log-level info | Out-Null
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  [错误] Dapr sidecar 启动失败" -ForegroundColor Red
@@ -296,6 +331,10 @@ Write-Host "  部署摘要" -ForegroundColor Green
 Write-Host "============================================================`n" -ForegroundColor Green
 
 Write-Host "所有服务部署完成!" -ForegroundColor Green
+Write-Host ""
+
+Write-Host "反向代理:" -ForegroundColor Cyan
+Write-Host "  Nginx (推荐):         http://localhost" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "服务访问地址:" -ForegroundColor Cyan

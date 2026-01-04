@@ -85,4 +85,14 @@ public interface IVisitedPlaceService
     Task<TravelVisitedPlaceStatsDto> GetVisitedPlaceStatsAsync(
         string travelHistoryId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     获取城市访问摘要 - 用于 Visited Places 页面（包含城市信息、天气、评分、花费、共享办公数量、访问地点列表）
+    /// </summary>
+    Task<VisitedPlacesCitySummaryDto> GetCitySummaryAsync(
+        string userId,
+        string cityId,
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default);
 }

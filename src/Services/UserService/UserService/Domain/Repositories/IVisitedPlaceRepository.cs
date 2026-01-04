@@ -76,6 +76,16 @@ public interface IVisitedPlaceRepository
     ///     获取旅行访问地点统计
     /// </summary>
     Task<VisitedPlaceStats> GetStatsByTravelHistoryIdAsync(string travelHistoryId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     获取用户在指定城市的访问地点（通过 TravelHistory 的 CityId 关联，支持分页）
+    /// </summary>
+    Task<(List<VisitedPlace> Items, int Total)> GetByUserIdAndCityIdAsync(
+        string userId,
+        string cityId,
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>

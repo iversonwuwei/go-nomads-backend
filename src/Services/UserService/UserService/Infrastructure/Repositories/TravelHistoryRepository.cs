@@ -377,4 +377,30 @@ public class TravelHistoryRepository : ITravelHistoryRepository
             throw;
         }
     }
+
+    public async Task<List<TravelHistory>> GetByUserIdAndCityIdAsync(
+        string userId,
+        string cityId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 查询用户在指定城市的旅行历史: UserId={UserId}, CityId={CityId}", userId, cityId);
+
+        try
+        {
+            var response = await _supabaseClient
+                .From<TravelHistory>()
+                .Where(t => t.UserId == userId)
+                .Where(t => t.CityId == cityId)
+                .Order(t => t.ArrivalTime, Constants.Ordering.Descending)
+                .Get(cancellationToken);
+
+            _logger.LogInformation("✅ 查询到 {Count} 条旅行历史记录", response.Models.Count);
+            return response.Models;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 查询用户城市旅行历史失败: UserId={UserId}, CityId={CityId}", userId, cityId);
+            throw;
+        }
+    }
 }

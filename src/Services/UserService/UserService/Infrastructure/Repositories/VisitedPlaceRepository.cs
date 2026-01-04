@@ -329,4 +329,61 @@ public class VisitedPlaceRepository : IVisitedPlaceRepository
             throw;
         }
     }
+
+    public async Task<(List<VisitedPlace> Items, int Total)> GetByUserIdAndCityIdAsync(
+        string userId,
+        string cityId,
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 查询用户在指定城市的访问地点: UserId={UserId}, CityId={CityId}, Page={Page}", 
+            userId, cityId, page);
+
+        try
+        {
+            var offset = (page - 1) * pageSize;
+
+            // 首先查询该用户在指定城市的所有 TravelHistory IDs
+            var travelHistories = await _supabaseClient
+                .From<TravelHistory>()
+                .Select("id")
+                .Where(t => t.UserId == userId)
+                .Where(t => t.CityId == cityId)
+                .Get(cancellationToken);
+
+            var travelHistoryIds = travelHistories.Models.Select(t => t.Id).ToList();
+
+            if (!travelHistoryIds.Any())
+            {
+                _logger.LogInformation("⚠️ 用户在该城市没有旅行历史记录");
+                return (new List<VisitedPlace>(), 0);
+            }
+
+            // 查询所有关联的访问地点（带分页）
+            var countResponse = await _supabaseClient
+                .From<VisitedPlace>()
+                .Select("id")
+                .Filter(v => v.TravelHistoryId, Constants.Operator.In, travelHistoryIds)
+                .Get(cancellationToken);
+
+            var total = countResponse.Models.Count;
+
+            var response = await _supabaseClient
+                .From<VisitedPlace>()
+                .Filter(v => v.TravelHistoryId, Constants.Operator.In, travelHistoryIds)
+                .Order(v => v.ArrivalTime, Constants.Ordering.Descending)
+                .Offset(offset)
+                .Limit(pageSize)
+                .Get(cancellationToken);
+
+            _logger.LogInformation("✅ 查询到 {Count} 条访问地点记录，总数: {Total}", response.Models.Count, total);
+            return (response.Models, total);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 查询用户城市访问地点失败: UserId={UserId}, CityId={CityId}", userId, cityId);
+            throw;
+        }
+    }
 }
