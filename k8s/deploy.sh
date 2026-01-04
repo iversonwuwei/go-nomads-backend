@@ -317,7 +317,8 @@ build_and_push() {
         IFS=':' read -r name dockerfile <<< "$service"
         print_info "构建 $name..."
         
-        docker build -t "$DOCKER_REGISTRY/go-nomads-$name:$IMAGE_TAG" \
+        docker build --platform linux/amd64 \
+            -t "$DOCKER_REGISTRY/go-nomads-$name:$IMAGE_TAG" \
             -f "$PROJECT_ROOT/$dockerfile" \
             "$PROJECT_ROOT"
         

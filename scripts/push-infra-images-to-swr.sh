@@ -12,7 +12,7 @@ set -e
 SWR_REGISTRY="${SWR_REGISTRY:-swr.ap-southeast-3.myhuaweicloud.com}"
 SWR_ORGANIZATION="${SWR_ORGANIZATION:-go-nomads}"
 
-# 基础设施镜像列表 - 源镜像:目标名称
+# 基础设施镜像列表 - 源镜像:源标签:目标名称:目标标签
 INFRA_IMAGES="
 redis:7-alpine:redis:7-alpine
 rabbitmq:3-management-alpine:rabbitmq:3-management-alpine
@@ -21,6 +21,8 @@ hashicorp/consul:latest:consul:latest
 openzipkin/zipkin:latest:zipkin:latest
 prom/prometheus:latest:prometheus:latest
 grafana/grafana:latest:grafana:latest
+daprio/dapr:latest:dapr:latest
+daprio/daprd:latest:daprd:latest
 "
 
 # ============================================================
@@ -79,9 +81,9 @@ push_all_images() {
         echo "处理镜像: $src -> $dest"
         echo "----------------------------------------"
         
-        # 拉取源镜像
-        echo "拉取源镜像: $src"
-        docker pull "$src"
+        # 拉取源镜像 (指定 amd64 架构以确保服务器兼容性)
+        echo "拉取源镜像: $src (linux/amd64)"
+        docker pull --platform linux/amd64 "$src"
         
         # 打标签
         echo "打标签: $dest"

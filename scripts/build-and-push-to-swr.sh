@@ -138,8 +138,10 @@ build_service() {
     
     cd "$PROJECT_ROOT"
     
+    # 使用 --platform linux/amd64 确保镜像兼容 x86_64 服务器
     # 使用 --provenance=false 和 --sbom=false 避免生成多平台 manifest
     docker build \
+        --platform linux/amd64 \
         --provenance=false \
         --sbom=false \
         -t "$full_image_name" \
