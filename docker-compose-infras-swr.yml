@@ -75,7 +75,10 @@ services:
     volumes:
       - ./deployment/consul/consul-local.json:/consul/config/consul.json
       - consul_data:/consul/data
-    command: ["consul", "agent", "-config-file=/consul/config/consul.json"]
+    environment:
+      - CONSUL_DATA_DIR=/consul/data
+    # Bind to all interfaces so the single server can bootstrap and be reachable
+    command: ["consul", "agent", "-config-file=/consul/config/consul.json", "-data-dir=/consul/data", "-bind=0.0.0.0", "-client=0.0.0.0"]
     networks:
       - gonomads-network
 

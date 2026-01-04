@@ -44,6 +44,7 @@ builder.Services.AddScoped<IMembershipPlanRepository, MembershipPlanRepository>(
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
 builder.Services.AddScoped<ITravelHistoryRepository, TravelHistoryRepository>();
+builder.Services.AddScoped<IVisitedPlaceRepository, VisitedPlaceRepository>();
 
 // Register Application Services
 builder.Services.AddScoped<IUserService, UserApplicationService>();
@@ -53,6 +54,7 @@ builder.Services.AddScoped<IInterestService, InterestService>();
 builder.Services.AddScoped<IMembershipService, MembershipService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<ITravelHistoryService, TravelHistoryService>();
+builder.Services.AddScoped<IVisitedPlaceService, VisitedPlaceService>();
 
 // 配置 DaprClient 连接到 Dapr sidecar
 // Dapr sidecar 与应用共享网络命名空间，通过 localhost 访问

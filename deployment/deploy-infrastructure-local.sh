@@ -230,6 +230,12 @@ start_rabbitmq() {
 start_nginx() {
     header "Deploying Nginx"
     remove_container go-nomads-nginx
+    local nginx_conf="${SCRIPT_DIR}/nginx/nginx.conf"
+    if [[ ! -f "$nginx_conf" ]]; then
+        echo "[WARNING] Nginx config not found: $nginx_conf"
+        echo "Skipping Nginx deployment. Run deploy-services-local.sh to deploy Nginx with gateway."
+        return 0
+    fi
     docker run -d \
         --name go-nomads-nginx \
         --network "${NETWORK_NAME}" \
@@ -237,7 +243,9 @@ start_nginx() {
         --label "com.docker.compose.service=nginx" \
         -p 80:80 \
         -p 443:443 \
-        nginx:latest >/dev/null
+        -v "${nginx_conf}:/etc/nginx/conf.d/default.conf:ro" \
+        --restart unless-stopped \
+        nginx:alpine >/dev/null
     echo "Nginx running at http://localhost"
 }
 

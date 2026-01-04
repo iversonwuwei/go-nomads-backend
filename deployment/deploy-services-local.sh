@@ -349,6 +349,13 @@ check_prerequisites() {
     fi
     echo -e "${GREEN}  Consul 运行正常${NC}"
     
+    # 检查 Nginx
+    if ! container_running "go-nomads-nginx"; then
+        echo -e "${YELLOW}  [提示] Nginx 未运行，可通过 deploy-infrastructure-local.sh 部署${NC}"
+    else
+        echo -e "${GREEN}  Nginx 运行正常${NC}"
+    fi
+    
     echo -e "${GREEN}  前置条件检查完成${NC}"
 }
 
@@ -483,6 +490,9 @@ main() {
     show_header "部署摘要"
     
     echo -e "${GREEN}所有服务部署完成!${NC}"
+    echo ""
+    echo -e "${BLUE}反向代理:${NC}"
+    echo -e "  ${GREEN}Nginx (推荐):      http://localhost${NC}"
     echo ""
     echo -e "${BLUE}服务访问地址:${NC}"
     echo -e "  ${GREEN}Gateway:             http://localhost:5000${NC}"
