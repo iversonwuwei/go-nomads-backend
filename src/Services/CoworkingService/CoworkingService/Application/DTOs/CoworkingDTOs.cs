@@ -288,6 +288,17 @@ public class CoworkingCommentResponse
     public Guid Id { get; set; }
     public Guid CoworkingId { get; set; }
     public Guid UserId { get; set; }
+    
+    /// <summary>
+    ///     用户名称 (动态从 UserService 获取)
+    /// </summary>
+    public string? UserName { get; set; }
+    
+    /// <summary>
+    ///     用户头像 (动态从 UserService 获取)
+    /// </summary>
+    public string? UserAvatar { get; set; }
+    
     public string Content { get; set; } = string.Empty;
     public int? Rating { get; set; }
     public List<string>? Images { get; set; }

@@ -193,8 +193,9 @@ ALTER TABLE innovation_team_members
 - [x] 2.1 修改 CoworkingReviewService 使用动态查询 ✅
 - [x] 2.2 修改 HotelReviewController 使用动态查询 ✅
 - [x] 2.3 为 AccommodationService 添加 UserServiceClient ✅
-- [ ] 2.4 测试评论功能正常
-- [ ] 2.5 执行数据库迁移删除冗余字段（待测试通过后执行）
+- [x] 2.4 修改 CoworkingApplicationService.GetCommentsAsync 使用动态查询 ✅
+- [ ] 2.5 测试评论功能正常
+- [ ] 2.6 执行数据库迁移删除冗余字段（待测试通过后执行）
 
 ### Phase 3: 聊天模块重构
 - [x] 3.1 为 MessageService 添加 UserServiceClient ✅
