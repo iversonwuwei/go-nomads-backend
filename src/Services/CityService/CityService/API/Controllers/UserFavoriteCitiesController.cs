@@ -108,6 +108,23 @@ public class UserFavoriteCitiesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> RemoveFavoriteCity(string cityId)
     {
+        return await RemoveFavoriteCityInternal(cityId);
+    }
+
+    /// <summary>
+    ///     移除收藏城市（POST 方式，用于某些不支持 DELETE 方法的网络环境）
+    /// </summary>
+    /// <param name="cityId">城市ID</param>
+    /// <returns>操作结果</returns>
+    [HttpPost("{cityId}/remove")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> RemoveFavoriteCityPost(string cityId)
+    {
+        return await RemoveFavoriteCityInternal(cityId);
+    }
+
+    private async Task<IActionResult> RemoveFavoriteCityInternal(string cityId)
+    {
         try
         {
             var userId = _currentUser.GetUserId();
