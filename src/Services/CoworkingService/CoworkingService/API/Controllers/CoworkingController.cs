@@ -212,16 +212,29 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    ///     删除 Coworking 空间
+    ///     删除 Coworking 空间（仅管理员）
     /// </summary>
     [HttpDelete("{id}")]
     [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<string>>> DeleteCoworkingSpace(Guid id)
     {
         try
         {
-            await _coworkingService.DeleteCoworkingSpaceAsync(id);
+            // 检查管理员权限
+            if (!_currentUser.IsAdmin())
+            {
+                return StatusCode(403, ApiResponse<object>.ErrorResponse(
+                    "只有管理员可以删除 Coworking 空间",
+                    new List<string> { "权限不足" }));
+            }
+
+            var userId = _currentUser.TryGetUserId();
+            await _coworkingService.DeleteCoworkingSpaceAsync(id, userId);
+
+            _logger.LogInformation("✅ 管理员 {UserId} 成功删除 Coworking 空间 {CoworkingId}", 
+                userId, id);
 
             return Ok(ApiResponse<string>.SuccessResponse(
                 "删除成功",

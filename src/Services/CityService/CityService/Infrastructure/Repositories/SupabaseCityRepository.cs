@@ -27,6 +27,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
             .Order(x => x.OverallScore!, Constants.Ordering.Descending)
             .Range(offset, offset + pageSize - 1)
             .Get();
@@ -41,6 +42,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
             var response = await SupabaseClient
                 .From<City>()
                 .Where(x => x.Id == id)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Single();
 
             if (response != null)
@@ -123,6 +125,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
             .Order(x => x.OverallScore!, Constants.Ordering.Descending)
             .Get();
 
@@ -384,19 +387,29 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
         }
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    public async Task<bool> DeleteAsync(Guid id, Guid? deletedBy = null)
     {
         try
         {
+            // 逻辑删除：设置 is_deleted = true, is_active = false
+            var now = DateTime.UtcNow;
             await SupabaseClient
                 .From<City>()
                 .Where(x => x.Id == id)
-                .Delete();
+                .Set(x => x.IsActive, false)
+                .Set(x => x.IsDeleted, true)
+                .Set(x => x.DeletedAt, now)
+                .Set(x => x.DeletedBy, deletedBy)
+                .Set(x => x.UpdatedAt, now)
+                .Set(x => x.UpdatedById, deletedBy)
+                .Update();
 
+            Logger.LogInformation("✅ City 逻辑删除成功，ID: {CityId}, DeletedBy: {DeletedBy}", id, deletedBy);
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "❌ 删除 City 失败，ID: {CityId}", id);
             return false;
         }
     }
@@ -406,6 +419,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
             .Get();
 
         return response.Models.Count;
@@ -416,6 +430,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
             .Order(x => x.OverallScore!, Constants.Ordering.Descending)
             .Order(x => x.CommunityScore!, Constants.Ordering.Descending)
             .Limit(count)
@@ -430,6 +445,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
             .Order(x => x.OverallScore!, Constants.Ordering.Descending)
             .Order(x => x.CommunityScore!, Constants.Ordering.Descending)
             .Order(x => x.Name, Constants.Ordering.Ascending)
@@ -444,6 +460,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
             .Filter("country", Constants.Operator.ILike, $"%{countryName}%")
             .Order(x => x.Name, Constants.Ordering.Ascending)
             .Get();
@@ -456,6 +473,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
             .Filter("country_id", Constants.Operator.Equals, countryId.ToString())
             .Order(x => x.Name, Constants.Ordering.Ascending)
             .Get();
@@ -472,6 +490,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
         var response = await SupabaseClient
             .From<City>()
             .Filter("id", Constants.Operator.In, idList)
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
             .Get();
 
         return response.Models;

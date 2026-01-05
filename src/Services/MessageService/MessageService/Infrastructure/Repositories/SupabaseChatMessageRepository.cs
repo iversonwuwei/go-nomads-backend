@@ -29,7 +29,7 @@ public class SupabaseChatMessageRepository : IChatMessageRepository
             var response = await _supabaseClient
                 .From<ChatRoomMessageModel>()
                 .Where(m => m.RoomId == roomId)
-                .Where(m => m.IsDeleted == false)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Order("timestamp", Constants.Ordering.Descending)
                 .Range(skip, skip + pageSize - 1)
                 .Get();
@@ -133,7 +133,7 @@ public class SupabaseChatMessageRepository : IChatMessageRepository
             var response = await _supabaseClient
                 .From<ChatRoomMessageModel>()
                 .Where(m => m.RoomId == roomId)
-                .Where(m => m.IsDeleted == false)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Get();
 
             return response.Models.Count;
@@ -155,7 +155,7 @@ public class SupabaseChatMessageRepository : IChatMessageRepository
             var response = await _supabaseClient
                 .From<ChatRoomMessageModel>()
                 .Filter("room_id", Constants.Operator.Equals, roomId)
-                .Filter("is_deleted", Constants.Operator.Equals, "false")
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Filter("message", Constants.Operator.ILike, $"%{keyword}%")
                 .Order("timestamp", Constants.Ordering.Descending)
                 .Range(skip, skip + pageSize - 1)

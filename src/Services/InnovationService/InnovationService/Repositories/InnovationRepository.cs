@@ -15,6 +15,7 @@ public interface IInnovationRepository
     Task<Innovation> CreateAsync(Innovation innovation);
     Task<Innovation?> UpdateAsync(Guid id, UpdateInnovationRequest request, Guid userId);
     Task<bool> DeleteAsync(Guid id, Guid userId);
+    Task<bool> AdminDeleteAsync(Guid id, Guid? deletedBy = null);
     Task<List<InnovationListItem>> GetByUserIdAsync(Guid userId, int page, int pageSize);
     Task<List<InnovationListItem>> GetFeaturedAsync(int limit);
     Task<List<InnovationListItem>> GetPopularAsync(int limit);
@@ -53,10 +54,11 @@ public class InnovationRepository : IInnovationRepository
         {
             var offset = (page - 1) * pageSize;
 
-            // 构建基础查询条件
+            // 构建基础查询条件（排除已删除的记录）
             var baseQuery = _supabase.From<Innovation>()
                 .Select("*")
-                .Filter("is_public", Postgrest.Constants.Operator.Is, "true");
+                .Filter("is_public", Postgrest.Constants.Operator.Is, "true")
+                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true");
 
             if (!string.IsNullOrEmpty(category))
                 baseQuery = baseQuery.Filter("category", Postgrest.Constants.Operator.Equals, category);
@@ -71,10 +73,11 @@ public class InnovationRepository : IInnovationRepository
             var countResult = await baseQuery.Count(Postgrest.Constants.CountType.Exact);
             var total = countResult;
 
-            // 重新构建查询获取数据
+            // 重新构建查询获取数据（排除已删除的记录）
             var dataQuery = _supabase.From<Innovation>()
                 .Select("*")
                 .Filter("is_public", Postgrest.Constants.Operator.Is, "true")
+                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
                 .Order("created_at", Postgrest.Constants.Ordering.Descending);
 
             if (!string.IsNullOrEmpty(category))
@@ -138,6 +141,7 @@ public class InnovationRepository : IInnovationRepository
             var result = await _supabase.From<Innovation>()
                 .Select("*")
                 .Filter("id", Postgrest.Constants.Operator.Equals, id.ToString())
+                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
                 .Single();
 
             if (result == null) return null;
@@ -342,22 +346,71 @@ public class InnovationRepository : IInnovationRepository
         {
             // 先检查项目是否属于当前用户
             var existing = await _supabase.From<Innovation>()
-                .Select("creator_id")
+                .Select("*")
                 .Filter("id", Postgrest.Constants.Operator.Equals, id.ToString())
+                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
                 .Single();
 
             if (existing == null || existing.CreatorId != userId)
                 return false;
 
+            // 逻辑删除
+            existing.MarkAsDeleted(userId);
+            
             await _supabase.From<Innovation>()
                 .Filter("id", Postgrest.Constants.Operator.Equals, id.ToString())
-                .Delete();
+                .Set(x => x.IsDeleted, true)
+                .Set(x => x.DeletedAt, existing.DeletedAt)
+                .Set(x => x.DeletedBy, userId)
+                .Set(x => x.UpdatedAt, existing.UpdatedAt)
+                .Set(x => x.UpdatedBy, userId)
+                .Update();
 
+            _logger.LogInformation("✅ 创新项目逻辑删除成功: {Id}, DeletedBy: {UserId}", id, userId);
             return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "删除创新项目失败: {Id}", id);
+            throw;
+        }
+    }
+
+    /// <summary>
+    ///     管理员删除创新项目（逻辑删除，无权限检查）
+    /// </summary>
+    public async Task<bool> AdminDeleteAsync(Guid id, Guid? deletedBy = null)
+    {
+        try
+        {
+            // 先检查项目是否存在
+            var existing = await _supabase.From<Innovation>()
+                .Select("*")
+                .Filter("id", Postgrest.Constants.Operator.Equals, id.ToString())
+                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
+                .Single();
+
+            if (existing == null)
+                return false;
+
+            // 逻辑删除
+            existing.MarkAsDeleted(deletedBy);
+            
+            await _supabase.From<Innovation>()
+                .Filter("id", Postgrest.Constants.Operator.Equals, id.ToString())
+                .Set(x => x.IsDeleted, true)
+                .Set(x => x.DeletedAt, existing.DeletedAt)
+                .Set(x => x.DeletedBy, deletedBy)
+                .Set(x => x.UpdatedAt, existing.UpdatedAt)
+                .Set(x => x.UpdatedBy, deletedBy)
+                .Update();
+
+            _logger.LogInformation("✅ 管理员逻辑删除创新项目成功: {Id}, DeletedBy: {DeletedBy}", id, deletedBy);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "管理员删除创新项目失败: {Id}", id);
             throw;
         }
     }

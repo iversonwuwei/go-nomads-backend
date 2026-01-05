@@ -28,6 +28,13 @@ public interface IEventService
     Task<EventResponse> CancelEventAsync(Guid id, Guid userId);
 
     /// <summary>
+    ///     删除活动（逻辑删除，仅Admin）
+    /// </summary>
+    /// <param name="id">Event ID</param>
+    /// <param name="deletedBy">删除者ID</param>
+    Task<bool> DeleteEventAsync(Guid id, Guid? deletedBy = null);
+
+    /// <summary>
     ///     获取 Event 列表
     /// </summary>
     Task<(List<EventResponse> Events, int Total)> GetEventsAsync(

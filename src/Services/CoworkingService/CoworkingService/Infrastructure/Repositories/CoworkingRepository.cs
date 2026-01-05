@@ -81,6 +81,7 @@ public class CoworkingRepository : ICoworkingRepository
             var response = await _supabaseClient
                 .From<CoworkingSpace>()
                 .Where(x => x.Id == id)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Single();
 
             return response;
@@ -113,16 +114,31 @@ public class CoworkingRepository : ICoworkingRepository
         }
     }
 
-    public async Task DeleteAsync(Guid id)
+    public async Task DeleteAsync(Guid id, Guid? deletedBy = null)
     {
         try
         {
+            // 逻辑删除：设置 IsDeleted = true
+            var coworkingSpace = await GetByIdAsync(id);
+            if (coworkingSpace == null)
+            {
+                _logger.LogWarning("⚠️ 要删除的共享办公空间不存在: {Id}", id);
+                return;
+            }
+
+            coworkingSpace.MarkAsDeleted(deletedBy);
+
             await _supabaseClient
                 .From<CoworkingSpace>()
-                .Filter("id", Constants.Operator.Equals, id.ToString())
-                .Delete();
+                .Where(x => x.Id == id)
+                .Set(x => x.IsDeleted, true)
+                .Set(x => x.DeletedAt, coworkingSpace.DeletedAt)
+                .Set(x => x.DeletedBy, deletedBy)
+                .Set(x => x.UpdatedAt, coworkingSpace.UpdatedAt)
+                .Set(x => x.UpdatedBy, deletedBy)
+                .Update();
 
-            _logger.LogInformation("✅ Supabase 删除成功: {Id}", id);
+            _logger.LogInformation("✅ Supabase 逻辑删除成功: {Id}, DeletedBy: {DeletedBy}", id, deletedBy);
         }
         catch (Exception ex)
         {
@@ -150,6 +166,7 @@ public class CoworkingRepository : ICoworkingRepository
                 var response = await _supabaseClient
                     .From<CoworkingSpace>()
                     .Where(x => x.IsActive == isActive.Value && x.CityId == cityId.Value)
+                    .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                     .Order(x => x.CreatedAt, Constants.Ordering.Descending)
                     .Range(offset, offset + pageSize - 1)
                     .Get();
@@ -160,6 +177,7 @@ public class CoworkingRepository : ICoworkingRepository
                 var response = await _supabaseClient
                     .From<CoworkingSpace>()
                     .Where(x => x.IsActive == isActive.Value)
+                    .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                     .Order(x => x.CreatedAt, Constants.Ordering.Descending)
                     .Range(offset, offset + pageSize - 1)
                     .Get();
@@ -170,6 +188,7 @@ public class CoworkingRepository : ICoworkingRepository
                 var response = await _supabaseClient
                     .From<CoworkingSpace>()
                     .Where(x => x.CityId == cityId.Value)
+                    .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                     .Order(x => x.CreatedAt, Constants.Ordering.Descending)
                     .Range(offset, offset + pageSize - 1)
                     .Get();
@@ -179,6 +198,7 @@ public class CoworkingRepository : ICoworkingRepository
             {
                 var response = await _supabaseClient
                     .From<CoworkingSpace>()
+                    .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                     .Order(x => x.CreatedAt, Constants.Ordering.Descending)
                     .Range(offset, offset + pageSize - 1)
                     .Get();
@@ -204,6 +224,7 @@ public class CoworkingRepository : ICoworkingRepository
             var response = await _supabaseClient
                 .From<CoworkingSpace>()
                 .Where(x => x.CityId == cityId && x.IsActive)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Order(x => x.Rating, Constants.Ordering.Descending)
                 .Get();
 
@@ -224,6 +245,7 @@ public class CoworkingRepository : ICoworkingRepository
             var response = await _supabaseClient
                 .From<CoworkingSpace>()
                 .Where(x => x.IsActive)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Get();
 
             var spaces = response.Models.AsEnumerable();
@@ -255,12 +277,12 @@ public class CoworkingRepository : ICoworkingRepository
     {
         try
         {
-            var query = _supabaseClient
-                .From<CoworkingSpace>()
-                .Where(x => x.IsActive);
-
             // 客户端过滤价格范围（Supabase 查询限制）
-            var response = await query.Get();
+            var response = await _supabaseClient
+                .From<CoworkingSpace>()
+                .Where(x => x.IsActive)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                .Get();
             var spaces = response.Models.AsEnumerable();
 
             if (minPrice.HasValue && maxPrice.HasValue)
@@ -288,6 +310,7 @@ public class CoworkingRepository : ICoworkingRepository
             var response = await _supabaseClient
                 .From<CoworkingSpace>()
                 .Where(x => x.IsActive)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Order(x => x.Rating, Constants.Ordering.Descending)
                 .Limit(limit)
                 .Get();

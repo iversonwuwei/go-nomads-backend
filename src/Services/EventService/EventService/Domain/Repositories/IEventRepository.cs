@@ -23,9 +23,11 @@ public interface IEventRepository
     Task<Event> UpdateAsync(Event @event);
 
     /// <summary>
-    ///     删除 Event
+    ///     删除 Event（逻辑删除）
     /// </summary>
-    Task DeleteAsync(Guid id);
+    /// <param name="id">Event ID</param>
+    /// <param name="deletedBy">删除者ID</param>
+    Task DeleteAsync(Guid id, Guid? deletedBy = null);
 
     /// <summary>
     ///     获取 Event 列表（支持筛选和分页）

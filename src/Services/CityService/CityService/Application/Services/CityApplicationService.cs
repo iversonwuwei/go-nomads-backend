@@ -219,10 +219,10 @@ public class CityApplicationService : ICityService
         return MapToDto(updatedCity);
     }
 
-    public async Task<bool> DeleteCityAsync(Guid id)
+    public async Task<bool> DeleteCityAsync(Guid id, Guid? deletedBy = null)
     {
-        var result = await _cityRepository.DeleteAsync(id);
-        if (result) _logger.LogInformation("City deleted: {CityId}", id);
+        var result = await _cityRepository.DeleteAsync(id, deletedBy);
+        if (result) _logger.LogInformation("City deleted: {CityId}, DeletedBy: {DeletedBy}", id, deletedBy);
 
         return result;
     }

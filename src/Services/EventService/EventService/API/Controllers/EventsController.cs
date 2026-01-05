@@ -328,6 +328,69 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
+    ///     删除活动（仅管理员）
+    /// </summary>
+    [HttpDelete("{id}")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteEvent(Guid id)
+    {
+        try
+        {
+            // 从 UserContext 获取当前用户信息
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+                return Unauthorized(new ApiResponse<bool>
+                {
+                    Success = false,
+                    Message = "用户未认证",
+                    Errors = new List<string> { "用户未认证" }
+                });
+
+            // 检查是否是管理员
+            if (!userContext.IsAdmin)
+                return StatusCode(403, new ApiResponse<bool>
+                {
+                    Success = false,
+                    Message = "只有管理员可以删除活动",
+                    Errors = new List<string> { "权限不足" }
+                });
+
+            var userId = Guid.Parse(userContext.UserId);
+            var result = await _eventService.DeleteEventAsync(id, userId);
+
+            _logger.LogInformation("✅ 管理员 {UserId} 成功删除活动 {EventId}", userContext.UserId, id);
+            return Ok(new ApiResponse<bool>
+            {
+                Success = true,
+                Message = "活动已删除",
+                Data = result
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<bool>
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "删除活动失败");
+            return StatusCode(500, new ApiResponse<bool>
+            {
+                Success = false,
+                Message = "删除活动失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
     ///     获取用户已加入的活动列表
     /// </summary>
     [HttpGet("joined")]

@@ -631,7 +631,20 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            var result = await _cityService.DeleteCityAsync(id);
+            // 检查管理员权限
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            if (userContext?.Role != "admin")
+            {
+                return StatusCode(403, new ApiResponse<bool>
+                {
+                    Success = false,
+                    Message = "只有管理员可以删除城市",
+                    Errors = new List<string> { "权限不足" }
+                });
+            }
+
+            var userId = !string.IsNullOrEmpty(userContext.UserId) ? Guid.Parse(userContext.UserId) : (Guid?)null;
+            var result = await _cityService.DeleteCityAsync(id, userId);
             if (!result)
                 return NotFound(new ApiResponse<bool>
                 {
@@ -640,6 +653,7 @@ public class CitiesController : ControllerBase
                     Errors = new List<string> { "City not found" }
                 });
 
+            _logger.LogInformation("✅ 管理员 {UserId} 成功删除城市 {CityId}", userContext.UserId, id);
             return Ok(new ApiResponse<bool>
             {
                 Success = true,
@@ -772,10 +786,11 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            // 直接查询 coworking_spaces 表
+            // 直接查询 coworking_spaces 表，只统计未删除且活跃的
             var response = await _supabaseClient
                 .From<CoworkingSpaceDto>()
                 .Where(x => x.IsActive == true)
+                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
                 .Get();
 
             // 按城市ID分组统计，只保留有 CityId 的记录
@@ -805,6 +820,9 @@ public class CitiesController : ControllerBase
 
         [Column("is_active")]
         public bool IsActive { get; set; }
+
+        [Column("is_deleted")]
+        public bool IsDeleted { get; set; }
     }
 
     #region Digital Nomad Guide APIs

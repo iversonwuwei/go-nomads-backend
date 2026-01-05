@@ -29,7 +29,7 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
             var response = await _supabaseClient
                 .From<ChatRoomModel>()
                 .Where(r => r.IsPublic == true)
-                .Where(r => r.IsDeleted == false)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Order("created_at", Constants.Ordering.Descending)
                 .Range(skip, skip + pageSize - 1)
                 .Get();
@@ -51,7 +51,7 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
                 .From<ChatRoomModel>()
                 .Where(r => r.City == city)
                 .Where(r => r.Country == country)
-                .Where(r => r.IsDeleted == false)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Get();
 
             return response.Models.Select(MapToDomain).ToList();
@@ -70,7 +70,7 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
             var response = await _supabaseClient
                 .From<ChatRoomModel>()
                 .Where(r => r.MeetupId == meetupId)
-                .Where(r => r.IsDeleted == false)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Single();
 
             return response != null ? MapToDomain(response) : null;
@@ -103,7 +103,7 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
             var response = await _supabaseClient
                 .From<ChatRoomModel>()
                 .Where(r => r.Id == guid)
-                .Where(r => r.IsDeleted == false)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Single();
 
             return response != null ? MapToDomain(response) : null;
@@ -240,7 +240,7 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
                 .From<ChatRoomModel>()
                 .Where(r => r.RoomType == "direct")
                 .Where(r => r.Name == directChatKey)
-                .Where(r => r.IsDeleted == false)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Order("created_at", Postgrest.Constants.Ordering.Ascending)
                 .Limit(1)
                 .Get();
