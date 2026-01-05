@@ -690,7 +690,7 @@ public class InnovationRepository : IInnovationRepository
                 .Range(offset, offset + pageSize - 1)
                 .Get();
 
-            return result.Models.Select(c => new CommentResponse
+            var comments = result.Models.Select(c => new CommentResponse
             {
                 Id = c.Id,
                 InnovationId = c.InnovationId,
@@ -700,6 +700,11 @@ public class InnovationRepository : IInnovationRepository
                 CreatedAt = c.CreatedAt,
                 UpdatedAt = c.UpdatedAt
             }).ToList();
+            
+            // 批量获取用户信息
+            await EnrichCommentUserInfoAsync(comments);
+            
+            return comments;
         }
         catch (Exception ex)
         {
@@ -908,6 +913,42 @@ public class InnovationRepository : IInnovationRepository
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "更新团队人数失败: {InnovationId}", innovationId);
+        }
+    }
+
+    /// <summary>
+    ///     批量填充评论用户信息
+    /// </summary>
+    private async Task EnrichCommentUserInfoAsync(List<CommentResponse> comments)
+    {
+        if (comments.Count == 0) return;
+
+        try
+        {
+            // 收集所有不重复的 UserId
+            var userIds = comments.Select(c => c.UserId).Distinct().ToList();
+
+            _logger.LogDebug("🔄 通过 UserServiceClient 批量获取 {Count} 个评论用户信息", userIds.Count);
+
+            // 通过 UserServiceClient 批量获取用户信息
+            var userMap = await _userServiceClient.GetUsersInfoBatchAsync(userIds);
+
+            // 填充用户信息
+            foreach (var comment in comments)
+            {
+                if (userMap.TryGetValue(comment.UserId, out var user))
+                {
+                    comment.UserName = user.Name;
+                    comment.UserAvatar = user.AvatarUrl;
+                }
+            }
+
+            _logger.LogDebug("✅ 成功获取 {Count} 个评论用户信息", userMap.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 获取评论用户信息失败，跳过填充用户信息");
+            // 不抛出异常，允许 API 正常返回（只是没有用户详细信息）
         }
     }
 

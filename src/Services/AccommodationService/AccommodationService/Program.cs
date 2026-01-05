@@ -43,6 +43,9 @@ builder.Services.AddScoped<IHotelRepository, HotelRepository>();
 builder.Services.AddScoped<IRoomTypeRepository, RoomTypeRepository>();
 builder.Services.AddScoped<IHotelReviewRepository, HotelReviewRepository>();
 
+// 跨服务调用客户端
+builder.Services.AddScoped<AccommodationService.Services.IUserServiceClient, AccommodationService.Services.UserServiceClient>();
+
 // Application Layer - 应用服务
 builder.Services.AddScoped<IHotelService, HotelApplicationService>();
 

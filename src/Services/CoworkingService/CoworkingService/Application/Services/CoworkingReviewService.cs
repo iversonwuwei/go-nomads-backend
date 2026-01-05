@@ -36,9 +36,13 @@ public class CoworkingReviewService : ICoworkingReviewService
         {
             var (reviews, totalCount) = await _reviewRepository.GetReviewsByCoworkingIdAsync(coworkingId, page, pageSize);
 
+            // 批量获取用户信息
+            var userIds = reviews.Select(r => r.UserId.ToString()).Distinct().ToList();
+            var usersInfo = await _userServiceClient.GetUsersInfoAsync(userIds);
+
             return new PaginatedReviewsResponse
             {
-                Items = reviews.Select(MapToResponse).ToList(),
+                Items = reviews.Select(r => MapToResponse(r, usersInfo)).ToList(),
                 TotalCount = totalCount,
                 CurrentPage = page,
                 PageSize = pageSize
@@ -56,7 +60,15 @@ public class CoworkingReviewService : ICoworkingReviewService
         _logger.LogInformation("获取评论详情: {ReviewId}", reviewId);
 
         var review = await _reviewRepository.GetByIdAsync(reviewId);
-        return review != null ? MapToResponse(review) : null;
+        if (review == null) return null;
+
+        // 获取用户信息
+        var userInfo = await _userServiceClient.GetUserInfoAsync(review.UserId.ToString());
+        var usersInfo = userInfo != null 
+            ? new Dictionary<string, UserInfoDto> { { review.UserId.ToString(), userInfo } } 
+            : new Dictionary<string, UserInfoDto>();
+
+        return MapToResponse(review, usersInfo);
     }
 
     public async Task<CoworkingReviewResponse?> GetUserReviewForCoworkingAsync(Guid coworkingId, Guid userId)
@@ -64,7 +76,15 @@ public class CoworkingReviewService : ICoworkingReviewService
         _logger.LogInformation("获取用户 {UserId} 对 Coworking {CoworkingId} 的评论", userId, coworkingId);
 
         var review = await _reviewRepository.GetUserReviewForCoworkingAsync(coworkingId, userId);
-        return review != null ? MapToResponse(review) : null;
+        if (review == null) return null;
+
+        // 获取用户信息
+        var userInfo = await _userServiceClient.GetUserInfoAsync(userId.ToString());
+        var usersInfo = userInfo != null 
+            ? new Dictionary<string, UserInfoDto> { { userId.ToString(), userInfo } } 
+            : new Dictionary<string, UserInfoDto>();
+
+        return MapToResponse(review, usersInfo);
     }
 
     public async Task<CoworkingReviewResponse> AddReviewAsync(
@@ -76,12 +96,12 @@ public class CoworkingReviewService : ICoworkingReviewService
 
         try
         {
-            // 从 UserService 获取用户信息
+            // 从 UserService 获取用户信息（用于返回，不存储）
             var userInfo = await _userServiceClient.GetUserInfoAsync(userId.ToString());
-            var username = userInfo?.Username ?? "匿名用户";
-            var userAvatar = userInfo?.AvatarUrl;
 
-            _logger.LogInformation("获取到用户信息: Username={Username}, Avatar={Avatar}", username, userAvatar);
+            _logger.LogInformation("获取到用户信息: Username={Username}, Avatar={Avatar}", 
+                userInfo?.Username ?? "匿名用户", userInfo?.AvatarUrl);
+
             // 验证评分
             CoworkingReview.ValidateRating(request.Rating);
 
@@ -91,12 +111,11 @@ public class CoworkingReviewService : ICoworkingReviewService
                 throw new ArgumentException("照片数量不能超过 5 张");
             }
 
+            // 创建评论实体，不再存储用户名和头像
             var review = new CoworkingReview
             {
                 CoworkingId = coworkingId,
                 UserId = userId,
-                Username = username,
-                UserAvatar = userAvatar,
                 Rating = request.Rating,
                 Title = request.Title,
                 Content = request.Content,
@@ -110,7 +129,12 @@ public class CoworkingReviewService : ICoworkingReviewService
             // 更新评分缓存
             await UpdateCoworkingScoreCacheAsync(coworkingId);
 
-            return MapToResponse(created);
+            // 返回时动态填充用户信息
+            var usersInfo = userInfo != null 
+                ? new Dictionary<string, UserInfoDto> { { userId.ToString(), userInfo } } 
+                : new Dictionary<string, UserInfoDto>();
+
+            return MapToResponse(created, usersInfo);
         }
         catch (Exception ex)
         {
@@ -162,7 +186,13 @@ public class CoworkingReviewService : ICoworkingReviewService
             // 更新评分缓存
             await UpdateCoworkingScoreCacheAsync(review.CoworkingId);
 
-            return MapToResponse(updated);
+            // 返回时动态填充用户信息
+            var userInfo = await _userServiceClient.GetUserInfoAsync(userId.ToString());
+            var usersInfo = userInfo != null 
+                ? new Dictionary<string, UserInfoDto> { { userId.ToString(), userInfo } } 
+                : new Dictionary<string, UserInfoDto>();
+
+            return MapToResponse(updated, usersInfo);
         }
         catch (Exception ex)
         {
@@ -229,14 +259,19 @@ public class CoworkingReviewService : ICoworkingReviewService
         }
     }
 
-    private static CoworkingReviewResponse MapToResponse(CoworkingReview review)
+    private static CoworkingReviewResponse MapToResponse(CoworkingReview review, Dictionary<string, UserInfoDto> usersInfo)
     {
+        // 从用户信息字典中获取用户名和头像
+        var userIdStr = review.UserId.ToString();
+        var username = usersInfo.TryGetValue(userIdStr, out var userInfo) ? userInfo.Username : "匿名用户";
+        var userAvatar = userInfo?.AvatarUrl;
+
         return new CoworkingReviewResponse
         {
             Id = review.Id,
             UserId = review.UserId,
-            Username = review.Username,
-            UserAvatar = review.UserAvatar,
+            Username = username,
+            UserAvatar = userAvatar,
             CoworkingId = review.CoworkingId,
             Rating = review.Rating,
             Title = review.Title,

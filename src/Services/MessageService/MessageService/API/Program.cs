@@ -68,6 +68,9 @@ builder.Services.AddSingleton<ISignalRNotifier, SignalRNotifierImpl>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<INotificationService, NotificationApplicationService>();
 
+// 注册 UserService 客户端 (用于动态获取用户信息)
+builder.Services.AddScoped<IUserServiceClient, UserServiceClient>();
+
 // 注册聊天服务
 builder.Services.AddScoped<IChatRoomRepository, SupabaseChatRoomRepository>();
 builder.Services.AddScoped<IChatMessageRepository, SupabaseChatMessageRepository>();
