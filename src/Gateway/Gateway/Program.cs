@@ -97,6 +97,11 @@ var app = builder.Build();
 // Enable WebSockets for SignalR proxy
 app.UseWebSockets();
 
+// HTTP Method Override - 必须在路由之前
+// 用于解决某些网络环境不支持 PUT/DELETE 方法的问题
+// 客户端发送 POST + X-HTTP-Method-Override 头，此中间件会重写请求方法
+app.UseCustomHttpMethodOverride();
+
 // Configure the HTTP request pipeline.
 app.MapOpenApi();
 
