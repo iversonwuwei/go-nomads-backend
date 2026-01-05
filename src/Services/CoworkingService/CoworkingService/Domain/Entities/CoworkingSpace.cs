@@ -90,6 +90,36 @@ public class CoworkingSpace : BaseModel
     [Column("updated_at")] public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
+    ///     是否已删除（逻辑删除标记）
+    /// </summary>
+    [Column("is_deleted")]
+    public bool IsDeleted { get; set; } = false;
+
+    /// <summary>
+    ///     删除时间
+    /// </summary>
+    [Column("deleted_at")]
+    public DateTime? DeletedAt { get; set; }
+
+    /// <summary>
+    ///     删除者ID
+    /// </summary>
+    [Column("deleted_by")]
+    public Guid? DeletedBy { get; set; }
+
+    /// <summary>
+    ///     标记为已删除
+    /// </summary>
+    public void MarkAsDeleted(Guid? deletedBy = null)
+    {
+        IsDeleted = true;
+        DeletedAt = DateTime.UtcNow;
+        DeletedBy = deletedBy;
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = deletedBy;
+    }
+
+    /// <summary>
     ///     工厂方法 - 创建新的共享办公空间
     /// </summary>
     public static CoworkingSpace Create(

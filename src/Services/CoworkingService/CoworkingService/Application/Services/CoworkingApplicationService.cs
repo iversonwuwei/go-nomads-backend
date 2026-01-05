@@ -196,18 +196,18 @@ public class CoworkingApplicationService : ICoworkingService
         return await MapToResponseAsync(updated, votesBeforeUpdate, averageRating, reviewCount);
     }
 
-    public async Task DeleteCoworkingSpaceAsync(Guid id)
+    public async Task DeleteCoworkingSpaceAsync(Guid id, Guid? deletedBy = null)
     {
-        _logger.LogInformation("删除共享办公空间: {Id}", id);
+        _logger.LogInformation("删除共享办公空间: {Id}, DeletedBy: {DeletedBy}", id, deletedBy);
 
         try
         {
             var exists = await _coworkingRepository.ExistsAsync(id);
             if (!exists) throw new KeyNotFoundException($"未找到 ID 为 {id} 的共享办公空间");
 
-            await _coworkingRepository.DeleteAsync(id);
+            await _coworkingRepository.DeleteAsync(id, deletedBy);
 
-            _logger.LogInformation("✅ 共享办公空间删除成功: {Id}", id);
+            _logger.LogInformation("✅ 共享办公空间逻辑删除成功: {Id}, DeletedBy: {DeletedBy}", id, deletedBy);
         }
         catch (Exception ex)
         {

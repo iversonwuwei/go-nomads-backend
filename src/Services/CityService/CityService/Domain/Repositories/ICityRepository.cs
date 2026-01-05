@@ -13,7 +13,14 @@ public interface ICityRepository
     Task<IEnumerable<City>> SearchAsync(CitySearchCriteria criteria);
     Task<City> CreateAsync(City city);
     Task<City?> UpdateAsync(Guid id, City city);
-    Task<bool> DeleteAsync(Guid id);
+    
+    /// <summary>
+    ///     删除城市（逻辑删除）
+    /// </summary>
+    /// <param name="id">城市ID</param>
+    /// <param name="deletedBy">删除操作执行者ID</param>
+    Task<bool> DeleteAsync(Guid id, Guid? deletedBy = null);
+    
     Task<int> GetTotalCountAsync();
     Task<IEnumerable<City>> GetRecommendedAsync(int count);
     Task<IEnumerable<City>> GetPopularAsync(int limit);

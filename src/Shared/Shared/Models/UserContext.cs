@@ -26,6 +26,11 @@ public class UserContext
     public bool IsAuthenticated => !string.IsNullOrEmpty(UserId);
 
     /// <summary>
+    ///     是否是管理员
+    /// </summary>
+    public bool IsAdmin => Role?.ToLower() == "admin";
+
+    /// <summary>
     ///     原始 Authorization 头
     /// </summary>
     public string? AuthorizationHeader { get; set; }

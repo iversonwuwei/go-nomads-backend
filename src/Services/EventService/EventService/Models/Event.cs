@@ -61,13 +61,33 @@ public class Event : BaseModel
 
     [Column("is_featured")] public bool IsFeatured { get; set; }
 
+    // 审计字段
+    [Column("created_at")] public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [Column("updated_at")] public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
     [Column("created_by")] public Guid? CreatedBy { get; set; }
 
     [Column("updated_by")] public Guid? UpdatedBy { get; set; }
 
-    [Column("created_at")] public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    // 软删除字段
+    [Column("is_deleted")] public bool IsDeleted { get; set; } = false;
 
-    [Column("updated_at")] public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    [Column("deleted_at")] public DateTime? DeletedAt { get; set; }
+
+    [Column("deleted_by")] public Guid? DeletedBy { get; set; }
+
+    /// <summary>
+    ///     标记为已删除
+    /// </summary>
+    public void MarkAsDeleted(Guid? deletedBy = null)
+    {
+        IsDeleted = true;
+        DeletedAt = DateTime.UtcNow;
+        DeletedBy = deletedBy;
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = deletedBy;
+    }
 }
 
 /// <summary>

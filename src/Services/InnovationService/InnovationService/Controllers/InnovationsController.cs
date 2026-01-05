@@ -277,7 +277,7 @@ public class InnovationsController : ControllerBase
     }
 
     /// <summary>
-    ///     删除创新项目
+    ///     删除创新项目（所有者或管理员可删除）
     /// </summary>
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id)
@@ -294,9 +294,20 @@ public class InnovationsController : ControllerBase
                 });
             }
 
-            _logger.LogInformation("🗑️ 删除创新项目: Id={Id}, UserId={UserId}", id, userId);
-
-            var deleted = await _repository.DeleteAsync(id, userId.Value);
+            bool deleted;
+            
+            // 如果是管理员，直接删除
+            if (_currentUserService.IsAdmin())
+            {
+                _logger.LogInformation("🗑️ 管理员删除创新项目: Id={Id}, AdminId={UserId}", id, userId);
+                deleted = await _repository.AdminDeleteAsync(id, userId);
+            }
+            else
+            {
+                // 普通用户只能删除自己的项目
+                _logger.LogInformation("🗑️ 删除创新项目: Id={Id}, UserId={UserId}", id, userId);
+                deleted = await _repository.DeleteAsync(id, userId.Value);
+            }
 
             if (!deleted)
             {

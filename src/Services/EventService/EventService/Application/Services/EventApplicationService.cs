@@ -198,6 +198,25 @@ public class EventApplicationService : IEventService
         return await MapToResponseAsync(updatedEvent);
     }
 
+    /// <summary>
+    ///     删除活动（逻辑删除，仅Admin）
+    /// </summary>
+    public async Task<bool> DeleteEventAsync(Guid id, Guid? deletedBy = null)
+    {
+        var @event = await _eventRepository.GetByIdAsync(id);
+        if (@event == null)
+        {
+            _logger.LogWarning("❌ 尝试删除不存在的活动 {EventId}", id);
+            throw new KeyNotFoundException($"Event {id} 不存在");
+        }
+
+        await _eventRepository.DeleteAsync(id, deletedBy);
+        
+        _logger.LogInformation("✅ 活动 {EventId} 已被用户 {DeletedBy} 删除", id, deletedBy);
+        
+        return true;
+    }
+
     public async Task<(List<EventResponse> Events, int Total)> GetEventsAsync(
         Guid? cityId = null,
         string? category = null,

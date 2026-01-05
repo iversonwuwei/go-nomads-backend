@@ -69,6 +69,7 @@ public class EventRepository : IEventRepository
             var result = await _supabaseClient
                 .From<Event>()
                 .Where(e => e.Id == id)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Get();
 
             return result.Models.FirstOrDefault();
@@ -102,16 +103,38 @@ public class EventRepository : IEventRepository
         }
     }
 
-    public async Task DeleteAsync(Guid id)
+    public async Task DeleteAsync(Guid id, Guid? deletedBy = null)
     {
         try
         {
+            // 逻辑删除：先获取记录，设置属性，然后更新
+            var existingEvent = await _supabaseClient
+                .From<Event>()
+                .Filter("id", Constants.Operator.Equals, id.ToString())
+                .Single();
+
+            if (existingEvent == null)
+            {
+                _logger.LogWarning("⚠️ 要删除的 Event 不存在: {EventId}", id);
+                return;
+            }
+
+            // 设置逻辑删除字段
+            existingEvent.IsDeleted = true;
+            existingEvent.DeletedAt = DateTime.UtcNow;
+            existingEvent.UpdatedAt = DateTime.UtcNow;
+            if (deletedBy.HasValue)
+            {
+                existingEvent.DeletedBy = deletedBy.Value;
+                existingEvent.UpdatedBy = deletedBy.Value;
+            }
+
+            // 更新记录
             await _supabaseClient
                 .From<Event>()
-                .Where(e => e.Id == id)
-                .Delete();
+                .Update(existingEvent);
 
-            _logger.LogInformation("✅ Event 删除成功，ID: {EventId}", id);
+            _logger.LogInformation("✅ Event 逻辑删除成功，ID: {EventId}, DeletedBy: {DeletedBy}", id, deletedBy);
         }
         catch (Exception ex)
         {
@@ -130,6 +153,10 @@ public class EventRepository : IEventRepository
         try
         {
             var query = _supabaseClient.From<Event>();
+
+            // 过滤已删除的记录
+            query = (ISupabaseTable<Event, RealtimeChannel>)
+                query.Filter("is_deleted", Constants.Operator.NotEqual, "true");
 
             // 构建查询条件
             if (cityId.HasValue)
@@ -226,6 +253,7 @@ public class EventRepository : IEventRepository
             var result = await _supabaseClient
                 .From<Event>()
                 .Where(e => e.OrganizerId == organizerId)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Order(e => e.CreatedAt, Constants.Ordering.Descending)
                 .Get();
 
@@ -250,6 +278,8 @@ public class EventRepository : IEventRepository
             var countQuery = _supabaseClient.From<Event>();
             countQuery = (Supabase.Interfaces.ISupabaseTable<Event, Supabase.Realtime.RealtimeChannel>)
                 countQuery.Where(e => e.OrganizerId == organizerId);
+            countQuery = (Supabase.Interfaces.ISupabaseTable<Event, Supabase.Realtime.RealtimeChannel>)
+                countQuery.Filter("is_deleted", Constants.Operator.NotEqual, "true");
             if (!string.IsNullOrEmpty(status))
             {
                 countQuery = (Supabase.Interfaces.ISupabaseTable<Event, Supabase.Realtime.RealtimeChannel>)
@@ -263,6 +293,8 @@ public class EventRepository : IEventRepository
             var dataQuery = _supabaseClient.From<Event>();
             dataQuery = (Supabase.Interfaces.ISupabaseTable<Event, Supabase.Realtime.RealtimeChannel>)
                 dataQuery.Where(e => e.OrganizerId == organizerId);
+            dataQuery = (Supabase.Interfaces.ISupabaseTable<Event, Supabase.Realtime.RealtimeChannel>)
+                dataQuery.Filter("is_deleted", Constants.Operator.NotEqual, "true");
             if (!string.IsNullOrEmpty(status))
             {
                 dataQuery = (Supabase.Interfaces.ISupabaseTable<Event, Supabase.Realtime.RealtimeChannel>)
@@ -350,6 +382,7 @@ public class EventRepository : IEventRepository
             var statuses = new List<string> { "upcoming", "ongoing" };
             var result = await _supabaseClient
                 .From<Event>()
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Filter("status", Constants.Operator.In, statuses)
                 .Get();
 
@@ -384,6 +417,9 @@ public class EventRepository : IEventRepository
             // 使用 In 操作符按 eventIds 过滤
             var eventIdStrings = eventIds.Select(id => id.ToString()).ToList();
             query = (ISupabaseTable<Event, RealtimeChannel>)query.Filter("id", Constants.Operator.In, eventIdStrings);
+            
+            // 过滤已删除的记录
+            query = (ISupabaseTable<Event, RealtimeChannel>)query.Filter("is_deleted", Constants.Operator.NotEqual, "true");
 
             // 在数据库层过滤状态 - 支持逗号分隔的多状态值
             var isQueryingActiveEvents = false;
