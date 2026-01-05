@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MessageService.Application.DTOs;
 using MessageService.Domain.Entities;
 using MessageService.Domain.Repositories;
 using Microsoft.Extensions.Logging;
@@ -13,17 +14,20 @@ public class ChatApplicationService : IChatService
     private readonly IChatRoomRepository _roomRepository;
     private readonly IChatMessageRepository _messageRepository;
     private readonly IChatMemberRepository _memberRepository;
+    private readonly IUserServiceClient _userServiceClient;
     private readonly ILogger<ChatApplicationService> _logger;
 
     public ChatApplicationService(
         IChatRoomRepository roomRepository,
         IChatMessageRepository messageRepository,
         IChatMemberRepository memberRepository,
+        IUserServiceClient userServiceClient,
         ILogger<ChatApplicationService> logger)
     {
         _roomRepository = roomRepository;
         _messageRepository = messageRepository;
         _memberRepository = memberRepository;
+        _userServiceClient = userServiceClient;
         _logger = logger;
     }
 
@@ -266,7 +270,12 @@ public class ChatApplicationService : IChatService
     public async Task<List<ChatMessageDto>> GetMessagesAsync(string roomId, int page = 1, int pageSize = 50)
     {
         var messages = await _messageRepository.GetMessagesAsync(roomId, page, pageSize);
-        return messages.Select(MapToDto).ToList();
+        
+        // 批量获取所有消息的用户信息
+        var userIds = messages.Select(m => m.UserId).Distinct().ToList();
+        var usersInfo = await _userServiceClient.GetUsersInfoAsync(userIds);
+        
+        return messages.Select(m => MapToDto(m, usersInfo)).ToList();
     }
 
     public async Task<List<ChatMessageDto>> SearchMessagesAsync(string? roomId, string keyword, int page = 1, int pageSize = 20)
@@ -280,7 +289,12 @@ public class ChatApplicationService : IChatService
         if (!string.IsNullOrEmpty(roomId))
         {
             var messages = await _messageRepository.SearchMessagesAsync(roomId, keyword, page, pageSize);
-            return messages.Select(MapToDto).ToList();
+            
+            // 批量获取用户信息
+            var userIds = messages.Select(m => m.UserId).Distinct().ToList();
+            var usersInfo = await _userServiceClient.GetUsersInfoAsync(userIds);
+            
+            return messages.Select(m => MapToDto(m, usersInfo)).ToList();
         }
 
         // TODO: 如果没有指定 roomId，可以在所有聊天室中搜索（需要 Repository 支持）
@@ -318,14 +332,25 @@ public class ChatApplicationService : IChatService
     public async Task<List<MemberDto>> GetMembersAsync(string roomId, int page = 1, int pageSize = 20)
     {
         var members = await _memberRepository.GetMembersAsync(roomId, page, pageSize);
-        return members.Select(m => new MemberDto
+        
+        // 批量获取用户信息
+        var userIds = members.Select(m => m.UserId).Distinct().ToList();
+        var usersInfo = await _userServiceClient.GetUsersInfoAsync(userIds);
+        
+        return members.Select(m => 
         {
-            UserId = m.UserId,
-            UserName = m.UserName,
-            UserAvatar = m.UserAvatar,
-            Role = m.Role,
-            IsOnline = false, // TODO: 从 Redis 获取在线状态
-            LastSeenAt = m.LastSeenAt
+            // 动态获取用户信息
+            usersInfo.TryGetValue(m.UserId, out var userInfo);
+            
+            return new MemberDto
+            {
+                UserId = m.UserId,
+                UserName = userInfo?.Username ?? m.UserName, // 优先使用动态获取的用户名
+                UserAvatar = userInfo?.AvatarUrl ?? m.UserAvatar, // 优先使用动态获取的头像
+                Role = m.Role,
+                IsOnline = false, // TODO: 从 Redis 获取在线状态
+                LastSeenAt = m.LastSeenAt
+            };
         }).ToList();
     }
 
@@ -333,14 +358,25 @@ public class ChatApplicationService : IChatService
     {
         // TODO: 从 Redis 获取实时在线用户
         var members = await _memberRepository.GetOnlineMembersAsync(roomId);
-        return members.Select(m => new MemberDto
+        
+        // 批量获取用户信息
+        var userIds = members.Select(m => m.UserId).Distinct().ToList();
+        var usersInfo = await _userServiceClient.GetUsersInfoAsync(userIds);
+        
+        return members.Select(m => 
         {
-            UserId = m.UserId,
-            UserName = m.UserName,
-            UserAvatar = m.UserAvatar,
-            Role = m.Role,
-            IsOnline = true,
-            LastSeenAt = DateTime.UtcNow
+            // 动态获取用户信息
+            usersInfo.TryGetValue(m.UserId, out var userInfo);
+            
+            return new MemberDto
+            {
+                UserId = m.UserId,
+                UserName = userInfo?.Username ?? m.UserName,
+                UserAvatar = userInfo?.AvatarUrl ?? m.UserAvatar,
+                Role = m.Role,
+                IsOnline = true,
+                LastSeenAt = DateTime.UtcNow
+            };
         }).ToList();
     }
 
@@ -365,16 +401,19 @@ public class ChatApplicationService : IChatService
         };
     }
 
-    private ChatMessageDto MapToDto(ChatRoomMessage message)
+    private ChatMessageDto MapToDto(ChatRoomMessage message, Dictionary<string, UserInfoDto> usersInfo)
     {
+        // 动态获取消息发送者的用户信息
+        usersInfo.TryGetValue(message.UserId, out var userInfo);
+        
         var dto = new ChatMessageDto
         {
             Id = message.Id.ToString(),
             Author = new AuthorDto
             {
                 UserId = message.UserId,
-                UserName = message.UserName,
-                UserAvatar = message.UserAvatar
+                UserName = userInfo?.Username ?? message.UserName, // 优先使用动态获取的用户名
+                UserAvatar = userInfo?.AvatarUrl ?? message.UserAvatar // 优先使用动态获取的头像
             },
             Message = message.Message,
             MessageType = message.MessageType,
@@ -410,13 +449,16 @@ public class ChatApplicationService : IChatService
         // 解析回复
         if (message.ReplyTo != null)
         {
+            // 获取被回复消息的发送者信息
+            usersInfo.TryGetValue(message.ReplyTo.UserId, out var replyUserInfo);
+            
             dto.ReplyTo = new ReplyDto
             {
                 MessageId = message.ReplyTo.Id.ToString(),
                 Message = message.ReplyTo.Message.Length > 100 
                     ? message.ReplyTo.Message.Substring(0, 100) + "..." 
                     : message.ReplyTo.Message,
-                UserName = message.ReplyTo.UserName
+                UserName = replyUserInfo?.Username ?? message.ReplyTo.UserName
             };
         }
 

@@ -1,6 +1,7 @@
 using AccommodationService.Application.DTOs;
 using AccommodationService.Domain.Entities;
 using AccommodationService.Domain.Repositories;
+using AccommodationService.Services;
 using GoNomads.Shared.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,17 +17,20 @@ public class HotelReviewController : ControllerBase
     private readonly IHotelReviewRepository _reviewRepository;
     private readonly IHotelRepository _hotelRepository;
     private readonly ICurrentUserService _currentUser;
+    private readonly IUserServiceClient _userServiceClient;
     private readonly ILogger<HotelReviewController> _logger;
 
     public HotelReviewController(
         IHotelReviewRepository reviewRepository,
         IHotelRepository hotelRepository,
         ICurrentUserService currentUser,
+        IUserServiceClient userServiceClient,
         ILogger<HotelReviewController> logger)
     {
         _reviewRepository = reviewRepository;
         _hotelRepository = hotelRepository;
         _currentUser = currentUser;
+        _userServiceClient = userServiceClient;
         _logger = logger;
     }
 
@@ -50,7 +54,11 @@ public class HotelReviewController : ControllerBase
             parameters.PageSize,
             parameters.SortBy);
 
-        var reviewDtos = reviews.Select(MapToDto).ToList();
+        // 批量获取用户信息
+        var userIds = reviews.Select(r => r.UserId.ToString()).Distinct().ToList();
+        var usersInfo = await _userServiceClient.GetUsersInfoAsync(userIds);
+
+        var reviewDtos = reviews.Select(r => MapToDto(r, usersInfo)).ToList();
 
         // 获取评分统计
         var (averageRating, _, distribution) = await _reviewRepository.GetRatingStatsAsync(hotelId);
@@ -61,7 +69,6 @@ public class HotelReviewController : ControllerBase
             TotalCount = totalCount,
             Page = parameters.Page,
             PageSize = parameters.PageSize,
-            // TotalPages 是计算属性，不需要赋值
             AverageRating = averageRating,
             RatingDistribution = distribution
         };
@@ -81,7 +88,13 @@ public class HotelReviewController : ControllerBase
             return NotFound(new { message = "Review not found" });
         }
 
-        return Ok(MapToDto(review));
+        // 获取用户信息
+        var userInfo = await _userServiceClient.GetUserInfoAsync(review.UserId.ToString());
+        var usersInfo = userInfo != null 
+            ? new Dictionary<string, UserInfoDto> { { review.UserId.ToString(), userInfo } } 
+            : new Dictionary<string, UserInfoDto>();
+
+        return Ok(MapToDto(review, usersInfo));
     }
 
     /// <summary>
@@ -102,7 +115,13 @@ public class HotelReviewController : ControllerBase
             return Ok(null);
         }
 
-        return Ok(MapToDto(review));
+        // 获取用户信息
+        var userInfo = await _userServiceClient.GetUserInfoAsync(userId.Value.ToString());
+        var usersInfo = userInfo != null 
+            ? new Dictionary<string, UserInfoDto> { { userId.Value.ToString(), userInfo } } 
+            : new Dictionary<string, UserInfoDto>();
+
+        return Ok(MapToDto(review, usersInfo));
     }
 
     /// <summary>
@@ -119,11 +138,8 @@ public class HotelReviewController : ControllerBase
             return Unauthorized(new { message = "需要登录" });
         }
 
-        // 获取用户邮箱作为用户名，如果没有则使用匿名用户
-        var userEmail = _currentUser.GetUserEmail();
-        var userName = !string.IsNullOrEmpty(userEmail) 
-            ? userEmail.Split('@')[0]  // 使用邮箱前缀作为用户名
-            : "匿名用户";
+        // 从 UserService 获取用户信息（用于返回，不存储）
+        var userInfo = await _userServiceClient.GetUserInfoAsync(userId.Value.ToString());
 
         // 验证酒店是否存在
         var hotel = await _hotelRepository.GetByIdAsync(hotelId);
@@ -138,12 +154,12 @@ public class HotelReviewController : ControllerBase
             return BadRequest(new { message = "评分必须在1-5之间" });
         }
 
+        // 创建评论实体，不再存储用户名
         var review = new HotelReview
         {
             Id = Guid.NewGuid(),
             HotelId = hotelId,
             UserId = userId.Value,
-            UserName = userName,
             Rating = request.Rating,
             Title = request.Title,
             Content = request.Content,
@@ -162,7 +178,13 @@ public class HotelReviewController : ControllerBase
             await _hotelRepository.UpdateAsync(hotel);
 
             _logger.LogInformation("User {UserId} created review for hotel {HotelId}", userId, hotelId);
-            return CreatedAtAction(nameof(GetReview), new { reviewId = created.Id }, MapToDto(created));
+            
+            // 返回时动态填充用户信息
+            var usersInfo = userInfo != null 
+                ? new Dictionary<string, UserInfoDto> { { userId.Value.ToString(), userInfo } } 
+                : new Dictionary<string, UserInfoDto>();
+
+            return CreatedAtAction(nameof(GetReview), new { reviewId = created.Id }, MapToDto(created, usersInfo));
         }
         catch (Exception ex)
         {
@@ -219,7 +241,14 @@ public class HotelReviewController : ControllerBase
         {
             var updated = await _reviewRepository.UpdateAsync(review);
             _logger.LogInformation("User {UserId} updated review {ReviewId}", userId, reviewId);
-            return Ok(MapToDto(updated));
+            
+            // 返回时动态填充用户信息
+            var userInfo = await _userServiceClient.GetUserInfoAsync(userId.Value.ToString());
+            var usersInfo = userInfo != null 
+                ? new Dictionary<string, UserInfoDto> { { userId.Value.ToString(), userInfo } } 
+                : new Dictionary<string, UserInfoDto>();
+
+            return Ok(MapToDto(updated, usersInfo));
         }
         catch (Exception ex)
         {
@@ -327,14 +356,20 @@ public class HotelReviewController : ControllerBase
         });
     }
 
-    private static HotelReviewDto MapToDto(HotelReview review)
+    private static HotelReviewDto MapToDto(HotelReview review, Dictionary<string, UserInfoDto> usersInfo)
     {
+        // 从用户信息字典中获取用户名和头像
+        var userIdStr = review.UserId.ToString();
+        var userName = usersInfo.TryGetValue(userIdStr, out var userInfo) ? userInfo.Username : "匿名用户";
+        var userAvatar = userInfo?.AvatarUrl;
+
         return new HotelReviewDto
         {
             Id = review.Id,
             HotelId = review.HotelId,
             UserId = review.UserId,
-            UserName = review.UserName,
+            UserName = userName,
+            UserAvatar = userAvatar,
             Rating = review.Rating,
             Title = review.Title,
             Content = review.Content,
