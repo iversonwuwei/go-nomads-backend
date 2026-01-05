@@ -909,7 +909,13 @@ public class CoworkingApplicationService : ICoworkingService
 
             _logger.LogInformation("✅ 评论创建成功: {Id}", created.Id);
 
-            return MapToCommentResponse(created);
+            // 获取用户信息用于返回
+            var userInfo = await _userServiceClient.GetUserInfoAsync(userId.ToString());
+            var usersInfo = userInfo != null 
+                ? new Dictionary<string, UserInfoDto> { { userId.ToString(), userInfo } } 
+                : null;
+
+            return MapToCommentResponse(created, usersInfo);
         }
         catch (Exception ex)
         {
@@ -926,7 +932,12 @@ public class CoworkingApplicationService : ICoworkingService
         _logger.LogInformation("获取评论列表: CoworkingId={CoworkingId}, Page={Page}", coworkingId, page);
 
         var comments = await _commentRepository.GetByCoworkingIdAsync(coworkingId, page, pageSize);
-        return comments.Select(MapToCommentResponse).ToList();
+        
+        // 批量获取用户信息
+        var userIds = comments.Select(c => c.UserId.ToString()).Distinct().ToList();
+        var usersInfo = await _userServiceClient.GetUsersInfoAsync(userIds);
+        
+        return comments.Select(c => MapToCommentResponse(c, usersInfo)).ToList();
     }
 
     public async Task<int> GetCommentCountAsync(Guid coworkingId)
@@ -960,13 +971,27 @@ public class CoworkingApplicationService : ICoworkingService
         }
     }
 
-    private CoworkingCommentResponse MapToCommentResponse(CoworkingComment comment)
+    private CoworkingCommentResponse MapToCommentResponse(
+        CoworkingComment comment, 
+        Dictionary<string, UserInfoDto>? usersInfo = null)
     {
+        // 动态获取用户信息
+        string? userName = null;
+        string? userAvatar = null;
+        
+        if (usersInfo != null && usersInfo.TryGetValue(comment.UserId.ToString(), out var userInfo))
+        {
+            userName = userInfo.Username;
+            userAvatar = userInfo.AvatarUrl;
+        }
+        
         return new CoworkingCommentResponse
         {
             Id = comment.Id,
             CoworkingId = comment.CoworkingId,
             UserId = comment.UserId,
+            UserName = userName,
+            UserAvatar = userAvatar,
             Content = comment.Content,
             Rating = comment.Rating,
             Images = comment.Images,
