@@ -486,6 +486,36 @@ main() {
         "accommodation-service"
     echo ""
     
+    # 部署 InnovationService
+    deploy_service_local \
+        "innovation-service" \
+        "src/Services/InnovationService/InnovationService" \
+        "8011" \
+        "InnovationService.dll" \
+        "3514" \
+        "innovation-service"
+    echo ""
+    
+    # 部署 TravelPlanningService (无 Dapr)
+    deploy_service_local \
+        "travel-planning-service" \
+        "src/Services/TravelPlanningService/TravelPlanningService" \
+        "8007" \
+        "TravelPlanningService.dll" \
+        "3515" \
+        "travel-planning-service"
+    echo ""
+    
+    # 部署 EcommerceService (无 Dapr)
+    deploy_service_local \
+        "ecommerce-service" \
+        "src/Services/EcommerceService/EcommerceService" \
+        "8008" \
+        "EcommerceService.dll" \
+        "3516" \
+        "ecommerce-service"
+    echo ""
+    
     # 显示部署摘要
     show_header "部署摘要"
     
@@ -506,6 +536,9 @@ main() {
     echo -e "  ${GREEN}Cache Service:       http://localhost:8010${NC}"
     echo -e "  ${GREEN}Accommodation Service: http://localhost:8012${NC}"
     echo -e "  ${GREEN}Message Service:     http://localhost:5005${NC}"
+    echo -e "  ${GREEN}Innovation Service:  http://localhost:8011${NC}"
+    echo -e "  ${GREEN}Travel Planning:     http://localhost:8007${NC}"
+    echo -e "  ${GREEN}Ecommerce Service:   http://localhost:8008${NC}"
     echo -e "  ${GREEN}Message Swagger:     http://localhost:5005/swagger${NC}"
     echo ""
     echo -e "${BLUE}Dapr 配置:${NC}"

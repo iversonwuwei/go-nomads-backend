@@ -2,23 +2,6 @@ name: go-nomads
 
 services:
   # ============================================================
-  # Nginx Reverse Proxy
-  # ============================================================
-  nginx:
-    image: nginx:alpine
-    container_name: go-nomads-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./deployment/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - gateway
-    networks:
-      - go-nomads-network
-    restart: unless-stopped
-
-  # ============================================================
   # Dapr Placement Service (Required for Actors)
   # ============================================================
   dapr-placement:
@@ -76,6 +59,54 @@ services:
     network_mode: "service:gateway"
     depends_on:
       - gateway
+
+  # ============================================================
+  # Document Service
+  # ============================================================
+  document-service:
+    build:
+      context: .
+      dockerfile: src/Services/DocumentService/DocumentService/Dockerfile
+    container_name: go-nomads-document-service
+    ports:
+      - "5003:8080"
+      - "3503:3503"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - DAPR_HTTP_PORT=3503
+      - DAPR_GRPC_PORT=50001
+      - Consul__Address=http://go-nomads-consul:7500
+      - Consul__ServiceAddress=go-nomads-document-service
+      - Consul__ServicePort=8080
+      - Services__Gateway__Url=http://go-nomads-gateway:8080
+      - Services__Gateway__OpenApiUrl=http://go-nomads-gateway:8080/openapi/v1.json
+      - Services__ProductService__Url=http://go-nomads-product-service:8080
+      - Services__ProductService__OpenApiUrl=http://go-nomads-product-service:8080/openapi/v1.json
+      - Services__UserService__Url=http://go-nomads-user-service:8080
+      - Services__UserService__OpenApiUrl=http://go-nomads-user-service:8080/openapi/v1.json
+    networks:
+      - go-nomads-network
+    depends_on:
+      - dapr-placement
+
+  document-service-dapr:
+    image: daprio/daprd:1.14.4
+    container_name: go-nomads-document-service-dapr
+    command: ["./daprd",
+      "--app-id", "document-service",
+      "--app-port", "8080",
+      "--dapr-http-port", "3503",
+      "--dapr-grpc-port", "50001",
+      "--placement-host-address", "go-nomads-dapr-placement:50006",
+      "--components-path", "/components",
+      "--log-level", "info"
+    ]
+    volumes:
+      - ./deployment/dapr/components:/components
+    network_mode: "service:document-service"
+    depends_on:
+      - document-service
 
   # ============================================================
   # User Service
