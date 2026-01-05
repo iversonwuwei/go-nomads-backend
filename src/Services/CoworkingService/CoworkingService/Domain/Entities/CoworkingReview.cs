@@ -15,11 +15,12 @@ public class CoworkingReview : BaseModel
 
     [Column("user_id")] public Guid UserId { get; set; }
 
-    // 注意：以下两个字段已弃用，用户信息现在通过 UserService 动态获取
-    // 保留字段是为了兼容数据库中的旧数据，新创建的评论不会填充这些字段
-    [Column("username")] public string? Username { get; set; }
+    // 注意：username 和 user_avatar 字段已从数据库中删除
+    // 用户信息现在通过 UserService 动态获取
+    // 保留属性用于 DTO 映射，但不再映射到数据库列
+    public string? Username { get; set; }
 
-    [Column("user_avatar")] public string? UserAvatar { get; set; }
+    public string? UserAvatar { get; set; }
 
     [Column("rating")] public double Rating { get; set; } // 1.0 - 5.0
 

@@ -372,11 +372,8 @@ public class ChatRoomMemberModel : Postgrest.Models.BaseModel
     [Column("user_id")]
     public string UserId { get; set; } = string.Empty;
 
-    [Column("user_name")]
-    public string UserName { get; set; } = string.Empty;
-
-    [Column("user_avatar")]
-    public string? UserAvatar { get; set; }
+    // user_name 和 user_avatar 已从数据库表中删除
+    // 用户信息现在通过 UserService 动态获取
 
     [Column("role")]
     public string Role { get; set; } = "member";

@@ -272,7 +272,7 @@ public class UserCityContentApplicationService : IUserCityContentService
             if (usersInfo.TryGetValue(review.UserId.ToString(), out var userInfo))
             {
                 dto.Username = userInfo.Username; // Username 属性会返回 Name 或 Email 前缀
-                dto.UserAvatar = null; // UserService 当前不返回头像
+                dto.UserAvatar = userInfo.AvatarUrl; // ✅ 使用从 UserService 获取的头像
             }
             else
             {
