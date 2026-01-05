@@ -100,6 +100,18 @@ services:
     networks:
       - gonomads-network
 
+  nginx:
+    image: nginx:alpine
+    container_name: go-nomads-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployment/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+    networks:
+      - gonomads-network
+
 networks:
   gonomads-network:
     name: go-nomads-network
