@@ -179,8 +179,9 @@ public class SupabaseChatMessageRepository : IChatMessageRepository
             Id = model.Id,
             RoomId = model.RoomId,
             UserId = model.UserId,
-            UserName = model.UserName,
-            UserAvatar = model.UserAvatar,
+            // UserName 和 UserAvatar 从 UserService 获取
+            UserName = string.Empty,
+            UserAvatar = null,
             Message = model.Message,
             MessageType = model.MessageType,
             ReplyToId = model.ReplyToId,
@@ -199,8 +200,7 @@ public class SupabaseChatMessageRepository : IChatMessageRepository
             Id = message.Id,
             RoomId = message.RoomId,
             UserId = message.UserId,
-            UserName = message.UserName,
-            UserAvatar = message.UserAvatar,
+            // UserName 和 UserAvatar 不再存储到数据库
             Message = message.Message,
             MessageType = message.MessageType,
             ReplyToId = message.ReplyToId,
@@ -230,11 +230,8 @@ public class ChatRoomMessageModel : Postgrest.Models.BaseModel
     [Column("user_id")]
     public string UserId { get; set; } = string.Empty;
 
-    [Column("user_name")]
-    public string UserName { get; set; } = string.Empty;
-
-    [Column("user_avatar")]
-    public string? UserAvatar { get; set; }
+    // user_name 和 user_avatar 已从数据库表中删除
+    // 用户信息现在通过 UserService 动态获取
 
     [Column("message")]
     public string Message { get; set; } = string.Empty;

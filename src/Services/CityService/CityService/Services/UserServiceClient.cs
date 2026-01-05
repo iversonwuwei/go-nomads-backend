@@ -12,6 +12,7 @@ public class UserInfoDto
     public string Name { get; set; } = string.Empty; // ✅ UserService 返回的字段名是 "name"
     public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
+    public string? AvatarUrl { get; set; } // ✅ 用户头像 URL
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
