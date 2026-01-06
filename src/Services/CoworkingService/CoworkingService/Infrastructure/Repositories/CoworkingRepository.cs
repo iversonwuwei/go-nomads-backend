@@ -266,7 +266,8 @@ public class CoworkingRepository : ICoworkingRepository
         {
             var response = await _supabaseClient
                 .From<CoworkingSpace>()
-                .Where(x => x.CityId == cityId && x.IsActive)
+                .Filter("city_id", Constants.Operator.Equals, cityId.ToString())
+                .Filter("is_active", Constants.Operator.Equals, "true")
                 .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Order(x => x.Rating, Constants.Ordering.Descending)
                 .Get();

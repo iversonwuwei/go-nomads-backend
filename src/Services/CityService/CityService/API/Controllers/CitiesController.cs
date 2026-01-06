@@ -120,6 +120,54 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
+    ///     Get city list (lightweight version without weather data)
+    ///     Optimized for city list page performance
+    /// </summary>
+    [HttpGet("list")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<CityListItemDto>>>> GetCityList(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null)
+    {
+        try
+        {
+            var userId = _currentUser.TryGetUserId();
+            var userRole = _currentUser.GetUserRole();
+
+            var cities = await _cityService.GetCityListAsync(pageNumber, pageSize, search, userId, userRole);
+            var totalCount = await _cityService.GetTotalCountAsync();
+
+            Response.Headers.Append("X-Total-Count", totalCount.ToString());
+            Response.Headers.Append("X-Page-Number", pageNumber.ToString());
+            Response.Headers.Append("X-Page-Size", pageSize.ToString());
+
+            return Ok(new ApiResponse<PaginatedResponse<CityListItemDto>>
+            {
+                Success = true,
+                Message = "City list retrieved successfully",
+                Data = new PaginatedResponse<CityListItemDto>
+                {
+                    Items = cities.ToList(),
+                    TotalCount = totalCount,
+                    Page = pageNumber,
+                    PageSize = pageSize
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting city list");
+            return StatusCode(500, new ApiResponse<PaginatedResponse<CityListItemDto>>
+            {
+                Success = false,
+                Message = "An error occurred while retrieving city list",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
     ///     批量根据 ID 获取城市信息
     /// </summary>
     [HttpPost("lookup")]

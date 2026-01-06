@@ -10,6 +10,12 @@ public interface ICityService
     Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize, Guid? userId = null,
         string? userRole = null);
 
+    /// <summary>
+    /// 获取城市列表（轻量级版本，不包含天气数据）
+    /// 用于城市列表页面，提升加载性能
+    /// </summary>
+    Task<IEnumerable<CityListItemDto>> GetCityListAsync(int pageNumber, int pageSize, string? search = null, Guid? userId = null, string? userRole = null);
+
     Task<CityDto?> GetCityByIdAsync(Guid id, Guid? userId = null, string? userRole = null);
     Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null, string? userRole = null);
     Task<CityDto> CreateCityAsync(CreateCityDto createCityDto, Guid userId);
