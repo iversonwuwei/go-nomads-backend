@@ -43,6 +43,20 @@ public class Innovation : BaseModel
 
     [Required] [Column("creator_id")] public Guid CreatorId { get; set; }
 
+    /// <summary>
+    ///     冗余字段：创建者名称（来源于 users.name，通过事件驱动同步）
+    /// </summary>
+    [MaxLength(255)]
+    [Column("creator_name")]
+    public string? CreatorName { get; set; }
+
+    /// <summary>
+    ///     冗余字段：创建者头像（来源于 users.avatar，通过事件驱动同步）
+    /// </summary>
+    [MaxLength(500)]
+    [Column("creator_avatar")]
+    public string? CreatorAvatar { get; set; }
+
     [MaxLength(50)]
     [Column("category")]
     public string? Category { get; set; } // tech, business, social, environment, education, health, other
@@ -181,6 +195,20 @@ public class InnovationComment : BaseModel
     [Required] [Column("innovation_id")] public Guid InnovationId { get; set; }
 
     [Required] [Column("user_id")] public Guid UserId { get; set; }
+
+    /// <summary>
+    ///     冗余字段：评论者名称（来源于 users.name，通过事件驱动同步）
+    /// </summary>
+    [MaxLength(255)]
+    [Column("user_name")]
+    public string? UserName { get; set; }
+
+    /// <summary>
+    ///     冗余字段：评论者头像（来源于 users.avatar，通过事件驱动同步）
+    /// </summary>
+    [MaxLength(500)]
+    [Column("user_avatar")]
+    public string? UserAvatar { get; set; }
 
     [Required] [Column("content")] public string Content { get; set; } = string.Empty;
 

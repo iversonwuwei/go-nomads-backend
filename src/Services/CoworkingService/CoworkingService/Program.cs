@@ -61,9 +61,13 @@ builder.Services.AddScoped<CoworkingService.Services.ICityServiceClient, Coworki
 
 // Domain Layer 不需要注册（纯 POCO）
 
-// 配置 MassTransit + RabbitMQ（用于发布消息到 MessageService）
+// 配置 MassTransit + RabbitMQ（用于发布消息到 MessageService 和接收事件）
 builder.Services.AddMassTransit(x =>
 {
+    // 注册事件消费者
+    x.AddConsumer<CoworkingService.Infrastructure.Consumers.UserUpdatedMessageConsumer>();
+    x.AddConsumer<CoworkingService.Infrastructure.Consumers.CityUpdatedMessageConsumer>();
+
     x.UsingRabbitMq((context, cfg) =>
     {
         var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
@@ -71,6 +75,17 @@ builder.Services.AddMassTransit(x =>
         {
             h.Username(rabbitMqConfig["Username"] ?? "guest");
             h.Password(rabbitMqConfig["Password"] ?? "guest");
+        });
+
+        // 配置接收端点用于消费事件
+        cfg.ReceiveEndpoint("coworking-service-user-updated", e =>
+        {
+            e.ConfigureConsumer<CoworkingService.Infrastructure.Consumers.UserUpdatedMessageConsumer>(context);
+        });
+
+        cfg.ReceiveEndpoint("coworking-service-city-updated", e =>
+        {
+            e.ConfigureConsumer<CoworkingService.Infrastructure.Consumers.CityUpdatedMessageConsumer>(context);
         });
     });
 });

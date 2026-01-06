@@ -6,9 +6,11 @@ using CityService.Domain.Repositories;
 using CityService.Domain.ValueObjects;
 using Dapr.Client;
 using GoNomads.Shared.Models;
+using MassTransit;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
+using Shared.Messages;
 
 namespace CityService.Application.Services;
 
@@ -25,6 +27,7 @@ public class CityApplicationService : ICityService
     private readonly IUserFavoriteCityService _favoriteCityService;
     private readonly ILogger<CityApplicationService> _logger;
     private readonly ICityModeratorRepository _moderatorRepository;
+    private readonly IPublishEndpoint _publishEndpoint;
     private readonly IWeatherService _weatherService;
     private readonly IConfiguration _configuration;
 
@@ -38,6 +41,7 @@ public class CityApplicationService : ICityService
         DaprClient daprClient,
         IMemoryCache cache,
         IConfiguration configuration,
+        IPublishEndpoint publishEndpoint,
         ILogger<CityApplicationService> logger)
     {
         _cityRepository = cityRepository;
@@ -49,6 +53,7 @@ public class CityApplicationService : ICityService
         _daprClient = daprClient;
         _cache = cache;
         _configuration = configuration;
+        _publishEndpoint = publishEndpoint;
         _logger = logger;
     }
 
@@ -189,6 +194,13 @@ public class CityApplicationService : ICityService
         var existingCity = await _cityRepository.GetByIdAsync(id);
         if (existingCity == null) return null;
 
+        // 记录更新的字段（用于事件通知）
+        var updatedFields = new List<string>();
+        if (!string.IsNullOrWhiteSpace(updateCityDto.Name) && updateCityDto.Name != existingCity.Name)
+            updatedFields.Add("name");
+        if (!string.IsNullOrWhiteSpace(updateCityDto.Country) && updateCityDto.Country != existingCity.Country)
+            updatedFields.Add("country");
+
         if (!string.IsNullOrWhiteSpace(updateCityDto.Name)) existingCity.Name = updateCityDto.Name;
         if (!string.IsNullOrWhiteSpace(updateCityDto.Country)) existingCity.Country = updateCityDto.Country;
         if (updateCityDto.Region != null) existingCity.Region = updateCityDto.Region;
@@ -214,6 +226,33 @@ public class CityApplicationService : ICityService
 
         var updatedCity = await _cityRepository.UpdateAsync(id, existingCity);
         if (updatedCity == null) return null;
+
+        // 如果更新了 name 或 country，发布 CityUpdatedMessage 事件
+        if (updatedFields.Contains("name") || updatedFields.Contains("country"))
+        {
+            try
+            {
+                var message = new CityUpdatedMessage
+                {
+                    CityId = id.ToString(),
+                    Name = updatedCity.Name,
+                    NameEn = updatedCity.NameEn,
+                    Country = updatedCity.Country,
+                    CountryCode = null, // City 实体暂无 CountryCode 字段
+                    UpdatedAt = DateTime.UtcNow,
+                    UpdatedFields = updatedFields
+                };
+
+                await _publishEndpoint.Publish(message);
+                _logger.LogInformation("📤 已发布城市更新事件: CityId={CityId}, UpdatedFields=[{Fields}]",
+                    id, string.Join(", ", updatedFields));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ 发布城市更新事件失败: CityId={CityId}", id);
+                // 不抛出异常，城市更新已成功，事件发布失败不影响主流程
+            }
+        }
 
         _logger.LogInformation("City updated: {CityId} - {CityName}", id, existingCity.Name);
         return MapToDto(updatedCity);
@@ -289,6 +328,7 @@ public class CityApplicationService : ICityService
                     {
                         Id = city.Id,
                         Name = city.Name,
+                        NameEn = city.NameEn,
                         Region = city.Region
                     }).ToList()
                 };
@@ -316,6 +356,7 @@ public class CityApplicationService : ICityService
             {
                 Id = city.Id,
                 Name = city.Name,
+                NameEn = city.NameEn,
                 Region = city.Region
             });
         }
@@ -1146,13 +1187,8 @@ public class CityApplicationService : ICityService
                 .Distinct()
                 .ToList();
 
-            // 批量获取用户信息（使用缓存）
-            var userInfoMap = new Dictionary<Guid, SimpleUserDto>();
-            foreach (var userId in userIds)
-            {
-                var userInfo = await GetUserInfoWithCacheAsync(userId);
-                if (userInfo != null) userInfoMap[userId] = userInfo;
-            }
+            // 🚀 优化：并行获取用户信息（使用缓存）
+            var userInfoMap = await GetUsersInfoBatchWithCacheAsync(userIds);
 
             // 填充每个城市的版主信息
             foreach (var city in cities)
@@ -1179,6 +1215,57 @@ public class CityApplicationService : ICityService
         {
             _logger.LogWarning(ex, "批量填充城市版主信息失败");
         }
+    }
+
+    /// <summary>
+    /// 批量获取用户信息（带缓存和并行请求）
+    /// </summary>
+    private async Task<Dictionary<Guid, SimpleUserDto>> GetUsersInfoBatchWithCacheAsync(List<Guid> userIds)
+    {
+        var result = new Dictionary<Guid, SimpleUserDto>();
+
+        if (userIds.Count == 0) return result;
+
+        var uncachedUserIds = new List<Guid>();
+
+        // 首先检查缓存
+        foreach (var userId in userIds)
+        {
+            var cacheKey = $"user_info:{userId}";
+            if (_cache.TryGetValue<SimpleUserDto>(cacheKey, out var cachedUser) && cachedUser != null)
+            {
+                result[userId] = cachedUser;
+            }
+            else
+            {
+                uncachedUserIds.Add(userId);
+            }
+        }
+
+        _logger.LogDebug("🔍 批量获取用户信息: 缓存命中={CacheHit}, 需要查询={NeedFetch}",
+            result.Count, uncachedUserIds.Count);
+
+        // 并行获取未缓存的用户信息
+        if (uncachedUserIds.Count > 0)
+        {
+            var tasks = uncachedUserIds.Select(async userId =>
+            {
+                var userInfo = await GetUserInfoWithCacheAsync(userId);
+                return (userId, userInfo);
+            });
+
+            var results = await Task.WhenAll(tasks);
+
+            foreach (var (userId, userInfo) in results)
+            {
+                if (userInfo != null)
+                {
+                    result[userId] = userInfo;
+                }
+            }
+        }
+
+        return result;
     }
 
     /// <summary>

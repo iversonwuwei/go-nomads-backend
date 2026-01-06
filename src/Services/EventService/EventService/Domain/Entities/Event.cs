@@ -22,7 +22,42 @@ public class Event : BaseModel
 
     [Required] [Column("organizer_id")] public Guid OrganizerId { get; set; }
 
+    /// <summary>
+    ///     冗余字段：组织者名称（来源于 users.name，通过事件驱动同步）
+    /// </summary>
+    [MaxLength(255)]
+    [Column("organizer_name")]
+    public string? OrganizerName { get; set; }
+
+    /// <summary>
+    ///     冗余字段：组织者头像（来源于 users.avatar，通过事件驱动同步）
+    /// </summary>
+    [MaxLength(500)]
+    [Column("organizer_avatar")]
+    public string? OrganizerAvatar { get; set; }
+
     [Column("city_id")] public Guid? CityId { get; set; }
+
+    /// <summary>
+    ///     冗余字段：城市名称（来源于 cities.name，通过事件驱动同步）
+    /// </summary>
+    [MaxLength(255)]
+    [Column("city_name")]
+    public string? CityName { get; set; }
+
+    /// <summary>
+    ///     冗余字段：城市英文名称（来源于 cities.name_en，通过事件驱动同步）
+    /// </summary>
+    [MaxLength(255)]
+    [Column("city_name_en")]
+    public string? CityNameEn { get; set; }
+
+    /// <summary>
+    ///     冗余字段：城市所属国家（来源于 cities.country，通过事件驱动同步）
+    /// </summary>
+    [MaxLength(100)]
+    [Column("city_country")]
+    public string? CityCountry { get; set; }
 
     [MaxLength(200)] [Column("location")] public string? Location { get; set; }
 

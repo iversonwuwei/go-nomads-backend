@@ -1,6 +1,7 @@
 using System.Text;
 using GoNomads.Shared.Extensions;
 using GoNomads.Shared.Security;
+using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Prometheus;
@@ -58,6 +59,20 @@ builder.Services.AddScoped<IVisitedPlaceService, VisitedPlaceService>();
 
 // Register Service Clients (for inter-service communication)
 builder.Services.AddScoped<ICityServiceClient, CityServiceClient>();
+
+// 配置 MassTransit + RabbitMQ（用于发布用户更新事件）
+builder.Services.AddMassTransit(x =>
+{
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
+        cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
+        {
+            h.Username(rabbitMqConfig["Username"] ?? "guest");
+            h.Password(rabbitMqConfig["Password"] ?? "guest");
+        });
+    });
+});
 
 // 配置 DaprClient 连接到 Dapr sidecar
 // Dapr sidecar 与应用共享网络命名空间，通过 localhost 访问

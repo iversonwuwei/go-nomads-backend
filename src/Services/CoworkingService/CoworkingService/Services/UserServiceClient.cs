@@ -114,7 +114,7 @@ public class UserServiceClient : IUserServiceClient
     }
 
     /// <summary>
-    ///     批量获取用户信息 (并发调用)
+    ///     批量获取用户信息 (使用批量 API)
     /// </summary>
     public async Task<Dictionary<string, UserInfoDto>> GetUsersInfoAsync(
         IEnumerable<string> userIds,
@@ -127,9 +127,51 @@ public class UserServiceClient : IUserServiceClient
 
         try
         {
-            _logger.LogInformation("📞 通过 Dapr 批量调用 UserService - 用户数量: {Count}", userIdList.Count);
+            _logger.LogInformation("📞 通过 Dapr 批量调用 UserService - POST /api/v1/users/batch - 用户数量: {Count}", userIdList.Count);
 
-            // 并发调用多个用户信息
+            // 使用批量 API 一次获取所有用户信息
+            var requestBody = new { UserIds = userIdList };
+            var response = await _daprClient.InvokeMethodAsync<object, JsonElement>(
+                HttpMethod.Post,
+                _userServiceAppId,
+                "api/v1/users/batch",
+                requestBody,
+                cancellationToken);
+
+            // 解析响应
+            if (response.ValueKind == JsonValueKind.Object)
+            {
+                var success = response.TryGetProperty("success", out var successProp) && successProp.GetBoolean();
+
+                if (success && response.TryGetProperty("data", out var dataElement) &&
+                    dataElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var userElement in dataElement.EnumerateArray())
+                    {
+                        var userInfo = new UserInfoDto
+                        {
+                            Id = GetStringProperty(userElement, "id", "Id") ?? string.Empty,
+                            Name = GetStringProperty(userElement, "name", "Name") ?? string.Empty,
+                            Email = GetStringProperty(userElement, "email", "Email") ?? string.Empty,
+                            Phone = GetStringProperty(userElement, "phone", "Phone") ?? string.Empty,
+                            AvatarUrl = GetStringProperty(userElement, "avatarUrl", "AvatarUrl")
+                        };
+
+                        if (!string.IsNullOrEmpty(userInfo.Id))
+                        {
+                            result[userInfo.Id] = userInfo;
+                        }
+                    }
+                }
+            }
+
+            _logger.LogInformation("✅ 批量 API 成功获取 {Count}/{Total} 个用户信息", result.Count, userIdList.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 批量 API 失败，降级为并发单独调用");
+
+            // 降级：并发调用单个 API
             var tasks = userIdList.Select(async userId =>
             {
                 var userInfo = await GetUserInfoAsync(userId, cancellationToken);
@@ -141,12 +183,6 @@ public class UserServiceClient : IUserServiceClient
             foreach (var (userId, userInfo) in results)
                 if (userInfo != null)
                     result[userId] = userInfo;
-
-            _logger.LogInformation("✅ 成功获取 {Count}/{Total} 个用户信息", result.Count, userIdList.Count);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ Dapr 批量调用 UserService 失败");
         }
 
         return result;

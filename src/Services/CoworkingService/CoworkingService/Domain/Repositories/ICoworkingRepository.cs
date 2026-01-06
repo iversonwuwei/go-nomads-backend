@@ -69,4 +69,33 @@ public interface ICoworkingRepository
     ///     检查共享办公空间是否存在
     /// </summary>
     Task<bool> ExistsAsync(Guid id);
+
+    #region 冗余字段更新方法（用于事件驱动的数据同步）
+
+    /// <summary>
+    ///     更新指定创建者的所有 Coworking 空间的创建者信息
+    /// </summary>
+    /// <param name="creatorId">创建者ID</param>
+    /// <param name="creatorName">创建者名称</param>
+    /// <param name="creatorAvatar">创建者头像</param>
+    /// <returns>更新的记录数</returns>
+    Task<int> UpdateCreatorInfoAsync(Guid creatorId, string? creatorName, string? creatorAvatar);
+
+    /// <summary>
+    ///     更新指定城市的所有 Coworking 空间的城市信息
+    /// </summary>
+    /// <param name="cityId">城市ID</param>
+    /// <param name="cityName">城市名称</param>
+    /// <param name="cityNameEn">城市英文名</param>
+    /// <param name="cityCountry">城市所属国家</param>
+    /// <returns>更新的记录数</returns>
+    Task<int> UpdateCityInfoAsync(Guid cityId, string? cityName, string? cityNameEn, string? cityCountry);
+
+    /// <summary>
+    ///     为单个 Coworking 空间填充冗余字段（创建/更新时使用）
+    /// </summary>
+    Task FillRedundantFieldsAsync(CoworkingSpace coworkingSpace, string? creatorName, string? creatorAvatar,
+        string? cityName, string? cityNameEn, string? cityCountry);
+
+    #endregion
 }

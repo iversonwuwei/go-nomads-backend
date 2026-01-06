@@ -399,6 +399,7 @@ public class EventApplicationService : IEventService
 
     /// <summary>
     ///     为事件列表填充关联数据（城市、组织者信息）
+    ///     优先使用冗余字段，仅对冗余字段为空的事件通过 gRPC 补充查询
     /// </summary>
     private async Task EnrichEventResponsesWithRelatedDataAsync(List<EventResponse> responses)
     {
@@ -410,16 +411,42 @@ public class EventApplicationService : IEventService
             return;
         }
 
+        // 筛选出需要从 CityService 获取城市信息的事件（City 为空但 CityId 有值）
+        var responsesNeedCityInfo = responses
+            .Where(r => r.CityId.HasValue && r.City == null)
+            .ToList();
+
+        // 筛选出需要从 UserService 获取组织者信息的事件（Organizer 为空）
+        var responsesNeedOrganizerInfo = responses
+            .Where(r => r.Organizer == null)
+            .ToList();
+
+        var hasRedundantData = responses.Count - responsesNeedCityInfo.Count > 0 ||
+                               responses.Count - responsesNeedOrganizerInfo.Count > 0;
+
+        if (hasRedundantData)
+        {
+            _logger.LogInformation("📊 {TotalCount} 个事件中，{NeedCityCount} 个需要获取城市信息，{NeedOrganizerCount} 个需要获取组织者信息",
+                responses.Count, responsesNeedCityInfo.Count, responsesNeedOrganizerInfo.Count);
+        }
+
+        // 如果所有事件都有冗余字段，无需调用外部服务
+        if (responsesNeedCityInfo.Count == 0 && responsesNeedOrganizerInfo.Count == 0)
+        {
+            _logger.LogInformation("✅ 所有事件已有冗余字段，无需调用 CityService/UserService");
+            return;
+        }
+
         try
         {
-            // 收集所有需要查询的 CityId 和 OrganizerId
-            var cityIds = responses
+            // 收集需要查询的 CityId 和 OrganizerId
+            var cityIds = responsesNeedCityInfo
                 .Where(r => r.CityId.HasValue)
                 .Select(r => r.CityId!.Value)
                 .Distinct()
                 .ToList();
 
-            var organizerIds = responses
+            var organizerIds = responsesNeedOrganizerInfo
                 .Select(r => r.OrganizerId)
                 .Distinct()
                 .ToList();
@@ -428,8 +455,12 @@ public class EventApplicationService : IEventService
                 cityIds.Count, organizerIds.Count);
 
             // 并行批量获取城市和用户信息
-            var getCitiesTask = _cityGrpcClient.GetCitiesByIdsAsync(cityIds);
-            var getUsersTask = _userGrpcClient.GetUsersByIdsAsync(organizerIds);
+            var getCitiesTask = cityIds.Count > 0
+                ? _cityGrpcClient.GetCitiesByIdsAsync(cityIds)
+                : Task.FromResult(new Dictionary<Guid, CityInfo>());
+            var getUsersTask = organizerIds.Count > 0
+                ? _userGrpcClient.GetUsersByIdsAsync(organizerIds)
+                : Task.FromResult(new Dictionary<Guid, OrganizerInfo>());
 
             await Task.WhenAll(getCitiesTask, getUsersTask);
 
@@ -439,19 +470,21 @@ public class EventApplicationService : IEventService
             _logger.LogInformation("📥 获取到 {CityCount} 个城市和 {UserCount} 个组织者信息",
                 cities.Count, users.Count);
 
-            // 填充数据到每个 EventResponse
-            foreach (var response in responses)
+            // 填充数据到需要补充的 EventResponse
+            foreach (var response in responsesNeedCityInfo)
             {
-                // 填充城市信息
                 if (response.CityId.HasValue && cities.TryGetValue(response.CityId.Value, out var cityInfo))
                     response.City = cityInfo;
-
-                // 填充组织者信息
-                if (users.TryGetValue(response.OrganizerId, out var organizerInfo)) response.Organizer = organizerInfo;
             }
 
-            _logger.LogInformation("✅ 已为 {Count} 个事件填充关联数据（城市: {CityCount}, 组织者: {OrganizerCount}）",
-                responses.Count, cities.Count, users.Count);
+            foreach (var response in responsesNeedOrganizerInfo)
+            {
+                if (users.TryGetValue(response.OrganizerId, out var organizerInfo))
+                    response.Organizer = organizerInfo;
+            }
+
+            _logger.LogInformation("✅ 已为事件填充关联数据（城市: {CityCount}, 组织者: {OrganizerCount}）",
+                cities.Count, users.Count);
         }
         catch (Exception ex)
         {
@@ -523,6 +556,29 @@ public class EventApplicationService : IEventService
             CreatedAt = @event.CreatedAt,
             UpdatedAt = @event.UpdatedAt
         };
+
+        // 优先使用冗余字段填充城市信息
+        if (@event.CityId.HasValue && !string.IsNullOrEmpty(@event.CityName))
+        {
+            response.City = new CityInfo
+            {
+                Id = @event.CityId.Value,
+                Name = @event.CityName,
+                Country = @event.CityCountry ?? string.Empty
+            };
+        }
+
+        // 优先使用冗余字段填充组织者信息
+        if (!string.IsNullOrEmpty(@event.OrganizerName))
+        {
+            response.Organizer = new OrganizerInfo
+            {
+                Id = @event.OrganizerId.ToString(),
+                Name = @event.OrganizerName,
+                AvatarUrl = @event.OrganizerAvatar,
+                Email = string.Empty // 冗余字段不包含 email
+            };
+        }
 
         // 🔍 根据 category (UUID) 查询 EventType
         if (!string.IsNullOrEmpty(@event.Category) && Guid.TryParse(@event.Category, out var eventTypeId))

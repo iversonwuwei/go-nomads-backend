@@ -493,4 +493,95 @@ public class EventRepository : IEventRepository
             throw;
         }
     }
+
+    #region 冗余字段更新方法
+
+    /// <summary>
+    ///     更新组织者信息（冗余字段）
+    ///     当收到 UserUpdatedMessage 时调用此方法
+    /// </summary>
+    public async Task<int> UpdateOrganizerInfoAsync(Guid organizerId, string? name, string? avatarUrl)
+    {
+        try
+        {
+            _logger.LogInformation("🔄 开始更新组织者 {OrganizerId} 的冗余字段: Name={Name}", organizerId, name);
+
+            // 查询该组织者的所有活动
+            var result = await _supabaseClient.From<Event>()
+                .Select("id")
+                .Filter("organizer_id", Constants.Operator.Equals, organizerId.ToString())
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                .Get();
+
+            var count = result.Models.Count;
+            if (count == 0)
+            {
+                _logger.LogInformation("📝 未找到组织者 {OrganizerId} 的活动", organizerId);
+                return 0;
+            }
+
+            // 更新所有记录的冗余字段
+            await _supabaseClient.From<Event>()
+                .Filter("organizer_id", Constants.Operator.Equals, organizerId.ToString())
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                .Set(x => x.OrganizerName, name)
+                .Set(x => x.OrganizerAvatar, avatarUrl)
+                .Set(x => x.UpdatedAt, DateTime.UtcNow)
+                .Update();
+
+            _logger.LogInformation("✅ 已更新 {Count} 个活动的组织者信息", count);
+            return count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 更新组织者信息失败: OrganizerId={OrganizerId}", organizerId);
+            throw;
+        }
+    }
+
+    /// <summary>
+    ///     更新城市信息（冗余字段）
+    ///     当收到 CityUpdatedMessage 时调用此方法
+    /// </summary>
+    public async Task<int> UpdateCityInfoAsync(Guid cityId, string? name, string? nameEn, string? country)
+    {
+        try
+        {
+            _logger.LogInformation("🔄 开始更新城市 {CityId} 的冗余字段: Name={Name}, Country={Country}", cityId, name, country);
+
+            // 查询该城市下的所有活动
+            var result = await _supabaseClient.From<Event>()
+                .Select("id")
+                .Filter("city_id", Constants.Operator.Equals, cityId.ToString())
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                .Get();
+
+            var count = result.Models.Count;
+            if (count == 0)
+            {
+                _logger.LogInformation("📝 未找到城市 {CityId} 的活动", cityId);
+                return 0;
+            }
+
+            // 更新所有记录的冗余字段
+            await _supabaseClient.From<Event>()
+                .Filter("city_id", Constants.Operator.Equals, cityId.ToString())
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                .Set(x => x.CityName, name)
+                .Set(x => x.CityNameEn, nameEn)
+                .Set(x => x.CityCountry, country)
+                .Set(x => x.UpdatedAt, DateTime.UtcNow)
+                .Update();
+
+            _logger.LogInformation("✅ 已更新 {Count} 个活动的城市信息", count);
+            return count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 更新城市信息失败: CityId={CityId}", cityId);
+            throw;
+        }
+    }
+
+    #endregion
 }
