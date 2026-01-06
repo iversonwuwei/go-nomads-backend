@@ -192,6 +192,113 @@ public class CityRatingsController : ControllerBase
     }
 
     /// <summary>
+    /// 批量获取多个城市的评分统计信息 (供 CacheService 调用，优化 N+1 查询)
+    /// POST /api/v1/cities/ratings/statistics/batch
+    /// </summary>
+    [HttpPost("/api/v1/cities/ratings/statistics/batch")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(BatchCityRatingStatisticsResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<BatchCityRatingStatisticsResponse>> GetRatingStatisticsBatch(
+        [FromBody] List<string> cityIds)
+    {
+        try
+        {
+            if (cityIds == null || cityIds.Count == 0)
+            {
+                return Ok(new BatchCityRatingStatisticsResponse
+                {
+                    CityStatistics = new Dictionary<string, CityRatingStatisticsResponse>()
+                });
+            }
+
+            _logger.LogInformation("🔍 批量获取城市评分统计: {Count} 个城市", cityIds.Count);
+
+            // 解析 Guid
+            var validCityIds = cityIds
+                .Where(id => Guid.TryParse(id, out _))
+                .Select(id => Guid.Parse(id))
+                .ToList();
+
+            if (validCityIds.Count == 0)
+            {
+                return Ok(new BatchCityRatingStatisticsResponse
+                {
+                    CityStatistics = new Dictionary<string, CityRatingStatisticsResponse>()
+                });
+            }
+
+            // 批量获取数据（一次数据库查询）
+            var categories = await _categoryRepository.GetAllActiveAsync();
+            var allRatings = await _ratingRepository.GetCityRatingsBatchAsync(validCityIds);
+
+            // 按城市分组计算
+            var cityRatingsGrouped = allRatings.GroupBy(r => r.CityId);
+            var result = new Dictionary<string, CityRatingStatisticsResponse>();
+
+            foreach (var cityGroup in cityRatingsGrouped)
+            {
+                var cityId = cityGroup.Key.ToString();
+                var ratingCounts = cityGroup
+                    .GroupBy(r => r.CategoryId)
+                    .ToDictionary(g => g.Key, g => g.Count());
+
+                var averageRatings = cityGroup
+                    .GroupBy(r => r.CategoryId)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => Math.Round(g.Average(r => r.Rating), 1)
+                    );
+
+                var statistics = categories.Select(c => new CategoryStatistics
+                {
+                    CategoryId = c.Id,
+                    CategoryName = c.Name,
+                    CategoryNameEn = c.NameEn,
+                    RatingCount = ratingCounts.GetValueOrDefault(c.Id, 0),
+                    AverageRating = averageRatings.GetValueOrDefault(c.Id, 0)
+                }).ToList();
+
+                result[cityId] = new CityRatingStatisticsResponse
+                {
+                    Statistics = statistics
+                };
+            }
+
+            // 为没有评分的城市返回空统计
+            foreach (var cityId in validCityIds)
+            {
+                var cityIdStr = cityId.ToString();
+                if (!result.ContainsKey(cityIdStr))
+                {
+                    result[cityIdStr] = new CityRatingStatisticsResponse
+                    {
+                        Statistics = categories.Select(c => new CategoryStatistics
+                        {
+                            CategoryId = c.Id,
+                            CategoryName = c.Name,
+                            CategoryNameEn = c.NameEn,
+                            RatingCount = 0,
+                            AverageRating = 0
+                        }).ToList()
+                    };
+                }
+            }
+
+            _logger.LogInformation("✅ 批量获取城市评分统计完成: {Count} 个城市", result.Count);
+
+            return Ok(new BatchCityRatingStatisticsResponse
+            {
+                CityStatistics = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "批量获取城市评分统计失败");
+            return StatusCode(500, new { error = "批量获取评分统计失败" });
+        }
+    }
+
+    /// <summary>
     /// 提交或更新评分
     /// </summary>
     [HttpPost]
@@ -620,6 +727,17 @@ public class CityRatingsController : ControllerBase
     public class CityRatingStatisticsResponse
     {
         public List<CategoryStatistics> Statistics { get; set; } = new();
+    }
+
+    /// <summary>
+    /// 批量城市评分统计响应 (供 CacheService 调用，优化 N+1 查询)
+    /// </summary>
+    public class BatchCityRatingStatisticsResponse
+    {
+        /// <summary>
+        /// Key: CityId (string), Value: 该城市的评分统计
+        /// </summary>
+        public Dictionary<string, CityRatingStatisticsResponse> CityStatistics { get; set; } = new();
     }
 
     /// <summary>

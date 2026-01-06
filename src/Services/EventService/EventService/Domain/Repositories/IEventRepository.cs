@@ -76,4 +76,23 @@ public interface IEventRepository
         string? status = null,
         int page = 1,
         int pageSize = 20);
+
+    /// <summary>
+    ///     更新组织者信息（冗余字段）
+    /// </summary>
+    /// <param name="organizerId">组织者ID</param>
+    /// <param name="name">新的名称</param>
+    /// <param name="avatarUrl">新的头像URL</param>
+    /// <returns>更新的记录数</returns>
+    Task<int> UpdateOrganizerInfoAsync(Guid organizerId, string? name, string? avatarUrl);
+
+    /// <summary>
+    ///     更新城市信息（冗余字段）
+    /// </summary>
+    /// <param name="cityId">城市ID</param>
+    /// <param name="name">城市名称（中文）</param>
+    /// <param name="nameEn">城市名称（英文）</param>
+    /// <param name="country">国家</param>
+    /// <returns>更新的记录数</returns>
+    Task<int> UpdateCityInfoAsync(Guid cityId, string? name, string? nameEn, string? country);
 }

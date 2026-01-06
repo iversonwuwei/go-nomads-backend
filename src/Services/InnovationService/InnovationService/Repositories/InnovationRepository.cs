@@ -27,6 +27,24 @@ public interface IInnovationRepository
     Task<List<CommentResponse>> GetCommentsAsync(Guid innovationId, int page, int pageSize);
     Task<InnovationComment> AddCommentAsync(InnovationComment comment);
     Task<bool> DeleteCommentAsync(Guid commentId, Guid userId);
+
+    /// <summary>
+    ///     更新创建者信息（冗余字段）
+    /// </summary>
+    /// <param name="creatorId">创建者ID</param>
+    /// <param name="name">新的名称</param>
+    /// <param name="avatarUrl">新的头像URL</param>
+    /// <returns>更新的记录数</returns>
+    Task<int> UpdateCreatorInfoAsync(Guid creatorId, string? name, string? avatarUrl);
+
+    /// <summary>
+    ///     更新评论用户信息（冗余字段）
+    /// </summary>
+    /// <param name="userId">用户ID</param>
+    /// <param name="name">新的名称</param>
+    /// <param name="avatarUrl">新的头像URL</param>
+    /// <returns>更新的记录数</returns>
+    Task<int> UpdateCommentUserInfoAsync(Guid userId, string? name, string? avatarUrl);
 }
 
 /// <summary>
@@ -102,6 +120,9 @@ public class InnovationRepository : IInnovationRepository
                 Stage = i.Stage,
                 ImageUrl = i.ImageUrl,
                 CreatorId = i.CreatorId,
+                // 优先使用冗余字段
+                CreatorName = i.CreatorName,
+                CreatorAvatar = i.CreatorAvatar,
                 TeamSize = i.TeamSize,
                 LikeCount = i.LikeCount,
                 ViewCount = i.ViewCount,
@@ -110,7 +131,7 @@ public class InnovationRepository : IInnovationRepository
                 CreatedAt = i.CreatedAt
             }).ToList();
 
-            // 获取创建者信息
+            // 获取创建者信息（仅对冗余字段为空的项目补充查询）
             await EnrichCreatorInfoAsync(items);
 
             // 填充当前用户的点赞状态
@@ -162,6 +183,9 @@ public class InnovationRepository : IInnovationRepository
                 MarketOpportunity = result.MarketOpportunity,
                 Ask = result.Ask,
                 CreatorId = result.CreatorId,
+                // 优先使用冗余字段
+                CreatorName = result.CreatorName,
+                CreatorAvatar = result.CreatorAvatar,
                 Category = result.Category,
                 Stage = result.Stage,
                 Tags = result.Tags,
@@ -183,25 +207,48 @@ public class InnovationRepository : IInnovationRepository
                 UpdatedAt = result.UpdatedAt
             };
 
-            // 获取创建者信息
-            var creatorInfo = await GetUserBasicInfoAsync(result.CreatorId);
-            if (creatorInfo != null)
+            // 只在冗余字段为空时才调用 UserService
+            if (string.IsNullOrEmpty(response.CreatorName))
             {
-                response.CreatorName = creatorInfo.Name;
-                response.CreatorAvatar = creatorInfo.AvatarUrl;
+                var creatorInfo = await GetUserBasicInfoAsync(result.CreatorId);
+                if (creatorInfo != null)
+                {
+                    response.CreatorName = creatorInfo.Name;
+                    response.CreatorAvatar = creatorInfo.AvatarUrl;
+                }
             }
 
             // 获取团队成员
-            response.Team = (await GetTeamMembersAsync(id)).Select(m => new TeamMemberResponse
+            var teamMembers = await GetTeamMembersAsync(id);
+            var teamResponses = new List<TeamMemberResponse>();
+            
+            foreach (var m in teamMembers)
             {
-                Id = m.Id,
-                UserId = m.UserId,
-                Name = m.Name,
-                Role = m.Role,
-                Description = m.Description,
-                AvatarUrl = m.AvatarUrl,
-                IsFounder = m.IsFounder
-            }).ToList();
+                var teamMember = new TeamMemberResponse
+                {
+                    Id = m.Id,
+                    UserId = m.UserId,
+                    Name = m.Name,
+                    Role = m.Role,
+                    Description = m.Description,
+                    AvatarUrl = m.AvatarUrl,
+                    IsFounder = m.IsFounder
+                };
+                
+                // 如果 name 为空且有 userId，尝试从 UserService 获取用户信息
+                if (string.IsNullOrEmpty(teamMember.Name) && m.UserId.HasValue)
+                {
+                    var userInfo = await GetUserBasicInfoAsync(m.UserId.Value);
+                    if (userInfo != null)
+                    {
+                        teamMember.Name = userInfo.Name ?? string.Empty;
+                        teamMember.AvatarUrl = string.IsNullOrEmpty(teamMember.AvatarUrl) ? userInfo.AvatarUrl : teamMember.AvatarUrl;
+                    }
+                }
+                
+                teamResponses.Add(teamMember);
+            }
+            response.Team = teamResponses;
 
             // 检查当前用户是否点赞
             if (currentUserId.HasValue)
@@ -760,14 +807,32 @@ public class InnovationRepository : IInnovationRepository
 
     #region Private Methods
 
+    /// <summary>
+    ///     批量填充创建者信息
+    ///     优先使用冗余字段，仅对冗余字段为空的项目通过 UserServiceClient 补充查询
+    /// </summary>
     private async Task EnrichCreatorInfoAsync(List<InnovationListItem> items)
     {
         if (items.Count == 0) return;
 
+        // 筛选出冗余字段为空的项目（需要从 UserService 获取）
+        var itemsNeedEnrich = items
+            .Where(i => string.IsNullOrEmpty(i.CreatorName))
+            .ToList();
+
+        if (itemsNeedEnrich.Count == 0)
+        {
+            _logger.LogInformation("✅ 所有 {Count} 个项目已有冗余字段，无需调用 UserService", items.Count);
+            return;
+        }
+
+        _logger.LogInformation("📊 {TotalCount} 个项目中有 {NeedEnrichCount} 个需要从 UserService 获取用户信息",
+            items.Count, itemsNeedEnrich.Count);
+
         try
         {
-            // 收集所有不重复的 CreatorId
-            var creatorIds = items.Select(i => i.CreatorId).Distinct().ToList();
+            // 收集需要查询的 CreatorId
+            var creatorIds = itemsNeedEnrich.Select(i => i.CreatorId).Distinct().ToList();
 
             _logger.LogInformation("🔄 通过 UserServiceClient 批量获取 {Count} 个用户信息", creatorIds.Count);
 
@@ -775,7 +840,7 @@ public class InnovationRepository : IInnovationRepository
             var userMap = await _userServiceClient.GetUsersInfoBatchAsync(creatorIds);
 
             // 填充创建者信息
-            foreach (var item in items)
+            foreach (var item in itemsNeedEnrich)
             {
                 if (userMap.TryGetValue(item.CreatorId, out var user))
                 {
@@ -949,6 +1014,94 @@ public class InnovationRepository : IInnovationRepository
         {
             _logger.LogWarning(ex, "⚠️ 获取评论用户信息失败，跳过填充用户信息");
             // 不抛出异常，允许 API 正常返回（只是没有用户详细信息）
+        }
+    }
+
+    #endregion
+
+    #region 冗余字段更新方法
+
+    /// <summary>
+    ///     更新创建者信息（冗余字段）
+    ///     当收到 UserUpdatedMessage 时调用此方法
+    /// </summary>
+    public async Task<int> UpdateCreatorInfoAsync(Guid creatorId, string? name, string? avatarUrl)
+    {
+        try
+        {
+            _logger.LogInformation("🔄 开始更新创建者 {CreatorId} 的冗余字段: Name={Name}", creatorId, name);
+
+            // 查询该创建者的所有创新项目
+            var result = await _supabase.From<Innovation>()
+                .Select("id")
+                .Filter("creator_id", Postgrest.Constants.Operator.Equals, creatorId.ToString())
+                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
+                .Get();
+
+            var count = result.Models.Count;
+            if (count == 0)
+            {
+                _logger.LogInformation("📝 未找到创建者 {CreatorId} 的创新项目", creatorId);
+                return 0;
+            }
+
+            // 更新所有记录的冗余字段
+            await _supabase.From<Innovation>()
+                .Filter("creator_id", Postgrest.Constants.Operator.Equals, creatorId.ToString())
+                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
+                .Set(x => x.CreatorName, name)
+                .Set(x => x.CreatorAvatar, avatarUrl)
+                .Set(x => x.UpdatedAt, DateTime.UtcNow)
+                .Update();
+
+            _logger.LogInformation("✅ 已更新 {Count} 个创新项目的创建者信息", count);
+            return count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 更新创建者信息失败: CreatorId={CreatorId}", creatorId);
+            throw;
+        }
+    }
+
+    /// <summary>
+    ///     更新评论用户信息（冗余字段）
+    ///     当收到 UserUpdatedMessage 时调用此方法
+    /// </summary>
+    public async Task<int> UpdateCommentUserInfoAsync(Guid userId, string? name, string? avatarUrl)
+    {
+        try
+        {
+            _logger.LogInformation("🔄 开始更新用户 {UserId} 的评论冗余字段: Name={Name}", userId, name);
+
+            // 查询该用户的所有评论
+            var result = await _supabase.From<InnovationComment>()
+                .Select("id")
+                .Filter("user_id", Postgrest.Constants.Operator.Equals, userId.ToString())
+                .Get();
+
+            var count = result.Models.Count;
+            if (count == 0)
+            {
+                _logger.LogInformation("📝 未找到用户 {UserId} 的评论", userId);
+                return 0;
+            }
+
+            // 更新所有记录的冗余字段
+            await _supabase.From<InnovationComment>()
+                .Filter("user_id", Postgrest.Constants.Operator.Equals, userId.ToString())
+                .Set(x => x.UserName, name)
+                .Set(x => x.UserAvatar, avatarUrl)
+                .Set(x => x.UpdatedAt, DateTime.UtcNow)
+                .Update();
+
+            _logger.LogInformation("✅ 已更新 {Count} 条评论的用户信息", count);
+            return count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 更新评论用户信息失败: UserId={UserId}", userId);
+            throw;
         }
     }
 

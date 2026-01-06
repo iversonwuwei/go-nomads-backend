@@ -89,6 +89,40 @@ public class CoworkingSpace : BaseModel
 
     [Column("updated_at")] public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    #region 冗余字段（用于避免跨服务调用，通过事件同步更新）
+
+    /// <summary>
+    ///     创建者名称（冗余字段，来源于 users.name）
+    /// </summary>
+    [Column("creator_name")]
+    public string? CreatorName { get; set; }
+
+    /// <summary>
+    ///     创建者头像（冗余字段，来源于 users.avatar_url）
+    /// </summary>
+    [Column("creator_avatar")]
+    public string? CreatorAvatar { get; set; }
+
+    /// <summary>
+    ///     城市名称（冗余字段，来源于 cities.name）
+    /// </summary>
+    [Column("city_name")]
+    public string? CityName { get; set; }
+
+    /// <summary>
+    ///     城市英文名（冗余字段，来源于 cities.name_en）
+    /// </summary>
+    [Column("city_name_en")]
+    public string? CityNameEn { get; set; }
+
+    /// <summary>
+    ///     城市所属国家（冗余字段，来源于 cities.country）
+    /// </summary>
+    [Column("city_country")]
+    public string? CityCountry { get; set; }
+
+    #endregion
+
     /// <summary>
     ///     是否已删除（逻辑删除标记）
     /// </summary>

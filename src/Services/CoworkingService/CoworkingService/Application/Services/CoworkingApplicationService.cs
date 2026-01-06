@@ -88,6 +88,42 @@ public class CoworkingApplicationService : ICoworkingService
                 request.CreatedBy,
                 desiredStatus);
 
+            // 1.5 获取并填充冗余字段（创建者和城市信息）
+            if (request.CreatedBy.HasValue)
+            {
+                try
+                {
+                    var userInfo = await _userServiceClient.GetUserInfoAsync(request.CreatedBy.Value.ToString());
+                    if (userInfo != null)
+                    {
+                        coworkingSpace.CreatorName = userInfo.Name;
+                        coworkingSpace.CreatorAvatar = userInfo.AvatarUrl;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ 获取创建者信息失败，冗余字段将为空: {CreatedBy}", request.CreatedBy);
+                }
+            }
+
+            if (request.CityId.HasValue)
+            {
+                try
+                {
+                    var cityInfo = await _cityServiceClient.GetCityInfoAsync(request.CityId.Value.ToString());
+                    if (cityInfo != null)
+                    {
+                        coworkingSpace.CityName = cityInfo.Name;
+                        coworkingSpace.CityNameEn = cityInfo.NameEn;
+                        coworkingSpace.CityCountry = cityInfo.Country;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ 获取城市信息失败，冗余字段将为空: {CityId}", request.CityId);
+                }
+            }
+
             // 2. 通过仓储持久化
             var created = await _coworkingRepository.CreateAsync(coworkingSpace);
 
@@ -226,53 +262,25 @@ public class CoworkingApplicationService : ICoworkingService
 
         var (items, totalCount) = await _coworkingRepository.GetListAsync(page, pageSize, cityId);
         var coworkingIds = items.Select(i => i.Id).ToList();
-        
-        // 并行批量获取所有关联数据
+
+        // 并行批量获取所有关联数据（验证数和评分）
         var verificationCountsTask = _verificationRepository.GetCountsByCoworkingIdsAsync(coworkingIds);
         var ratingsTask = _reviewRepository.GetAverageRatingsByCoworkingIdsAsync(coworkingIds);
-        
-        // 批量获取创建者信息
-        var creatorIds = items.Where(s => s.CreatedBy.HasValue)
-                             .Select(s => s.CreatedBy!.Value.ToString())
-                             .Distinct()
-                             .ToList();
-        _logger.LogInformation("🔍 批量获取创建者信息 - 创建者ID数量: {Count}", creatorIds.Count);
-        var creatorInfosTask = creatorIds.Any() 
-            ? _userServiceClient.GetUsersInfoAsync(creatorIds) 
-            : Task.FromResult(new Dictionary<string, UserInfoDto>());
-        
-        // 批量获取城市信息
-        var cityIds = items.Where(s => s.CityId.HasValue)
-                          .Select(s => s.CityId!.Value.ToString())
-                          .Distinct()
-                          .ToList();
-        var cityInfosTask = cityIds.Any()
-            ? _cityServiceClient.GetCitiesInfoAsync(cityIds)
-            : Task.FromResult(new Dictionary<string, CityInfoDto>());
-        
+
         // 等待所有批量查询完成
-        await Task.WhenAll(verificationCountsTask, ratingsTask, creatorInfosTask, cityInfosTask);
-        
+        await Task.WhenAll(verificationCountsTask, ratingsTask);
+
         var verificationCounts = await verificationCountsTask;
         var ratings = await ratingsTask;
-        var creatorInfos = await creatorInfosTask;
-        var cityInfos = await cityInfosTask;
-        
-        _logger.LogInformation("✅ 获取到创建者信息数量: {Count}, 城市信息数量: {CityCount}", 
-            creatorInfos.Count, cityInfos.Count);
-        
-        // 同步映射（不再需要异步调用）
+
+        // 同步映射 - 使用实体中的冗余字段，无需远程服务调用
         var responses = items.Select(space =>
         {
             var votes = verificationCounts.TryGetValue(space.Id, out var v) ? v : 0;
             var (averageRating, reviewCount) = ratings.TryGetValue(space.Id, out var r) ? r : (0, 0);
-            var creatorName = space.CreatedBy.HasValue && creatorInfos.TryGetValue(space.CreatedBy.Value.ToString(), out var creator)
-                ? creator.Name
-                : null;
-            var (cityName, country) = space.CityId.HasValue && cityInfos.TryGetValue(space.CityId.Value.ToString(), out var city)
-                ? (city.Name, city.Country)
-                : (null, null);
-            return MapToResponseSync(space, votes, averageRating, reviewCount, creatorName, cityName, country);
+            // 直接从实体的冗余字段读取创建者和城市信息
+            return MapToResponseSync(space, votes, averageRating, reviewCount,
+                space.CreatorName, space.CityName, space.CityCountry);
         }).ToList();
 
         return new PaginatedCoworkingSpacesResponse
@@ -293,47 +301,23 @@ public class CoworkingApplicationService : ICoworkingService
 
         var spaces = await _coworkingRepository.SearchAsync(searchTerm, page, pageSize);
         var coworkingIds = spaces.Select(s => s.Id).ToList();
-        
-        // 并行批量获取所有关联数据
+
+        // 并行批量获取所有关联数据（验证数和评分）
         var verificationCountsTask = _verificationRepository.GetCountsByCoworkingIdsAsync(coworkingIds);
         var ratingsTask = _reviewRepository.GetAverageRatingsByCoworkingIdsAsync(coworkingIds);
-        
-        // 批量获取创建者信息
-        var creatorIds = spaces.Where(s => s.CreatedBy.HasValue)
-                               .Select(s => s.CreatedBy!.Value.ToString())
-                               .Distinct()
-                               .ToList();
-        var creatorInfosTask = creatorIds.Any() 
-            ? _userServiceClient.GetUsersInfoAsync(creatorIds) 
-            : Task.FromResult(new Dictionary<string, UserInfoDto>());
-        
-        // 批量获取城市信息
-        var cityIds = spaces.Where(s => s.CityId.HasValue)
-                           .Select(s => s.CityId!.Value.ToString())
-                           .Distinct()
-                           .ToList();
-        var cityInfosTask = cityIds.Any()
-            ? _cityServiceClient.GetCitiesInfoAsync(cityIds)
-            : Task.FromResult(new Dictionary<string, CityInfoDto>());
-        
-        await Task.WhenAll(verificationCountsTask, ratingsTask, creatorInfosTask, cityInfosTask);
-        
+
+        await Task.WhenAll(verificationCountsTask, ratingsTask);
+
         var verificationCounts = await verificationCountsTask;
         var ratings = await ratingsTask;
-        var creatorInfos = await creatorInfosTask;
-        var cityInfos = await cityInfosTask;
-        
+
+        // 使用实体中的冗余字段，无需远程服务调用
         return spaces.Select(space =>
         {
             var votes = verificationCounts.TryGetValue(space.Id, out var v) ? v : 0;
             var (averageRating, reviewCount) = ratings.TryGetValue(space.Id, out var r) ? r : (0, 0);
-            var creatorName = space.CreatedBy.HasValue && creatorInfos.TryGetValue(space.CreatedBy.Value.ToString(), out var creator)
-                ? creator.Name
-                : null;
-            var (cityName, country) = space.CityId.HasValue && cityInfos.TryGetValue(space.CityId.Value.ToString(), out var city)
-                ? (city.Name, city.Country)
-                : (null, null);
-            return MapToResponseSync(space, votes, averageRating, reviewCount, creatorName, cityName, country);
+            return MapToResponseSync(space, votes, averageRating, reviewCount,
+                space.CreatorName, space.CityName, space.CityCountry);
         }).ToList();
     }
 
@@ -343,47 +327,23 @@ public class CoworkingApplicationService : ICoworkingService
 
         var spaces = await _coworkingRepository.GetTopRatedAsync(limit);
         var coworkingIds = spaces.Select(s => s.Id).ToList();
-        
-        // 并行批量获取所有关联数据
+
+        // 并行批量获取所有关联数据（验证数和评分）
         var verificationCountsTask = _verificationRepository.GetCountsByCoworkingIdsAsync(coworkingIds);
         var ratingsTask = _reviewRepository.GetAverageRatingsByCoworkingIdsAsync(coworkingIds);
-        
-        // 批量获取创建者信息
-        var creatorIds = spaces.Where(s => s.CreatedBy.HasValue)
-                               .Select(s => s.CreatedBy!.Value.ToString())
-                               .Distinct()
-                               .ToList();
-        var creatorInfosTask = creatorIds.Any() 
-            ? _userServiceClient.GetUsersInfoAsync(creatorIds) 
-            : Task.FromResult(new Dictionary<string, UserInfoDto>());
-        
-        // 批量获取城市信息
-        var cityIds = spaces.Where(s => s.CityId.HasValue)
-                           .Select(s => s.CityId!.Value.ToString())
-                           .Distinct()
-                           .ToList();
-        var cityInfosTask = cityIds.Any()
-            ? _cityServiceClient.GetCitiesInfoAsync(cityIds)
-            : Task.FromResult(new Dictionary<string, CityInfoDto>());
-        
-        await Task.WhenAll(verificationCountsTask, ratingsTask, creatorInfosTask, cityInfosTask);
-        
+
+        await Task.WhenAll(verificationCountsTask, ratingsTask);
+
         var verificationCounts = await verificationCountsTask;
         var ratings = await ratingsTask;
-        var creatorInfos = await creatorInfosTask;
-        var cityInfos = await cityInfosTask;
-        
+
+        // 使用实体中的冗余字段，无需远程服务调用
         return spaces.Select(space =>
         {
             var votes = verificationCounts.TryGetValue(space.Id, out var v) ? v : 0;
             var (averageRating, reviewCount) = ratings.TryGetValue(space.Id, out var r) ? r : (0, 0);
-            var creatorName = space.CreatedBy.HasValue && creatorInfos.TryGetValue(space.CreatedBy.Value.ToString(), out var creator)
-                ? creator.Name
-                : null;
-            var (cityName, country) = space.CityId.HasValue && cityInfos.TryGetValue(space.CityId.Value.ToString(), out var city)
-                ? (city.Name, city.Country)
-                : (null, null);
-            return MapToResponseSync(space, votes, averageRating, reviewCount, creatorName, cityName, country);
+            return MapToResponseSync(space, votes, averageRating, reviewCount,
+                space.CreatorName, space.CityName, space.CityCountry);
         }).ToList();
     }
 
@@ -683,6 +643,7 @@ public class CoworkingApplicationService : ICoworkingService
 
     /// <summary>
     ///     映射实体到响应 DTO
+    ///     优先使用实体的冗余字段（无远程调用），当冗余字段为空时才回退到远程服务
     /// </summary>
     private async Task<CoworkingSpaceResponse> MapToResponseAsync(
         CoworkingSpace space, 
@@ -691,7 +652,10 @@ public class CoworkingApplicationService : ICoworkingService
         int? reviewCount = null,
         string? creatorName = null)
     {
-        // 如果没有传入 creatorName，则尝试获取
+        // 优先使用实体中的冗余字段
+        creatorName ??= space.CreatorName;
+
+        // 如果冗余字段为空且有创建者ID，则回退到远程服务（兼容历史数据）
         if (creatorName == null && space.CreatedBy.HasValue)
         {
             try
@@ -705,10 +669,12 @@ public class CoworkingApplicationService : ICoworkingService
             }
         }
 
-        // 获取城市信息（城市名称和国家）
-        string? cityName = null;
-        string? country = null;
-        if (space.CityId.HasValue)
+        // 优先使用实体中的冗余字段
+        string? cityName = space.CityName;
+        string? country = space.CityCountry;
+
+        // 如果冗余字段为空且有城市ID，则回退到远程服务（兼容历史数据）
+        if (cityName == null && space.CityId.HasValue)
         {
             try
             {

@@ -122,47 +122,73 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
 
     public async Task<IEnumerable<City>> SearchAsync(CitySearchCriteria criteria)
     {
-        var response = await SupabaseClient
+        var offset = (criteria.PageNumber - 1) * criteria.PageSize;
+
+        // 🚀 优化：在数据库级别进行过滤，而不是加载所有数据到内存
+        var query = SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
-            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true");
+
+        // 使用数据库级别的 ILIKE 搜索（支持中英文）
+        if (!string.IsNullOrWhiteSpace(criteria.Name))
+        {
+            // Supabase/PostgREST 支持 or 条件：使用 or=(name.ilike.*搜索词*,name_en.ilike.*搜索词*)
+            var searchPattern = $"%{criteria.Name}%";
+            query = query.Filter("or", Constants.Operator.Equals,
+                $"(name.ilike.{searchPattern},name_en.ilike.{searchPattern})");
+        }
+
+        // 国家过滤
+        if (!string.IsNullOrWhiteSpace(criteria.Country))
+        {
+            query = query.Filter("country", Constants.Operator.ILike, $"%{criteria.Country}%");
+        }
+
+        // 地区过滤
+        if (!string.IsNullOrWhiteSpace(criteria.Region))
+        {
+            query = query.Filter("region", Constants.Operator.ILike, $"%{criteria.Region}%");
+        }
+
+        // 费用过滤
+        if (criteria.MinCostOfLiving.HasValue)
+        {
+            query = query.Filter("average_cost_of_living", Constants.Operator.GreaterThanOrEqual,
+                criteria.MinCostOfLiving.Value.ToString());
+        }
+
+        if (criteria.MaxCostOfLiving.HasValue)
+        {
+            query = query.Filter("average_cost_of_living", Constants.Operator.LessThanOrEqual,
+                criteria.MaxCostOfLiving.Value.ToString());
+        }
+
+        // 评分过滤
+        if (criteria.MinScore.HasValue)
+        {
+            query = query.Filter("overall_score", Constants.Operator.GreaterThanOrEqual,
+                criteria.MinScore.Value.ToString());
+        }
+
+        // 排序和分页（在数据库级别）
+        var response = await query
             .Order(x => x.OverallScore!, Constants.Ordering.Descending)
+            .Range(offset, offset + criteria.PageSize - 1)
             .Get();
 
         var cities = response.Models.AsEnumerable();
 
-        if (!string.IsNullOrWhiteSpace(criteria.Name))
-            // 支持中英文搜索: 在 name 或 name_en 字段中搜索
-            cities = cities.Where(c =>
-                c.Name.Contains(criteria.Name, StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrWhiteSpace(c.NameEn) &&
-                 c.NameEn.Contains(criteria.Name, StringComparison.OrdinalIgnoreCase))
-            );
-
-        if (!string.IsNullOrWhiteSpace(criteria.Country))
-            cities = cities.Where(c => c.Country.Contains(criteria.Country, StringComparison.OrdinalIgnoreCase));
-
-        if (!string.IsNullOrWhiteSpace(criteria.Region))
-            cities = cities.Where(c =>
-                c.Region != null && c.Region.Contains(criteria.Region, StringComparison.OrdinalIgnoreCase));
-
-        if (criteria.MinCostOfLiving.HasValue)
-            cities = cities.Where(c => c.AverageCostOfLiving >= criteria.MinCostOfLiving.Value);
-
-        if (criteria.MaxCostOfLiving.HasValue)
-            cities = cities.Where(c => c.AverageCostOfLiving <= criteria.MaxCostOfLiving.Value);
-
-        if (criteria.MinScore.HasValue) cities = cities.Where(c => c.OverallScore >= criteria.MinScore.Value);
-
+        // 标签过滤仍需在内存中进行（因为是数组字段）
         if (criteria.Tags is { Count: > 0 })
+        {
             cities = cities.Where(c => c.Tags != null && criteria.Tags.All(tag => c.Tags.Contains(tag)));
+        }
 
-        // 确保最终结果按评分降序排序（过滤后重新排序）
-        return cities
-            .OrderByDescending(c => c.OverallScore ?? 0)
-            .Skip((criteria.PageNumber - 1) * criteria.PageSize)
-            .Take(criteria.PageSize)
-            .ToList();
+        Logger.LogInformation("🔍 [SearchAsync] 搜索完成: 条件={Criteria}, 结果数={Count}",
+            criteria.Name, cities.Count());
+
+        return cities.ToList();
     }
 
     public async Task<City> CreateAsync(City city)

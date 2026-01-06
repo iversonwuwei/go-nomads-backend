@@ -1,6 +1,8 @@
 using GoNomads.Shared.Extensions;
+using InnovationService.Infrastructure.Consumers;
 using InnovationService.Repositories;
 using InnovationService.Services;
+using MassTransit;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using Serilog;
@@ -56,6 +58,29 @@ builder.Services.AddScoped<IUserServiceClient, UserServiceClient>();
 
 // 注册 Repository
 builder.Services.AddScoped<IInnovationRepository, InnovationRepository>();
+
+// 配置 MassTransit + RabbitMQ（用于接收用户信息更新事件）
+builder.Services.AddMassTransit(x =>
+{
+    // 注册事件消费者
+    x.AddConsumer<UserUpdatedMessageConsumer>();
+
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
+        cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
+        {
+            h.Username(rabbitMqConfig["Username"] ?? "guest");
+            h.Password(rabbitMqConfig["Password"] ?? "guest");
+        });
+
+        // 配置接收端点用于消费事件
+        cfg.ReceiveEndpoint("innovation-service-user-updated", e =>
+        {
+            e.ConfigureConsumer<UserUpdatedMessageConsumer>(context);
+        });
+    });
+});
 
 // CORS
 builder.Services.AddCors(options =>

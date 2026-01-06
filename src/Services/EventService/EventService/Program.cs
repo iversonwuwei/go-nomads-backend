@@ -1,9 +1,11 @@
 using EventService.Application.Services;
 using EventService.BackgroundServices;
 using EventService.Domain.Repositories;
+using EventService.Infrastructure.Consumers;
 using EventService.Infrastructure.GrpcClients;
 using EventService.Infrastructure.Repositories;
 using GoNomads.Shared.Extensions;
+using MassTransit;
 using Microsoft.OpenApi.Models;
 using Prometheus;
 using Scalar.AspNetCore;
@@ -44,6 +46,35 @@ builder.Services.AddScoped<IEventTypeService, EventTypeService>();
 
 // 注册后台服务
 builder.Services.AddHostedService<EventStatusUpdateService>();
+
+// 配置 MassTransit + RabbitMQ（用于接收用户和城市信息更新事件）
+builder.Services.AddMassTransit(x =>
+{
+    // 注册事件消费者
+    x.AddConsumer<UserUpdatedMessageConsumer>();
+    x.AddConsumer<CityUpdatedMessageConsumer>();
+
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
+        cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
+        {
+            h.Username(rabbitMqConfig["Username"] ?? "guest");
+            h.Password(rabbitMqConfig["Password"] ?? "guest");
+        });
+
+        // 配置接收端点用于消费事件
+        cfg.ReceiveEndpoint("event-service-user-updated", e =>
+        {
+            e.ConfigureConsumer<UserUpdatedMessageConsumer>(context);
+        });
+
+        cfg.ReceiveEndpoint("event-service-city-updated", e =>
+        {
+            e.ConfigureConsumer<CityUpdatedMessageConsumer>(context);
+        });
+    });
+});
 
 // 配置 DaprClient 使用 gRPC 协议（性能更好）
 // 在 container sidecar 模式下，EventService 和 Dapr 共享网络命名空间，使用 localhost

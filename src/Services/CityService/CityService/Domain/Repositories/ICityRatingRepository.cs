@@ -32,4 +32,14 @@ public interface ICityRatingRepository
     /// 批量获取城市评分总数（去重后的用户数量）
     /// </summary>
     Task<Dictionary<Guid, int>> GetCityReviewCountsBatchAsync(IEnumerable<Guid> cityIds);
+
+    /// <summary>
+    /// 批量获取多个城市的评分数据（优化 N+1 查询）
+    /// </summary>
+    Task<List<CityRating>> GetCityRatingsBatchAsync(IEnumerable<Guid> cityIds);
+
+    /// <summary>
+    /// 批量获取多个城市的平均评分（按分类）
+    /// </summary>
+    Task<Dictionary<Guid, Dictionary<Guid, double>>> GetCityAverageRatingsBatchAsync(IEnumerable<Guid> cityIds);
 }
