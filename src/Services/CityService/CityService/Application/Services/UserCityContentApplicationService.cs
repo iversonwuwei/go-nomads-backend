@@ -244,7 +244,8 @@ public class UserCityContentApplicationService : IUserCityContentService
             SafetyScore = request.SafetyScore,
             CostScore = request.CostScore,
             CommunityScore = request.CommunityScore,
-            WeatherScore = request.WeatherScore
+            WeatherScore = request.WeatherScore,
+            PhotoUrls = request.PhotoUrls // ✅ 直接保存照片 URL 到评论记录
         };
 
         var created = await _reviewRepository.CreateAsync(review); // ✅ 改为 CreateAsync,每次都新增记录
@@ -281,14 +282,53 @@ public class UserCityContentApplicationService : IUserCityContentService
                 dto.UserAvatar = null;
             }
 
-            // ✅ 查询该用户在该城市的所有照片
-            var photos = await _photoRepository.GetByCityIdAndUserIdAsync(cityId, review.UserId);
-            dto.PhotoUrls = photos.Select(p => p.ImageUrl).ToList();
+            // ✅ 直接从 review 实体读取照片 URL，不再查询 user_city_photos 表
+            dto.PhotoUrls = review.PhotoUrls ?? new List<string>();
 
             result.Add(dto);
         }
 
         return result;
+    }
+
+    public async Task<PagedResult<UserCityReviewDto>> GetCityReviewsPagedAsync(string cityId, int page = 1, int pageSize = 10)
+    {
+        var (reviews, totalCount) = await _reviewRepository.GetByCityIdPagedAsync(cityId, page, pageSize);
+        var result = new List<UserCityReviewDto>();
+
+        // ✅ 收集所有唯一的 userId
+        var userIds = reviews.Select(r => r.UserId.ToString()).Distinct().ToList();
+
+        // ✅ 通过 Dapr 批量获取用户信息
+        var usersInfo = await _userServiceClient.GetUsersInfoAsync(userIds);
+
+        foreach (var review in reviews)
+        {
+            var dto = MapReviewToDto(review);
+
+            // ✅ 从 UserService 获取的用户信息填充到 DTO
+            if (usersInfo.TryGetValue(review.UserId.ToString(), out var userInfo))
+            {
+                dto.Username = userInfo.Username;
+                dto.UserAvatar = userInfo.AvatarUrl;
+            }
+            else
+            {
+                dto.Username = $"User {review.UserId.ToString().Substring(0, 8)}";
+                dto.UserAvatar = null;
+            }
+
+            dto.PhotoUrls = review.PhotoUrls ?? new List<string>();
+            result.Add(dto);
+        }
+
+        return new PagedResult<UserCityReviewDto>
+        {
+            Items = result,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<IEnumerable<UserCityReviewDto>> GetUserReviewsAsync(Guid userId, string cityId)
@@ -300,9 +340,8 @@ public class UserCityContentApplicationService : IUserCityContentService
         {
             var dto = MapReviewToDto(review);
 
-            // ✅ 查询该用户在该城市的所有照片
-            var photos = await _photoRepository.GetByCityIdAndUserIdAsync(cityId, userId);
-            dto.PhotoUrls = photos.Select(p => p.ImageUrl).ToList();
+            // ✅ 直接从 review 实体读取照片 URL，不再查询 user_city_photos 表
+            dto.PhotoUrls = review.PhotoUrls ?? new List<string>();
 
             dtos.Add(dto);
         }

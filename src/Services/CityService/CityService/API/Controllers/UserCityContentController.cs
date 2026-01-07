@@ -405,18 +405,21 @@ public class UserCityContentController : ControllerBase
     }
 
     /// <summary>
-    ///     获取城市的所有评论
-    ///     GET /api/v1/cities/{cityId}/user-content/reviews
+    ///     获取城市的所有评论（分页）
+    ///     GET /api/v1/cities/{cityId}/user-content/reviews?page=1&pageSize=10
     /// </summary>
     [HttpGet("reviews")]
     [AllowAnonymous]
-    public async Task<ActionResult<ApiResponse<IEnumerable<UserCityReviewDto>>>> GetCityReviews(string cityId)
+    public async Task<ActionResult<ApiResponse<PagedResult<UserCityReviewDto>>>> GetCityReviews(
+        string cityId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
     {
         try
         {
-            var reviews = await _contentService.GetCityReviewsAsync(cityId);
+            var reviews = await _contentService.GetCityReviewsPagedAsync(cityId, page, pageSize);
 
-            return Ok(new ApiResponse<IEnumerable<UserCityReviewDto>>
+            return Ok(new ApiResponse<PagedResult<UserCityReviewDto>>
             {
                 Success = true,
                 Message = "获取评论成功",
@@ -426,7 +429,7 @@ public class UserCityContentController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "获取城市评论失败: {CityId}", cityId);
-            return StatusCode(500, new ApiResponse<IEnumerable<UserCityReviewDto>>
+            return StatusCode(500, new ApiResponse<PagedResult<UserCityReviewDto>>
             {
                 Success = false,
                 Message = "获取评论失败",

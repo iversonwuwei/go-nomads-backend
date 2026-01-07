@@ -49,6 +49,28 @@ public class SupabaseUserCityReviewRepository : SupabaseRepositoryBase<UserCityR
         return response.Models;
     }
 
+    public async Task<(IEnumerable<UserCityReview> Reviews, int TotalCount)> GetByCityIdPagedAsync(string cityId, int page, int pageSize)
+    {
+        // 获取总数
+        var countResponse = await SupabaseClient
+            .From<UserCityReview>()
+            .Where(x => x.CityId == cityId)
+            .Count(Constants.CountType.Exact);
+
+        var totalCount = countResponse;
+
+        // 获取分页数据
+        var offset = (page - 1) * pageSize;
+        var response = await SupabaseClient
+            .From<UserCityReview>()
+            .Where(x => x.CityId == cityId)
+            .Order(x => x.CreatedAt, Constants.Ordering.Descending)
+            .Range(offset, offset + pageSize - 1)
+            .Get();
+
+        return (response.Models, totalCount);
+    }
+
     /// <summary>
     ///     获取用户对某个城市的所有评论(可能有多条)
     /// </summary>
