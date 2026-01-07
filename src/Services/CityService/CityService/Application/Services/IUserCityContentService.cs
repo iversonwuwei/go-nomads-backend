@@ -30,6 +30,7 @@ public interface IUserCityContentService
 
     Task<UserCityReviewDto> CreateReviewAsync(Guid userId, UpsertCityReviewRequest request);
     Task<IEnumerable<UserCityReviewDto>> GetCityReviewsAsync(string cityId);
+    Task<PagedResult<UserCityReviewDto>> GetCityReviewsPagedAsync(string cityId, int page = 1, int pageSize = 10);
     Task<IEnumerable<UserCityReviewDto>> GetUserReviewsAsync(Guid userId, string cityId); // 获取某用户对某城市的所有评论
     Task<bool> DeleteReviewAsync(Guid userId, Guid reviewId); // 改为通过 reviewId 删除
 

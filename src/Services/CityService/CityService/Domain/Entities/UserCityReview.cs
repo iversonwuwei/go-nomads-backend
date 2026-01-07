@@ -85,6 +85,12 @@ public class UserCityReview : BaseModel
     [Column("weather_score")]
     public int? WeatherScore { get; set; }
 
+    /// <summary>
+    ///     评论关联的照片 URL 列表
+    /// </summary>
+    [Column("photo_urls")]
+    public List<string>? PhotoUrls { get; set; }
+
     [Column("created_at")] public DateTime CreatedAt { get; set; }
 
     [Column("updated_at")] public DateTime? UpdatedAt { get; set; }

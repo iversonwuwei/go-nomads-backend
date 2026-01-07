@@ -18,6 +18,11 @@ public interface IUserCityReviewRepository
     Task<IEnumerable<UserCityReview>> GetByCityIdAsync(string cityId);
 
     /// <summary>
+    ///     获取城市的评论（分页）
+    /// </summary>
+    Task<(IEnumerable<UserCityReview> Reviews, int TotalCount)> GetByCityIdPagedAsync(string cityId, int page, int pageSize);
+
+    /// <summary>
     ///     获取用户对某个城市的所有评论(返回多条)
     /// </summary>
     Task<IEnumerable<UserCityReview>> GetByCityIdAndUserIdAsync(string cityId, Guid userId);
