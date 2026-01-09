@@ -524,12 +524,15 @@ public class AuthApplicationService : IAuthService
         var accessToken = _jwtTokenService.GenerateAccessToken(user.Id, user.Email, roleName);
         var refreshToken = _jwtTokenService.GenerateRefreshToken(user.Id);
 
+        // 从 JwtTokenService 获取实际的过期时间（秒）
+        var expiresInSeconds = _jwtTokenService.GetAccessTokenExpirationSeconds();
+
         return new AuthResponseDto
         {
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             TokenType = "Bearer",
-            ExpiresIn = 3600,
+            ExpiresIn = expiresInSeconds,
             User = new UserDto
             {
                 Id = user.Id,
