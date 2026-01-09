@@ -261,17 +261,25 @@ public class SkillService : ISkillService
 
         try
         {
-            // 前端传过来的 skillId 现在是 user_skills 表的记录 ID。
-            // 先按记录 ID 删除,如果没有匹配记录再按旧的 SkillId 删除以保持兼容。
-            await _supabaseClient
-                .From<UserSkill>()
-                .Where(us => us.Id == skillId && us.UserId == userId)
-                .Delete();
+            // 判断 skillId 是否为有效的 UUID（记录ID）
+            var isUuid = Guid.TryParse(skillId, out _);
 
-            await _supabaseClient
-                .From<UserSkill>()
-                .Where(us => us.UserId == userId && us.SkillId == skillId)
-                .Delete();
+            if (isUuid)
+            {
+                // 按记录 ID 删除
+                await _supabaseClient
+                    .From<UserSkill>()
+                    .Where(us => us.Id == skillId && us.UserId == userId)
+                    .Delete();
+            }
+            else
+            {
+                // 按技能 ID 删除（如 skill_sql）
+                await _supabaseClient
+                    .From<UserSkill>()
+                    .Where(us => us.UserId == userId && us.SkillId == skillId)
+                    .Delete();
+            }
 
             _logger.LogInformation("✅ 成功删除用户技能: UserId={UserId}, SkillOrRecordId={SkillId}", userId, skillId);
             return true;
