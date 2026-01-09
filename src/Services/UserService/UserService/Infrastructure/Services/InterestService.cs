@@ -259,15 +259,25 @@ public class InterestService : IInterestService
 
         try
         {
-            await _supabaseClient
-                .From<UserInterest>()
-                .Where(ui => ui.Id == interestId && ui.UserId == userId)
-                .Delete();
+            // 判断 interestId 是否为有效的 UUID（记录ID）
+            var isUuid = Guid.TryParse(interestId, out _);
 
-            await _supabaseClient
-                .From<UserInterest>()
-                .Where(ui => ui.UserId == userId && ui.InterestId == interestId)
-                .Delete();
+            if (isUuid)
+            {
+                // 按记录 ID 删除
+                await _supabaseClient
+                    .From<UserInterest>()
+                    .Where(ui => ui.Id == interestId && ui.UserId == userId)
+                    .Delete();
+            }
+            else
+            {
+                // 按兴趣 ID 删除（如 interest_dancing）
+                await _supabaseClient
+                    .From<UserInterest>()
+                    .Where(ui => ui.UserId == userId && ui.InterestId == interestId)
+                    .Delete();
+            }
 
             _logger.LogInformation("✅ 成功删除用户兴趣: UserId={UserId}, InterestRecordOrInterestId={InterestId}", userId,
                 interestId);
