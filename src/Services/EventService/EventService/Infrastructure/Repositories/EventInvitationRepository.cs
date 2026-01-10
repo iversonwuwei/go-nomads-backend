@@ -192,6 +192,25 @@ public class EventInvitationRepository : IEventInvitationRepository
         }
     }
 
+    public async Task<int> GetPendingCountAsync(Guid eventId)
+    {
+        try
+        {
+            var result = await _supabaseClient
+                .From<EventInvitation>()
+                .Where(i => i.EventId == eventId)
+                .Where(i => i.Status == "pending")
+                .Get();
+
+            return result.Models.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取待处理邀请数量失败，EventId: {EventId}", eventId);
+            throw;
+        }
+    }
+
     public async Task DeleteAsync(Guid id)
     {
         try

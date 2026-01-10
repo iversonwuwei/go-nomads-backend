@@ -750,11 +750,10 @@ public class EventApplicationService : IEventService
         if (@event.Status != "upcoming")
             throw new InvalidOperationException("只能邀请用户参加即将举行的活动");
 
-        // 3. 检查邀请人是否是活动组织者或参与者（有权限邀请）
-        var isOrganizer = @event.OrganizerId == inviterId;
-        var isParticipant = await _participantRepository.IsParticipantAsync(eventId, inviterId);
-        if (!isOrganizer && !isParticipant)
-            throw new UnauthorizedAccessException("只有活动组织者或参与者才能邀请其他用户");
+        // 3. 不再限制邀请人身份，任何用户都可以邀请他人参加活动
+        // 但邀请人不能邀请自己
+        if (inviterId == request.InviteeId)
+            throw new InvalidOperationException("不能邀请自己");
 
         // 4. 检查被邀请人是否已经是参与者
         if (await _participantRepository.IsParticipantAsync(eventId, request.InviteeId))
@@ -764,9 +763,21 @@ public class EventApplicationService : IEventService
         if (await _invitationRepository.ExistsAsync(eventId, request.InviteeId))
             throw new InvalidOperationException("已存在待处理的邀请");
 
-        // 6. 检查活动是否已满
-        if (@event.MaxParticipants.HasValue && @event.CurrentParticipants >= @event.MaxParticipants.Value)
-            throw new InvalidOperationException("活动人数已满，无法发送邀请");
+        // 6. 检查活动是否还有剩余名额（考虑待处理的邀请）
+        if (@event.MaxParticipants.HasValue)
+        {
+            var pendingInvitationsCount = await _invitationRepository.GetPendingCountAsync(eventId);
+            var potentialParticipants = @event.CurrentParticipants + pendingInvitationsCount;
+            
+            if (potentialParticipants >= @event.MaxParticipants.Value)
+            {
+                var availableSlots = @event.MaxParticipants.Value - @event.CurrentParticipants;
+                throw new InvalidOperationException(
+                    availableSlots <= 0 
+                        ? "活动人数已满，无法发送邀请" 
+                        : $"活动剩余名额不足（剩余 {availableSlots} 个名额，待处理邀请 {pendingInvitationsCount} 个）");
+            }
+        }
 
         // 7. 创建邀请
         var invitation = EventInvitation.Create(eventId, inviterId, request.InviteeId, request.Message);
@@ -805,6 +816,14 @@ public class EventApplicationService : IEventService
         // 5. 处理响应
         if (response.ToLower() == "accept")
         {
+            // 获取活动信息
+            var @event = await _eventRepository.GetByIdAsync(invitation.EventId);
+            if (@event == null) throw new KeyNotFoundException($"活动 {invitation.EventId} 不存在");
+
+            // 检查活动是否已满（防止并发接受导致超员）
+            if (@event.MaxParticipants.HasValue && @event.CurrentParticipants >= @event.MaxParticipants.Value)
+                throw new InvalidOperationException("活动人数已满，无法接受邀请");
+
             // 接受邀请 - 自动加入活动
             invitation.Accept();
 
@@ -816,12 +835,8 @@ public class EventApplicationService : IEventService
                 await _participantRepository.CreateAsync(participant);
 
                 // 更新活动参与人数
-                var @event = await _eventRepository.GetByIdAsync(invitation.EventId);
-                if (@event != null)
-                {
-                    @event.CurrentParticipants++;
-                    await _eventRepository.UpdateAsync(@event);
-                }
+                @event.CurrentParticipants++;
+                await _eventRepository.UpdateAsync(@event);
 
                 _logger.LogInformation("✅ 用户 {UserId} 接受邀请并加入活动 {EventId}", userId, invitation.EventId);
             }

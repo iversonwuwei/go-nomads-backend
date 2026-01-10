@@ -54,6 +54,11 @@ public interface INotificationRepository
     Task<int> MarkAllAsReadAsync(string userId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     更新通知的元数据
+    /// </summary>
+    Task<bool> UpdateMetadataAsync(Guid id, string metadata, CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     删除通知
     /// </summary>
     Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default);

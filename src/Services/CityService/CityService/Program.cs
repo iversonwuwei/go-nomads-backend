@@ -124,6 +124,7 @@ builder.Services.AddScoped<IDigitalNomadGuideRepository, SupabaseDigitalNomadGui
 builder.Services.AddScoped<INearbyCityRepository, SupabaseNearbyCityRepository>();
 builder.Services.AddScoped<ICityModeratorRepository, CityModeratorRepository>();
 builder.Services.AddScoped<IModeratorApplicationRepository, ModeratorApplicationRepository>();
+builder.Services.AddScoped<IModeratorTransferRepository, ModeratorTransferRepository>();
 builder.Services.AddScoped<ICityRatingCategoryRepository, CityRatingCategoryRepository>();
 builder.Services.AddScoped<ICityRatingRepository, CityRatingRepository>();
 builder.Services.AddScoped<IWeatherCacheRepository, WeatherCacheRepository>();
@@ -136,6 +137,7 @@ builder.Services.AddScoped<IGeoNamesImportService, GeoNamesImportService>();
 builder.Services.AddScoped<IDigitalNomadGuideService, DigitalNomadGuideService>();
 builder.Services.AddScoped<INearbyCityService, NearbyCityService>();
 builder.Services.AddScoped<IModeratorApplicationService, ModeratorApplicationService>();
+builder.Services.AddScoped<IModeratorTransferService, ModeratorTransferService>();
 builder.Services.AddScoped<GeographyDataSeeder>();
 builder.Services.AddScoped<RatingCategorySeeder>();
 

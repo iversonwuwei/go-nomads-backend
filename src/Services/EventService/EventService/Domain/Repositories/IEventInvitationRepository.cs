@@ -48,6 +48,11 @@ public interface IEventInvitationRepository
     Task<EventInvitation?> GetPendingInvitationAsync(Guid eventId, Guid inviteeId);
 
     /// <summary>
+    ///     获取活动的待处理邀请数量
+    /// </summary>
+    Task<int> GetPendingCountAsync(Guid eventId);
+
+    /// <summary>
     ///     删除邀请
     /// </summary>
     Task DeleteAsync(Guid id);

@@ -277,6 +277,45 @@ public class NotificationsController : ControllerBase
     }
 
     /// <summary>
+    ///     更新通知元数据
+    /// </summary>
+    [HttpPatch("{id}/metadata")]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateMetadata(
+        string id,
+        [FromBody] UpdateNotificationMetadataDto request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📝 更新通知元数据: Id={Id}", id);
+
+        try
+        {
+            var result = await _notificationService.UpdateMetadataAsync(id, request.Metadata, cancellationToken);
+
+            if (!result)
+                return NotFound(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "通知不存在"
+                });
+
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "通知元数据已更新"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 更新通知元数据失败: Id={Id}", id);
+            return StatusCode(500, new ApiResponse<object>
+            {
+                Success = false,
+                Message = "更新元数据失败"
+            });
+        }
+    }
+
+    /// <summary>
     ///     批量标记通知为已读
     /// </summary>
     [HttpPut("read/batch")]

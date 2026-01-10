@@ -45,6 +45,11 @@ public interface INotificationService
     Task<bool> MarkAsReadAsync(string notificationId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     更新通知的元数据
+    /// </summary>
+    Task<bool> UpdateMetadataAsync(string notificationId, Dictionary<string, object> metadata, CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     批量标记通知为已读
     /// </summary>
     Task<int> MarkMultipleAsReadAsync(string userId, List<string> notificationIds,
