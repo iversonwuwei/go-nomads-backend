@@ -84,6 +84,19 @@ public class CityApplicationService : ICityService
     }
 
     /// <summary>
+    /// 清除城市列表缓存（当城市数据变更时调用）
+    /// </summary>
+    public void InvalidateCityListCache()
+    {
+        // 使用 CancellationTokenSource 来使所有城市列表缓存失效
+        // 由于 IMemoryCache 没有直接的 Clear 或 RemoveByPrefix 方法，
+        // 我们通过递增版本号来使旧缓存失效
+        var newVersion = DateTime.UtcNow.Ticks;
+        _cache.Set("city_list:version", newVersion);
+        _logger.LogInformation("🗑️ [Cache] 城市列表缓存已失效, 新版本号: {Version}", newVersion);
+    }
+
+    /// <summary>
     /// 获取城市列表（轻量级版本，不包含天气数据）
     /// 用于城市列表页面，提升加载性能
     /// </summary>
@@ -93,71 +106,113 @@ public class CityApplicationService : ICityService
             pageNumber, pageSize, search);
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-        IEnumerable<Domain.Entities.City> cities;
+        // 获取当前缓存版本号
+        var cacheVersion = _cache.GetOrCreate("city_list:version", entry => DateTime.UtcNow.Ticks);
 
-        if (!string.IsNullOrWhiteSpace(search))
+        // 尝试从缓存获取基础城市列表数据（不包含用户相关数据）
+        var baseCacheKey = $"city_list:v{cacheVersion}:p{pageNumber}:s{pageSize}:q{search ?? "all"}";
+        List<CityListItemDto> cityListItems;
+        bool fromCache = false;
+
+        if (_cache.TryGetValue(baseCacheKey, out List<CityListItemDto>? cachedItems) && cachedItems != null)
         {
-            var criteria = new Domain.ValueObjects.CitySearchCriteria
-            {
-                Name = search,
-                PageNumber = pageNumber,
-                PageSize = pageSize
-            };
-            cities = await _cityRepository.SearchAsync(criteria);
+            // 深拷贝缓存数据，避免修改缓存中的对象
+            cityListItems = cachedItems.Select(c => c.Clone()).ToList();
+            fromCache = true;
+            _logger.LogInformation("📦 [GetCityList] 从缓存获取城市列表: {Count} 个城市", cityListItems.Count);
         }
         else
         {
-            cities = await _cityRepository.GetAllAsync(pageNumber, pageSize);
+            // 缓存未命中，从数据库获取
+            IEnumerable<Domain.Entities.City> cities;
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var criteria = new Domain.ValueObjects.CitySearchCriteria
+                {
+                    Name = search,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                };
+                cities = await _cityRepository.SearchAsync(criteria);
+            }
+            else
+            {
+                cities = await _cityRepository.GetAllAsync(pageNumber, pageSize);
+            }
+
+            cityListItems = cities.Select(city => new CityListItemDto
+            {
+                Id = city.Id,
+                Name = city.Name,
+                NameEn = city.NameEn,
+                Country = city.Country,
+                CountryId = city.CountryId,
+                Region = city.Region,
+                ImageUrl = city.ImageUrl,
+                PortraitImageUrl = city.PortraitImageUrl,
+                LandscapeImageUrls = city.LandscapeImageUrls,
+
+                // 城市基本信息 - 帮助数字游民了解城市
+                Description = city.Description,
+                TimeZone = city.TimeZone,
+                Currency = city.Currency,
+
+                // 综合评分
+                OverallScore = city.OverallScore,
+
+                // 数字游民核心关注指标（静态评分，非实时数据）
+                InternetQualityScore = city.InternetQualityScore,
+                SafetyScore = city.SafetyScore,
+                CostScore = city.CostScore,
+                CommunityScore = city.CommunityScore,
+                WeatherScore = city.WeatherScore,
+
+                // 城市标签
+                Tags = city.Tags,
+
+                // 地理位置
+                Latitude = city.Latitude,
+                Longitude = city.Longitude,
+            }).ToList();
+
+            // 并行填充非用户相关的数据
+            var ratingsTask = EnrichCityListWithRatingsAndCostsAsync(cityListItems);
+            var countsTask = EnrichCityListWithCountsAsync(cityListItems);
+            var moderatorTask = EnrichCityListWithModeratorInfoAsync(cityListItems, null, null); // 不传用户信息
+
+            await Task.WhenAll(ratingsTask, countsTask, moderatorTask);
+
+            // 缓存基础数据（2分钟过期）
+            var cacheOptions = new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(2))
+                .SetSlidingExpiration(TimeSpan.FromMinutes(1));
+            _cache.Set(baseCacheKey, cityListItems.Select(c => c.Clone()).ToList(), cacheOptions);
+
+            _logger.LogInformation("💾 [GetCityList] 城市列表已缓存: key={CacheKey}", baseCacheKey);
         }
 
-        var cityListItems = cities.Select(city => new CityListItemDto
+        // 填充用户相关数据（收藏状态、权限等）- 不缓存
+        if (userId.HasValue || !string.IsNullOrEmpty(userRole))
         {
-            Id = city.Id,
-            Name = city.Name,
-            NameEn = city.NameEn,
-            Country = city.Country,
-            CountryId = city.CountryId,
-            Region = city.Region,
-            ImageUrl = city.ImageUrl,
-            PortraitImageUrl = city.PortraitImageUrl,
-            LandscapeImageUrls = city.LandscapeImageUrls,
+            // 更新版主相关的用户权限
+            var isAdmin = userRole?.ToLower() == "admin";
+            foreach (var city in cityListItems)
+            {
+                city.IsCurrentUserAdmin = isAdmin;
+                city.IsCurrentUserModerator = userId.HasValue && city.ModeratorId.HasValue && city.ModeratorId.Value == userId.Value;
+            }
 
-            // 城市基本信息 - 帮助数字游民了解城市
-            Description = city.Description,
-            TimeZone = city.TimeZone,
-            Currency = city.Currency,
-
-            // 综合评分
-            OverallScore = city.OverallScore,
-
-            // 数字游民核心关注指标（静态评分，非实时数据）
-            InternetQualityScore = city.InternetQualityScore,
-            SafetyScore = city.SafetyScore,
-            CostScore = city.CostScore,
-            CommunityScore = city.CommunityScore,
-            WeatherScore = city.WeatherScore,
-
-            // 城市标签
-            Tags = city.Tags,
-
-            // 地理位置
-            Latitude = city.Latitude,
-            Longitude = city.Longitude,
-        }).ToList();
-
-        // 并行填充必要的数据（不包含实时天气）
-        var ratingsTask = EnrichCityListWithRatingsAndCostsAsync(cityListItems);
-        var countsTask = EnrichCityListWithCountsAsync(cityListItems);
-        var moderatorTask = EnrichCityListWithModeratorInfoAsync(cityListItems, userId, userRole);
-        var favoriteTask = userId.HasValue
-            ? EnrichCityListWithFavoriteStatusAsync(cityListItems, userId.Value)
-            : Task.CompletedTask;
-
-        await Task.WhenAll(ratingsTask, countsTask, moderatorTask, favoriteTask);
+            // 填充收藏状态
+            if (userId.HasValue)
+            {
+                await EnrichCityListWithFavoriteStatusAsync(cityListItems, userId.Value);
+            }
+        }
 
         stopwatch.Stop();
-        _logger.LogInformation("✅ [GetCityList] 轻量级城市列表获取完成: {Count} 个城市, 耗时 {Elapsed}ms",
-            cityListItems.Count, stopwatch.ElapsedMilliseconds);
+        _logger.LogInformation("✅ [GetCityList] 轻量级城市列表获取完成: {Count} 个城市, 耗时 {Elapsed}ms, 缓存命中={FromCache}",
+            cityListItems.Count, stopwatch.ElapsedMilliseconds, fromCache);
 
         return cityListItems;
     }
@@ -443,6 +498,10 @@ public class CityApplicationService : ICityService
             city.Location = $"POINT({createCityDto.Longitude.Value} {createCityDto.Latitude.Value})";
 
         var createdCity = await _cityRepository.CreateAsync(city);
+
+        // 清除城市列表缓存
+        InvalidateCityListCache();
+
         _logger.LogInformation("City created: {CityId} - {CityName}", createdCity.Id, createdCity.Name);
         return MapToDto(createdCity);
     }
@@ -512,6 +571,9 @@ public class CityApplicationService : ICityService
             }
         }
 
+        // 清除城市列表缓存
+        InvalidateCityListCache();
+
         _logger.LogInformation("City updated: {CityId} - {CityName}", id, existingCity.Name);
         return MapToDto(updatedCity);
     }
@@ -519,7 +581,12 @@ public class CityApplicationService : ICityService
     public async Task<bool> DeleteCityAsync(Guid id, Guid? deletedBy = null)
     {
         var result = await _cityRepository.DeleteAsync(id, deletedBy);
-        if (result) _logger.LogInformation("City deleted: {CityId}, DeletedBy: {DeletedBy}", id, deletedBy);
+        if (result)
+        {
+            // 清除城市列表缓存
+            InvalidateCityListCache();
+            _logger.LogInformation("City deleted: {CityId}, DeletedBy: {DeletedBy}", id, deletedBy);
+        }
 
         return result;
     }
@@ -780,6 +847,8 @@ public class CityApplicationService : ICityService
 
             await _cityRepository.UpdateAsync(city.Id, city);
 
+            // 失效城市列表缓存，确保下次获取列表时能看到新版主
+            InvalidateCityListCache();
             _logger.LogInformation("用户 {UserId} 申请成为城市 {CityId} 的版主成功", userId, dto.CityId);
             return true;
         }
@@ -820,6 +889,8 @@ public class CityApplicationService : ICityService
                     existingModerator.IsActive = true;
                     existingModerator.AssignedAt = DateTime.UtcNow;
                     await _moderatorRepository.UpdateAsync(existingModerator);
+                    // 失效城市列表缓存
+                    InvalidateCityListCache();
                     _logger.LogInformation("重新激活版主 - CityId: {CityId}, UserId: {UserId}", dto.CityId, dto.UserId);
                 }
                 else
@@ -848,6 +919,8 @@ public class CityApplicationService : ICityService
 
             await _moderatorRepository.AddAsync(cityModerator);
 
+            // 失效城市列表缓存，确保下次获取列表时能看到新版主
+            InvalidateCityListCache();
             _logger.LogInformation("城市 {CityId} 的版主已设置为 {UserId}", dto.CityId, dto.UserId);
             return true;
         }
@@ -1667,6 +1740,8 @@ public class CityApplicationService : ICityService
 
             if (result)
             {
+                // 失效城市列表缓存，确保下次获取列表时能看到新图片
+                InvalidateCityListCache();
                 _logger.LogInformation("✅ 城市图片全部更新成功: CityId={CityId}", cityId);
                 return true;
             }

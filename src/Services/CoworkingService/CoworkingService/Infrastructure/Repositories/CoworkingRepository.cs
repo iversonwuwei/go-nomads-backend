@@ -496,5 +496,58 @@ public class CoworkingRepository : ICoworkingRepository
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    ///     批量获取城市的 Coworking 空间数量（优化版：单次查询）
+    /// </summary>
+    public async Task<Dictionary<Guid, int>> GetCoworkingCountsByCityIdsAsync(List<Guid> cityIds)
+    {
+        var result = new Dictionary<Guid, int>();
+
+        if (cityIds.Count == 0)
+            return result;
+
+        try
+        {
+            _logger.LogInformation("📊 [优化] 批量获取 {Count} 个城市的 Coworking 数量 (单次查询)", cityIds.Count);
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            // 构建 IN 查询 - 一次性获取所有指定城市的 Coworking 空间
+            var cityIdStrings = cityIds.Select(id => id.ToString()).ToList();
+
+            var response = await _supabaseClient
+                .From<CoworkingSpace>()
+                .Select("id, city_id")
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Filter("city_id", Constants.Operator.In, cityIdStrings)
+                .Get();
+
+            var spaces = response.Models.ToList();
+
+            // 按城市ID分组计数（过滤掉 CityId 为 null 的记录）
+            var groupedCounts = spaces
+                .Where(s => s.CityId.HasValue)
+                .GroupBy(s => s.CityId!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            // 确保所有请求的城市都有结果（没有 Coworking 的城市计数为0）
+            foreach (var cityId in cityIds)
+            {
+                result[cityId] = groupedCounts.GetValueOrDefault(cityId, 0);
+            }
+
+            stopwatch.Stop();
+            _logger.LogInformation("✅ [优化] 批量获取城市 Coworking 数量完成: {Count} 个城市, 耗时 {Elapsed}ms",
+                result.Count, stopwatch.ElapsedMilliseconds);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量获取城市 Coworking 数量失败");
+            return result;
+        }
+    }
+
     #endregion
 }

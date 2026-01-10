@@ -64,4 +64,9 @@ public interface ICityService
     /// <param name="landscapeImageUrls">横屏图片 URL 列表</param>
     /// <returns>是否成功</returns>
     Task<bool> UpdateCityImagesAsync(Guid cityId, string? portraitImageUrl, List<string>? landscapeImageUrls);
+
+    /// <summary>
+    ///     清除城市列表缓存（当城市相关数据变更时调用）
+    /// </summary>
+    void InvalidateCityListCache();
 }
