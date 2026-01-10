@@ -967,11 +967,11 @@ public class CoworkingApplicationService : ICoworkingService
     }
 
     #endregion
-    
+
     #region 城市统计
 
     /// <summary>
-    ///     批量获取城市 Coworking 空间数量
+    ///     批量获取城市 Coworking 空间数量（优化版：使用单次查询）
     /// </summary>
     public async Task<Dictionary<string, int>> GetCitiesCoworkingCountsAsync(List<string> cityIds)
     {
@@ -982,19 +982,33 @@ public class CoworkingApplicationService : ICoworkingService
 
         try
         {
-            _logger.LogInformation("📊 批量获取城市 Coworking 数量: {Count} 个城市", cityIds.Count);
+            _logger.LogInformation("📊 [优化] 批量获取城市 Coworking 数量: {Count} 个城市", cityIds.Count);
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            // 获取所有指定城市的 Coworking 数量
-            foreach (var cityIdStr in cityIds)
+            // 转换并过滤有效的 GUID
+            var validCityIds = cityIds
+                .Where(id => Guid.TryParse(id, out _))
+                .Select(id => Guid.Parse(id))
+                .ToList();
+
+            if (validCityIds.Count == 0)
             {
-                if (Guid.TryParse(cityIdStr, out var cityId))
-                {
-                    var coworkingSpaces = await _coworkingRepository.GetByCityIdAsync(cityId);
-                    result[cityIdStr] = coworkingSpaces?.Count ?? 0;
-                }
+                _logger.LogWarning("⚠️ 没有有效的城市ID");
+                return result;
             }
 
-            _logger.LogInformation("✅ 成功获取 {Count} 个城市的 Coworking 数量", result.Count);
+            // 使用优化的批量查询方法（单次数据库查询）
+            var counts = await _coworkingRepository.GetCoworkingCountsByCityIdsAsync(validCityIds);
+
+            // 转换结果为字符串键
+            foreach (var kvp in counts)
+            {
+                result[kvp.Key.ToString()] = kvp.Value;
+            }
+
+            stopwatch.Stop();
+            _logger.LogInformation("✅ [优化] 成功获取 {Count} 个城市的 Coworking 数量, 耗时 {Elapsed}ms",
+                result.Count, stopwatch.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {

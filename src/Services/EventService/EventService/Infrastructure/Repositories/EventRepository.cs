@@ -583,5 +583,66 @@ public class EventRepository : IEventRepository
         }
     }
 
+    /// <summary>
+    ///     批量获取城市的活动数量（优化版：单次查询）
+    /// </summary>
+    public async Task<Dictionary<Guid, int>> GetEventCountsByCityIdsAsync(List<Guid> cityIds, string? status = "upcoming")
+    {
+        var result = new Dictionary<Guid, int>();
+
+        if (cityIds.Count == 0)
+            return result;
+
+        try
+        {
+            _logger.LogInformation("📊 [优化] 批量获取 {Count} 个城市的活动数量 (单次查询)", cityIds.Count);
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            // 构建 IN 查询 - 一次性获取所有指定城市的活动
+            var cityIdStrings = cityIds.Select(id => id.ToString()).ToList();
+
+            var baseQuery = _supabaseClient.From<Event>();
+
+            // 链式构建查询
+            var query = (ISupabaseTable<Event, RealtimeChannel>)baseQuery
+                .Select("id, city_id")
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                .Filter("city_id", Constants.Operator.In, cityIdStrings);
+
+            // 添加状态过滤
+            if (!string.IsNullOrEmpty(status))
+            {
+                query = (ISupabaseTable<Event, RealtimeChannel>)
+                    query.Filter("status", Constants.Operator.Equals, status);
+            }
+
+            var queryResult = await query.Get();
+            var events = queryResult.Models.ToList();
+
+            // 按城市ID分组计数（过滤掉 CityId 为 null 的记录）
+            var groupedCounts = events
+                .Where(e => e.CityId.HasValue)
+                .GroupBy(e => e.CityId!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            // 确保所有请求的城市都有结果（没有活动的城市计数为0）
+            foreach (var cityId in cityIds)
+            {
+                result[cityId] = groupedCounts.GetValueOrDefault(cityId, 0);
+            }
+
+            stopwatch.Stop();
+            _logger.LogInformation("✅ [优化] 批量获取城市活动数量完成: {Count} 个城市, 耗时 {Elapsed}ms",
+                result.Count, stopwatch.ElapsedMilliseconds);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量获取城市活动数量失败");
+            return result;
+        }
+    }
+
     #endregion
 }

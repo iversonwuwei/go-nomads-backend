@@ -72,4 +72,44 @@ public class CityListItemDto
     // 地理位置
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
+
+    /// <summary>
+    /// 创建当前对象的深拷贝
+    /// </summary>
+    public CityListItemDto Clone()
+    {
+        return new CityListItemDto
+        {
+            Id = Id,
+            Name = Name,
+            NameEn = NameEn,
+            Country = Country,
+            CountryId = CountryId,
+            Region = Region,
+            ImageUrl = ImageUrl,
+            PortraitImageUrl = PortraitImageUrl,
+            LandscapeImageUrls = LandscapeImageUrls?.ToList(),
+            Description = Description,
+            TimeZone = TimeZone,
+            Currency = Currency,
+            OverallScore = OverallScore,
+            InternetQualityScore = InternetQualityScore,
+            SafetyScore = SafetyScore,
+            CostScore = CostScore,
+            CommunityScore = CommunityScore,
+            WeatherScore = WeatherScore,
+            Tags = Tags?.ToList(),
+            IsFavorite = IsFavorite,
+            ReviewCount = ReviewCount,
+            AverageCost = AverageCost,
+            MeetupCount = MeetupCount,
+            CoworkingCount = CoworkingCount,
+            ModeratorId = ModeratorId,
+            Moderator = Moderator,
+            IsCurrentUserModerator = IsCurrentUserModerator,
+            IsCurrentUserAdmin = IsCurrentUserAdmin,
+            Latitude = Latitude,
+            Longitude = Longitude
+        };
+    }
 }

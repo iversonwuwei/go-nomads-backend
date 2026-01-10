@@ -3,6 +3,7 @@ using CityService.Application.DTOs;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
 using CityService.Services;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace CityService.Application.Services;
 
@@ -19,6 +20,7 @@ public class UserCityContentApplicationService : IUserCityContentService
     private readonly IUserCityReviewRepository _reviewRepository;
     private readonly IUserServiceClient _userServiceClient;
     private readonly ICacheServiceClient _cacheServiceClient;
+    private readonly IMemoryCache _cache;
 
     public UserCityContentApplicationService(
         IUserCityPhotoRepository photoRepository,
@@ -28,6 +30,7 @@ public class UserCityContentApplicationService : IUserCityContentService
         IUserServiceClient userServiceClient,
         ICacheServiceClient cacheServiceClient,
         IAmapGeocodingService amapGeocodingService,
+        IMemoryCache cache,
         ILogger<UserCityContentApplicationService> logger)
     {
         _photoRepository = photoRepository;
@@ -37,7 +40,18 @@ public class UserCityContentApplicationService : IUserCityContentService
         _userServiceClient = userServiceClient;
         _cacheServiceClient = cacheServiceClient;
         _amapGeocodingService = amapGeocodingService;
+        _cache = cache;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// 失效城市列表缓存（当评论、评分等数据变更时调用）
+    /// </summary>
+    private void InvalidateCityListCache()
+    {
+        var newVersion = DateTime.UtcNow.Ticks;
+        _cache.Set("city_list:version", newVersion);
+        _logger.LogInformation("🗑️ [Cache] 城市列表缓存已失效 (from UserCityContent), 新版本号: {Version}", newVersion);
     }
 
     #region 照片相关
@@ -249,6 +263,10 @@ public class UserCityContentApplicationService : IUserCityContentService
         };
 
         var created = await _reviewRepository.CreateAsync(review); // ✅ 改为 CreateAsync,每次都新增记录
+
+        // 失效城市列表缓存，确保评论数量能同步更新
+        InvalidateCityListCache();
+
         _logger.LogInformation("用户 {UserId} 为城市 {CityId} 添加了新评论 {ReviewId}", userId, request.CityId, created.Id);
 
         return MapReviewToDto(created);

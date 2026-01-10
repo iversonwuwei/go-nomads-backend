@@ -97,5 +97,12 @@ public interface ICoworkingRepository
     Task FillRedundantFieldsAsync(CoworkingSpace coworkingSpace, string? creatorName, string? creatorAvatar,
         string? cityName, string? cityNameEn, string? cityCountry);
 
+    /// <summary>
+    ///     批量获取城市的 Coworking 空间数量（优化版：单次查询）
+    /// </summary>
+    /// <param name="cityIds">城市ID列表</param>
+    /// <returns>城市ID到 Coworking 数量的映射</returns>
+    Task<Dictionary<Guid, int>> GetCoworkingCountsByCityIdsAsync(List<Guid> cityIds);
+
     #endregion
 }

@@ -95,4 +95,12 @@ public interface IEventRepository
     /// <param name="country">国家</param>
     /// <returns>更新的记录数</returns>
     Task<int> UpdateCityInfoAsync(Guid cityId, string? name, string? nameEn, string? country);
+
+    /// <summary>
+    ///     批量获取城市的活动数量（优化版：单次查询）
+    /// </summary>
+    /// <param name="cityIds">城市ID列表</param>
+    /// <param name="status">活动状态（可选，默认 upcoming）</param>
+    /// <returns>城市ID到活动数量的映射</returns>
+    Task<Dictionary<Guid, int>> GetEventCountsByCityIdsAsync(List<Guid> cityIds, string? status = "upcoming");
 }

@@ -976,11 +976,11 @@ public class EventApplicationService : IEventService
     }
 
     #endregion
-    
+
     #region 城市统计
 
     /// <summary>
-    ///     批量获取城市活动数量
+    ///     批量获取城市活动数量（优化版：使用单次查询）
     /// </summary>
     public async Task<Dictionary<string, int>> GetCitiesEventCountsAsync(List<string> cityIds)
     {
@@ -991,25 +991,33 @@ public class EventApplicationService : IEventService
 
         try
         {
-            _logger.LogInformation("📊 批量获取城市活动数量: {Count} 个城市", cityIds.Count);
+            _logger.LogInformation("📊 [优化] 批量获取城市活动数量: {Count} 个城市", cityIds.Count);
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            // 获取所有指定城市的活动数量
-            foreach (var cityIdStr in cityIds)
+            // 转换并过滤有效的 GUID
+            var validCityIds = cityIds
+                .Where(id => Guid.TryParse(id, out _))
+                .Select(id => Guid.Parse(id))
+                .ToList();
+
+            if (validCityIds.Count == 0)
             {
-                if (Guid.TryParse(cityIdStr, out var cityId))
-                {
-                    // 只统计 upcoming 状态的活动
-                    var (events, total) = await _eventRepository.GetListAsync(
-                        cityId: cityId, 
-                        status: "upcoming", 
-                        page: 1, 
-                        pageSize: 1);
-                    
-                    result[cityIdStr] = total;
-                }
+                _logger.LogWarning("⚠️ 没有有效的城市ID");
+                return result;
             }
 
-            _logger.LogInformation("✅ 成功获取 {Count} 个城市的活动数量", result.Count);
+            // 使用优化的批量查询方法（单次数据库查询）
+            var counts = await _eventRepository.GetEventCountsByCityIdsAsync(validCityIds, "upcoming");
+
+            // 转换结果为字符串键
+            foreach (var kvp in counts)
+            {
+                result[kvp.Key.ToString()] = kvp.Value;
+            }
+
+            stopwatch.Stop();
+            _logger.LogInformation("✅ [优化] 成功获取 {Count} 个城市的活动数量, 耗时 {Elapsed}ms",
+                result.Count, stopwatch.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
