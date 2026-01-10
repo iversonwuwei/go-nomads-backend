@@ -80,3 +80,11 @@ public class NotificationStatsDto
     public int UnreadCount { get; set; }
     public int TotalCount { get; set; }
 }
+
+/// <summary>
+///     更新通知元数据请求 DTO
+/// </summary>
+public class UpdateNotificationMetadataDto
+{
+    public Dictionary<string, object> Metadata { get; set; } = new();
+}

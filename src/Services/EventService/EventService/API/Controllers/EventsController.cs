@@ -1314,23 +1314,29 @@ public class EventsController : ControllerBase
         {
             var notificationPayload = new
             {
-                userId = invitation.InviteeId.ToString(),
-                title = "您收到了活动邀请",
-                message = $"{invitation.Inviter?.Name ?? "某位用户"} 邀请您参加活动「{invitation.Event?.Title}」",
-                type = "event_invitation",
-                relatedId = invitation.Id.ToString(),
-                metadata = new Dictionary<string, object>
+                UserId = invitation.InviteeId.ToString(),
+                Title = "您收到了活动邀请",
+                Message = $"{invitation.Inviter?.Name ?? "某位用户"} 邀请您参加活动「{invitation.Event?.Title}」",
+                Type = "event_invitation",
+                RelatedId = invitation.Id.ToString(),
+                Metadata = new Dictionary<string, object>
                 {
                     { "eventId", invitation.EventId.ToString() },
                     { "inviterId", invitation.InviterId.ToString() },
                     { "invitationId", invitation.Id.ToString() },
                     { "eventTitle", invitation.Event?.Title ?? "" },
-                    { "inviterName", invitation.Inviter?.Name ?? "" }
+                    { "inviterName", invitation.Inviter?.Name ?? "" },
+                    { "inviterAvatar", invitation.Inviter?.Avatar ?? "" }
                 }
             };
 
-            // 使用 Dapr 发布通知事件
-            await _daprClient.PublishEventAsync("pubsub", "notification-created", notificationPayload);
+            // 使用 Dapr 调用 MessageService API 创建通知
+            await _daprClient.InvokeMethodAsync(
+                HttpMethod.Post,
+                "message-service",
+                "api/v1/notifications",
+                notificationPayload
+            );
             _logger.LogInformation("✅ 邀请通知已发送给用户 {InviteeId}", invitation.InviteeId);
         }
         catch (Exception ex)
@@ -1350,24 +1356,30 @@ public class EventsController : ControllerBase
             var action = response.ToLower() == "accept" ? "接受" : "拒绝";
             var notificationPayload = new
             {
-                userId = invitation.InviterId.ToString(),
-                title = "活动邀请已被响应",
-                message = $"{invitation.Invitee?.Name ?? "被邀请用户"} {action}了您的活动「{invitation.Event?.Title}」邀请",
-                type = "event_invitation_response",
-                relatedId = invitation.Id.ToString(),
-                metadata = new Dictionary<string, object>
+                UserId = invitation.InviterId.ToString(),
+                Title = "活动邀请已被响应",
+                Message = $"{invitation.Invitee?.Name ?? "被邀请用户"} {action}了您的活动「{invitation.Event?.Title}」邀请",
+                Type = "event_invitation_response",
+                RelatedId = invitation.Id.ToString(),
+                Metadata = new Dictionary<string, object>
                 {
                     { "eventId", invitation.EventId.ToString() },
                     { "inviteeId", invitation.InviteeId.ToString() },
                     { "invitationId", invitation.Id.ToString() },
                     { "response", response.ToLower() },
                     { "eventTitle", invitation.Event?.Title ?? "" },
-                    { "inviteeName", invitation.Invitee?.Name ?? "" }
+                    { "inviteeName", invitation.Invitee?.Name ?? "" },
+                    { "inviteeAvatar", invitation.Invitee?.Avatar ?? "" }
                 }
             };
 
-            // 使用 Dapr 发布通知事件
-            await _daprClient.PublishEventAsync("pubsub", "notification-created", notificationPayload);
+            // 使用 Dapr 调用 MessageService API 创建通知
+            await _daprClient.InvokeMethodAsync(
+                HttpMethod.Post,
+                "message-service",
+                "api/v1/notifications",
+                notificationPayload
+            );
             _logger.LogInformation("✅ 邀请响应通知已发送给用户 {InviterId}", invitation.InviterId);
         }
         catch (Exception ex)

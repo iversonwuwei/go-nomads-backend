@@ -231,6 +231,40 @@ public class NotificationApplicationService : INotificationService
         return await _repository.MarkAsReadAsync(id, cancellationToken);
     }
 
+    public async Task<bool> UpdateMetadataAsync(string notificationId, Dictionary<string, object> metadata, CancellationToken cancellationToken = default)
+    {
+        if (!Guid.TryParse(notificationId, out var id)) return false;
+
+        // 获取现有通知
+        var notification = await _repository.GetByIdAsync(id, cancellationToken);
+        if (notification == null) return false;
+
+        // 合并现有元数据和新元数据
+        Dictionary<string, object>? existingMetadata = null;
+        if (!string.IsNullOrEmpty(notification.Metadata))
+        {
+            try
+            {
+                existingMetadata = JsonSerializer.Deserialize<Dictionary<string, object>>(notification.Metadata);
+            }
+            catch
+            {
+                // 忽略 JSON 解析错误
+            }
+        }
+
+        existingMetadata ??= new Dictionary<string, object>();
+        
+        // 合并新元数据
+        foreach (var kvp in metadata)
+        {
+            existingMetadata[kvp.Key] = kvp.Value;
+        }
+
+        var metadataJson = JsonSerializer.Serialize(existingMetadata);
+        return await _repository.UpdateMetadataAsync(id, metadataJson, cancellationToken);
+    }
+
     public async Task<int> MarkMultipleAsReadAsync(
         string userId,
         List<string> notificationIds,
