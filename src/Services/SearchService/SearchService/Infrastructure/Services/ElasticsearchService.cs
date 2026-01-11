@@ -25,12 +25,15 @@ public class ElasticsearchService : IElasticsearchService
     private readonly ElasticsearchClient _client;
     private readonly ILogger<ElasticsearchService> _logger;
     private readonly ElasticsearchSettings _settings;
+    private readonly Infrastructure.Configuration.IndexSettings _indexSettings;
 
     public ElasticsearchService(
         IOptions<ElasticsearchSettings> settings,
+        IOptions<Infrastructure.Configuration.IndexSettings> indexSettings,
         ILogger<ElasticsearchService> logger)
     {
         _settings = settings.Value;
+        _indexSettings = indexSettings.Value;
         _logger = logger;
 
         var clientSettings = new ElasticsearchClientSettings(new Uri(_settings.Url))
@@ -111,10 +114,49 @@ public class ElasticsearchService : IElasticsearchService
     {
         var request = new CreateIndexRequest(indexName)
         {
-            Settings = new EsIndexSettings
+            Settings = BuildCommonSettings(),
+            Mappings = new TypeMapping
             {
-                NumberOfShards = 1,
-                NumberOfReplicas = 0
+                Properties = new Properties
+                {
+                    { "id", new KeywordProperty() },
+                    { "name", CreateTextWithKeyword() },
+                    { "nameEn", CreateTextWithKeyword() },
+                    { "country", CreateTextWithKeyword() },
+                    { "countryId", new KeywordProperty() },
+                    { "provinceId", new KeywordProperty() },
+                    { "region", CreateTextWithKeyword() },
+                    { "description", new TextProperty { Analyzer = "search_text" } },
+                    { "latitude", new DoubleNumberProperty() },
+                    { "longitude", new DoubleNumberProperty() },
+                    { "location", new GeoPointProperty() },
+                    { "population", new LongNumberProperty() },
+                    { "climate", CreateTextWithKeyword() },
+                    { "timeZone", CreateTextWithKeyword() },
+                    { "currency", CreateTextWithKeyword() },
+                    { "imageUrl", new KeywordProperty { IgnoreAbove = 512 } },
+                    { "portraitImageUrl", new KeywordProperty { IgnoreAbove = 512 } },
+                    { "overallScore", new DoubleNumberProperty() },
+                    { "internetQualityScore", new DoubleNumberProperty() },
+                    { "safetyScore", new DoubleNumberProperty() },
+                    { "costScore", new DoubleNumberProperty() },
+                    { "communityScore", new DoubleNumberProperty() },
+                    { "weatherScore", new DoubleNumberProperty() },
+                    { "tags", new KeywordProperty() },
+                    { "isActive", new BooleanProperty() },
+                    { "createdAt", new DateProperty() },
+                    { "updatedAt", new DateProperty() },
+                    { "averageCost", new DoubleNumberProperty() },
+                    { "userCount", new IntegerNumberProperty() },
+                    { "moderatorId", new KeywordProperty() },
+                    { "moderatorName", CreateTextWithKeyword() },
+                    { "moderatorCount", new IntegerNumberProperty() },
+                    { "coworkingCount", new IntegerNumberProperty() },
+                    { "meetupCount", new IntegerNumberProperty() },
+                    { "reviewCount", new IntegerNumberProperty() },
+                    { "suggest", new CompletionProperty { Analyzer = "edge_ngram", SearchAnalyzer = "search_text" } },
+                    { "documentType", new KeywordProperty() }
+                }
             }
         };
 
@@ -125,14 +167,73 @@ public class ElasticsearchService : IElasticsearchService
     {
         var request = new CreateIndexRequest(indexName)
         {
-            Settings = new EsIndexSettings
+            Settings = BuildCommonSettings(),
+            Mappings = new TypeMapping
             {
-                NumberOfShards = 1,
-                NumberOfReplicas = 0
+                Properties = new Properties
+                {
+                    { "id", new KeywordProperty() },
+                    { "name", CreateTextWithKeyword() },
+                    { "cityId", new KeywordProperty() },
+                    { "cityName", CreateTextWithKeyword() },
+                    { "countryName", CreateTextWithKeyword() },
+                    { "address", CreateTextWithKeyword() },
+                    { "description", new TextProperty { Analyzer = "search_text" } },
+                    { "imageUrl", new KeywordProperty { IgnoreAbove = 512 } },
+                    { "pricePerDay", new DoubleNumberProperty() },
+                    { "pricePerMonth", new DoubleNumberProperty() },
+                    { "pricePerHour", new DoubleNumberProperty() },
+                    { "currency", CreateTextWithKeyword() },
+                    { "rating", new DoubleNumberProperty() },
+                    { "reviewCount", new IntegerNumberProperty() },
+                    { "wifiSpeed", new DoubleNumberProperty() },
+                    { "desks", new IntegerNumberProperty() },
+                    { "meetingRooms", new IntegerNumberProperty() },
+                    { "hasMeetingRoom", new BooleanProperty() },
+                    { "hasCoffee", new BooleanProperty() },
+                    { "hasParking", new BooleanProperty() },
+                    { "has247Access", new BooleanProperty() },
+                    { "amenities", new KeywordProperty() },
+                    { "capacity", new IntegerNumberProperty() },
+                    { "latitude", new DoubleNumberProperty() },
+                    { "longitude", new DoubleNumberProperty() },
+                    { "location", new GeoPointProperty() },
+                    { "phone", new KeywordProperty { IgnoreAbove = 128 } },
+                    { "email", new KeywordProperty { IgnoreAbove = 256 } },
+                    { "website", new KeywordProperty { IgnoreAbove = 256 } },
+                    { "openingHours", new TextProperty { Analyzer = "search_text" } },
+                    { "isActive", new BooleanProperty() },
+                    { "verificationStatus", new KeywordProperty() },
+                    { "createdAt", new DateProperty() },
+                    { "updatedAt", new DateProperty() },
+                    { "suggest", new CompletionProperty { Analyzer = "edge_ngram", SearchAnalyzer = "search_text" } },
+                    { "documentType", new KeywordProperty() }
+                }
             }
         };
 
         return await _client.Indices.CreateAsync(request);
+    }
+
+    private EsIndexSettings BuildCommonSettings()
+    {
+        return new EsIndexSettings
+        {
+            NumberOfShards = _indexSettings.NumberOfShards,
+            NumberOfReplicas = _indexSettings.NumberOfReplicas
+        };
+    }
+
+    private static TextProperty CreateTextWithKeyword()
+    {
+        return new TextProperty
+        {
+            Analyzer = "search_text",
+            Fields = new Properties
+            {
+                { "keyword", new KeywordProperty { IgnoreAbove = 256 } }
+            }
+        };
     }
 
     public async Task<bool> DeleteIndexAsync(string indexName)
