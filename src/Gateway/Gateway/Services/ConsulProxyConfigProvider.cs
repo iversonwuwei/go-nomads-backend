@@ -497,7 +497,10 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                 ("/api/v1/event-types", 1),  // Event types endpoint
                 ("/api/v1/event-types/{**catch-all}", 2),
                 ("/api/v1/events", 3),
-                ("/api/v1/events/{**catch-all}", 4)
+                ("/api/v1/events/{**catch-all}", 4),
+                // SignalR Hub endpoints for Meetup real-time updates
+                ("/hubs/meetup", 5),
+                ("/hubs/meetup/{**catch-all}", 6)
             },
             "ai-service" => new List<(string, int)>
             {

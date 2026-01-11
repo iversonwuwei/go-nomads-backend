@@ -1,3 +1,4 @@
+using EventService.API.Hubs;
 using EventService.Application.Services;
 using EventService.BackgroundServices;
 using EventService.Domain.Repositories;
@@ -43,6 +44,9 @@ builder.Services.AddScoped<IUserGrpcClient, UserGrpcClient>();
 // 注册应用服务 (Application Layer)
 builder.Services.AddScoped<IEventService, EventApplicationService>();
 builder.Services.AddScoped<IEventTypeService, EventTypeService>();
+
+// 注册 Meetup 实时通知服务
+builder.Services.AddScoped<IMeetupNotificationService, MeetupNotificationService>();
 
 // 注册后台服务
 builder.Services.AddHostedService<EventStatusUpdateService>();
@@ -94,6 +98,38 @@ builder.Services.AddDaprClient(daprClientBuilder =>
 // Add services to the container.
 builder.Services.AddControllers().AddDapr();
 
+// 添加 SignalR
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+});
+
+// 添加 CORS（支持 SignalR WebSocket 连接）
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("SignalRPolicy", policy =>
+    {
+        policy.WithOrigins(
+                "http://localhost:3000",
+                "http://localhost:5080",
+                "http://10.0.2.2:5080",      // Android 模拟器
+                "http://59.46.235.173:5080"  // 真机测试
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();  // SignalR 需要这个
+    });
+
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+    });
+});
+
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi(options =>
 {
@@ -125,6 +161,9 @@ app.MapScalarApiReference(options =>
 
 app.UseSerilogRequestLogging();
 
+// 使用 CORS - SignalR 需要 AllowCredentials
+app.UseCors("SignalRPolicy");
+
 app.UseRouting();
 
 // Enable Prometheus metrics
@@ -135,6 +174,9 @@ app.UseUserContext();
 
 // Map controllers
 app.MapControllers();
+
+// 映射 SignalR Hub
+app.MapHub<MeetupHub>("/hubs/meetup");
 
 // Add health check endpoint
 app.MapGet("/health",

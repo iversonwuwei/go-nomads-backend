@@ -18,6 +18,7 @@ public class EventApplicationService : IEventService
     private readonly IEventParticipantRepository _participantRepository;
     private readonly IUserGrpcClient _userGrpcClient;
     private readonly IEventTypeRepository _eventTypeRepository;
+    private readonly IMeetupNotificationService _notificationService;
 
     public EventApplicationService(
         IEventRepository eventRepository,
@@ -27,6 +28,7 @@ public class EventApplicationService : IEventService
         ICityGrpcClient cityGrpcClient,
         IUserGrpcClient userGrpcClient,
         IEventTypeRepository eventTypeRepository,
+        IMeetupNotificationService notificationService,
         ILogger<EventApplicationService> logger)
     {
         _eventRepository = eventRepository;
@@ -36,6 +38,7 @@ public class EventApplicationService : IEventService
         _cityGrpcClient = cityGrpcClient;
         _userGrpcClient = userGrpcClient;
         _eventTypeRepository = eventTypeRepository;
+        _notificationService = notificationService;
         _logger = logger;
     }
 
@@ -71,6 +74,9 @@ public class EventApplicationService : IEventService
         // 创建者就是组织者，设置 IsOrganizer = true
         response.IsOrganizer = true;
         response.IsParticipant = false; // 创建者默认未参加，需要手动 RSVP
+
+        // 🔔 发送实时通知 - 推送完整的 Meetup 数据
+        await _notificationService.NotifyMeetupCreatedAsync(response);
 
         return response;
     }
@@ -173,8 +179,12 @@ public class EventApplicationService : IEventService
             request.Tags?.ToArray());
 
         var updatedEvent = await _eventRepository.UpdateAsync(@event);
+        var response = await MapToResponseAsync(updatedEvent);
 
-        return await MapToResponseAsync(updatedEvent);
+        // 🔔 发送实时通知 - 推送完整的 Meetup 数据
+        await _notificationService.NotifyMeetupUpdatedAsync(response);
+
+        return response;
     }
 
     /// <summary>
@@ -195,7 +205,12 @@ public class EventApplicationService : IEventService
 
         _logger.LogInformation("✅ 活动 {EventId} 已被用户 {UserId} 取消", id, userId);
 
-        return await MapToResponseAsync(updatedEvent);
+        var response = await MapToResponseAsync(updatedEvent);
+
+        // 🔔 发送实时通知 - 推送完整的 Meetup 数据
+        await _notificationService.NotifyMeetupCancelledAsync(response);
+
+        return response;
     }
 
     /// <summary>
@@ -268,8 +283,15 @@ public class EventApplicationService : IEventService
             
             // 更新参与人数
             @event.AddParticipant();
-            await _eventRepository.UpdateAsync(@event);
-            
+            var updatedEvent = await _eventRepository.UpdateAsync(@event);
+
+            // 🔔 发送实时通知 - 包含新的参与人数
+            await _notificationService.NotifyParticipantJoinedAsync(
+                eventId.ToString(),
+                updatedEvent.CityId?.ToString(),
+                userId.ToString(),
+                updatedEvent.CurrentParticipants);
+
             return MapToParticipantResponse(updatedParticipant);
         }
 
@@ -282,7 +304,14 @@ public class EventApplicationService : IEventService
 
         // 更新参与人数（领域逻辑）
         @event.AddParticipant();
-        await _eventRepository.UpdateAsync(@event);
+        var updatedEventAfterJoin = await _eventRepository.UpdateAsync(@event);
+
+        // 🔔 发送实时通知 - 包含新的参与人数
+        await _notificationService.NotifyParticipantJoinedAsync(
+            eventId.ToString(),
+            updatedEventAfterJoin.CityId?.ToString(),
+            userId.ToString(),
+            updatedEventAfterJoin.CurrentParticipants);
 
         return MapToParticipantResponse(createdParticipant);
     }
@@ -304,7 +333,14 @@ public class EventApplicationService : IEventService
         if (@event != null)
         {
             @event.RemoveParticipant();
-            await _eventRepository.UpdateAsync(@event);
+            var updatedEvent = await _eventRepository.UpdateAsync(@event);
+
+            // 🔔 发送实时通知 - 包含新的参与人数
+            await _notificationService.NotifyParticipantLeftAsync(
+                eventId.ToString(),
+                updatedEvent.CityId?.ToString(),
+                userId.ToString(),
+                updatedEvent.CurrentParticipants);
         }
 
         _logger.LogInformation("✅ 用户 {UserId} 的参与状态已更新为 cancelled", userId);
