@@ -516,6 +516,16 @@ main() {
         "ecommerce-service"
     echo ""
     
+    # 部署 SearchService
+    deploy_service_local \
+        "search-service" \
+        "src/Services/SearchService/SearchService" \
+        "8015" \
+        "SearchService.dll" \
+        "3517" \
+        "search-service"
+    echo ""
+    
     # 显示部署摘要
     show_header "部署摘要"
     
@@ -539,6 +549,7 @@ main() {
     echo -e "  ${GREEN}Innovation Service:  http://localhost:8011${NC}"
     echo -e "  ${GREEN}Travel Planning:     http://localhost:8007${NC}"
     echo -e "  ${GREEN}Ecommerce Service:   http://localhost:8008${NC}"
+    echo -e "  ${GREEN}Search Service:      http://localhost:8015${NC}"
     echo -e "  ${GREEN}Message Swagger:     http://localhost:5005/swagger${NC}"
     echo ""
     echo -e "${BLUE}Dapr 配置:${NC}"

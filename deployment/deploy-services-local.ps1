@@ -123,7 +123,8 @@ $services = @(
     @{Name="accommodation-service"; Port=8012; DaprPort=3513; AppId="accommodation-service"; Path="src/Services/AccommodationService/AccommodationService"; Dll="AccommodationService.dll"; Container="go-nomads-accommodation-service"},
     @{Name="innovation-service"; Port=8011; DaprPort=3514; AppId="innovation-service"; Path="src/Services/InnovationService/InnovationService"; Dll="InnovationService.dll"; Container="go-nomads-innovation-service"},
     @{Name="travel-planning-service"; Port=8007; DaprPort=3515; AppId="travel-planning-service"; Path="src/Services/TravelPlanningService/TravelPlanningService"; Dll="TravelPlanningService.dll"; Container="go-nomads-travel-planning-service"},
-    @{Name="ecommerce-service"; Port=8008; DaprPort=3516; AppId="ecommerce-service"; Path="src/Services/EcommerceService/EcommerceService"; Dll="EcommerceService.dll"; Container="go-nomads-ecommerce-service"}
+    @{Name="ecommerce-service"; Port=8008; DaprPort=3516; AppId="ecommerce-service"; Path="src/Services/EcommerceService/EcommerceService"; Dll="EcommerceService.dll"; Container="go-nomads-ecommerce-service"},
+    @{Name="search-service"; Port=8015; DaprPort=3517; AppId="search-service"; Path="src/Services/SearchService/SearchService"; Dll="SearchService.dll"; Container="go-nomads-search-service"}
 )
 
 if (-not $SkipBuild) {
@@ -152,7 +153,7 @@ Write-Host "============================================================`n" -For
 
 # 停止并删除旧容器（如果存在）
 Write-Host "`n清理旧容器和镜像..." -ForegroundColor Yellow
-$oldContainers = @("go-nomads-gateway", "go-nomads-user-service", "go-nomads-product-service", "go-nomads-document-service", "go-nomads-city-service", "go-nomads-event-service", "go-nomads-coworking-service", "go-nomads-ai-service", "go-nomads-cache-service", "go-nomads-message-service", "go-nomads-accommodation-service", "go-nomads-innovation-service", "go-nomads-travel-planning-service", "go-nomads-ecommerce-service")
+$oldContainers = @("go-nomads-gateway", "go-nomads-user-service", "go-nomads-product-service", "go-nomads-document-service", "go-nomads-city-service", "go-nomads-event-service", "go-nomads-coworking-service", "go-nomads-ai-service", "go-nomads-cache-service", "go-nomads-message-service", "go-nomads-accommodation-service", "go-nomads-innovation-service", "go-nomads-travel-planning-service", "go-nomads-ecommerce-service", "go-nomads-search-service")
 foreach ($oldName in $oldContainers) {
     $exists = & $RUNTIME ps -a --filter "name=^${oldName}$" --format '{{.Names}}' 2>$null
     if ($exists) {
@@ -355,6 +356,7 @@ Write-Host "  Accommodation Service: http://localhost:8012" -ForegroundColor Gre
 Write-Host "  Innovation Service:   http://localhost:8011" -ForegroundColor Green
 Write-Host "  Travel Planning:      http://localhost:8007" -ForegroundColor Green
 Write-Host "  Ecommerce Service:    http://localhost:8008" -ForegroundColor Green
+Write-Host "  Search Service:       http://localhost:8015" -ForegroundColor Green
 Write-Host "  Message Swagger:      http://localhost:5005/swagger" -ForegroundColor Green
 Write-Host ""
 

@@ -31,7 +31,8 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
         ["ai-service"] = "http://ai-service:8080",
         ["cache-service"] = "http://cache-service:8011",
         ["message-service"] = "http://message-service:8010",
-        ["innovation-service"] = "http://innovation-service:8011"
+        ["innovation-service"] = "http://innovation-service:8011",
+        ["search-service"] = "http://search-service:8080"
     };
 
     public ConsulProxyConfigProvider(
@@ -436,6 +437,7 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             "event-service" => "v1/events",
             "coworking-service" => "v1/coworking",
             "ai-service" => "v1/ai",
+            "search-service" => "v1/search",
             "gateway" => "gateway",
             _ => serviceName
         };
@@ -511,6 +513,11 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             {
                 ("/api/v1/coworking", 1),
                 ("/api/v1/coworking/{**catch-all}", 2)
+            },
+            "search-service" => new List<(string, int)>
+            {
+                ("/api/v1/search", 1),
+                ("/api/v1/search/{**catch-all}", 2)
             },
             "accommodation-service" => new List<(string, int)>
             {
