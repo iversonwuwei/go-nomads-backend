@@ -786,20 +786,24 @@ public class EventApplicationService : IEventService
         if (@event.Status != "upcoming")
             throw new InvalidOperationException("只能邀请用户参加即将举行的活动");
 
-        // 3. 不再限制邀请人身份，任何用户都可以邀请他人参加活动
+        // 3. 检查被邀请人是否是活动的创建者（组织者不需要被邀请参加自己的活动）
+        if (@event.OrganizerId == request.InviteeId)
+            throw new InvalidOperationException("不能邀请活动创建者参加自己的活动");
+
+        // 4. 不再限制邀请人身份，任何用户都可以邀请他人参加活动
         // 但邀请人不能邀请自己
         if (inviterId == request.InviteeId)
             throw new InvalidOperationException("不能邀请自己");
 
-        // 4. 检查被邀请人是否已经是参与者
+        // 5. 检查被邀请人是否已经是参与者
         if (await _participantRepository.IsParticipantAsync(eventId, request.InviteeId))
             throw new InvalidOperationException("该用户已经是活动参与者");
 
-        // 5. 检查是否已存在待处理的邀请
+        // 6. 检查是否已存在待处理的邀请
         if (await _invitationRepository.ExistsAsync(eventId, request.InviteeId))
             throw new InvalidOperationException("已存在待处理的邀请");
 
-        // 6. 检查活动是否还有剩余名额（考虑待处理的邀请）
+        // 7. 检查活动是否还有剩余名额（考虑待处理的邀请）
         if (@event.MaxParticipants.HasValue)
         {
             var pendingInvitationsCount = await _invitationRepository.GetPendingCountAsync(eventId);
@@ -815,13 +819,13 @@ public class EventApplicationService : IEventService
             }
         }
 
-        // 7. 创建邀请
+        // 8. 创建邀请
         var invitation = EventInvitation.Create(eventId, inviterId, request.InviteeId, request.Message);
         var createdInvitation = await _invitationRepository.CreateAsync(invitation);
 
         _logger.LogInformation("✅ 邀请创建成功，ID: {InvitationId}", createdInvitation.Id);
 
-        // 8. 返回邀请响应（包含关联数据）
+        // 9. 返回邀请响应（包含关联数据）
         return await MapToInvitationResponseAsync(createdInvitation, @event);
     }
 
