@@ -148,7 +148,16 @@ public class CityServiceClient : ICityServiceClient
             Tags = city.Tags ?? new List<string>(),
             IsActive = city.IsActive,
             CreatedAt = city.CreatedAt,
-            UpdatedAt = city.UpdatedAt
+            UpdatedAt = city.UpdatedAt,
+            // 扩展字段
+            AverageCost = city.AverageCost,
+            UserCount = 0, // 暂不实现，需要从 travel_history 统计
+            ModeratorId = city.ModeratorId,
+            ModeratorName = city.Moderator?.Name,
+            ModeratorCount = city.ModeratorId.HasValue ? 1 : 0,
+            CoworkingCount = city.CoworkingCount,
+            MeetupCount = city.MeetupCount,
+            ReviewCount = city.ReviewCount
         };
 
         // 设置地理位置
@@ -212,5 +221,21 @@ public class CityServiceClient : ICityServiceClient
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+
+        // 扩展字段 - 与 CityService.CityDto 对应
+        public decimal? AverageCost { get; set; }
+        public Guid? ModeratorId { get; set; }
+        public ModeratorDto? Moderator { get; set; }
+        public int MeetupCount { get; set; }
+        public int CoworkingCount { get; set; }
+        public int ReviewCount { get; set; }
+    }
+
+    private class ModeratorDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string? Avatar { get; set; }
     }
 }
