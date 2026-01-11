@@ -149,6 +149,48 @@ public class CitySearchDocument
     /// 文档类型标识
     /// </summary>
     public string DocumentType => "city";
+
+    // ============ 扩展字段：用于列表展示 ============
+
+    /// <summary>
+    /// 月均花费 (美元)
+    /// </summary>
+    public decimal? AverageCost { get; set; }
+
+    /// <summary>
+    /// 活跃用户数量
+    /// </summary>
+    public int UserCount { get; set; }
+
+    /// <summary>
+    /// 版主ID
+    /// </summary>
+    public Guid? ModeratorId { get; set; }
+
+    /// <summary>
+    /// 版主名称
+    /// </summary>
+    public string? ModeratorName { get; set; }
+
+    /// <summary>
+    /// 版主数量 (通常0或1)
+    /// </summary>
+    public int ModeratorCount { get; set; }
+
+    /// <summary>
+    /// Coworking空间数量
+    /// </summary>
+    public int CoworkingCount { get; set; }
+
+    /// <summary>
+    /// Meetup数量
+    /// </summary>
+    public int MeetupCount { get; set; }
+
+    /// <summary>
+    /// 评论数量
+    /// </summary>
+    public int ReviewCount { get; set; }
 }
 
 /// <summary>

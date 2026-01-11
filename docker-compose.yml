@@ -254,12 +254,12 @@ services:
     container_name: go-nomads-search-service
     ports:
       - "8015:8080"
-      - "3515:3515"
+      - "3517:3517"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - DAPR_HTTP_PORT=3515
-      - DAPR_GRPC_PORT=50001
+      - DAPR_HTTP_PORT=3517
+      - DAPR_GRPC_PORT=50017
       - Consul__Address=http://go-nomads-consul:7500
       - Consul__ServiceAddress=go-nomads-search-service
       - Consul__ServicePort=8080
@@ -282,8 +282,8 @@ services:
     command: ["./daprd",
       "--app-id", "search-service",
       "--app-port", "8080",
-      "--dapr-http-port", "3515",
-      "--dapr-grpc-port", "50001",
+      "--dapr-http-port", "3517",
+      "--dapr-grpc-port", "50017",
       "--placement-host-address", "go-nomads-dapr-placement:50006",
       "--components-path", "/components",
       "--log-level", "info"
