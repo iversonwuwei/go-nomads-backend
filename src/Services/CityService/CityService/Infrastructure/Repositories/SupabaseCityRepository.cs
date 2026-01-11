@@ -2,6 +2,7 @@ using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
 using CityService.Domain.ValueObjects;
 using Postgrest;
+using Postgrest.Interfaces;
 using Shared.Repositories;
 using Client = Supabase.Client;
 
@@ -133,10 +134,14 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
         // 使用数据库级别的 ILIKE 搜索（支持中英文）
         if (!string.IsNullOrWhiteSpace(criteria.Name))
         {
-            // Supabase/PostgREST 支持 or 条件：使用 or=(name.ilike.*搜索词*,name_en.ilike.*搜索词*)
+            // 使用 Or() 方法进行多列模糊匹配
             var searchPattern = $"%{criteria.Name}%";
-            query = query.Filter("or", Constants.Operator.Equals,
-                $"(name.ilike.{searchPattern},name_en.ilike.{searchPattern})");
+            var filters = new List<IPostgrestQueryFilter>
+            {
+                new QueryFilter("name", Constants.Operator.ILike, searchPattern),
+                new QueryFilter("name_en", Constants.Operator.ILike, searchPattern)
+            };
+            query = query.Or(filters);
         }
 
         // 国家过滤
