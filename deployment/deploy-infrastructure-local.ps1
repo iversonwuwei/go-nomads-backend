@@ -248,14 +248,14 @@ function Start-Elasticsearch {
         --network $NETWORK_NAME `
         --label "com.docker.compose.project=go-nomads" `
         --label "com.docker.compose.service=elasticsearch" `
-        -p 10200:9200 `
-        -p 10300:9300 `
+        -p 9200:9200 `
+        -p 9300:9300 `
         -e "discovery.type=single-node" `
         -e "xpack.security.enabled=false" `
         -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" `
-        docker.elastic.co/elasticsearch/elasticsearch:8.11.0 | Out-Null
+        docker.elastic.co/elasticsearch/elasticsearch:8.16.1 | Out-Null
     
-    Write-Host "Elasticsearch available at: http://localhost:10200" -ForegroundColor Green
+    Write-Host "Elasticsearch available at: http://localhost:9200" -ForegroundColor Green
 }
 
 function Start-RabbitMQ {
@@ -405,7 +405,7 @@ function Show-Status {
     Write-Host "  Zipkin:         http://localhost:9811"
     Write-Host "  Prometheus:     http://localhost:9090"
     Write-Host "  Grafana:        http://localhost:3000 (admin/admin)"
-    Write-Host "  Elasticsearch:  http://localhost:10200"
+    Write-Host "  Elasticsearch:  http://localhost:9200"
 }
 
 function Show-Help {

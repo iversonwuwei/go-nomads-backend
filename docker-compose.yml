@@ -264,8 +264,8 @@ services:
       - Consul__ServiceAddress=go-nomads-search-service
       - Consul__ServicePort=8080
       - Elasticsearch__Url=http://go-nomads-elasticsearch:9200
-      - ServiceUrls__CityService=http://go-nomads-city-service:8002
-      - ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8006
+      - ServiceUrls__CityService=http://go-nomads-city-service:8080
+      - ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080
       - RabbitMQ__Host=go-nomads-rabbitmq
       - RabbitMQ__Username=guest
       - RabbitMQ__Password=guest

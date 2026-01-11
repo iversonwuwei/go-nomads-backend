@@ -232,6 +232,18 @@ foreach ($svc in $services) {
         )
     }
 
+    # search-service 需要 Elasticsearch 和服务 URL 配置
+    if ($svc.Name -eq "search-service") {
+        $extraEnvArgs = @(
+            "-e", "Elasticsearch__Url=http://go-nomads-elasticsearch:9200",
+            "-e", "ServiceUrls__CityService=http://go-nomads-city-service:8080",
+            "-e", "ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080",
+            "-e", "RabbitMQ__Host=go-nomads-rabbitmq",
+            "-e", "RabbitMQ__Username=guest",
+            "-e", "RabbitMQ__Password=guest"
+        )
+    }
+
     # 启动应用容器
     Write-Host "  启动应用容器..." -ForegroundColor Yellow
     
