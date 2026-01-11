@@ -3,6 +3,7 @@ using Scalar.AspNetCore;
 using SearchService.Application.Interfaces;
 using SearchService.Application.Services;
 using SearchService.Infrastructure.Configuration;
+using SearchService.Infrastructure.HostedServices;
 using SearchService.Infrastructure.Services;
 using Serilog;
 using System.Text.Json.Serialization;
@@ -26,6 +27,8 @@ builder.Services.Configure<ElasticsearchSettings>(
     builder.Configuration.GetSection("Elasticsearch"));
 builder.Services.Configure<IndexSettings>(
     builder.Configuration.GetSection("IndexSettings"));
+builder.Services.Configure<IndexMaintenanceSettings>(
+    builder.Configuration.GetSection("IndexMaintenance"));
 
 // ============================================================
 // 添加 HttpClient 工厂
@@ -52,6 +55,7 @@ builder.Services.AddSingleton<IElasticsearchService, ElasticsearchService>();
 builder.Services.AddScoped<ICityServiceClient, CityServiceClient>();
 builder.Services.AddScoped<ICoworkingServiceClient, CoworkingServiceClient>();
 builder.Services.AddScoped<IIndexSyncService, IndexSyncService>();
+builder.Services.AddHostedService<IndexVerificationHostedService>();
 
 // ============================================================
 // 依赖注入 - Application 层
