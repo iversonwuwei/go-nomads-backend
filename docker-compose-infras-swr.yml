@@ -48,8 +48,8 @@ services:
 
   elasticsearch:
     # 可选: 使用 SWR 缓存的镜像
-    # image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/elasticsearch:8.11.0
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    # image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/elasticsearch:8.16.1
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.16.1
     container_name: go-nomads-elasticsearch
     environment:
       - discovery.type=single-node

@@ -567,6 +567,54 @@ services:
     networks:
       - go-nomads-network
 
+  # ============================================================
+  # Search Service
+  # ============================================================
+  search-service:
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/search-service:latest
+    container_name: go-nomads-search-service
+    ports:
+      - "8015:8080"
+      - "3517:3517"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - DAPR_HTTP_PORT=3517
+      - DAPR_GRPC_PORT=50017
+      - Consul__Address=http://go-nomads-consul:7500
+      - Consul__ServiceAddress=go-nomads-search-service
+      - Consul__ServicePort=8080
+      - Elasticsearch__Url=http://go-nomads-elasticsearch:9200
+      - ServiceUrls__CityService=http://go-nomads-city-service:8080
+      - ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080
+      - RabbitMQ__Host=go-nomads-rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
+    networks:
+      - go-nomads-network
+    depends_on:
+      - dapr-placement
+      - city-service
+      - coworking-service
+
+  search-service-dapr:
+    image: daprio/daprd:latest
+    container_name: go-nomads-search-service-dapr
+    command: ["./daprd",
+      "--app-id", "search-service",
+      "--app-port", "8080",
+      "--dapr-http-port", "3517",
+      "--dapr-grpc-port", "50017",
+      "--placement-host-address", "go-nomads-dapr-placement:50006",
+      "--components-path", "/components",
+      "--log-level", "info"
+    ]
+    volumes:
+      - ./deployment/dapr/components:/components
+    network_mode: "service:search-service"
+    depends_on:
+      - search-service
+
 networks:
   go-nomads-network:
     external: true
