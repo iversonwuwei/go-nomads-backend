@@ -63,8 +63,7 @@ public class CityApplicationService : ICityService
         var cities = await _cityRepository.GetAllAsync(pageNumber, pageSize);
         var cityDtos = cities.Select(MapToDto).ToList();
 
-        // 并行填充数据
-        var weatherTask = EnrichCitiesWithWeatherAsync(cityDtos);
+        // 并行填充数据（不再获取天气数据）
         var moderatorTask = EnrichCitiesWithModeratorInfoAsync(cityDtos);
         var ratingsAndCostsTask = EnrichCitiesWithRatingsAndCostsAsync(cityDtos);
         var meetupAndCoworkingTask = EnrichCitiesWithMeetupAndCoworkingCountsAsync(cityDtos);
@@ -73,7 +72,7 @@ public class CityApplicationService : ICityService
             : Task.CompletedTask;
 
         // 等待所有任务完成（即使某些任务失败，其他任务也会继续执行）
-        var allTasks = new[] { weatherTask, moderatorTask, ratingsAndCostsTask, meetupAndCoworkingTask, favoriteTask };
+        var allTasks = new[] { moderatorTask, ratingsAndCostsTask, meetupAndCoworkingTask, favoriteTask };
         await Task.WhenAll(allTasks.Select(t => t.ContinueWith(_ => { })));
 
         // 设置用户上下文
@@ -454,8 +453,7 @@ public class CityApplicationService : ICityService
         var cities = await _cityRepository.SearchAsync(criteria);
         var cityDtos = cities.Select(MapToDto).ToList();
 
-        // 并行填充数据
-        var weatherTask = EnrichCitiesWithWeatherAsync(cityDtos);
+        // 并行填充数据（不再获取天气数据）
         var moderatorTask = EnrichCitiesWithModeratorInfoAsync(cityDtos);
         var ratingsAndCostsTask = EnrichCitiesWithRatingsAndCostsAsync(cityDtos);
         var favoriteTask = userId.HasValue
@@ -463,7 +461,7 @@ public class CityApplicationService : ICityService
             : Task.CompletedTask;
 
         // 等待所有任务完成（即使某些任务失败，其他任务也会继续执行）
-        var allTasks = new[] { weatherTask, moderatorTask, ratingsAndCostsTask, favoriteTask };
+        var allTasks = new[] { moderatorTask, ratingsAndCostsTask, favoriteTask };
         await Task.WhenAll(allTasks.Select(t => t.ContinueWith(_ => { })));
 
         // 设置用户上下文
@@ -706,7 +704,7 @@ public class CityApplicationService : ICityService
         }
     }
 
-    public async Task<IEnumerable<CityDto>> GetCitiesByIdsAsync(IEnumerable<Guid> cityIds)
+    public async Task<IEnumerable<CityDto>> GetCitiesByIdsAsync(IEnumerable<Guid> cityIds, bool includeWeather = true)
     {
         var normalized = cityIds?
             .Where(id => id != Guid.Empty)
@@ -722,15 +720,17 @@ public class CityApplicationService : ICityService
         var cities = await _cityRepository.GetByIdsAsync(normalized);
         var cityDtos = cities.Select(MapToDto).ToList();
 
-        // 填充天气信息（静默失败，不影响主流程）
-        try
-        {
-            await EnrichCitiesWithWeatherAsync(cityDtos);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "[CityBatch] 填充天气信息失败，继续返回城市数据");
-        }
+        // 并行填充数据（不包含天气数据以提升性能）
+        var moderatorTask = EnrichCitiesWithModeratorInfoAsync(cityDtos);
+        var ratingsAndCostsTask = EnrichCitiesWithRatingsAndCostsAsync(cityDtos);
+        var meetupAndCoworkingTask = EnrichCitiesWithMeetupAndCoworkingCountsAsync(cityDtos);
+
+        // 等待所有任务完成
+        await Task.WhenAll(
+            moderatorTask.ContinueWith(_ => { }),
+            ratingsAndCostsTask.ContinueWith(_ => { }),
+            meetupAndCoworkingTask.ContinueWith(_ => { })
+        );
 
         return cityDtos;
     }
