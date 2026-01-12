@@ -136,6 +136,21 @@ public class MembershipController : ControllerBase
     }
 
     /// <summary>
+    ///     检查 AI 使用配额
+    /// </summary>
+    [HttpGet("ai-usage/check")]
+    public async Task<ActionResult<AiUsageCheckResponse>> CheckAiUsage()
+    {
+        var userId = _currentUser.GetUserIdString();
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized(new { message = "用户未登录" });
+
+        _logger.LogInformation("🤖 检查 AI 配额: UserId={UserId}", userId);
+        var result = await _membershipService.CheckAiUsageAsync(userId);
+        return Ok(result);
+    }
+
+    /// <summary>
     ///     获取即将过期的会员列表（管理员接口）
     /// </summary>
     [HttpGet("expiring")]
