@@ -178,47 +178,45 @@ public class CityRatingRepository : ICityRatingRepository
     }
 
     /// <summary>
-    /// 批量获取城市评分总数（去重后的用户数量）
+    /// 批量获取城市的评论数量（来自 user_city_reviews 表，统计评论条数）
     /// </summary>
     public async Task<Dictionary<Guid, int>> GetCityReviewCountsBatchAsync(IEnumerable<Guid> cityIds)
     {
         var result = new Dictionary<Guid, int>();
         var cityIdList = cityIds.ToList();
-        
+
         if (!cityIdList.Any())
             return result;
 
         try
         {
-            // 获取所有指定城市的评分
+            // 获取指定城市的所有评论记录并按城市分组统计条数
             var cityIdStrings = cityIdList.Select(id => id.ToString()).ToList();
             var response = await _supabaseClient
-                .From<CityRating>()
+                .From<UserCityReview>()
                 .Filter("city_id", Constants.Operator.In, cityIdStrings)
                 .Get();
 
             if (response?.Models != null)
             {
-                // 按城市ID分组，每个城市统计唯一用户数量
-                var reviewCounts = response.Models
-                    .GroupBy(r => r.CityId)
-                    .ToDictionary(
-                        g => g.Key,
-                        g => g.Select(r => r.UserId).Distinct().Count()
-                    );
-
-                foreach (var kvp in reviewCounts)
+                foreach (var group in response.Models.GroupBy(r => r.CityId))
                 {
-                    result[kvp.Key] = kvp.Value;
+                    if (!Guid.TryParse(group.Key, out var cityId))
+                    {
+                        _logger.LogWarning("⚠️ 无法解析城市ID: {CityId}", group.Key);
+                        continue;
+                    }
+
+                    result[cityId] = group.Count();
                 }
             }
 
-            _logger.LogInformation("✅ 批量获取城市评分数量: {Count} 个城市", result.Count);
+            _logger.LogInformation("✅ 批量获取城市评论数量: {Count} 个城市", result.Count);
             return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ 批量获取城市评分数量失败");
+            _logger.LogError(ex, "❌ 批量获取城市评论数量失败");
             return result;
         }
     }
