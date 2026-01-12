@@ -36,7 +36,7 @@ public interface ICityService
     Task<IEnumerable<CitySummaryDto>> GetCitiesByCountryIdAsync(Guid countryId);
     Task<IEnumerable<CountryDto>> GetAllCountriesAsync();
     Task<WeatherDto?> GetCityWeatherAsync(Guid id, bool includeForecast = false, int days = 7);
-    Task<IEnumerable<CityDto>> GetCitiesByIdsAsync(IEnumerable<Guid> cityIds);
+    Task<IEnumerable<CityDto>> GetCitiesByIdsAsync(IEnumerable<Guid> cityIds, bool includeWeather = true);
 
     /// <summary>
     ///     申请成为城市版主

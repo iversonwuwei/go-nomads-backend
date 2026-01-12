@@ -269,7 +269,8 @@ public class UserFavoriteCitiesController : ControllerBase
                 .Select(x => x!.Value)
                 .ToList();
                 
-            var cities = await _cityService.GetCitiesByIdsAsync(cityIds);
+            // 跳过天气信息以提升性能（收藏列表不需要实时天气）
+            var cities = await _cityService.GetCitiesByIdsAsync(cityIds, includeWeather: false);
             
             // 按收藏顺序排序
             var cityDict = cities.ToDictionary(c => c.Id);
