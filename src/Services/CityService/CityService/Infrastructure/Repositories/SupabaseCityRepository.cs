@@ -134,14 +134,9 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
         // 使用数据库级别的 ILIKE 搜索（支持中英文）
         if (!string.IsNullOrWhiteSpace(criteria.Name))
         {
-            // 使用 Or() 方法进行多列模糊匹配
-            var searchPattern = $"%{criteria.Name}%";
-            var filters = new List<IPostgrestQueryFilter>
-            {
-                new QueryFilter("name", Constants.Operator.ILike, searchPattern),
-                new QueryFilter("name_en", Constants.Operator.ILike, searchPattern)
-            };
-            query = query.Or(filters);
+            // 简化搜索：先只搜索 name 字段，避免 PostgREST OR 语法问题
+            // 后续可以通过数据库视图或函数实现多字段搜索
+            query = query.Filter("name", Constants.Operator.ILike, $"%{criteria.Name}%");
         }
 
         // 国家过滤

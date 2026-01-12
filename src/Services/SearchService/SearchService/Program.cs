@@ -31,22 +31,9 @@ builder.Services.Configure<IndexMaintenanceSettings>(
     builder.Configuration.GetSection("IndexMaintenance"));
 
 // ============================================================
-// 添加 HttpClient 工厂
+// 添加 Dapr 客户端 (用于服务间 gRPC 调用)
 // ============================================================
-var cityServiceUrl = builder.Configuration["ServiceUrls:CityService"] ?? "http://localhost:8002";
-var coworkingServiceUrl = builder.Configuration["ServiceUrls:CoworkingService"] ?? "http://localhost:8004";
-
-builder.Services.AddHttpClient("CityService", client =>
-{
-    client.BaseAddress = new Uri(cityServiceUrl);
-    client.DefaultRequestHeaders.Add("Accept", "application/json");
-});
-
-builder.Services.AddHttpClient("CoworkingService", client =>
-{
-    client.BaseAddress = new Uri(coworkingServiceUrl);
-    client.DefaultRequestHeaders.Add("Accept", "application/json");
-});
+builder.Services.AddDaprClient();
 
 // ============================================================
 // 依赖注入 - Infrastructure 层
