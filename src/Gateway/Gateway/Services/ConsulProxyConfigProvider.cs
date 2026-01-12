@@ -517,7 +517,9 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             "search-service" => new List<(string, int)>
             {
                 ("/api/v1/search", 1),
-                ("/api/v1/search/{**catch-all}", 2)
+                ("/api/v1/search/{**catch-all}", 2),
+                ("/api/v1/index", 3),
+                ("/api/v1/index/{**catch-all}", 4)
             },
             "accommodation-service" => new List<(string, int)>
             {

@@ -1,3 +1,4 @@
+using Dapr.Client;
 using SearchService.Domain.Models;
 
 namespace SearchService.Infrastructure.Services;
@@ -19,22 +20,22 @@ public interface ICityServiceClient
 }
 
 /// <summary>
-/// 城市服务客户端实现 (通过Dapr调用)
+/// 城市服务客户端实现 (通过Dapr gRPC调用)
 /// </summary>
 public class CityServiceClient : ICityServiceClient
 {
     private readonly ILogger<CityServiceClient> _logger;
-    private readonly IConfiguration _configuration;
-    private readonly HttpClient _httpClient;
+    private readonly DaprClient _daprClient;
+    private readonly string _cityServiceAppId;
 
     public CityServiceClient(
         ILogger<CityServiceClient> logger,
         IConfiguration configuration,
-        IHttpClientFactory httpClientFactory)
+        DaprClient daprClient)
     {
         _logger = logger;
-        _configuration = configuration;
-        _httpClient = httpClientFactory.CreateClient("CityService");
+        _daprClient = daprClient;
+        _cityServiceAppId = configuration["Dapr:CityServiceAppId"] ?? "city-service";
     }
 
     public async Task<List<CitySearchDocument>> GetAllCitiesAsync()
@@ -47,23 +48,35 @@ public class CityServiceClient : ICityServiceClient
             const int pageSize = 100;
             bool hasMore = true;
 
+            _logger.LogInformation("开始通过Dapr从 {AppId} 获取城市数据...", _cityServiceAppId);
+
             while (hasMore)
             {
-                var response = await _httpClient.GetAsync($"/api/v1/cities?pageNumber={page}&pageSize={pageSize}");
+                var request = _daprClient.CreateInvokeMethodRequest(
+                    HttpMethod.Get,
+                    _cityServiceAppId,
+                    $"api/v1/cities?pageNumber={page}&pageSize={pageSize}");
+
+                var response = await _daprClient.InvokeMethodWithResponseAsync(request);
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogWarning("获取城市列表失败: {StatusCode}", response.StatusCode);
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    _logger.LogWarning("获取城市列表失败: {StatusCode}, 响应: {Response}", 
+                        response.StatusCode, errorContent);
                     break;
                 }
 
                 var content = await response.Content.ReadAsStringAsync();
+                _logger.LogDebug("收到城市响应: {Content}", content.Length > 500 ? content[..500] + "..." : content);
+
                 var apiResponse = System.Text.Json.JsonSerializer.Deserialize<ApiResponse<CityListResponse>>(content,
                     new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
                 var data = apiResponse?.Data;
                 if (data?.Items == null || !data.Items.Any())
                 {
+                    _logger.LogInformation("页码 {Page} 无数据返回", page);
                     hasMore = false;
                     continue;
                 }
@@ -83,7 +96,7 @@ public class CityServiceClient : ICityServiceClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "获取城市列表时发生异常");
+            _logger.LogError(ex, "通过Dapr获取城市列表时发生异常");
         }
 
         return result;
@@ -93,7 +106,14 @@ public class CityServiceClient : ICityServiceClient
     {
         try
         {
-            var response = await _httpClient.GetAsync($"/api/v1/cities/{id}");
+            _logger.LogInformation("通过Dapr从 {AppId} 获取城市 {CityId}...", _cityServiceAppId, id);
+
+            var request = _daprClient.CreateInvokeMethodRequest(
+                HttpMethod.Get,
+                _cityServiceAppId,
+                $"api/v1/cities/{id}");
+
+            var response = await _daprClient.InvokeMethodWithResponseAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -114,7 +134,7 @@ public class CityServiceClient : ICityServiceClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "获取城市 {Id} 时发生异常", id);
+            _logger.LogError(ex, "通过Dapr获取城市 {Id} 时发生异常", id);
             return null;
         }
     }

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SearchService.Application.Interfaces;
 
@@ -8,6 +9,7 @@ namespace SearchService.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/index")]
+[AllowAnonymous]
 public class IndexController : ControllerBase
 {
     private readonly IIndexSyncService _indexSyncService;

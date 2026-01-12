@@ -33,6 +33,7 @@ $SERVICES_MAP = @{
     "user-service"             = "src/Services/UserService/UserService/Dockerfile"
     "city-service"             = "src/Services/CityService/CityService/Dockerfile"
     "coworking-service"        = "src/Services/CoworkingService/CoworkingService/Dockerfile"
+    "search-service"           = "src/Services/SearchService/SearchService/Dockerfile"
     "accommodation-service"    = "src/Services/AccommodationService/AccommodationService/Dockerfile"
     "event-service"            = "src/Services/EventService/EventService/Dockerfile"
     "ai-service"               = "src/Services/AIService/AIService/Dockerfile"
