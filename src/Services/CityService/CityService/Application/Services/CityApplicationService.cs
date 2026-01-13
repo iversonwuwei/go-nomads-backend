@@ -383,6 +383,23 @@ public class CityApplicationService : ICityService
                 {
                     city.OverallScore = score;
                 }
+                else if (!city.OverallScore.HasValue || city.OverallScore == 0)
+                {
+                    // 如果数据库也没有评分，尝试从其他评分计算一个平均值
+                    var availableScores = new List<decimal?> 
+                    { 
+                        city.InternetQualityScore, 
+                        city.SafetyScore, 
+                        city.CostScore, 
+                        city.CommunityScore,
+                        city.WeatherScore 
+                    }.Where(s => s.HasValue && s > 0).ToList();
+                    
+                    if (availableScores.Count > 0)
+                    {
+                        city.OverallScore = availableScores.Average(s => s!.Value);
+                    }
+                }
             }
 
             stopwatch.Stop();
