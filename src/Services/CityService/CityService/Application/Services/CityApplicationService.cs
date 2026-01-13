@@ -217,6 +217,140 @@ public class CityApplicationService : ICityService
     }
 
     /// <summary>
+    /// 获取城市列表（基础版本，不包含聚合数据）
+    /// 用于快速首屏加载，聚合数据（MeetupCount, CoworkingCount等）后续异步加载
+    /// </summary>
+    public async Task<IEnumerable<CityListItemDto>> GetCityListBasicAsync(int pageNumber, int pageSize, string? search = null, Guid? userId = null, string? userRole = null)
+    {
+        _logger.LogInformation("🚀 [GetCityListBasic] 开始获取基础城市列表: page={Page}, size={Size}, search={Search}",
+            pageNumber, pageSize, search);
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        // 从数据库获取基础数据
+        IEnumerable<Domain.Entities.City> cities;
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var criteria = new Domain.ValueObjects.CitySearchCriteria
+            {
+                Name = search,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+            cities = await _cityRepository.SearchAsync(criteria);
+        }
+        else
+        {
+            cities = await _cityRepository.GetAllAsync(pageNumber, pageSize);
+        }
+
+        var cityListItems = cities.Select(city => new CityListItemDto
+        {
+            Id = city.Id,
+            Name = city.Name,
+            NameEn = city.NameEn,
+            Country = city.Country,
+            CountryId = city.CountryId,
+            Region = city.Region,
+            ImageUrl = city.ImageUrl,
+            PortraitImageUrl = city.PortraitImageUrl,
+            LandscapeImageUrls = city.LandscapeImageUrls,
+            Description = city.Description,
+            TimeZone = city.TimeZone,
+            Currency = city.Currency,
+            OverallScore = city.OverallScore,
+            InternetQualityScore = city.InternetQualityScore,
+            SafetyScore = city.SafetyScore,
+            CostScore = city.CostScore,
+            CommunityScore = city.CommunityScore,
+            WeatherScore = city.WeatherScore,
+            Tags = city.Tags,
+            Latitude = city.Latitude,
+            Longitude = city.Longitude,
+            // 聚合数据设为默认值，后续异步加载
+            MeetupCount = 0,
+            CoworkingCount = 0,
+            ReviewCount = 0,
+            AverageCost = 0,
+        }).ToList();
+
+        // 只填充版主信息（快速）
+        await EnrichCityListWithModeratorInfoAsync(cityListItems, userId, userRole);
+
+        // 填充用户相关数据（收藏状态）
+        if (userId.HasValue)
+        {
+            await EnrichCityListWithFavoriteStatusAsync(cityListItems, userId.Value);
+        }
+
+        // 更新用户权限
+        var isAdmin = userRole?.ToLower() == "admin";
+        foreach (var city in cityListItems)
+        {
+            city.IsCurrentUserAdmin = isAdmin;
+            city.IsCurrentUserModerator = userId.HasValue && city.ModeratorId.HasValue && city.ModeratorId.Value == userId.Value;
+        }
+
+        stopwatch.Stop();
+        _logger.LogInformation("✅ [GetCityListBasic] 基础城市列表获取完成: {Count} 个城市, 耗时 {Elapsed}ms",
+            cityListItems.Count, stopwatch.ElapsedMilliseconds);
+
+        return cityListItems;
+    }
+
+    /// <summary>
+    /// 批量获取城市聚合数据（MeetupCount, CoworkingCount, ReviewCount, AverageCost）
+    /// </summary>
+    public async Task<Dictionary<Guid, CityCountsDto>> GetCityCountsBatchAsync(IEnumerable<Guid> cityIds)
+    {
+        var idList = cityIds.ToList();
+        _logger.LogInformation("🚀 [GetCityCountsBatch] 开始获取城市聚合数据: {Count} 个城市", idList.Count);
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        var result = new Dictionary<Guid, CityCountsDto>();
+
+        if (idList.Count == 0) return result;
+
+        try
+        {
+            // 并行获取所有聚合数据
+            var meetupCountsTask = GetMeetupCountsFromEventServiceAsync(idList);
+            var coworkingCountsTask = GetCoworkingCountsFromCoworkingServiceAsync(idList);
+            var reviewCountsTask = _ratingRepository.GetCityReviewCountsBatchAsync(idList);
+            var costsTask = GetCityCostsFromCacheServiceAsync(idList);
+
+            await Task.WhenAll(meetupCountsTask, coworkingCountsTask, reviewCountsTask, costsTask);
+
+            var meetupCounts = await meetupCountsTask;
+            var coworkingCounts = await coworkingCountsTask;
+            var reviewCounts = await reviewCountsTask;
+            var costs = await costsTask;
+
+            foreach (var cityId in idList)
+            {
+                result[cityId] = new CityCountsDto
+                {
+                    CityId = cityId,
+                    MeetupCount = meetupCounts.GetValueOrDefault(cityId),
+                    CoworkingCount = coworkingCounts.GetValueOrDefault(cityId),
+                    ReviewCount = reviewCounts.GetValueOrDefault(cityId),
+                    AverageCost = costs.GetValueOrDefault(cityId),
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "获取城市聚合数据时出错");
+        }
+
+        stopwatch.Stop();
+        _logger.LogInformation("✅ [GetCityCountsBatch] 城市聚合数据获取完成: {Count} 个城市, 耗时 {Elapsed}ms",
+            result.Count, stopwatch.ElapsedMilliseconds);
+
+        return result;
+    }
+
+    /// <summary>
     /// 为轻量级城市列表填充评分和费用
     /// </summary>
     private async Task EnrichCityListWithRatingsAndCostsAsync(List<CityListItemDto> cities)

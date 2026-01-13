@@ -16,6 +16,18 @@ public interface ICityService
     /// </summary>
     Task<IEnumerable<CityListItemDto>> GetCityListAsync(int pageNumber, int pageSize, string? search = null, Guid? userId = null, string? userRole = null);
 
+    /// <summary>
+    /// 获取城市列表（基础版本，不包含聚合数据如 MeetupCount, CoworkingCount 等）
+    /// 用于快速首屏加载
+    /// </summary>
+    Task<IEnumerable<CityListItemDto>> GetCityListBasicAsync(int pageNumber, int pageSize, string? search = null, Guid? userId = null, string? userRole = null);
+
+    /// <summary>
+    /// 批量获取城市聚合数据（MeetupCount, CoworkingCount, ReviewCount, AverageCost）
+    /// 用于异步填充城市卡片的统计信息
+    /// </summary>
+    Task<Dictionary<Guid, CityCountsDto>> GetCityCountsBatchAsync(IEnumerable<Guid> cityIds);
+
     Task<CityDto?> GetCityByIdAsync(Guid id, Guid? userId = null, string? userRole = null);
     Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null, string? userRole = null);
     Task<CityDto> CreateCityAsync(CreateCityDto createCityDto, Guid userId);
