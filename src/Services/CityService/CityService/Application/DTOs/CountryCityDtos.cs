@@ -15,6 +15,18 @@ public class CitySummaryDto
 }
 
 /// <summary>
+/// 城市聚合数据 DTO - 用于异步加载城市统计信息
+/// </summary>
+public class CityCountsDto
+{
+    public Guid CityId { get; set; }
+    public int MeetupCount { get; set; }
+    public int CoworkingCount { get; set; }
+    public int ReviewCount { get; set; }
+    public decimal AverageCost { get; set; }
+}
+
+/// <summary>
 /// 城市列表项 DTO - 用于城市列表页面的轻量级数据
 /// 不包含实时天气信息（性能考虑），但包含对数字游民有价值的静态评分数据
 /// </summary>
