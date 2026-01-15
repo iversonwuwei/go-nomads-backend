@@ -11,7 +11,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - gonomads-network
+      - go-nomads-network
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -25,7 +25,7 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
-      - gonomads-network
+      - go-nomads-network
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 30s
@@ -45,7 +45,7 @@ services:
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
-      - gonomads-network
+      - go-nomads-network
 
   consul:
     image: hashicorp/consul:latest
@@ -62,7 +62,7 @@ services:
     # Bind to all interfaces so the single server can bootstrap and be reachable
     command: ["consul", "agent", "-config-file=/consul/config/consul.json", "-data-dir=/consul/data", "-bind=0.0.0.0", "-client=0.0.0.0"]
     networks:
-      - gonomads-network
+      - go-nomads-network
 
   zipkin:
     image: openzipkin/zipkin:latest
@@ -70,7 +70,7 @@ services:
     ports:
       - "9811:9411"
     networks:
-      - gonomads-network
+      - go-nomads-network
 
   prometheus:
     image: prom/prometheus:latest
@@ -83,7 +83,7 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
     networks:
-      - gonomads-network
+      - go-nomads-network
 
   grafana:
     image: grafana/grafana:latest
@@ -98,7 +98,7 @@ services:
     depends_on:
       - prometheus
     networks:
-      - gonomads-network
+      - go-nomads-network
 
   nginx:
     image: nginx:alpine
@@ -110,12 +110,12 @@ services:
       - ./deployment/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped
     networks:
-      - gonomads-network
+      - go-nomads-network
 
 networks:
-  gonomads-network:
+  go-nomads-network:
+    external: true
     name: go-nomads-network
-    driver: bridge
 
 volumes:
   redis_data:
