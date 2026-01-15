@@ -21,18 +21,19 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
     private volatile InMemoryConfig _config;
     private int _retryCount;
     
-    // K8s 静态服务配置 (当 Consul 中无服务时作为后备)
+    // Docker Compose 静态服务配置 (当 Consul 中无服务时作为后备)
+    // 端口需要与 docker-compose-services-swr.yml 中各服务的 ASPNETCORE_URLS 保持一致
     private static readonly Dictionary<string, string> K8sServiceUrls = new()
     {
-        ["user-service"] = "http://user-service:80",
-        ["city-service"] = "http://city-service:8002",
-        ["coworking-service"] = "http://coworking-service:8003",
-        ["event-service"] = "http://event-service:8005",
-        ["ai-service"] = "http://ai-service:8080",
-        ["cache-service"] = "http://cache-service:8011",
-        ["message-service"] = "http://message-service:8010",
-        ["innovation-service"] = "http://innovation-service:8011",
-        ["search-service"] = "http://search-service:8080"
+        ["user-service"] = "http://user-service:8080",           // docker-compose: 8080
+        ["city-service"] = "http://city-service:8002",           // docker-compose: 8002
+        ["coworking-service"] = "http://coworking-service:8006", // docker-compose: 8006
+        ["event-service"] = "http://event-service:8005",         // docker-compose: 8005
+        ["ai-service"] = "http://ai-service:8080",               // docker-compose: 8080
+        ["cache-service"] = "http://cache-service:8010",         // docker-compose: 8010
+        ["message-service"] = "http://message-service:8080",     // docker-compose: 8080
+        ["innovation-service"] = "http://innovation-service:8011", // docker-compose: 8011
+        ["search-service"] = "http://search-service:8080"        // docker-compose: 8080
     };
 
     public ConsulProxyConfigProvider(
