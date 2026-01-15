@@ -20,8 +20,8 @@ services:
       - "5672:5672"    # AMQP protocol port
       - "15672:15672"  # Management UI
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_DEFAULT_USER=walden
+      - RABBITMQ_DEFAULT_PASS=walden
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
@@ -65,10 +65,10 @@ services:
       - gonomads-network
 
   zipkin:
-    image: openzipkin/zipkin
+    image: openzipkin/zipkin:latest
     container_name: go-nomads-zipkin
     ports:
-      - "9411:9411"
+      - "9811:9411"
     networks:
       - gonomads-network
 
