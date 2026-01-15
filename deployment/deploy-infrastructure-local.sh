@@ -220,11 +220,11 @@ start_rabbitmq() {
         --label "com.docker.compose.service=rabbitmq" \
         -p 5672:5672 \
         -p 15672:15672 \
-        -e RABBITMQ_DEFAULT_USER=guest \
-        -e RABBITMQ_DEFAULT_PASS=guest \
+        -e RABBITMQ_DEFAULT_USER=walden \
+        -e RABBITMQ_DEFAULT_PASS=walden \
         rabbitmq:3-management-alpine >/dev/null
     echo "RabbitMQ running at amqp://localhost:5672"
-    echo "RabbitMQ Management UI: http://localhost:15672 (guest/guest)"
+    echo "RabbitMQ Management UI: http://localhost:15672 (walden/walden)"
 }
 
 start_nginx() {
