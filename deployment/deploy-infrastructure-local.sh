@@ -59,10 +59,10 @@ start_redis() {
     docker run -d \
         --name go-nomads-redis \
         --network "${NETWORK_NAME}" \
-        --label "com.docker.compose.project=go-nomads" \
+        --label "com.docker.compose.project=go-nomads-infras" \
         --label "com.docker.compose.service=redis" \
         -p 6379:6379 \
-        redis:7-alpine >/dev/null
+        redis:latest redis-server --appendonly yes >/dev/null
     echo "Redis running at redis://localhost:6379"
 }
 
@@ -94,7 +94,7 @@ EOF
     docker run -d \
         --name go-nomads-consul \
         --network "${NETWORK_NAME}" \
-        --label "com.docker.compose.project=go-nomads" \
+        --label "com.docker.compose.project=go-nomads-infras" \
         --label "com.docker.compose.service=consul" \
         -p 7500:7500 \
         -p 7502:7502 \
@@ -110,11 +110,11 @@ start_zipkin() {
     docker run -d \
         --name go-nomads-zipkin \
         --network "${NETWORK_NAME}" \
-        --label "com.docker.compose.project=go-nomads" \
+        --label "com.docker.compose.project=go-nomads-infras" \
         --label "com.docker.compose.service=zipkin" \
-        -p 9811:9411 \
+        -p 9411:9411 \
         openzipkin/zipkin:latest >/dev/null
-    echo "Zipkin UI available at http://localhost:9811"
+    echo "Zipkin UI available at http://localhost:9411"
 }
 
 start_prometheus() {
@@ -168,7 +168,7 @@ EOF
     docker run -d \
         --name go-nomads-prometheus \
         --network "${NETWORK_NAME}" \
-        --label "com.docker.compose.project=go-nomads" \
+        --label "com.docker.compose.project=go-nomads-infras" \
         --label "com.docker.compose.service=prometheus" \
         -p 9090:9090 \
         -v "${prom_dir}/prometheus-local.yml:/etc/prometheus/prometheus.yml:ro" \
@@ -183,7 +183,7 @@ start_grafana() {
     docker run -d \
         --name go-nomads-grafana \
         --network "${NETWORK_NAME}" \
-        --label "com.docker.compose.project=go-nomads" \
+        --label "com.docker.compose.project=go-nomads-infras" \
         --label "com.docker.compose.service=grafana" \
         -p 3000:3000 \
         -e GF_SECURITY_ADMIN_PASSWORD=admin \
@@ -199,7 +199,7 @@ start_elasticsearch() {
     docker run -d \
         --name go-nomads-elasticsearch \
         --network "${NETWORK_NAME}" \
-        --label "com.docker.compose.project=go-nomads" \
+        --label "com.docker.compose.project=go-nomads-infras" \
         --label "com.docker.compose.service=elasticsearch" \
         -p 9200:9200 \
         -p 9300:9300 \
@@ -216,7 +216,7 @@ start_rabbitmq() {
     docker run -d \
         --name go-nomads-rabbitmq \
         --network "${NETWORK_NAME}" \
-        --label "com.docker.compose.project=go-nomads" \
+        --label "com.docker.compose.project=go-nomads-infras" \
         --label "com.docker.compose.service=rabbitmq" \
         -p 5672:5672 \
         -p 15672:15672 \
@@ -239,7 +239,7 @@ start_nginx() {
     docker run -d \
         --name go-nomads-nginx \
         --network "${NETWORK_NAME}" \
-        --label "com.docker.compose.project=go-nomads" \
+        --label "com.docker.compose.project=go-nomads-infras" \
         --label "com.docker.compose.service=nginx" \
         -p 80:80 \
         -p 443:443 \
@@ -319,7 +319,7 @@ status_all() {
     echo "  Nginx:          http://localhost"
     echo "  Redis:          redis://localhost:6379"
     echo "  Consul:         http://localhost:7500"
-    echo "  Zipkin:         http://localhost:9811"
+    echo "  Zipkin:         http://localhost:9411"
     echo "  Prometheus:     http://localhost:9090"
     echo "  Grafana:        http://localhost:3000 (admin/admin)"
     echo "  Elasticsearch:  http://localhost:9200"

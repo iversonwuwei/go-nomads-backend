@@ -200,12 +200,26 @@ deploy_service_local() {
             "-e" "Services__UserService__OpenApiUrl=http://go-nomads-user-service:8080/openapi/v1.json"
         )
     fi
+
+    # city-service 需要 RabbitMQ 和 Elasticsearch 配置
+    if [[ "$service_name" == "city-service" ]]; then
+        extra_env+=(
+            "-e" "ConnectionStrings__Elasticsearch=http://go-nomads-elasticsearch:9200"
+            "-e" "RabbitMQ__Host=go-nomads-rabbitmq"
+            "-e" "RabbitMQ__Username=walden"
+            "-e" "RabbitMQ__Password=walden"
+        )
+    fi
     
-    # message-service 需要指定 ServiceAddress（它有自己的 Consul 注册逻辑）
+    # message-service 需要指定 ServiceAddress 和 RabbitMQ 配置
     if [[ "$service_name" == "message-service" ]]; then
         extra_env+=(
             "-e" "Consul__ServiceAddress=go-nomads-$service_name"
             "-e" "Consul__ServicePort=8080"
+            "-e" "RabbitMQ__HostName=go-nomads-rabbitmq"
+            "-e" "RabbitMQ__Port=5672"
+            "-e" "RabbitMQ__UserName=walden"
+            "-e" "RabbitMQ__Password=walden"
         )
     fi
 
@@ -216,8 +230,8 @@ deploy_service_local() {
             "-e" "ServiceUrls__CityService=http://go-nomads-city-service:8080"
             "-e" "ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080"
             "-e" "RabbitMQ__Host=go-nomads-rabbitmq"
-            "-e" "RabbitMQ__Username=guest"
-            "-e" "RabbitMQ__Password=guest"
+            "-e" "RabbitMQ__Username=walden"
+            "-e" "RabbitMQ__Password=walden"
         )
     fi
 
@@ -242,9 +256,9 @@ deploy_service_local() {
             --network "$NETWORK_NAME" \
             --label "com.docker.compose.project=go-nomads" \
             --label "com.docker.compose.service=$service_name" \
-            -p "$app_port:8080" \
+            -p "$app_port:5000" \
             "${env_config[@]}" \
-            -e ASPNETCORE_URLS="http://+:8080" \
+            -e ASPNETCORE_URLS="http://+:5000" \
             -e Consul__Address="http://go-nomads-consul:7500" \
             -e HTTP_PROXY= \
             -e HTTPS_PROXY= \
@@ -291,7 +305,7 @@ deploy_service_local() {
 
     # Gateway 不需要 Dapr sidecar（只使用 YARP 反向代理 + JWT 验证）
     if [[ "$service_name" == "gateway" ]]; then
-        echo -e "${YELLOW}  跳过 Dapr sidecar (Gateway 不需要 Dapr)${NC}"
+        echo -e "${YELLOW}  跳过 Dapr sidecar ($service_name 不需要 Dapr)${NC}"
         echo -e "${GREEN}  $service_name 部署成功!${NC}"
         echo -e "${GREEN}  应用端口: http://localhost:$app_port${NC}"
         sleep 2
@@ -392,7 +406,7 @@ main() {
     deploy_service_local \
         "gateway" \
         "src/Gateway/Gateway" \
-        "5000" \
+        "5080" \
         "Gateway.dll" \
         "3500" \
         "gateway"
@@ -508,26 +522,6 @@ main() {
         "innovation-service"
     echo ""
     
-    # 部署 TravelPlanningService (无 Dapr)
-    deploy_service_local \
-        "travel-planning-service" \
-        "src/Services/TravelPlanningService/TravelPlanningService" \
-        "8007" \
-        "TravelPlanningService.dll" \
-        "3515" \
-        "travel-planning-service"
-    echo ""
-    
-    # 部署 EcommerceService (无 Dapr)
-    deploy_service_local \
-        "ecommerce-service" \
-        "src/Services/EcommerceService/EcommerceService" \
-        "8008" \
-        "EcommerceService.dll" \
-        "3516" \
-        "ecommerce-service"
-    echo ""
-    
     # 部署 SearchService
     deploy_service_local \
         "search-service" \
@@ -547,7 +541,7 @@ main() {
     echo -e "  ${GREEN}Nginx (推荐):      http://localhost${NC}"
     echo ""
     echo -e "${BLUE}服务访问地址:${NC}"
-    echo -e "  ${GREEN}Gateway:             http://localhost:5000${NC}"
+    echo -e "  ${GREEN}Gateway:             http://localhost:5080${NC}"
     echo -e "  ${GREEN}User Service:        http://localhost:5001${NC}"
     echo -e "  ${GREEN}Product Service:     http://localhost:5002${NC}"
     echo -e "  ${GREEN}Document Service:    http://localhost:5003${NC}"
@@ -559,8 +553,6 @@ main() {
     echo -e "  ${GREEN}Accommodation Service: http://localhost:8012${NC}"
     echo -e "  ${GREEN}Message Service:     http://localhost:5005${NC}"
     echo -e "  ${GREEN}Innovation Service:  http://localhost:8011${NC}"
-    echo -e "  ${GREEN}Travel Planning:     http://localhost:8007${NC}"
-    echo -e "  ${GREEN}Ecommerce Service:   http://localhost:8008${NC}"
     echo -e "  ${GREEN}Search Service:      http://localhost:8015${NC}"
     echo -e "  ${GREEN}Message Swagger:     http://localhost:5005/swagger${NC}"
     echo ""

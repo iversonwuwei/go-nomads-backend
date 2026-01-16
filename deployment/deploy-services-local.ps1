@@ -87,7 +87,7 @@ Write-Host "  .NET SDK: $dotnetVersion" -ForegroundColor Green
 Ensure-Network
 
 # 检查前置服务
-$required = @("go-nomads-redis", "go-nomads-consul", "go-nomads-rabbitmq")
+$required = @("go-nomads-redis", "go-nomads-consul")
 foreach ($svc in $required) {
     $running = & $RUNTIME ps --filter "name=$svc" --filter "status=running" --format '{{.Names}}' 2>$null
     if ($running -ne $svc) {
@@ -110,7 +110,7 @@ Write-Host "  前置条件检查完成" -ForegroundColor Green
 Write-Host ""
 
 $services = @(
-    @{Name="gateway"; Port=5000; DaprPort=3500; AppId="gateway"; Path="src/Gateway/Gateway"; Dll="Gateway.dll"; Container="go-nomads-gateway"},
+    @{Name="gateway"; Port=5080; DaprPort=3500; AppId="gateway"; Path="src/Gateway/Gateway"; Dll="Gateway.dll"; Container="go-nomads-gateway"},
     @{Name="product-service"; Port=5002; DaprPort=3501; AppId="product-service"; Path="src/Services/ProductService/ProductService"; Dll="ProductService.dll"; Container="go-nomads-product-service"},
     @{Name="user-service"; Port=5001; DaprPort=3502; AppId="user-service"; Path="src/Services/UserService/UserService"; Dll="UserService.dll"; Container="go-nomads-user-service"},
     @{Name="document-service"; Port=5003; DaprPort=3503; AppId="document-service"; Path="src/Services/DocumentService/DocumentService"; Dll="DocumentService.dll"; Container="go-nomads-document-service"},
@@ -122,8 +122,6 @@ $services = @(
     @{Name="message-service"; Port=5005; DaprPort=3511; AppId="message-service"; Path="src/Services/MessageService/MessageService/API"; Dll="MessageService.dll"; Container="go-nomads-message-service"},
     @{Name="accommodation-service"; Port=8012; DaprPort=3513; AppId="accommodation-service"; Path="src/Services/AccommodationService/AccommodationService"; Dll="AccommodationService.dll"; Container="go-nomads-accommodation-service"},
     @{Name="innovation-service"; Port=8011; DaprPort=3514; AppId="innovation-service"; Path="src/Services/InnovationService/InnovationService"; Dll="InnovationService.dll"; Container="go-nomads-innovation-service"},
-    @{Name="travel-planning-service"; Port=8007; DaprPort=3515; AppId="travel-planning-service"; Path="src/Services/TravelPlanningService/TravelPlanningService"; Dll="TravelPlanningService.dll"; Container="go-nomads-travel-planning-service"},
-    @{Name="ecommerce-service"; Port=8008; DaprPort=3516; AppId="ecommerce-service"; Path="src/Services/EcommerceService/EcommerceService"; Dll="EcommerceService.dll"; Container="go-nomads-ecommerce-service"},
     @{Name="search-service"; Port=8015; DaprPort=3517; AppId="search-service"; Path="src/Services/SearchService/SearchService"; Dll="SearchService.dll"; Container="go-nomads-search-service"}
 )
 
@@ -223,12 +221,26 @@ foreach ($svc in $services) {
             "-e", "Services__UserService__OpenApiUrl=http://go-nomads-user-service:8080/openapi/v1.json"
         )
     }
+
+    # city-service 需要 RabbitMQ 和 Elasticsearch 配置
+    if ($svc.Name -eq "city-service") {
+        $extraEnvArgs = @(
+            "-e", "ConnectionStrings__Elasticsearch=http://go-nomads-elasticsearch:9200",
+            "-e", "RabbitMQ__Host=go-nomads-rabbitmq",
+            "-e", "RabbitMQ__Username=walden",
+            "-e", "RabbitMQ__Password=walden"
+        )
+    }
     
-    # message-service 需要指定 ServiceAddress（它有自己的 Consul 注册逻辑）
+    # message-service 需要指定 ServiceAddress 和 RabbitMQ 配置
     if ($svc.Name -eq "message-service") {
         $extraEnvArgs = @(
             "-e", "Consul__ServiceAddress=go-nomads-$($svc.Name)",
-            "-e", "Consul__ServicePort=8080"
+            "-e", "Consul__ServicePort=8080",
+            "-e", "RabbitMQ__HostName=go-nomads-rabbitmq",
+            "-e", "RabbitMQ__Port=5672",
+            "-e", "RabbitMQ__UserName=walden",
+            "-e", "RabbitMQ__Password=walden"
         )
     }
 
@@ -239,8 +251,8 @@ foreach ($svc in $services) {
             "-e", "ServiceUrls__CityService=http://go-nomads-city-service:8080",
             "-e", "ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080",
             "-e", "RabbitMQ__Host=go-nomads-rabbitmq",
-            "-e", "RabbitMQ__Username=guest",
-            "-e", "RabbitMQ__Password=guest"
+            "-e", "RabbitMQ__Username=walden",
+            "-e", "RabbitMQ__Password=walden"
         )
     }
 
@@ -255,8 +267,8 @@ foreach ($svc in $services) {
             "--network", $NETWORK_NAME,
             "--label", "com.docker.compose.project=go-nomads",
             "--label", "com.docker.compose.service=$($svc.Name)",
-            "-p", "$($svc.Port):8080",
-            "-e", "ASPNETCORE_URLS=http://+:8080",
+            "-p", "$($svc.Port):5000",
+            "-e", "ASPNETCORE_URLS=http://+:5000",
             "-e", "ASPNETCORE_ENVIRONMENT=$aspnetEnv",
             "-e", "Consul__Address=http://go-nomads-consul:7500",
             "-e", "HTTP_PROXY=",
@@ -311,9 +323,9 @@ foreach ($svc in $services) {
     
     Start-Sleep -Seconds 2
     
-    # Gateway 不需要 Dapr sidecar（只使用 YARP 反向代理 + JWT 验证）
+    # Gateway 不需要 Dapr sidecar
     if ($svc.Name -eq "gateway") {
-        Write-Host "  跳过 Dapr sidecar (Gateway 不需要 Dapr)" -ForegroundColor Yellow
+        Write-Host "  跳过 Dapr sidecar ($($svc.Name) 不需要 Dapr)" -ForegroundColor Yellow
         Write-Host "  $($svc.Name) 部署成功!" -ForegroundColor Green
         Write-Host "  应用端口: http://localhost:$($svc.Port)" -ForegroundColor Green
         Start-Sleep -Seconds 2
@@ -354,7 +366,7 @@ Write-Host "  Nginx (推荐):         http://localhost" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "服务访问地址:" -ForegroundColor Cyan
-Write-Host "  Gateway:              http://localhost:5000" -ForegroundColor Green
+Write-Host "  Gateway:              http://localhost:5080" -ForegroundColor Green
 Write-Host "  User Service:         http://localhost:5001" -ForegroundColor Green
 Write-Host "  Product Service:      http://localhost:5002" -ForegroundColor Green
 Write-Host "  Document Service:     http://localhost:5003" -ForegroundColor Green
@@ -366,8 +378,6 @@ Write-Host "  Cache Service:        http://localhost:8010" -ForegroundColor Gree
 Write-Host "  Message Service:      http://localhost:5005" -ForegroundColor Green
 Write-Host "  Accommodation Service: http://localhost:8012" -ForegroundColor Green
 Write-Host "  Innovation Service:   http://localhost:8011" -ForegroundColor Green
-Write-Host "  Travel Planning:      http://localhost:8007" -ForegroundColor Green
-Write-Host "  Ecommerce Service:    http://localhost:8008" -ForegroundColor Green
 Write-Host "  Search Service:       http://localhost:8015" -ForegroundColor Green
 Write-Host "  Message Swagger:      http://localhost:5005/swagger" -ForegroundColor Green
 Write-Host ""
@@ -375,11 +385,11 @@ Write-Host ""
 Write-Host "Dapr 配置:" -ForegroundColor Cyan
 Write-Host "  模式:              Container Sidecar (共享网络命名空间)" -ForegroundColor White
 Write-Host "  gRPC 端口:         50001 (通过 DAPR_GRPC_PORT 环境变量)" -ForegroundColor White
-Write-Host "  HTTP 端口:         3500-3516 (各服务独立端口)" -ForegroundColor White
+Write-Host "  HTTP 端口:         3500-3511 (各服务独立端口)" -ForegroundColor White
 Write-Host ""
 
 Write-Host "基础设施:" -ForegroundColor Cyan
-Write-Host "  Consul UI:         http://localhost:7500" -ForegroundColor White
+Write-Host "  Consul UI:         http://localhost:8500" -ForegroundColor White
 Write-Host ""
 
 Write-Host "常用命令:" -ForegroundColor Cyan
