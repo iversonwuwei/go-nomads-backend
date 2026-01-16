@@ -545,45 +545,6 @@ services:
       - innovation-service
 
   # ============================================================
-  # Travel Planning Service (No Dapr needed)
-  # ============================================================
-  travel-planning-service:
-    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/travel-planning-service:latest
-    container_name: go-nomads-travel-planning-service
-    ports:
-      - "8007:8007"
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:8007
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-travel-planning-service
-      - Consul__ServicePort=8007
-      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=travelplanningservice_db;Username=postgres;Password=postgres
-      - ConnectionStrings__Redis=go-nomads-redis:6379
-      - OpenAI__ApiKey=${OPENAI_API_KEY}
-    networks:
-      - go-nomads-network
-
-  # ============================================================
-  # Ecommerce Service (No Dapr needed)
-  # ============================================================
-  ecommerce-service:
-    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/ecommerce-service:latest
-    container_name: go-nomads-ecommerce-service
-    ports:
-      - "8008:8008"
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:8008
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-ecommerce-service
-      - Consul__ServicePort=8008
-      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=ecommerceservice_db;Username=postgres;Password=postgres
-      - ConnectionStrings__Redis=go-nomads-redis:6379
-    networks:
-      - go-nomads-network
-
-  # ============================================================
   # Search Service
   # ============================================================
   search-service:

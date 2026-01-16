@@ -29,11 +29,9 @@ event-service:src/Services/EventService/EventService/Dockerfile
 ai-service:src/Services/AIService/AIService/Dockerfile
 cache-service:src/Services/CacheService/CacheService/Dockerfile
 document-service:src/Services/DocumentService/DocumentService/Dockerfile
-ecommerce-service:src/Services/EcommerceService/EcommerceService/Dockerfile
 innovation-service:src/Services/InnovationService/InnovationService/Dockerfile
 message-service:src/Services/MessageService/MessageService/API/Dockerfile
 product-service:src/Services/ProductService/ProductService/Dockerfile
-travel-planning-service:src/Services/TravelPlanningService/TravelPlanningService/Dockerfile
 "
 
 # èŽ·å–æœåŠ¡çš„ Dockerfile è·¯å¾„

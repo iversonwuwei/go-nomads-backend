@@ -80,10 +80,10 @@ function Start-Redis {
     & $RUNTIME run -d `
         --name go-nomads-redis `
         --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.project=go-nomads-infras" `
         --label "com.docker.compose.service=redis" `
         -p 6379:6379 `
-        redis:7-alpine | Out-Null
+        redis:latest redis-server --appendonly yes | Out-Null
     
     Write-Host "Redis running at: redis://localhost:6379" -ForegroundColor Green
 }
@@ -123,7 +123,7 @@ function Start-Consul {
     & $RUNTIME run -d `
         --name go-nomads-consul `
         --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.project=go-nomads-infras" `
         --label "com.docker.compose.service=consul" `
         -p 7500:7500 `
         -p 7502:7502 `
@@ -141,12 +141,12 @@ function Start-Zipkin {
     & $RUNTIME run -d `
         --name go-nomads-zipkin `
         --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.project=go-nomads-infras" `
         --label "com.docker.compose.service=zipkin" `
-        -p 9811:9411 `
+        -p 9411:9411 `
         openzipkin/zipkin:latest | Out-Null
     
-    Write-Host "Zipkin UI available at: http://localhost:9811" -ForegroundColor Green
+    Write-Host "Zipkin UI available at: http://localhost:9411" -ForegroundColor Green
 }
 
 function Start-Prometheus {
@@ -209,7 +209,7 @@ function Start-Prometheus {
     & $RUNTIME run -d `
         --name go-nomads-prometheus `
         --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.project=go-nomads-infras" `
         --label "com.docker.compose.service=prometheus" `
         -p 9090:9090 `
         -v "${promConfigPath}:/etc/prometheus/prometheus.yml:ro" `
@@ -229,7 +229,7 @@ function Start-Grafana {
     & $RUNTIME run -d `
         --name go-nomads-grafana `
         --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.project=go-nomads-infras" `
         --label "com.docker.compose.service=grafana" `
         -p 3000:3000 `
         -e GF_SECURITY_ADMIN_PASSWORD=admin `
@@ -246,7 +246,7 @@ function Start-Elasticsearch {
     & $RUNTIME run -d `
         --name go-nomads-elasticsearch `
         --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.project=go-nomads-infras" `
         --label "com.docker.compose.service=elasticsearch" `
         -p 9200:9200 `
         -p 9300:9300 `
@@ -265,16 +265,16 @@ function Start-RabbitMQ {
     & $RUNTIME run -d `
         --name go-nomads-rabbitmq `
         --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.project=go-nomads-infras" `
         --label "com.docker.compose.service=rabbitmq" `
         -p 5672:5672 `
         -p 15672:15672 `
-        -e RABBITMQ_DEFAULT_USER=guest `
-        -e RABBITMQ_DEFAULT_PASS=guest `
+        -e RABBITMQ_DEFAULT_USER=walden `
+        -e RABBITMQ_DEFAULT_PASS=walden `
         rabbitmq:3-management-alpine | Out-Null
     
     Write-Host "RabbitMQ running at: amqp://localhost:5672" -ForegroundColor Green
-    Write-Host "RabbitMQ Management UI: http://localhost:15672 (guest/guest)" -ForegroundColor Green
+    Write-Host "RabbitMQ Management UI: http://localhost:15672 (walden/walden)" -ForegroundColor Green
 }
 
 function Start-Nginx {
@@ -293,7 +293,7 @@ function Start-Nginx {
     & $RUNTIME run -d `
         --name go-nomads-nginx `
         --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads" `
+        --label "com.docker.compose.project=go-nomads-infras" `
         --label "com.docker.compose.service=nginx" `
         -p 80:80 `
         -p 443:443 `
@@ -402,7 +402,7 @@ function Show-Status {
     Write-Host "  Nginx:          http://localhost"
     Write-Host "  Redis:          redis://localhost:6379"
     Write-Host "  Consul:         http://localhost:7500"
-    Write-Host "  Zipkin:         http://localhost:9811"
+    Write-Host "  Zipkin:         http://localhost:9411"
     Write-Host "  Prometheus:     http://localhost:9090"
     Write-Host "  Grafana:        http://localhost:3000 (admin/admin)"
     Write-Host "  Elasticsearch:  http://localhost:9200"
