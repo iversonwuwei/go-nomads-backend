@@ -919,6 +919,31 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
+    ///     获取指定用户参加的未结束 Event 数量（供其他服务调用）
+    /// </summary>
+    [HttpGet("user/{userId}/joined/count")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<int>> GetUserJoinedEventsCount(string userId)
+    {
+        try
+        {
+            if (!Guid.TryParse(userId, out var userGuid))
+            {
+                return BadRequest(0);
+            }
+
+            var count = await _eventService.GetUserJoinedEventsCountAsync(userGuid);
+            _logger.LogInformation("✅ 获取用户 {UserId} 参加的未结束 Event 数量: {Count}", userId, count);
+            return Ok(count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取用户参加的 Event 数量失败: UserId={UserId}", userId);
+            return Ok(0);
+        }
+    }
+
+    /// <summary>
     ///     获取当前用户参加的 Event 列表
     /// </summary>
     [HttpGet("me/joined")]

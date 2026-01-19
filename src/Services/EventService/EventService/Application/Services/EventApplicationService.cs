@@ -401,6 +401,35 @@ public class EventApplicationService : IEventService
         return events.Count;
     }
 
+    /// <summary>
+    ///     获取用户参加的未结束 Event 数量（upcoming + ongoing）
+    /// </summary>
+    public async Task<int> GetUserJoinedEventsCountAsync(Guid userId)
+    {
+        // 1. 获取用户未取消的参与记录
+        var participants = await _participantRepository.GetByUserIdWithStatusAsync(userId);
+        var activeParticipants = participants
+            .Where(p => p.Status != "cancelled")
+            .ToList();
+
+        var joinedEventIds = activeParticipants.Select(p => p.EventId).ToHashSet();
+
+        if (!joinedEventIds.Any())
+        {
+            return 0;
+        }
+
+        // 2. 获取这些活动，只计算未结束的（upcoming + ongoing）
+        var (events, _) = await _eventRepository.GetByIdsAsync(
+            joinedEventIds.ToList(),
+            status: "upcoming,ongoing",
+            page: 1,
+            pageSize: 1000); // 足够大以获取所有活动
+
+        _logger.LogInformation("✅ 获取用户 {UserId} 参加的未结束 Event 数量: {Count}", userId, events.Count);
+        return events.Count;
+    }
+
     public async Task<List<EventResponse>> GetUserJoinedEventsAsync(Guid userId)
     {
         var participants = await _participantRepository.GetByUserIdAsync(userId);
