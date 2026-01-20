@@ -72,6 +72,40 @@ public class NotificationHub : Hub
             Context.ConnectionId, userId);
     }
 
+    /// <summary>
+    ///     订阅城市更新（用于接收城市评分等实时更新）
+    /// </summary>
+    /// <param name="cityId">城市 ID</param>
+    public async Task SubscribeCity(string cityId)
+    {
+        if (string.IsNullOrEmpty(cityId))
+        {
+            _logger.LogWarning("SubscribeCity 调用失败：cityId 为空, ConnectionId: {ConnectionId}",
+                Context.ConnectionId);
+            return;
+        }
+
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"city-{cityId}");
+        _logger.LogInformation("ConnectionId {ConnectionId} 订阅城市: city-{CityId}",
+            Context.ConnectionId, cityId);
+    }
+
+    /// <summary>
+    ///     取消订阅城市更新
+    /// </summary>
+    /// <param name="cityId">城市 ID</param>
+    public async Task UnsubscribeCity(string cityId)
+    {
+        if (string.IsNullOrEmpty(cityId))
+        {
+            return;
+        }
+
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"city-{cityId}");
+        _logger.LogInformation("ConnectionId {ConnectionId} 取消订阅城市: city-{CityId}",
+            Context.ConnectionId, cityId);
+    }
+
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         var userId = Context.User?.FindFirst("sub")?.Value

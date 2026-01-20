@@ -11,6 +11,11 @@ public interface IUserCityReviewRepository
     ///     创建新评论(每次都插入新记录,允许同一个用户对同一城市多次评论)
     /// </summary>
     Task<UserCityReview> CreateAsync(UserCityReview review);
+    
+    /// <summary>
+    ///     根据ID获取评论
+    /// </summary>
+    Task<UserCityReview?> GetByIdAsync(Guid reviewId);
 
     /// <summary>
     ///     获取城市的所有评论
