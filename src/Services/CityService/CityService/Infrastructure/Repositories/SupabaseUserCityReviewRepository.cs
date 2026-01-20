@@ -37,6 +37,27 @@ public class SupabaseUserCityReviewRepository : SupabaseRepositoryBase<UserCityR
             throw;
         }
     }
+    
+    /// <summary>
+    ///     根据ID获取评论
+    /// </summary>
+    public async Task<UserCityReview?> GetByIdAsync(Guid reviewId)
+    {
+        try
+        {
+            var response = await SupabaseClient
+                .From<UserCityReview>()
+                .Where(x => x.Id == reviewId)
+                .Single();
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "获取评论失败: {ReviewId}", reviewId);
+            return null;
+        }
+    }
 
     public async Task<IEnumerable<UserCityReview>> GetByCityIdAsync(string cityId)
     {

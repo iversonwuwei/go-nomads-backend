@@ -6,8 +6,10 @@ using Dapr.Client;
 using GoNomads.Shared.Models;
 using GoNomads.Shared.Middleware;
 using GoNomads.Shared.Services;
+using MassTransit;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Shared.Messages;
 using System.Security.Claims;
 
 namespace CityService.API.Controllers;
@@ -19,23 +21,29 @@ public class CityRatingsController : ControllerBase
 {
     private readonly ICityRatingCategoryRepository _categoryRepository;
     private readonly ICityRatingRepository _ratingRepository;
+    private readonly ICityRepository _cityRepository;
     private readonly ICurrentUserService _currentUser;
     private readonly DaprClient _daprClient;
+    private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<CityRatingsController> _logger;
     private readonly RatingCategorySeeder _ratingSeeder;
 
     public CityRatingsController(
         ICityRatingCategoryRepository categoryRepository,
         ICityRatingRepository ratingRepository,
+        ICityRepository cityRepository,
         ICurrentUserService currentUser,
         DaprClient daprClient,
+        IPublishEndpoint publishEndpoint,
         ILogger<CityRatingsController> logger,
         RatingCategorySeeder ratingSeeder)
     {
         _categoryRepository = categoryRepository;
         _ratingRepository = ratingRepository;
+        _cityRepository = cityRepository;
         _currentUser = currentUser;
         _daprClient = daprClient;
+        _publishEndpoint = publishEndpoint;
         _logger = logger;
         _ratingSeeder = ratingSeeder;
     }
@@ -641,7 +649,10 @@ public class CityRatingsController : ControllerBase
                 ? Math.Round(statistics.Where(s => s.RatingCount > 0).Average(s => s.AverageRating), 1)
                 : 0.0;
 
-            // 4. 通过 Dapr 调用 CacheService 保存评分
+            // 4. 计算评价人数（去重后的用户数）
+            var reviewCount = allCityRatings.Select(r => r.UserId).Distinct().Count();
+
+            // 5. 通过 Dapr 调用 CacheService 保存评分
             var requestBody = new
             {
                 overallScore = overallScore,
@@ -657,11 +668,48 @@ public class CityRatingsController : ControllerBase
 
             _logger.LogInformation("✅ 城市评分已更新到缓存: CityId={CityId}, OverallScore={OverallScore}",
                 cityId, overallScore);
+
+            // 6. 获取城市信息并发布 SignalR 通知
+            await PublishCityRatingUpdatedAsync(cityId, overallScore, reviewCount);
         }
         catch (Exception ex)
         {
             // 缓存更新失败不影响主流程,只记录日志
             _logger.LogWarning(ex, "更新城市评分缓存时发生错误: CityId={CityId}", cityId);
+        }
+    }
+
+    /// <summary>
+    /// 发布城市评分更新消息到 MessageService (通过 SignalR 广播给客户端)
+    /// </summary>
+    private async Task PublishCityRatingUpdatedAsync(Guid cityId, double overallScore, int reviewCount)
+    {
+        try
+        {
+            // 获取城市信息
+            var city = await _cityRepository.GetByIdAsync(cityId);
+            
+            var message = new CityRatingUpdatedMessage
+            {
+                CityId = cityId.ToString(),
+                CityName = city?.Name,
+                CityNameEn = city?.NameEn,
+                OverallScore = overallScore,
+                ReviewCount = reviewCount,
+                UserId = _currentUser.TryGetUserId()?.ToString(),
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            await _publishEndpoint.Publish(message);
+
+            _logger.LogInformation(
+                "📡 城市评分更新消息已发布: CityId={CityId}, Score={Score}, ReviewCount={ReviewCount}",
+                cityId, overallScore, reviewCount);
+        }
+        catch (Exception ex)
+        {
+            // SignalR 通知失败不影响主流程
+            _logger.LogWarning(ex, "发布城市评分更新消息失败: CityId={CityId}", cityId);
         }
     }
 

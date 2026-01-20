@@ -201,4 +201,49 @@ public class SignalRNotifierImpl : ISignalRNotifier
             throw;
         }
     }
+
+    public async Task BroadcastCityRatingUpdatedAsync(string cityId, object ratingData)
+    {
+        try
+        {
+            // 广播城市评分更新到所有订阅该城市的用户
+            // 使用 city-{cityId} 组和全局广播
+            await _notificationHub.Clients
+                .Group($"city-{cityId}")
+                .SendAsync("CityRatingUpdated", ratingData);
+
+            // 同时广播给所有用户（城市列表页面需要同步）
+            await _notificationHub.Clients.All
+                .SendAsync("CityRatingUpdated", ratingData);
+
+            _logger.LogInformation("广播城市评分更新: CityId={CityId}", cityId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "广播城市评分更新失败: CityId={CityId}", cityId);
+            throw;
+        }
+    }
+
+    public async Task BroadcastCityReviewUpdatedAsync(string cityId, object reviewData)
+    {
+        try
+        {
+            // 广播城市评论更新到所有订阅该城市的用户
+            await _notificationHub.Clients
+                .Group($"city-{cityId}")
+                .SendAsync("CityReviewUpdated", reviewData);
+
+            // 同时广播给所有用户（城市列表页面需要同步）
+            await _notificationHub.Clients.All
+                .SendAsync("CityReviewUpdated", reviewData);
+
+            _logger.LogInformation("广播城市评论更新: CityId={CityId}", cityId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "广播城市评论更新失败: CityId={CityId}", cityId);
+            throw;
+        }
+    }
 }

@@ -3,7 +3,9 @@ using CityService.Application.DTOs;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
 using CityService.Services;
+using MassTransit;
 using Microsoft.Extensions.Caching.Memory;
+using Shared.Messages;
 
 namespace CityService.Application.Services;
 
@@ -21,6 +23,7 @@ public class UserCityContentApplicationService : IUserCityContentService
     private readonly IUserServiceClient _userServiceClient;
     private readonly ICacheServiceClient _cacheServiceClient;
     private readonly IMemoryCache _cache;
+    private readonly IPublishEndpoint _publishEndpoint;
 
     public UserCityContentApplicationService(
         IUserCityPhotoRepository photoRepository,
@@ -31,6 +34,7 @@ public class UserCityContentApplicationService : IUserCityContentService
         ICacheServiceClient cacheServiceClient,
         IAmapGeocodingService amapGeocodingService,
         IMemoryCache cache,
+        IPublishEndpoint publishEndpoint,
         ILogger<UserCityContentApplicationService> logger)
     {
         _photoRepository = photoRepository;
@@ -41,6 +45,7 @@ public class UserCityContentApplicationService : IUserCityContentService
         _cacheServiceClient = cacheServiceClient;
         _amapGeocodingService = amapGeocodingService;
         _cache = cache;
+        _publishEndpoint = publishEndpoint;
         _logger = logger;
     }
 
@@ -266,10 +271,90 @@ public class UserCityContentApplicationService : IUserCityContentService
 
         // 失效城市列表缓存，确保评论数量能同步更新
         InvalidateCityListCache();
+        
+        // 更新城市评分缓存（评论的 Rating 字段影响城市总评分）
+        await UpdateCityScoreFromReviewsAsync(request.CityId);
 
         _logger.LogInformation("用户 {UserId} 为城市 {CityId} 添加了新评论 {ReviewId}", userId, request.CityId, created.Id);
+        
+        // 发布评论更新消息到 SignalR
+        await PublishReviewUpdatedMessageAsync(request.CityId, "created", created.Id);
 
         return MapReviewToDto(created);
+    }
+    
+    /// <summary>
+    /// 发布评论更新消息到消息队列（用于 SignalR 广播）
+    /// </summary>
+    private async Task PublishReviewUpdatedMessageAsync(string cityId, string changeType, Guid? reviewId = null)
+    {
+        try
+        {
+            // 获取最新的评论统计数据
+            var reviews = await _reviewRepository.GetByCityIdAsync(cityId);
+            var reviewList = reviews.ToList();
+            var reviewCount = reviewList.Count;
+            var validRatings = reviewList.Where(r => r.Rating > 0).Select(r => r.Rating).ToList();
+            var overallScore = validRatings.Any() ? Math.Round(validRatings.Average(), 1) : 0;
+            
+            var message = new CityReviewUpdatedMessage
+            {
+                CityId = cityId,
+                ChangeType = changeType,
+                ReviewCount = reviewCount,
+                OverallScore = overallScore,
+                ReviewId = reviewId?.ToString(),
+                UpdatedAt = DateTime.UtcNow
+            };
+            
+            await _publishEndpoint.Publish(message);
+            _logger.LogInformation("📤 已发布城市评论更新消息: CityId={CityId}, ChangeType={ChangeType}, ReviewCount={ReviewCount}", 
+                cityId, changeType, reviewCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 发布评论更新消息失败: CityId={CityId}", cityId);
+        }
+    }
+    
+    /// <summary>
+    /// 根据评论重新计算并更新城市评分缓存
+    /// </summary>
+    private async Task UpdateCityScoreFromReviewsAsync(string cityId)
+    {
+        try
+        {
+            // 获取该城市的所有评论
+            var reviews = await _reviewRepository.GetByCityIdAsync(cityId);
+            var reviewList = reviews.ToList();
+            
+            if (!reviewList.Any())
+            {
+                _logger.LogInformation("城市 {CityId} 暂无评论，跳过评分更新", cityId);
+                return;
+            }
+            
+            // 计算平均评分（只统计有有效评分的评论）
+            var validRatings = reviewList.Where(r => r.Rating > 0).Select(r => r.Rating).ToList();
+            if (!validRatings.Any())
+            {
+                _logger.LogInformation("城市 {CityId} 暂无有效评分，跳过评分更新", cityId);
+                return;
+            }
+            
+            var overallScore = Math.Round((decimal)validRatings.Average(), 1);
+            
+            // 更新缓存
+            await _cacheServiceClient.UpdateCityScoreCacheAsync(cityId, overallScore);
+            
+            _logger.LogInformation("✅ 城市 {CityId} 评分已更新: {OverallScore} (基于 {Count} 条评论)", 
+                cityId, overallScore, validRatings.Count);
+        }
+        catch (Exception ex)
+        {
+            // 缓存更新失败不影响主流程
+            _logger.LogWarning(ex, "⚠️ 更新城市 {CityId} 评分缓存失败", cityId);
+        }
     }
 
     public async Task<IEnumerable<UserCityReviewDto>> GetCityReviewsAsync(string cityId)
@@ -369,8 +454,35 @@ public class UserCityContentApplicationService : IUserCityContentService
 
     public async Task<bool> DeleteReviewAsync(Guid userId, Guid reviewId)
     {
+        // 先获取评论信息以获取 cityId（用于后续更新评分缓存）
+        string? cityId = null;
+        try
+        {
+            var review = await _reviewRepository.GetByIdAsync(reviewId);
+            cityId = review?.CityId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "获取评论 {ReviewId} 的城市ID失败", reviewId);
+        }
+        
         var deleted = await _reviewRepository.DeleteAsync(reviewId, userId);
-        if (deleted) _logger.LogInformation("用户 {UserId} 删除了评论 {ReviewId}", userId, reviewId);
+        if (deleted)
+        {
+            _logger.LogInformation("用户 {UserId} 删除了评论 {ReviewId}", userId, reviewId);
+            
+            // 失效城市列表缓存
+            InvalidateCityListCache();
+            
+            // 更新城市评分缓存
+            if (!string.IsNullOrEmpty(cityId))
+            {
+                await UpdateCityScoreFromReviewsAsync(cityId);
+                
+                // 发布评论删除消息到 SignalR
+                await PublishReviewUpdatedMessageAsync(cityId, "deleted", reviewId);
+            }
+        }
         return deleted;
     }
 

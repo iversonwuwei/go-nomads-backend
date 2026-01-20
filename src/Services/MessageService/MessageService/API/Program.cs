@@ -113,6 +113,12 @@ builder.Services.AddMassTransit(x =>
     // 注册 Coworking 验证人数变化消息消费者
     x.AddConsumer<CoworkingVerificationVotesConsumer>();
 
+    // 注册城市评分更新消息消费者
+    x.AddConsumer<CityRatingUpdatedMessageConsumer>();
+
+    // 注册城市评论更新消息消费者
+    x.AddConsumer<CityReviewUpdatedMessageConsumer>();
+
     x.UsingRabbitMq((context, cfg) =>
     {
         var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
@@ -199,6 +205,22 @@ builder.Services.AddMassTransit(x =>
         cfg.ReceiveEndpoint("coworking-verification-votes-queue", e =>
         {
             e.ConfigureConsumer<CoworkingVerificationVotesConsumer>(context);
+            e.PrefetchCount = 16;
+            e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
+        });
+
+        // 配置城市评分更新消息队列
+        cfg.ReceiveEndpoint("city-rating-updated-queue", e =>
+        {
+            e.ConfigureConsumer<CityRatingUpdatedMessageConsumer>(context);
+            e.PrefetchCount = 16;
+            e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
+        });
+
+        // 配置城市评论更新消息队列
+        cfg.ReceiveEndpoint("city-review-updated-queue", e =>
+        {
+            e.ConfigureConsumer<CityReviewUpdatedMessageConsumer>(context);
             e.PrefetchCount = 16;
             e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
         });
