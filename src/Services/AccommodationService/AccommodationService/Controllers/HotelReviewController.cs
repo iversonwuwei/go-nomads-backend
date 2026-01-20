@@ -154,7 +154,7 @@ public class HotelReviewController : ControllerBase
             return BadRequest(new { message = "评分必须在1-5之间" });
         }
 
-        // 创建评论实体，不再存储用户名
+        // 创建评论实体，用户信息通过 UserService 动态获取
         var review = new HotelReview
         {
             Id = Guid.NewGuid(),
@@ -188,8 +188,8 @@ public class HotelReviewController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating review for hotel {HotelId}", hotelId);
-            return BadRequest(new { message = "创建评论失败" });
+            _logger.LogError(ex, "Error creating review for hotel {HotelId}. Exception: {Message}", hotelId, ex.Message);
+            return BadRequest(new { message = "创建评论失败", error = ex.Message });
         }
     }
 

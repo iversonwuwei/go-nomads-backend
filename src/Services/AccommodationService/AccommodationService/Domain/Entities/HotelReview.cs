@@ -25,11 +25,6 @@ public class HotelReview : BaseModel
     [Column("user_id")]
     public Guid UserId { get; set; }
 
-    // 注意：此字段已弃用，用户信息现在通过 UserService 动态获取
-    // 保留字段是为了兼容数据库中的旧数据，新创建的评论不会填充这个字段
-    [Column("user_name")]
-    public string? UserName { get; set; }
-
     [Column("rating")]
     public int Rating { get; set; }
 
