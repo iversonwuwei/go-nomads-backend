@@ -6,6 +6,7 @@ using UserService.Application.DTOs;
 using UserService.Domain.Entities;
 using UserService.Domain.Repositories;
 using UserService.Infrastructure.Configuration;
+using UserService.Infrastructure.Services;
 
 namespace UserService.Application.Services;
 
@@ -21,6 +22,7 @@ public class AuthApplicationService : IAuthService
     private readonly IUserRepository _userRepository;
     private readonly IAliyunSmsService _smsService;
     private readonly AliyunSmsSettings _smsSettings;
+    private readonly IWeChatOAuthService _weChatOAuthService;
 
     /// <summary>
     ///     验证码缓存 (手机号 -> (验证码, 过期时间))
@@ -34,6 +36,7 @@ public class AuthApplicationService : IAuthService
         JwtTokenService jwtTokenService,
         IAliyunSmsService smsService,
         IOptions<AliyunSmsSettings> smsSettings,
+        IWeChatOAuthService weChatOAuthService,
         ILogger<AuthApplicationService> logger)
     {
         _userRepository = userRepository;
@@ -41,6 +44,7 @@ public class AuthApplicationService : IAuthService
         _jwtTokenService = jwtTokenService;
         _smsService = smsService;
         _smsSettings = smsSettings.Value;
+        _weChatOAuthService = weChatOAuthService;
         _logger = logger;
     }
 
@@ -445,6 +449,7 @@ public class AuthApplicationService : IAuthService
 
     /// <summary>
     ///     社交登录（用户不存在时自动创建）
+    ///     支持微信、QQ、支付宝等平台
     /// </summary>
     public async Task<AuthResponseDto> SocialLoginAsync(
         SocialLoginRequest request,
@@ -456,13 +461,41 @@ public class AuthApplicationService : IAuthService
         {
             var provider = request.Provider.ToLower();
 
-            // 必须提供 OpenId 或可以从 code/accessToken 获取
-            var openId = request.OpenId;
-            if (string.IsNullOrEmpty(openId))
+            string openId;
+            string? nickname = null;
+            string? avatarUrl = null;
+
+            // 根据不同平台处理登录
+            if (provider == "wechat")
             {
-                // TODO: 如果没有 OpenId，需要通过 code 或 accessToken 调用社交平台 API 获取
-                // 这里暂时要求客户端直接提供 OpenId
-                throw new InvalidOperationException("社交登录需要提供 OpenId");
+                // 微信登录：用 code 换取用户信息
+                if (!string.IsNullOrEmpty(request.Code))
+                {
+                    var wechatUserInfo = await _weChatOAuthService.GetUserInfoByCodeAsync(request.Code, cancellationToken);
+                    if (wechatUserInfo == null)
+                    {
+                        throw new InvalidOperationException("微信授权失败");
+                    }
+                    openId = wechatUserInfo.OpenId;
+                    nickname = wechatUserInfo.Nickname;
+                    avatarUrl = wechatUserInfo.HeadImgUrl;
+                    
+                    _logger.LogInformation("✅ 微信用户信息获取成功: openId={OpenId}, nickname={Nickname}", openId, nickname);
+                }
+                else if (!string.IsNullOrEmpty(request.OpenId))
+                {
+                    // 兼容直接提供 OpenId 的方式
+                    openId = request.OpenId;
+                }
+                else
+                {
+                    throw new InvalidOperationException("微信登录需要提供 code 或 openId");
+                }
+            }
+            else
+            {
+                // 其他平台暂时要求直接提供 OpenId
+                openId = request.OpenId ?? throw new InvalidOperationException($"{provider} 登录需要提供 OpenId");
             }
 
             // 查找已存在的用户
@@ -479,20 +512,37 @@ public class AuthApplicationService : IAuthService
                     throw new InvalidOperationException("系统配置错误: 默认用户角色不存在");
                 }
 
-                // 生成默认用户名
-                var defaultName = $"{provider}用户{openId[^4..]}";
+                // 生成默认用户名（优先使用平台返回的昵称）
+                var defaultName = !string.IsNullOrEmpty(nickname) 
+                    ? nickname 
+                    : $"{provider}用户{openId[^4..]}";
 
                 user = User.CreateWithSocialLogin(
                     defaultName,
                     provider,
                     openId,
-                    defaultRole.Id);
+                    defaultRole.Id,
+                    avatarUrl); // 直接在创建时设置头像
 
                 user = await _userRepository.CreateAsync(user, cancellationToken);
 
                 _logger.LogInformation("✅ 社交登录新用户注册成功: {UserId}", user.Id);
 
                 return BuildAuthResponse(user, defaultRole.Name);
+            }
+
+            // 更新用户信息（如果有新的昵称或头像）
+            if (!string.IsNullOrEmpty(nickname) || !string.IsNullOrEmpty(avatarUrl))
+            {
+                var updatedName = !string.IsNullOrEmpty(nickname) ? nickname : user.Name;
+                var updatedAvatar = !string.IsNullOrEmpty(avatarUrl) ? avatarUrl : user.AvatarUrl;
+                
+                if (updatedName != user.Name || updatedAvatar != user.AvatarUrl)
+                {
+                    user.PartialUpdate(name: updatedName, avatarUrl: updatedAvatar);
+                    await _userRepository.UpdateAsync(user, cancellationToken);
+                    _logger.LogInformation("✅ 用户信息已更新: {UserId}", user.Id);
+                }
             }
 
             // 获取用户角色

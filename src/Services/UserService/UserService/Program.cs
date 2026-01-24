@@ -35,6 +35,9 @@ builder.Services.AddSingleton<IAlipayService, AlipayService>();
 builder.Services.Configure<AliyunSmsSettings>(builder.Configuration.GetSection(AliyunSmsSettings.SectionName));
 builder.Services.AddSingleton<IAliyunSmsService, AliyunSmsService>();
 
+// 配置微信 OAuth 服务
+builder.Services.AddHttpClient<IWeChatOAuthService, WeChatOAuthService>();
+
 // Register Domain Repositories (Infrastructure Layer)
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
