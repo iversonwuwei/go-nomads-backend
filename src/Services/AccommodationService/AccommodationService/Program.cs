@@ -23,15 +23,15 @@ builder.Services.AddSupabase(builder.Configuration);
 // 添加当前用户服务（统一的用户身份和权限检查）
 builder.Services.AddCurrentUserService();
 
-// 配置 DaprClient 使用 gRPC 协议
+// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync，访问控制策略自动生效）
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
-    var daprGrpcPort = builder.Configuration.GetValue("Dapr:GrpcPort", 50001);
-    var daprGrpcEndpoint = $"http://localhost:{daprGrpcPort}";
-    daprClientBuilder.UseGrpcEndpoint(daprGrpcEndpoint);
+    var daprHttpPort = builder.Configuration.GetValue("Dapr:HttpPort", 3500);
+    var daprHttpEndpoint = $"http://localhost:{daprHttpPort}";
+    daprClientBuilder.UseHttpEndpoint(daprHttpEndpoint);
     
     var logger = LoggerFactory.Create(loggingBuilder => loggingBuilder.AddConsole()).CreateLogger("DaprSetup");
-    logger.LogInformation("🚀 Dapr Client 配置使用 gRPC: {Endpoint}", daprGrpcEndpoint);
+    logger.LogInformation("🚀 Dapr Client 配置使用 HTTP: {Endpoint}", daprHttpEndpoint);
 });
 
 // ============================================================

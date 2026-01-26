@@ -24,19 +24,19 @@ builder.Services.AddSupabase(builder.Configuration);
 // 添加当前用户服务（统一的用户身份和权限检查）
 builder.Services.AddCurrentUserService();
 
-// 配置 DaprClient 使用 gRPC 协议
+// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync，访问控制策略自动生效）
 // 在 container sidecar 模式下，CoworkingService 和 Dapr 共享网络命名空间，使用 localhost
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
-    // 使用 gRPC 端点（默认端口 50001）
-    var daprGrpcPort = builder.Configuration.GetValue("Dapr:GrpcPort", 50001);
-    var daprGrpcEndpoint = $"http://localhost:{daprGrpcPort}";
+    // 使用 HTTP 端点（默认端口 3500）
+    var daprHttpPort = builder.Configuration.GetValue("Dapr:HttpPort", 3500);
+    var daprHttpEndpoint = $"http://localhost:{daprHttpPort}";
 
-    daprClientBuilder.UseGrpcEndpoint(daprGrpcEndpoint);
+    daprClientBuilder.UseHttpEndpoint(daprHttpEndpoint);
 
     // 记录配置
     var logger = LoggerFactory.Create(loggingBuilder => loggingBuilder.AddConsole()).CreateLogger("DaprSetup");
-    logger.LogInformation("🚀 Dapr Client 配置使用 gRPC: {Endpoint}", daprGrpcEndpoint);
+    logger.LogInformation("🚀 Dapr Client 配置使用 HTTP: {Endpoint}", daprHttpEndpoint);
 });
 
 // ============================================================

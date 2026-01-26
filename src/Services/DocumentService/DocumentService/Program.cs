@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Dapr.Client;
 using DocumentService.Configuration;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -15,11 +16,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<ServiceConfiguration>(
     builder.Configuration.GetSection("Services"));
 
-// Add services to the container - 配置 Dapr 使用 gRPC
-var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50001";
+// Add services to the container - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync）
+var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
-    daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
+    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
 });
 builder.Services.AddControllers().AddDapr();
 
@@ -94,15 +95,16 @@ var productsGroup = app.MapGroup("/api/products")
 
 // GET /api/products - 获取产品列表
 productsGroup.MapGet("/",
-        async (IHttpClientFactory httpClientFactory, [FromQuery] int page = 1, [FromQuery] int pageSize = 10) =>
+        async (DaprClient daprClient, [FromQuery] int page = 1, [FromQuery] int pageSize = 10) =>
         {
             try
             {
-                var client = httpClientFactory.CreateClient();
-                var response =
-                    await client.GetStringAsync(
-                        $"http://go-nomads-product-service:8080/api/products?page={page}&pageSize={pageSize}");
-                return Results.Content(response, "application/json");
+                // 使用 Dapr Service Invocation 调用 ProductService
+                var response = await daprClient.InvokeMethodAsync<JsonElement>(
+                    HttpMethod.Get,
+                    "product-service",
+                    $"api/products?page={page}&pageSize={pageSize}");
+                return Results.Json(response);
             }
             catch (Exception ex)
             {
@@ -115,13 +117,15 @@ productsGroup.MapGet("/",
     .WithOpenApi();
 
 // GET /api/products/{id} - 获取单个产品
-productsGroup.MapGet("/{id}", async (IHttpClientFactory httpClientFactory, string id) =>
+productsGroup.MapGet("/{id}", async (DaprClient daprClient, string id) =>
     {
         try
         {
-            var client = httpClientFactory.CreateClient();
-            var response = await client.GetStringAsync($"http://go-nomads-product-service:8080/api/products/{id}");
-            return Results.Content(response, "application/json");
+            var response = await daprClient.InvokeMethodAsync<JsonElement>(
+                HttpMethod.Get,
+                "product-service",
+                $"api/products/{id}");
+            return Results.Json(response);
         }
         catch (Exception ex)
         {
@@ -135,15 +139,16 @@ productsGroup.MapGet("/{id}", async (IHttpClientFactory httpClientFactory, strin
 
 // GET /api/products/user/{userId} - 获取用户的产品
 productsGroup.MapGet("/user/{userId}",
-        async (IHttpClientFactory httpClientFactory, string userId, [FromQuery] int page = 1,
+        async (DaprClient daprClient, string userId, [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10) =>
         {
             try
             {
-                var client = httpClientFactory.CreateClient();
-                var response = await client.GetStringAsync(
-                    $"http://go-nomads-product-service:8080/api/products/user/{userId}?page={page}&pageSize={pageSize}");
-                return Results.Content(response, "application/json");
+                var response = await daprClient.InvokeMethodAsync<JsonElement>(
+                    HttpMethod.Get,
+                    "product-service",
+                    $"api/products/user/{userId}?page={page}&pageSize={pageSize}");
+                return Results.Json(response);
             }
             catch (Exception ex)
             {
@@ -156,17 +161,20 @@ productsGroup.MapGet("/user/{userId}",
     .WithOpenApi();
 
 // POST /api/products - 创建产品
-productsGroup.MapPost("/", async (IHttpClientFactory httpClientFactory, HttpRequest request) =>
+productsGroup.MapPost("/", async (DaprClient daprClient, HttpRequest request) =>
     {
         try
         {
-            var client = httpClientFactory.CreateClient();
             using var reader = new StreamReader(request.Body);
             var body = await reader.ReadToEndAsync();
-            var content = new StringContent(body, Encoding.UTF8, "application/json");
-            var response = await client.PostAsync("http://go-nomads-product-service:8080/api/products", content);
-            var result = await response.Content.ReadAsStringAsync();
-            return Results.Content(result, "application/json", statusCode: (int)response.StatusCode);
+            var requestData = JsonSerializer.Deserialize<JsonElement>(body);
+            
+            var response = await daprClient.InvokeMethodAsync<JsonElement, JsonElement>(
+                HttpMethod.Post,
+                "product-service",
+                "api/products",
+                requestData);
+            return Results.Json(response);
         }
         catch (Exception ex)
         {
@@ -179,17 +187,20 @@ productsGroup.MapPost("/", async (IHttpClientFactory httpClientFactory, HttpRequ
     .WithOpenApi();
 
 // PUT /api/products/{id} - 更新产品
-productsGroup.MapPut("/{id}", async (IHttpClientFactory httpClientFactory, string id, HttpRequest request) =>
+productsGroup.MapPut("/{id}", async (DaprClient daprClient, string id, HttpRequest request) =>
     {
         try
         {
-            var client = httpClientFactory.CreateClient();
             using var reader = new StreamReader(request.Body);
             var body = await reader.ReadToEndAsync();
-            var content = new StringContent(body, Encoding.UTF8, "application/json");
-            var response = await client.PutAsync($"http://go-nomads-product-service:8080/api/products/{id}", content);
-            var result = await response.Content.ReadAsStringAsync();
-            return Results.Content(result, "application/json", statusCode: (int)response.StatusCode);
+            var requestData = JsonSerializer.Deserialize<JsonElement>(body);
+            
+            var response = await daprClient.InvokeMethodAsync<JsonElement, JsonElement>(
+                HttpMethod.Put,
+                "product-service",
+                $"api/products/{id}",
+                requestData);
+            return Results.Json(response);
         }
         catch (Exception ex)
         {
@@ -202,14 +213,15 @@ productsGroup.MapPut("/{id}", async (IHttpClientFactory httpClientFactory, strin
     .WithOpenApi();
 
 // DELETE /api/products/{id} - 删除产品
-productsGroup.MapDelete("/{id}", async (IHttpClientFactory httpClientFactory, string id) =>
+productsGroup.MapDelete("/{id}", async (DaprClient daprClient, string id) =>
     {
         try
         {
-            var client = httpClientFactory.CreateClient();
-            var response = await client.DeleteAsync($"http://go-nomads-product-service:8080/api/products/{id}");
-            var result = await response.Content.ReadAsStringAsync();
-            return Results.Content(result, "application/json", statusCode: (int)response.StatusCode);
+            await daprClient.InvokeMethodAsync(
+                HttpMethod.Delete,
+                "product-service",
+                $"api/products/{id}");
+            return Results.Ok(new { success = true, message = "Product deleted successfully" });
         }
         catch (Exception ex)
         {

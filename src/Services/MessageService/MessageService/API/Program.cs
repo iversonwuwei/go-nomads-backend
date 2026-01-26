@@ -28,11 +28,11 @@ builder.Host.UseSerilog();
 builder.Services.AddControllers().AddDapr();
 builder.Services.AddEndpointsApiExplorer();
 
-// 配置 DaprClient
-var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50001";
+// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync）
+var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
-    daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
+    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
     daprClientBuilder.UseTimeout(TimeSpan.FromSeconds(30));
 });
 builder.Services.AddOpenApi(options =>
