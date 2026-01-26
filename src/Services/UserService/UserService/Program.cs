@@ -79,13 +79,13 @@ builder.Services.AddMassTransit(x =>
 
 // 配置 DaprClient 连接到 Dapr sidecar
 // Dapr sidecar 与应用共享网络命名空间，通过 localhost 访问
-// 使用 gRPC 端点（性能更好：2-3x 吞吐量，30-50% 更小的负载）
+// 方案A: 使用 HTTP 端点 - 原生支持 DaprClient.InvokeMethodAsync，访问控制策略自动生效
 // 
-// Dapr 配置 - 使用 gRPC 端点
-var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50001";
+// Dapr 配置 - 使用 HTTP 端点
+var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
-    daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
+    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
 });
 
 builder.Services.AddControllers()

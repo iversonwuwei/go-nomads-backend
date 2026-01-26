@@ -31,9 +31,13 @@ builder.Services.Configure<IndexMaintenanceSettings>(
     builder.Configuration.GetSection("IndexMaintenance"));
 
 // ============================================================
-// 添加 Dapr 客户端 (用于服务间 gRPC 调用)
+// 添加 Dapr 客户端 - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync）
 // ============================================================
-builder.Services.AddDaprClient();
+var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
+builder.Services.AddDaprClient(daprClientBuilder =>
+{
+    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
+});
 
 // ============================================================
 // 依赖注入 - Infrastructure 层

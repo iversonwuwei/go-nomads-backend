@@ -61,11 +61,11 @@ builder.Services.AddSupabase(builder.Configuration);
 // 添加当前用户服务（统一的用户身份和权限检查）
 builder.Services.AddCurrentUserService();
 
-// 配置 DaprClient - 使用 gRPC 端点
-var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50001";
+// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync）
+var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
-    daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
+    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
 });
 
 // 注册服务客户端
