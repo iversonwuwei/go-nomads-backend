@@ -340,6 +340,57 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
+    ///     发送消息并通过 SignalR 获取流式AI回复（推荐）
+    ///     响应将通过 SignalR 的 AIChatChunk 事件推送到客户端
+    /// </summary>
+    [HttpPost("conversations/{conversationId:guid}/messages/signalr-stream")]
+    public async Task<ActionResult<ApiResponse<object>>> SendMessageWithSignalR(
+        Guid conversationId,
+        [FromBody] SendMessageWithSignalRRequest request)
+    {
+        try
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Unauthorized(new ApiResponse<object> { Success = false, Message = "用户未认证" });
+
+            // 生成请求 ID（用于关联 SignalR 响应）
+            var requestId = request.RequestId ?? Guid.NewGuid().ToString();
+
+            var userMessage = await _aiChatService.SendMessageWithSignalRStreamAsync(
+                conversationId,
+                new SendMessageRequest { Content = request.Content, Temperature = request.Temperature, MaxTokens = request.MaxTokens },
+                userId,
+                requestId);
+
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "消息已接收，AI 响应将通过 SignalR 推送",
+                Data = new
+                {
+                    RequestId = requestId,
+                    UserMessage = userMessage,
+                    SignalREvent = "AIChatChunk"
+                }
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(new ApiResponse<object> { Success = false, Message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new ApiResponse<object> { Success = false, Message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发送 SignalR 流式消息失败");
+            return StatusCode(500, new ApiResponse<object> { Success = false, Message = "发送消息失败" });
+        }
+    }
+
+    /// <summary>
     ///     获取对话的消息历史
     /// </summary>
     [HttpGet("conversations/{conversationId:guid}/messages")]

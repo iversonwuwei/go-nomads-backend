@@ -104,6 +104,9 @@ builder.Services.AddMassTransit(x =>
     x.AddConsumer<AITaskCompletedMessageConsumer>();
     x.AddConsumer<AITaskFailedMessageConsumer>();
 
+    // 注册 AI Chat 流式响应消费者
+    x.AddConsumer<AIChatStreamChunkConsumer>();
+
     // 注册城市图片生成完成消息消费者
     x.AddConsumer<CityImageGeneratedMessageConsumer>();
 
@@ -223,6 +226,14 @@ builder.Services.AddMassTransit(x =>
             e.ConfigureConsumer<CityReviewUpdatedMessageConsumer>(context);
             e.PrefetchCount = 16;
             e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
+        });
+
+        // 配置 AI Chat 流式响应消息队列
+        cfg.ReceiveEndpoint("ai-chat-stream-chunk-queue", e =>
+        {
+            e.ConfigureConsumer<AIChatStreamChunkConsumer>(context);
+            e.PrefetchCount = 64; // 流式消息非常频繁，增加并发
+            e.UseMessageRetry(r => r.Interval(2, TimeSpan.FromSeconds(1)));
         });
     });
 });

@@ -15,6 +15,13 @@ public interface ISignalRNotifier
     Task BroadcastNotificationAsync(NotificationMessage notification);
 
     /// <summary>
+    ///     发送 AI Chat 流式响应块
+    /// </summary>
+    /// <param name="userId">用户ID</param>
+    /// <param name="chunk">响应块数据</param>
+    Task SendAIChatChunkAsync(string userId, object chunk);
+
+    /// <summary>
     ///     发送城市图片更新通知
     /// </summary>
     /// <param name="cityId">城市ID</param>

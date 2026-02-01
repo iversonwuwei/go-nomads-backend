@@ -246,4 +246,22 @@ public class SignalRNotifierImpl : ISignalRNotifier
             throw;
         }
     }
+
+    public async Task SendAIChatChunkAsync(string userId, object chunk)
+    {
+        try
+        {
+            // 发送到用户组 - AI Chat 流式响应块
+            await _aiProgressHub.Clients
+                .Group($"user-{userId}")
+                .SendAsync("AIChatChunk", chunk);
+
+            _logger.LogDebug("推送 AI Chat Chunk 到用户 {UserId}", userId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "推送 AI Chat Chunk 失败: UserId={UserId}", userId);
+            throw;
+        }
+    }
 }

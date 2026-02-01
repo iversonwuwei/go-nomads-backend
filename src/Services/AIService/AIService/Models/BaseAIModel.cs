@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Postgrest.Attributes;
 using Postgrest.Models;
 
@@ -17,8 +18,10 @@ public abstract class BaseAIModel : BaseModel
     [Column("deleted_at")] public DateTime? DeletedAt { get; set; }
 
     /// <summary>
-    ///     软删除标记
+    ///     软删除标记（计算属性，不映射到数据库）
     /// </summary>
+    [JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
     public bool IsDeleted => DeletedAt.HasValue;
 
     /// <summary>
