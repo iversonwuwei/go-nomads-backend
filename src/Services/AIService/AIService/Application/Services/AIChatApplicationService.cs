@@ -4,9 +4,11 @@ using System.Text.Json;
 using AIService.Application.DTOs;
 using AIService.Domain.Entities;
 using AIService.Domain.Repositories;
+using MassTransit;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Shared.Messages;
 
 namespace AIService.Application.Services;
 
@@ -21,13 +23,15 @@ public class AIChatApplicationService : IAIChatService
     private readonly Kernel _kernel;
     private readonly ILogger<AIChatApplicationService> _logger;
     private readonly IAIMessageRepository _messageRepository;
+    private readonly IPublishEndpoint _publishEndpoint;
 
     public AIChatApplicationService(
         IAIConversationRepository conversationRepository,
         IAIMessageRepository messageRepository,
         Kernel kernel,
         ILogger<AIChatApplicationService> logger,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IPublishEndpoint publishEndpoint)
     {
         _conversationRepository = conversationRepository;
         _messageRepository = messageRepository;
@@ -35,6 +39,7 @@ public class AIChatApplicationService : IAIChatService
         _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
         _logger = logger;
         _configuration = configuration;
+        _publishEndpoint = publishEndpoint;
     }
 
     public async Task<ConversationResponse> CreateConversationAsync(CreateConversationRequest request, Guid userId)
@@ -329,6 +334,196 @@ public class AIChatApplicationService : IAIChatService
             FinishReason = response.FinishReason,
             TokenCount = response.TotalTokens
         };
+    }
+
+    /// <summary>
+    ///     发送消息并通过 RabbitMQ 异步推送流式 AI 回复（用于 SignalR）
+    ///     使用 Semantic Kernel 的 GetStreamingChatMessageContentsAsync 获取真正的流式响应
+    /// </summary>
+    public async Task<MessageResponse> SendMessageWithSignalRStreamAsync(
+        Guid conversationId,
+        SendMessageRequest request,
+        Guid userId,
+        string requestId)
+    {
+        var stopwatch = Stopwatch.StartNew();
+
+        try
+        {
+            _logger.LogInformation("🚀 开始 SignalR 流式消息处理，对话ID: {ConversationId}, 请求ID: {RequestId}",
+                conversationId, requestId);
+
+            var conversation = await GetConversationWithPermissionCheck(conversationId, userId);
+
+            if (!conversation.CanAddMessage())
+                throw new InvalidOperationException("当前对话状态不允许添加消息");
+
+            // 创建用户消息
+            var userMessage = AIMessage.CreateUserMessage(conversationId, request.Content);
+            var savedUserMessage = await _messageRepository.CreateAsync(userMessage);
+
+            // 获取上下文消息
+            var contextMessages = await _messageRepository.GetContextMessagesAsync(conversationId);
+
+            // 构建 ChatHistory
+            var chatHistory = new ChatHistory();
+            foreach (var msg in contextMessages.OrderBy(m => m.CreatedAt))
+            {
+                if (msg.IsSystemMessage())
+                    chatHistory.AddSystemMessage(msg.Content);
+                else if (msg.IsUserMessage())
+                    chatHistory.AddUserMessage(msg.Content);
+                else if (msg.IsAssistantMessage() && !msg.IsError)
+                    chatHistory.AddAssistantMessage(msg.Content);
+            }
+
+            // 配置执行设置
+            var executionSettings = new OpenAIPromptExecutionSettings
+            {
+                Temperature = request.Temperature,
+                MaxTokens = request.MaxTokens,
+                ModelId = request.ModelName ?? conversation.ModelName
+            };
+
+            // 启动后台任务进行真正的流式处理
+            _ = ProcessStreamingResponseAsync(
+                conversationId,
+                userId.ToString(),
+                requestId,
+                chatHistory,
+                executionSettings,
+                conversation);
+
+            _logger.LogInformation("✅ 用户消息已保存，后台流式处理已启动，消息ID: {MessageId}", savedUserMessage.Id);
+
+            return MapToMessageResponse(savedUserMessage);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ SendMessageWithSignalRStreamAsync 失败，对话ID: {ConversationId}", conversationId);
+
+            // 发送错误消息到客户端
+            await _publishEndpoint.Publish(new AIChatStreamChunk
+            {
+                ConversationId = conversationId,
+                UserId = userId.ToString(),
+                RequestId = requestId,
+                Delta = "",
+                IsComplete = true,
+                Error = ex.Message,
+                SequenceNumber = 0
+            });
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    ///     后台处理流式响应并通过 RabbitMQ 发布
+    /// </summary>
+    private async Task ProcessStreamingResponseAsync(
+        Guid conversationId,
+        string userId,
+        string requestId,
+        ChatHistory chatHistory,
+        OpenAIPromptExecutionSettings executionSettings,
+        AIConversation conversation)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var contentBuilder = new StringBuilder();
+        var sequenceNumber = 0;
+        Guid? assistantMessageId = null;
+
+        try
+        {
+            _logger.LogInformation("🤖 开始流式调用 AI，对话ID: {ConversationId}", conversationId);
+
+            // 使用 Semantic Kernel 的流式 API
+            await foreach (var chunk in _chatCompletionService.GetStreamingChatMessageContentsAsync(
+                               chatHistory,
+                               executionSettings,
+                               _kernel))
+            {
+                var content = chunk.Content;
+                if (string.IsNullOrEmpty(content)) continue;
+
+                contentBuilder.Append(content);
+                sequenceNumber++;
+
+                // 通过 RabbitMQ 发布每个 chunk
+                await _publishEndpoint.Publish(new AIChatStreamChunk
+                {
+                    ConversationId = conversationId,
+                    UserId = userId,
+                    RequestId = requestId,
+                    Delta = content,
+                    IsComplete = false,
+                    SequenceNumber = sequenceNumber
+                });
+
+                _logger.LogDebug("📤 已发布 chunk #{Seq}，内容长度: {Length}", sequenceNumber, content.Length);
+            }
+
+            stopwatch.Stop();
+
+            // 保存完整的助手消息到数据库
+            var fullContent = contentBuilder.ToString();
+            var assistantMessage = AIMessage.CreateAssistantMessage(
+                conversationId,
+                fullContent,
+                executionSettings.ModelId,
+                null, // PromptTokens - 流式 API 可能不返回
+                null, // CompletionTokens
+                (int)stopwatch.ElapsedMilliseconds);
+
+            var savedAssistantMessage = await _messageRepository.CreateAsync(assistantMessage);
+            assistantMessageId = savedAssistantMessage.Id;
+
+            // 更新对话统计
+            conversation.AddMessage(0); // Token 数在流式模式下可能不准确
+            await _conversationRepository.UpdateAsync(conversation);
+
+            // 发送完成消息
+            await _publishEndpoint.Publish(new AIChatStreamChunk
+            {
+                ConversationId = conversationId,
+                MessageId = assistantMessageId,
+                UserId = userId,
+                RequestId = requestId,
+                Delta = "",
+                IsComplete = true,
+                FinishReason = "stop",
+                SequenceNumber = sequenceNumber + 1
+            });
+
+            _logger.LogInformation("✅ 流式响应完成，对话ID: {ConversationId}, 总 chunks: {ChunkCount}, 耗时: {ElapsedMs}ms",
+                conversationId, sequenceNumber, stopwatch.ElapsedMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            _logger.LogError(ex, "❌ 流式响应处理失败，对话ID: {ConversationId}", conversationId);
+
+            // 保存错误消息
+            var errorContent = contentBuilder.Length > 0
+                ? contentBuilder + "\n\n[错误：响应中断]"
+                : "抱歉，处理您的请求时发生了错误。";
+
+            var errorMessage = AIMessage.CreateErrorMessage(conversationId, ex.Message, errorContent);
+            await _messageRepository.CreateAsync(errorMessage);
+
+            // 发送错误消息到客户端
+            await _publishEndpoint.Publish(new AIChatStreamChunk
+            {
+                ConversationId = conversationId,
+                UserId = userId,
+                RequestId = requestId,
+                Delta = "",
+                IsComplete = true,
+                Error = ex.Message,
+                SequenceNumber = sequenceNumber + 1
+            });
+        }
     }
 
     public async Task<PagedResponse<MessageResponse>> GetMessagesAsync(Guid conversationId, GetMessagesRequest request,

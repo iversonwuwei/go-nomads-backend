@@ -66,7 +66,8 @@ public class AIMessageRepository : IAIMessageRepository
         {
             var response = await _supabaseClient
                 .From<AIMessage>()
-                .Where(m => m.Id == id && m.DeletedAt == null)
+                .Where(m => m.Id == id)
+                .Filter("deleted_at", Constants.Operator.Is, "null")
                 .Single();
 
             return response;
@@ -88,7 +89,8 @@ public class AIMessageRepository : IAIMessageRepository
         {
             var query = _supabaseClient
                 .From<AIMessage>()
-                .Where(m => m.ConversationId == conversationId && m.DeletedAt == null);
+                .Where(m => m.ConversationId == conversationId)
+                .Filter("deleted_at", Constants.Operator.Is, "null");
 
             // 是否包含系统消息
             if (!includeSystem) query = query.Where(m => m.Role != "system");
@@ -115,7 +117,8 @@ public class AIMessageRepository : IAIMessageRepository
         {
             var response = await _supabaseClient
                 .From<AIMessage>()
-                .Where(m => m.ConversationId == conversationId && m.DeletedAt == null)
+                .Where(m => m.ConversationId == conversationId)
+                .Filter("deleted_at", Constants.Operator.Is, "null")
                 .Order(m => m.CreatedAt, Constants.Ordering.Descending)
                 .Limit(1)
                 .Single();
@@ -135,7 +138,8 @@ public class AIMessageRepository : IAIMessageRepository
         {
             var response = await _supabaseClient
                 .From<AIMessage>()
-                .Where(m => m.ConversationId == conversationId && m.DeletedAt == null)
+                .Where(m => m.ConversationId == conversationId)
+                .Filter("deleted_at", Constants.Operator.Is, "null")
                 .Order(m => m.CreatedAt, Constants.Ordering.Descending)
                 .Limit(maxMessages)
                 .Get();
@@ -201,7 +205,8 @@ public class AIMessageRepository : IAIMessageRepository
         {
             var messages = await _supabaseClient
                 .From<AIMessage>()
-                .Where(m => m.ConversationId == conversationId && m.DeletedAt == null)
+                .Where(m => m.ConversationId == conversationId)
+                .Filter("deleted_at", Constants.Operator.Is, "null")
                 .Get();
 
             if (messages.Models != null && messages.Models.Any())
@@ -228,7 +233,8 @@ public class AIMessageRepository : IAIMessageRepository
         {
             var response = await _supabaseClient
                 .From<AIMessage>()
-                .Where(m => m.ConversationId == conversationId && m.DeletedAt == null)
+                .Where(m => m.ConversationId == conversationId)
+                .Filter("deleted_at", Constants.Operator.Is, "null")
                 .Get();
 
             var messages = response.Models ?? new List<AIMessage>();
