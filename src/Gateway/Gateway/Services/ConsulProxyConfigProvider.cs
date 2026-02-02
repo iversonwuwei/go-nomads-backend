@@ -534,17 +534,19 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             },
             "message-service" => new List<(string, int)>
             {
-                ("/api/v1/notifications", 1),
-                ("/api/v1/notifications/{**catch-all}", 2),
-                ("/api/v1/chats", 3),
-                ("/api/v1/chats/{**catch-all}", 4),
+                ("/api/v1/im", 1),
+                ("/api/v1/im/{**catch-all}", 2),
+                ("/api/v1/notifications", 3),
+                ("/api/v1/notifications/{**catch-all}", 4),
+                ("/api/v1/chats", 5),
+                ("/api/v1/chats/{**catch-all}", 6),
                 // SignalR Hub endpoints
-                ("/hubs/chat", 5),
-                ("/hubs/chat/{**catch-all}", 6),
-                ("/hubs/notifications", 7),
-                ("/hubs/notifications/{**catch-all}", 8),
-                ("/hubs/ai-progress", 9),
-                ("/hubs/ai-progress/{**catch-all}", 10)
+                ("/hubs/chat", 7),
+                ("/hubs/chat/{**catch-all}", 8),
+                ("/hubs/notifications", 9),
+                ("/hubs/notifications/{**catch-all}", 10),
+                ("/hubs/ai-progress", 11),
+                ("/hubs/ai-progress/{**catch-all}", 12)
             },
             "innovation-service" => new List<(string, int)>
             {

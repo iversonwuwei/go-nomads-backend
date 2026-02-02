@@ -7,6 +7,7 @@ using MessageService.Application.Services;
 using MessageService.Domain.Repositories;
 using MessageService.Infrastructure.Consumers;
 using MessageService.Infrastructure.Repositories;
+using MessageService.Infrastructure.TencentIM;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using Serilog;
@@ -76,6 +77,10 @@ builder.Services.AddScoped<IChatRoomRepository, SupabaseChatRoomRepository>();
 builder.Services.AddScoped<IChatMessageRepository, SupabaseChatMessageRepository>();
 builder.Services.AddScoped<IChatMemberRepository, SupabaseChatMemberRepository>();
 builder.Services.AddScoped<IChatService, ChatApplicationService>();
+
+// 注册腾讯云IM服务
+builder.Services.Configure<TencentIMConfig>(builder.Configuration.GetSection(TencentIMConfig.SectionName));
+builder.Services.AddHttpClient<ITencentIMService, TencentIMService>();
 
 // 配置 SignalR + Redis Backplane
 builder.Services.AddSignalR(options =>
