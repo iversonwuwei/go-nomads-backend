@@ -1228,6 +1228,22 @@ public class AIChatApplicationService : IAIChatService
     }
 
     /// <summary>
+    ///     安全地将 JsonElement 转换为字符串，支持 String 和 Number 类型
+    /// </summary>
+    private static string GetJsonValueAsString(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString() ?? "",
+            JsonValueKind.Number => element.GetRawText(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            JsonValueKind.Null => "",
+            _ => element.GetRawText()
+        };
+    }
+
+    /// <summary>
     ///     从 AI 响应中提取 JSON 内容
     ///     处理以下情况：
     ///     1. 纯 JSON
@@ -1751,10 +1767,10 @@ public class AIChatApplicationService : IAIChatService
                 foreach (var flight in flights.EnumerateArray())
                 {
                     var airline = flight.TryGetProperty("airline", out var al) ? al.GetString() ?? "" : "";
-                    var flightNum = flight.TryGetProperty("flightNumber", out var fn) ? fn.GetString() ?? "" : "";
+                    var flightNum = flight.TryGetProperty("flightNumber", out var fn) ? GetJsonValueAsString(fn) : "";
                     var timeSlot = flight.TryGetProperty("timeSlot", out var ts) ? ts.GetString() ?? "" : "";
-                    var priceRange = flight.TryGetProperty("priceRange", out var pr) ? pr.GetString() ?? "" : "";
-                    var duration = flight.TryGetProperty("duration", out var dur) ? dur.GetString() ?? "" : "";
+                    var priceRange = flight.TryGetProperty("priceRange", out var pr) ? GetJsonValueAsString(pr) : "";
+                    var duration = flight.TryGetProperty("duration", out var dur) ? GetJsonValueAsString(dur) : "";
                     var notes = flight.TryGetProperty("notes", out var nt) ? nt.GetString() ?? "" : "";
 
                     var flightInfo = $"{airline} {flightNum} ({timeSlot}) - {priceRange}, {duration}";
