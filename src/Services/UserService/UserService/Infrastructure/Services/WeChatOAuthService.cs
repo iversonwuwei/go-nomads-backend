@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -192,13 +193,28 @@ public class WeChatOAuthService : IWeChatOAuthService
 /// </summary>
 internal class WeChatTokenResponse
 {
+    [JsonPropertyName("access_token")]
     public string? AccessToken { get; set; }
+    
+    [JsonPropertyName("expires_in")]
     public int ExpiresIn { get; set; }
+    
+    [JsonPropertyName("refresh_token")]
     public string? RefreshToken { get; set; }
+    
+    [JsonPropertyName("openid")]
     public string? OpenId { get; set; }
+    
+    [JsonPropertyName("scope")]
     public string? Scope { get; set; }
+    
+    [JsonPropertyName("unionid")]
     public string? UnionId { get; set; }
+    
+    [JsonPropertyName("errcode")]
     public int? ErrCode { get; set; }
+    
+    [JsonPropertyName("errmsg")]
     public string? ErrMsg { get; set; }
 }
 
@@ -207,15 +223,36 @@ internal class WeChatTokenResponse
 /// </summary>
 internal class WeChatUserInfoResponse
 {
+    [JsonPropertyName("openid")]
     public string? OpenId { get; set; }
+    
+    [JsonPropertyName("nickname")]
     public string? Nickname { get; set; }
+    
+    [JsonPropertyName("sex")]
     public int Sex { get; set; }
+    
+    [JsonPropertyName("province")]
     public string? Province { get; set; }
+    
+    [JsonPropertyName("city")]
     public string? City { get; set; }
+    
+    [JsonPropertyName("country")]
     public string? Country { get; set; }
+    
+    [JsonPropertyName("headimgurl")]
     public string? HeadImgUrl { get; set; }
+    
+    [JsonPropertyName("privilege")]
     public string[]? Privilege { get; set; }
+    
+    [JsonPropertyName("unionid")]
     public string? UnionId { get; set; }
+    
+    [JsonPropertyName("errcode")]
     public int? ErrCode { get; set; }
+    
+    [JsonPropertyName("errmsg")]
     public string? ErrMsg { get; set; }
 }
