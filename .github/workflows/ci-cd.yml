@@ -129,7 +129,7 @@ jobs:
             docker login -u "${{ vars.SWR_REGION }}@${{ secrets.SWR_AK }}" -p "${{ secrets.SWR_SK }}" ${{ vars.SWR_LOGIN_SERVER }}
             
             echo "===== 进入部署目录 ====="
-            cd /opt/go-nomads
+            cd ${{ vars.ALIYUN_DEPLOY_PATH }}
             
             echo "===== 拉取最新镜像 ====="
             docker compose -f docker-compose-services-swr.yml pull
