@@ -53,6 +53,7 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     
     strategy:
+      fail-fast: false
       matrix:
         include:
           - service: gateway
@@ -91,11 +92,11 @@ jobs:
 
       - name: 登录华为云 SWR
         run: |
-          docker login -u "${{ secrets.SWR_REGION }}@${{ secrets.SWR_AK }}" -p "${{ secrets.SWR_SK }}" ${{ secrets.SWR_LOGIN_SERVER }}
+          docker login -u "${{ vars.SWR_REGION }}@${{ secrets.SWR_AK }}" -p "${{ secrets.SWR_SK }}" ${{ vars.SWR_LOGIN_SERVER }}
 
       - name: 构建并推送 ${{ matrix.service }}
         run: |
-          IMAGE="${{ secrets.SWR_LOGIN_SERVER }}/${{ secrets.SWR_ORGANIZATION }}/${{ matrix.service }}"
+          IMAGE="${{ vars.SWR_LOGIN_SERVER }}/${{ vars.SWR_ORGANIZATION }}/${{ matrix.service }}"
           TAG="${{ github.sha }}"
           SHORT_TAG="${TAG:0:8}"
           
@@ -120,12 +121,12 @@ jobs:
       - name: 部署到阿里云服务器
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.ALIYUN_SERVER_HOST }}
-          username: ${{ secrets.ALIYUN_SERVER_USER }}
+          host: ${{ vars.ALIYUN_SERVER_HOST }}
+          username: ${{ vars.ALIYUN_SERVER_USER }}
           key: ${{ secrets.ALIYUN_SERVER_SSH_KEY }}
           script: |
             echo "===== 登录华为云 SWR ====="
-            docker login -u "${{ secrets.SWR_REGION }}@${{ secrets.SWR_AK }}" -p "${{ secrets.SWR_SK }}" ${{ secrets.SWR_LOGIN_SERVER }}
+            docker login -u "${{ vars.SWR_REGION }}@${{ secrets.SWR_AK }}" -p "${{ secrets.SWR_SK }}" ${{ vars.SWR_LOGIN_SERVER }}
             
             echo "===== 进入部署目录 ====="
             cd /opt/go-nomads
