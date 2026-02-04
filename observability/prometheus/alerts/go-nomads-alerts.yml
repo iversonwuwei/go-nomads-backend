@@ -1,0 +1,176 @@
+# Go Nomads 告警规则
+
+groups:
+  # ============================================================
+  # 服务可用性告警
+  # ============================================================
+  - name: service_availability
+    interval: 30s
+    rules:
+      # 服务宕机告警
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "服务 {{ $labels.service }} 已宕机"
+          description: "服务 {{ $labels.service }} ({{ $labels.instance }}) 已经 1 分钟无法访问"
+
+      # 服务响应时间过高
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (le, service)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务 {{ $labels.service }} 响应时间过高"
+          description: "服务 {{ $labels.service }} 的 P95 响应时间超过 2 秒，当前值: {{ $value | printf \"%.2f\" }} 秒"
+
+      # 服务错误率过高
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])) by (service)
+          /
+          sum(rate(http_server_request_duration_seconds_count[5m])) by (service)
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "服务 {{ $labels.service }} 错误率过高"
+          description: "服务 {{ $labels.service }} 的 5xx 错误率超过 5%，当前值: {{ $value | printf \"%.2f\" }}"
+
+  # ============================================================
+  # 资源使用告警
+  # ============================================================
+  - name: resource_usage
+    interval: 30s
+    rules:
+      # 内存使用过高
+      - alert: HighMemoryUsage
+        expr: process_working_set_bytes / 1024 / 1024 > 500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务 {{ $labels.service }} 内存使用过高"
+          description: "服务 {{ $labels.service }} 的内存使用超过 500MB，当前值: {{ $value | printf \"%.0f\" }} MB"
+
+      # CPU 使用过高
+      - alert: HighCpuUsage
+        expr: rate(process_cpu_seconds_total[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务 {{ $labels.service }} CPU 使用过高"
+          description: "服务 {{ $labels.service }} 的 CPU 使用率超过 80%，当前值: {{ $value | printf \"%.1f\" }}%"
+
+      # GC 时间过长
+      - alert: HighGcTime
+        expr: rate(dotnet_gc_collection_seconds_sum[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务 {{ $labels.service }} GC 时间过长"
+          description: "服务 {{ $labels.service }} 的 GC 时间占比过高"
+
+  # ============================================================
+  # 业务指标告警
+  # ============================================================
+  - name: business_metrics
+    interval: 30s
+    rules:
+      # 认证失败率过高
+      - alert: HighAuthenticationFailureRate
+        expr: |
+          sum(rate(gonomads_authentication_failures_total[5m])) by (service)
+          /
+          sum(rate(gonomads_authentication_attempts_total[5m])) by (service)
+          > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务 {{ $labels.service }} 认证失败率过高"
+          description: "服务 {{ $labels.service }} 的认证失败率超过 10%"
+
+      # 数据库操作错误率过高
+      - alert: HighDatabaseErrorRate
+        expr: |
+          sum(rate(gonomads_database_operation_errors_total[5m])) by (service)
+          /
+          sum(rate(gonomads_database_operations_total[5m])) by (service)
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "服务 {{ $labels.service }} 数据库错误率过高"
+          description: "服务 {{ $labels.service }} 的数据库操作错误率超过 5%"
+
+      # 外部服务调用错误率过高
+      - alert: HighExternalServiceErrorRate
+        expr: |
+          sum(rate(gonomads_external_service_errors_total[5m])) by (service, target_service)
+          /
+          sum(rate(gonomads_external_service_calls_total[5m])) by (service, target_service)
+          > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务 {{ $labels.service }} 调用 {{ $labels.target_service }} 错误率过高"
+          description: "外部服务调用错误率超过 10%"
+
+      # 消息处理错误率过高
+      - alert: HighMessageProcessingErrorRate
+        expr: |
+          sum(rate(gonomads_message_processing_errors_total[5m])) by (service)
+          /
+          sum(rate(gonomads_messages_consumed_total[5m])) by (service)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务 {{ $labels.service }} 消息处理错误率过高"
+          description: "消息处理错误率超过 5%"
+
+  # ============================================================
+  # 缓存告警
+  # ============================================================
+  - name: cache_metrics
+    interval: 30s
+    rules:
+      # 缓存命中率过低
+      - alert: LowCacheHitRate
+        expr: |
+          sum(rate(gonomads_cache_hits_total[5m])) by (service)
+          /
+          (sum(rate(gonomads_cache_hits_total[5m])) by (service) + sum(rate(gonomads_cache_misses_total[5m])) by (service))
+          < 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务 {{ $labels.service }} 缓存命中率过低"
+          description: "服务 {{ $labels.service }} 的缓存命中率低于 50%"
+
+  # ============================================================
+  # 追踪系统告警
+  # ============================================================
+  - name: tracing_metrics
+    interval: 30s
+    rules:
+      # Jaeger 服务不可用
+      - alert: JaegerDown
+        expr: up{job="jaeger"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Jaeger 服务不可用"
+          description: "Jaeger 追踪系统已经 2 分钟无法访问"

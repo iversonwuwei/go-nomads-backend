@@ -1,0 +1,377 @@
+# ============================================================
+# Go-Nomads Backend CI/CD Pipeline
+# Gitee Go + 华为云 SWR (Software Repository for Container)
+# ============================================================
+#
+# 环境变量配置（需要在 Gitee 仓库 -> 设置 -> 流水线 -> 变量中配置）:
+#   - SWR_AK: 华为云 Access Key (加密)
+#   - SWR_SK: 华为云 Secret Key (加密)
+#   - SWR_REGION: 华为云区域 (如: cn-north-4)
+#   - SWR_ORGANIZATION: SWR 组织名称 (如: go-nomads)
+#   - SWR_LOGIN_SERVER: SWR 登录服务器 (如: swr.cn-north-4.myhuaweicloud.com)
+# ============================================================
+
+version: '1.0'
+name: go-nomads-backend-cicd
+displayName: Go-Nomads Backend CI/CD
+
+# 全局变量
+env:
+  DOTNET_VERSION: '9.0'
+  DOCKER_BUILDKIT: '1'
+
+stages:
+  # ============================================================
+  # 阶段 1: 构建和测试
+  # ============================================================
+  - stage:
+    name: build_and_test
+    displayName: 构建和测试
+    steps:
+      - step: shell@agent
+        name: dotnet_build
+        displayName: .NET 构建
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - echo "===== 设置 .NET SDK ====="
+          - |
+            if ! command -v dotnet &> /dev/null; then
+              curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --version 9.0.100
+              export PATH="$HOME/.dotnet:$PATH"
+            fi
+          - dotnet --version
+          - echo "===== 恢复依赖 ====="
+          - dotnet restore go-nomads-backend.sln
+          - echo "===== 构建解决方案 ====="
+          - dotnet build go-nomads-backend.sln -c Release --no-restore
+          - echo "===== 构建完成 ====="
+
+  # ============================================================
+  # 阶段 2: 构建 Docker 镜像并推送到华为云 SWR
+  # ============================================================
+  - stage:
+    name: build_and_push_images
+    displayName: 构建并推送镜像到 SWR
+    when:
+      - branch:
+          include:
+            - main
+            - master
+            - develop
+            - 'release/*'
+    steps:
+      # 登录华为云 SWR
+      - step: shell@agent
+        name: swr_login
+        displayName: 登录华为云 SWR
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - echo "===== 登录华为云 SWR ====="
+          - docker login -u "${SWR_REGION}@${SWR_AK}" -p "${SWR_SK}" ${SWR_LOGIN_SERVER}
+          - echo "===== 登录成功 ====="
+
+      # 构建并推送 Gateway
+      - step: shell@agent
+        name: build_gateway
+        displayName: 构建 Gateway
+        dependsOn: swr_login
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - |
+            SERVICE_NAME="gateway"
+            DOCKERFILE="src/Gateway/Gateway/Dockerfile"
+            IMAGE="${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/${SERVICE_NAME}"
+            TAG="${GITEE_COMMIT_SHA:0:8}"
+            
+            echo "===== 构建 ${SERVICE_NAME} ====="
+            docker build -f ${DOCKERFILE} -t ${IMAGE}:${TAG} -t ${IMAGE}:latest .
+            
+            echo "===== 推送 ${SERVICE_NAME} ====="
+            docker push ${IMAGE}:${TAG}
+            docker push ${IMAGE}:latest
+            echo "✓ ${SERVICE_NAME} 推送成功"
+
+      # 构建并推送 User Service
+      - step: shell@agent
+        name: build_user_service
+        displayName: 构建 UserService
+        dependsOn: swr_login
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - |
+            SERVICE_NAME="user-service"
+            DOCKERFILE="src/Services/UserService/UserService/Dockerfile"
+            IMAGE="${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/${SERVICE_NAME}"
+            TAG="${GITEE_COMMIT_SHA:0:8}"
+            
+            docker build -f ${DOCKERFILE} -t ${IMAGE}:${TAG} -t ${IMAGE}:latest .
+            docker push ${IMAGE}:${TAG}
+            docker push ${IMAGE}:latest
+            echo "✓ ${SERVICE_NAME} 推送成功"
+
+      # 构建并推送 City Service
+      - step: shell@agent
+        name: build_city_service
+        displayName: 构建 CityService
+        dependsOn: swr_login
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - |
+            SERVICE_NAME="city-service"
+            DOCKERFILE="src/Services/CityService/CityService/Dockerfile"
+            IMAGE="${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/${SERVICE_NAME}"
+            TAG="${GITEE_COMMIT_SHA:0:8}"
+            
+            docker build -f ${DOCKERFILE} -t ${IMAGE}:${TAG} -t ${IMAGE}:latest .
+            docker push ${IMAGE}:${TAG}
+            docker push ${IMAGE}:latest
+            echo "✓ ${SERVICE_NAME} 推送成功"
+
+      # 构建并推送 Accommodation Service
+      - step: shell@agent
+        name: build_accommodation_service
+        displayName: 构建 AccommodationService
+        dependsOn: swr_login
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - |
+            SERVICE_NAME="accommodation-service"
+            DOCKERFILE="src/Services/AccommodationService/AccommodationService/Dockerfile"
+            IMAGE="${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/${SERVICE_NAME}"
+            TAG="${GITEE_COMMIT_SHA:0:8}"
+            
+            docker build -f ${DOCKERFILE} -t ${IMAGE}:${TAG} -t ${IMAGE}:latest .
+            docker push ${IMAGE}:${TAG}
+            docker push ${IMAGE}:latest
+            echo "✓ ${SERVICE_NAME} 推送成功"
+
+      # 构建并推送 Coworking Service
+      - step: shell@agent
+        name: build_coworking_service
+        displayName: 构建 CoworkingService
+        dependsOn: swr_login
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - |
+            SERVICE_NAME="coworking-service"
+            DOCKERFILE="src/Services/CoworkingService/CoworkingService/Dockerfile"
+            IMAGE="${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/${SERVICE_NAME}"
+            TAG="${GITEE_COMMIT_SHA:0:8}"
+            
+            docker build -f ${DOCKERFILE} -t ${IMAGE}:${TAG} -t ${IMAGE}:latest .
+            docker push ${IMAGE}:${TAG}
+            docker push ${IMAGE}:latest
+            echo "✓ ${SERVICE_NAME} 推送成功"
+
+      # 构建并推送 Event Service
+      - step: shell@agent
+        name: build_event_service
+        displayName: 构建 EventService
+        dependsOn: swr_login
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - |
+            SERVICE_NAME="event-service"
+            DOCKERFILE="src/Services/EventService/EventService/Dockerfile"
+            IMAGE="${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/${SERVICE_NAME}"
+            TAG="${GITEE_COMMIT_SHA:0:8}"
+            
+            docker build -f ${DOCKERFILE} -t ${IMAGE}:${TAG} -t ${IMAGE}:latest .
+            docker push ${IMAGE}:${TAG}
+            docker push ${IMAGE}:latest
+            echo "✓ ${SERVICE_NAME} 推送成功"
+
+      # 构建并推送 AI Service
+      - step: shell@agent
+        name: build_ai_service
+        displayName: 构建 AIService
+        dependsOn: swr_login
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - |
+            SERVICE_NAME="ai-service"
+            DOCKERFILE="src/Services/AIService/AIService/Dockerfile"
+            IMAGE="${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/${SERVICE_NAME}"
+            TAG="${GITEE_COMMIT_SHA:0:8}"
+            
+            docker build -f ${DOCKERFILE} -t ${IMAGE}:${TAG} -t ${IMAGE}:latest .
+            docker push ${IMAGE}:${TAG}
+            docker push ${IMAGE}:latest
+            echo "✓ ${SERVICE_NAME} 推送成功"
+
+      # 构建并推送 Message Service
+      - step: shell@agent
+        name: build_message_service
+        displayName: 构建 MessageService
+        dependsOn: swr_login
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - |
+            SERVICE_NAME="message-service"
+            DOCKERFILE="src/Services/MessageService/MessageService/API/Dockerfile"
+            IMAGE="${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/${SERVICE_NAME}"
+            TAG="${GITEE_COMMIT_SHA:0:8}"
+            
+            docker build -f ${DOCKERFILE} -t ${IMAGE}:${TAG} -t ${IMAGE}:latest .
+            docker push ${IMAGE}:${TAG}
+            docker push ${IMAGE}:latest
+            echo "✓ ${SERVICE_NAME} 推送成功"
+
+      # 构建并推送 Search Service
+      - step: shell@agent
+        name: build_search_service
+        displayName: 构建 SearchService
+        dependsOn: swr_login
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - |
+            SERVICE_NAME="search-service"
+            DOCKERFILE="src/Services/SearchService/SearchService/Dockerfile"
+            IMAGE="${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/${SERVICE_NAME}"
+            TAG="${GITEE_COMMIT_SHA:0:8}"
+            
+            docker build -f ${DOCKERFILE} -t ${IMAGE}:${TAG} -t ${IMAGE}:latest .
+            docker push ${IMAGE}:${TAG}
+            docker push ${IMAGE}:latest
+            echo "✓ ${SERVICE_NAME} 推送成功"
+
+      # 构建并推送 Cache Service
+      - step: shell@agent
+        name: build_cache_service
+        displayName: 构建 CacheService
+        dependsOn: swr_login
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - |
+            SERVICE_NAME="cache-service"
+            DOCKERFILE="src/Services/CacheService/CacheService/Dockerfile"
+            IMAGE="${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/${SERVICE_NAME}"
+            TAG="${GITEE_COMMIT_SHA:0:8}"
+            
+            docker build -f ${DOCKERFILE} -t ${IMAGE}:${TAG} -t ${IMAGE}:latest .
+            docker push ${IMAGE}:${TAG}
+            docker push ${IMAGE}:latest
+            echo "✓ ${SERVICE_NAME} 推送成功"
+
+      # 构建并推送 Innovation Service
+      - step: shell@agent
+        name: build_innovation_service
+        displayName: 构建 InnovationService
+        dependsOn: swr_login
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - |
+            SERVICE_NAME="innovation-service"
+            DOCKERFILE="src/Services/InnovationService/InnovationService/Dockerfile"
+            IMAGE="${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/${SERVICE_NAME}"
+            TAG="${GITEE_COMMIT_SHA:0:8}"
+            
+            docker build -f ${DOCKERFILE} -t ${IMAGE}:${TAG} -t ${IMAGE}:latest .
+            docker push ${IMAGE}:${TAG}
+            docker push ${IMAGE}:latest
+            echo "✓ ${SERVICE_NAME} 推送成功"
+
+      # 构建并推送 Product Service
+      - step: shell@agent
+        name: build_product_service
+        displayName: 构建 ProductService
+        dependsOn: swr_login
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - |
+            SERVICE_NAME="product-service"
+            DOCKERFILE="src/Services/ProductService/ProductService/Dockerfile"
+            IMAGE="${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/${SERVICE_NAME}"
+            TAG="${GITEE_COMMIT_SHA:0:8}"
+            
+            docker build -f ${DOCKERFILE} -t ${IMAGE}:${TAG} -t ${IMAGE}:latest .
+            docker push ${IMAGE}:${TAG}
+            docker push ${IMAGE}:latest
+            echo "✓ ${SERVICE_NAME} 推送成功"
+
+      # 构建并推送 Document Service
+      - step: shell@agent
+        name: build_document_service
+        displayName: 构建 DocumentService
+        dependsOn: swr_login
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - |
+            SERVICE_NAME="document-service"
+            DOCKERFILE="src/Services/DocumentService/DocumentService/Dockerfile"
+            IMAGE="${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/${SERVICE_NAME}"
+            TAG="${GITEE_COMMIT_SHA:0:8}"
+            
+            docker build -f ${DOCKERFILE} -t ${IMAGE}:${TAG} -t ${IMAGE}:latest .
+            docker push ${IMAGE}:${TAG}
+            docker push ${IMAGE}:latest
+            echo "✓ ${SERVICE_NAME} 推送成功"
+
+  # ============================================================
+  # 阶段 3: 部署通知
+  # ============================================================
+  - stage:
+    name: notify
+    displayName: 构建通知
+    steps:
+      - step: shell@agent
+        name: send_notification
+        displayName: 发送通知
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - |
+            echo "===== 构建完成 ====="
+            echo "分支: ${GITEE_BRANCH}"
+            echo "提交: ${GITEE_COMMIT_SHA}"
+            echo "镜像已推送到华为云 SWR"
+            # 可添加钉钉/飞书/企业微信通知
+            # curl -X POST -H "Content-Type: application/json" \
+            #   -d "{\"msgtype\": \"text\", \"text\": {\"content\": \"Go-Nomads Backend 构建成功\\n分支: ${GITEE_BRANCH}\\n提交: ${GITEE_COMMIT_SHA}\"}}" \
+            #   ${WEBHOOK_URL}
+
+# ============================================================
+# 触发条件
+# ============================================================
+triggers:
+  push:
+    branches:
+      include:
+        - main
+        - master
+        - develop
+        - 'release/*'
+  tag:
+    include:
+      - 'v*'

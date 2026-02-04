@@ -1,0 +1,137 @@
+# OpenTelemetry Collector 配置
+# 用于收集、处理和导出遥测数据
+
+receivers:
+  # OTLP Receiver - 接收来自应用的遥测数据
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  # Prometheus Receiver - 从 Prometheus 端点抓取指标
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'otel-collector'
+          scrape_interval: 10s
+          static_configs:
+            - targets: ['localhost:8888']
+
+processors:
+  # 批处理 - 优化导出性能
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+
+  # 内存限制 - 防止 OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 1024
+    spike_limit_mib: 256
+
+  # 资源处理 - 添加通用属性
+  resource:
+    attributes:
+      - key: service.namespace
+        value: go-nomads
+        action: upsert
+      - key: deployment.environment
+        value: development
+        action: upsert
+
+  # 属性处理 - 敏感数据过滤
+  attributes:
+    actions:
+      # 移除敏感信息
+      - key: http.request.header.authorization
+        action: delete
+      - key: http.request.header.cookie
+        action: delete
+      - key: db.statement
+        action: hash  # 哈希处理 SQL 语句
+
+  # 采样处理 - 降低数据量
+  probabilistic_sampler:
+    sampling_percentage: 100  # 开发环境 100% 采样
+
+  # Tail Sampling - 智能采样（仅采样有错误或高延迟的追踪）
+  # tail_sampling:
+  #   decision_wait: 10s
+  #   num_traces: 100
+  #   expected_new_traces_per_sec: 10
+  #   policies:
+  #     - name: errors-policy
+  #       type: status_code
+  #       status_code: {status_codes: [ERROR]}
+  #     - name: slow-traces-policy
+  #       type: latency
+  #       latency: {threshold_ms: 1000}
+
+exporters:
+  # OTLP Exporter - 导出到 Jaeger
+  otlp/jaeger:
+    endpoint: go-nomads-jaeger:4317
+    tls:
+      insecure: true
+
+  # Prometheus Exporter - 导出指标供 Prometheus 抓取
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: gonomads
+    const_labels:
+      source: otel-collector
+
+  # 调试导出器 - 开发环境使用
+  debug:
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+  # Logging Exporter - 日志输出
+  logging:
+    loglevel: info
+
+extensions:
+  # 健康检查扩展
+  health_check:
+    endpoint: 0.0.0.0:13133
+    path: "/health"
+
+  # pprof 性能分析
+  pprof:
+    endpoint: 0.0.0.0:1777
+
+  # zPages 调试页面
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, pprof, zpages]
+  
+  pipelines:
+    # Traces 管道
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource, attributes]
+      exporters: [otlp/jaeger, logging]
+
+    # Metrics 管道
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [memory_limiter, batch, resource]
+      exporters: [prometheus, logging]
+
+    # Logs 管道
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [logging]
+
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: 0.0.0.0:8888

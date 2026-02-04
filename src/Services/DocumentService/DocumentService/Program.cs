@@ -9,8 +9,27 @@ using Microsoft.OpenApi.Models;
 using Prometheus;
 using Scalar.AspNetCore;
 using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Observability;
+using Serilog;
+
+const string serviceName = "DocumentService";
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Serilog
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
+// ============================================================
+// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// ============================================================
+builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
+builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
 
 // Bind service configuration
 builder.Services.Configure<ServiceConfiguration>(

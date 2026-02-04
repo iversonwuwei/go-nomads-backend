@@ -1,4 +1,5 @@
 using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Observability;
 using InnovationService.Infrastructure.Consumers;
 using InnovationService.Repositories;
 using InnovationService.Services;
@@ -6,6 +7,8 @@ using MassTransit;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using Serilog;
+
+const string serviceName = "InnovationService";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +21,12 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 builder.Host.UseSerilog();
+
+// ============================================================
+// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// ============================================================
+builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
+builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
 
 // Add services to the container
 builder.Services.AddControllers()

@@ -12,7 +12,10 @@ using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using Serilog;
 using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Observability;
 using StackExchange.Redis;
+
+const string serviceName = "MessageService";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +27,12 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 builder.Host.UseSerilog();
+
+// ============================================================
+// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// ============================================================
+builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
+builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
 
 // 添加服务
 builder.Services.AddControllers().AddDapr();
@@ -282,7 +291,7 @@ var consulClient = app.Services.GetRequiredService<IConsulClient>();
 var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
 
 var serviceId = $"message-service-{Guid.NewGuid()}";
-var serviceName = builder.Configuration["Consul:ServiceName"] ?? "message-service";
+var consulServiceName = builder.Configuration["Consul:ServiceName"] ?? "message-service";
 
 // 优先使用 POD_IP 环境变量（K8s 部署），否则使用配置的 ServiceAddress
 var podIp = Environment.GetEnvironmentVariable("POD_IP");
@@ -292,12 +301,12 @@ var serviceAddress = !string.IsNullOrEmpty(podIp)
 var servicePort = int.Parse(builder.Configuration["Consul:ServicePort"] ?? "8080");
 
 Log.Information("Consul 服务注册: ServiceName={ServiceName}, Address={Address}, Port={Port}, POD_IP={PodIp}", 
-    serviceName, serviceAddress, servicePort, podIp ?? "N/A");
+    consulServiceName, serviceAddress, servicePort, podIp ?? "N/A");
 
 var registration = new AgentServiceRegistration
 {
     ID = serviceId,
-    Name = serviceName,
+    Name = consulServiceName,
     Address = serviceAddress,
     Port = servicePort,
     Tags = new[] { "message-service", "signalr", "rabbitmq", "api" },

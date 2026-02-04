@@ -1,10 +1,10 @@
 using System.Text;
 using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Observability;
 using GoNomads.Shared.Security;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using Prometheus;
 using Scalar.AspNetCore;
 using UserService.Application.Services;
 using UserService.Domain.Repositories;
@@ -12,7 +12,15 @@ using UserService.Infrastructure.Configuration;
 using UserService.Infrastructure.Repositories;
 using UserService.Infrastructure.Services;
 
+const string serviceName = "user-service";
+
 var builder = WebApplication.CreateBuilder(args);
+
+// ============================================================
+// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// ============================================================
+builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
+builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
 
 // 添加 Supabase 客户端（使用 Shared 扩展方法）
 builder.Services.AddSupabase(builder.Configuration);
@@ -146,8 +154,11 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Enable Prometheus metrics
-app.UseHttpMetrics();
+// ============================================================
+// OpenTelemetry 可观测性中间件
+// ============================================================
+app.UseGoNomadsTracing();
+app.UseGoNomadsObservability();
 
 // 使用用户上下文中间件 - 从 Gateway 传递的请求头中提取用户信息
 app.UseUserContext();
@@ -158,9 +169,6 @@ app.MapControllers();
 // Add health check endpoint
 app.MapGet("/health",
     () => Results.Ok(new { status = "healthy", service = "UserService", timestamp = DateTime.UtcNow }));
-
-// Map Prometheus metrics endpoint
-app.MapMetrics();
 
 // 自动注册到 Consul
 await app.RegisterWithConsulAsync();
