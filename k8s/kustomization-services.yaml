@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: go-nomads
+
+# 仅业务服务资源（基础设施由 Helm 管理）
+resources:
+  # 基础配置
+  - base/namespace.yaml
+  - base/configmap.yaml
+  - base/secrets.yaml
+  
+  # 业务服务 (对应 docker-compose.yml)
+  - services/gateway.yaml
+  - services/user-service.yaml
+  - services/city-service.yaml
+  - services/coworking-service.yaml
+  - services/event-service.yaml
+  - services/ai-service.yaml
+  - services/message-service.yaml
+  - services/cache-service.yaml
+  - services/accommodation-service.yaml
+
+# 通用标签
+commonLabels:
+  app.kubernetes.io/part-of: go-nomads-platform
+  app.kubernetes.io/managed-by: kustomize
+
+# 通用注解
+commonAnnotations:
+  app.kubernetes.io/version: "1.0.0"

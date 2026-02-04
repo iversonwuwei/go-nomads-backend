@@ -1,18 +1,95 @@
+using AccommodationService.Application.Services;
+using AccommodationService.Domain.Repositories;
+using AccommodationService.Infrastructure.Repositories;
+using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Observability;
 using Scalar.AspNetCore;
+using Serilog;
+using System.Text.Json.Serialization;
+
+const string serviceName = "AccommodationService";
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 配置 DaprClient
-builder.Services.AddDaprClient();
+// 配置 Serilog
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .CreateLogger();
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Host.UseSerilog();
+
+// ============================================================
+// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// ============================================================
+builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
+builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
+
+// 添加 Supabase 客户端
+builder.Services.AddSupabase(builder.Configuration);
+
+// 添加当前用户服务（统一的用户身份和权限检查）
+builder.Services.AddCurrentUserService();
+
+// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync，访问控制策略自动生效）
+builder.Services.AddDaprClient(daprClientBuilder =>
+{
+    var daprHttpPort = builder.Configuration.GetValue("Dapr:HttpPort", 3500);
+    var daprHttpEndpoint = $"http://localhost:{daprHttpPort}";
+    daprClientBuilder.UseHttpEndpoint(daprHttpEndpoint);
+    
+    var logger = LoggerFactory.Create(loggingBuilder => loggingBuilder.AddConsole()).CreateLogger("DaprSetup");
+    logger.LogInformation("🚀 Dapr Client 配置使用 HTTP: {Endpoint}", daprHttpEndpoint);
+});
+
+// ============================================================
+// DDD 架构依赖注入配置
+// ============================================================
+
+// Infrastructure Layer - 仓储实现
+builder.Services.AddScoped<IHotelRepository, HotelRepository>();
+builder.Services.AddScoped<IRoomTypeRepository, RoomTypeRepository>();
+builder.Services.AddScoped<IHotelReviewRepository, HotelReviewRepository>();
+
+// 跨服务调用客户端
+builder.Services.AddScoped<AccommodationService.Services.IUserServiceClient, AccommodationService.Services.UserServiceClient>();
+
+// Application Layer - 应用服务
+builder.Services.AddScoped<IHotelService, HotelApplicationService>();
+
+// 添加控制器
+builder.Services.AddControllers()
+    .AddDapr()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+    });
+
+// 添加 OpenAPI
+builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
-builder.Services.AddControllers().AddDapr();
+
+// 添加 CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+    });
+});
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
+app.UseCors("AllowAll");
+
+// 用户上下文中间件 - 从 Gateway 传递的请求头中提取用户信息
+app.UseUserContext();
+
 app.MapOpenApi();
 app.MapScalarApiReference(options =>
 {
@@ -22,28 +99,13 @@ app.MapScalarApiReference(options =>
         .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
 });
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+// 映射控制器路由
+app.MapControllers();
 
-app.MapGet("/weatherforecast", () =>
-    {
-        var forecast = Enumerable.Range(1, 5).Select(index =>
-                new WeatherForecast
-                (
-                    DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                    Random.Shared.Next(-20, 55),
-                    summaries[Random.Shared.Next(summaries.Length)]
-                ))
-            .ToArray();
-        return forecast;
-    })
-    .WithName("GetWeatherForecast");
+// 健康检查端点
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "accommodation-service", timestamp = DateTime.UtcNow }));
+
+// 自动注册到 Consul
+await app.RegisterWithConsulAsync();
 
 app.Run();
-
-internal record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

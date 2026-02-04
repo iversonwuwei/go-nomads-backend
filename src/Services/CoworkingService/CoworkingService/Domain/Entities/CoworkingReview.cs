@@ -5,6 +5,8 @@ namespace CoworkingService.Domain.Entities;
 
 /// <summary>
 /// Coworking 空间评论实体
+/// 注意：username 和 user_avatar 字段已从数据库中删除
+/// 用户信息现在通过 UserService 动态获取
 /// </summary>
 [Table("coworking_reviews")]
 public class CoworkingReview : BaseModel
@@ -14,10 +16,6 @@ public class CoworkingReview : BaseModel
     [Column("coworking_id")] public Guid CoworkingId { get; set; }
 
     [Column("user_id")] public Guid UserId { get; set; }
-
-    [Column("username")] public string Username { get; set; } = string.Empty;
-
-    [Column("user_avatar")] public string? UserAvatar { get; set; }
 
     [Column("rating")] public double Rating { get; set; } // 1.0 - 5.0
 

@@ -49,6 +49,33 @@ public class SendMessageRequest
 }
 
 /// <summary>
+///     发送消息请求（SignalR 流式版本）
+/// </summary>
+public class SendMessageWithSignalRRequest
+{
+    [Required(ErrorMessage = "消息内容不能为空")]
+    [StringLength(50000, ErrorMessage = "消息内容不能超过50000个字符")]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     请求 ID（可选，用于关联 SignalR 响应，不提供则自动生成）
+    /// </summary>
+    public string? RequestId { get; set; }
+
+    /// <summary>
+    ///     温度参数 (0.0-2.0)
+    /// </summary>
+    [Range(0.0, 2.0, ErrorMessage = "温度参数必须在0.0-2.0之间")]
+    public double Temperature { get; set; } = 0.7;
+
+    /// <summary>
+    ///     最大输出token数
+    /// </summary>
+    [Range(1, 8000, ErrorMessage = "最大输出token数必须在1-8000之间")]
+    public int MaxTokens { get; set; } = 2000;
+}
+
+/// <summary>
 ///     更新对话请求
 /// </summary>
 public class UpdateConversationRequest

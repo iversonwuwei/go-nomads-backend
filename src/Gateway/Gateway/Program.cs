@@ -4,13 +4,21 @@ using Gateway.Middleware;
 using Gateway.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using Prometheus;
 using Scalar.AspNetCore;
 using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Observability;
 using Yarp.ReverseProxy.Configuration;
 using RouteConfig = Yarp.ReverseProxy.Configuration.RouteConfig;
 
+const string serviceName = "gateway";
+
 var builder = WebApplication.CreateBuilder(args);
+
+// ============================================================
+// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// ============================================================
+builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
+builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
 
 // Add Consul client
 builder.Services.AddSingleton<IConsulClient>(sp =>
@@ -97,6 +105,11 @@ var app = builder.Build();
 // Enable WebSockets for SignalR proxy
 app.UseWebSockets();
 
+// HTTP Method Override - 必须在路由之前
+// 用于解决某些网络环境不支持 PUT/DELETE 方法的问题
+// 客户端发送 POST + X-HTTP-Method-Override 头，此中间件会重写请求方法
+app.UseCustomHttpMethodOverride();
+
 // Configure the HTTP request pipeline.
 app.MapOpenApi();
 
@@ -111,8 +124,13 @@ app.MapScalarApiReference(options =>
 
 app.UseRouting();
 
-// Enable Prometheus metrics
-app.UseHttpMetrics();
+// ============================================================
+// OpenTelemetry 可观测性中间件
+// ============================================================
+app.UseGoNomadsTracing();
+
+// OpenTelemetry Prometheus 指标端点
+app.UseGoNomadsObservability();
 
 // Add Rate Limiting
 app.UseRateLimiter();
@@ -137,9 +155,6 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
 
 // Map the reverse proxy routes (this should be LAST as it's a catch-all)
 app.MapReverseProxy();
-
-// Map Prometheus metrics endpoint
-app.MapMetrics();
 
 // 自动注册到 Consul
 await app.RegisterWithConsulAsync();

@@ -226,3 +226,67 @@ public class FollowerResponse
     public DateTime FollowedAt { get; set; }
     public bool NotificationEnabled { get; set; }
 }
+
+/// <summary>
+///     邀请用户参加活动请求 DTO
+/// </summary>
+public class InviteToEventRequest
+{
+    /// <summary>
+    ///     被邀请人用户ID
+    /// </summary>
+    [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "被邀请人ID不能为空")]
+    public Guid InviteeId { get; set; }
+
+    /// <summary>
+    ///     邀请留言（可选）
+    /// </summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(500, ErrorMessage = "邀请留言最多500个字符")]
+    public string? Message { get; set; }
+}
+
+/// <summary>
+///     邀请响应 DTO
+/// </summary>
+public class EventInvitationResponse
+{
+    public Guid Id { get; set; }
+    public Guid EventId { get; set; }
+    public Guid InviterId { get; set; }
+    public Guid InviteeId { get; set; }
+    public string Status { get; set; } = "pending";
+    public string? Message { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? RespondedAt { get; set; }
+    public DateTime? ExpiresAt { get; set; }
+
+    /// <summary>
+    ///     活动信息
+    /// </summary>
+    [System.Text.Json.Serialization.JsonInclude]
+    public EventResponse? Event { get; set; }
+
+    /// <summary>
+    ///     邀请人信息
+    /// </summary>
+    [System.Text.Json.Serialization.JsonInclude]
+    public UserInfo? Inviter { get; set; }
+
+    /// <summary>
+    ///     被邀请人信息
+    /// </summary>
+    [System.Text.Json.Serialization.JsonInclude]
+    public UserInfo? Invitee { get; set; }
+}
+
+/// <summary>
+///     回复邀请请求 DTO
+/// </summary>
+public class RespondToInvitationRequest
+{
+    /// <summary>
+    ///     响应: accept 或 reject
+    /// </summary>
+    [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "响应不能为空")]
+    public string Response { get; set; } = string.Empty; // "accept" 或 "reject"
+}

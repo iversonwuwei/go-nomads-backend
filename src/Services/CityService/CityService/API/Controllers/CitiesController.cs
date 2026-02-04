@@ -23,6 +23,7 @@ namespace CityService.API.Controllers;
 public class CitiesController : ControllerBase
 {
     private readonly ICityService _cityService;
+    private readonly ICityMatchingService _cityMatchingService;
     private readonly ICurrentUserService _currentUser;
     private readonly DaprClient _daprClient;
     private readonly IDigitalNomadGuideService _guideService;
@@ -33,6 +34,7 @@ public class CitiesController : ControllerBase
 
     public CitiesController(
         ICityService cityService,
+        ICityMatchingService cityMatchingService,
         IDigitalNomadGuideService guideService,
         INearbyCityService nearbyCityService,
         ICityModeratorRepository moderatorRepository,
@@ -42,6 +44,7 @@ public class CitiesController : ControllerBase
         ILogger<CitiesController> logger)
     {
         _cityService = cityService;
+        _cityMatchingService = cityMatchingService;
         _guideService = guideService;
         _nearbyCityService = nearbyCityService;
         _moderatorRepository = moderatorRepository;
@@ -117,6 +120,146 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
+    ///     Get city list (lightweight version without weather data)
+    ///     Optimized for city list page performance
+    /// </summary>
+    [HttpGet("list")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<CityListItemDto>>>> GetCityList(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null)
+    {
+        try
+        {
+            var userId = _currentUser.TryGetUserId();
+            var userRole = _currentUser.GetUserRole();
+
+            var cities = await _cityService.GetCityListAsync(pageNumber, pageSize, search, userId, userRole);
+            var totalCount = await _cityService.GetTotalCountAsync();
+
+            Response.Headers.Append("X-Total-Count", totalCount.ToString());
+            Response.Headers.Append("X-Page-Number", pageNumber.ToString());
+            Response.Headers.Append("X-Page-Size", pageSize.ToString());
+
+            return Ok(new ApiResponse<PaginatedResponse<CityListItemDto>>
+            {
+                Success = true,
+                Message = "City list retrieved successfully",
+                Data = new PaginatedResponse<CityListItemDto>
+                {
+                    Items = cities.ToList(),
+                    TotalCount = totalCount,
+                    Page = pageNumber,
+                    PageSize = pageSize
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting city list");
+            return StatusCode(500, new ApiResponse<PaginatedResponse<CityListItemDto>>
+            {
+                Success = false,
+                Message = "An error occurred while retrieving city list",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    ///     Get city list (basic version without aggregated data)
+    ///     Optimized for fast first screen loading, aggregated data loaded async
+    /// </summary>
+    [HttpGet("list-basic")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<CityListItemDto>>>> GetCityListBasic(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null)
+    {
+        try
+        {
+            var userId = _currentUser.TryGetUserId();
+            var userRole = _currentUser.GetUserRole();
+
+            var cities = await _cityService.GetCityListBasicAsync(pageNumber, pageSize, search, userId, userRole);
+            var totalCount = await _cityService.GetTotalCountAsync();
+
+            Response.Headers.Append("X-Total-Count", totalCount.ToString());
+            Response.Headers.Append("X-Page-Number", pageNumber.ToString());
+            Response.Headers.Append("X-Page-Size", pageSize.ToString());
+
+            return Ok(new ApiResponse<PaginatedResponse<CityListItemDto>>
+            {
+                Success = true,
+                Message = "City list (basic) retrieved successfully",
+                Data = new PaginatedResponse<CityListItemDto>
+                {
+                    Items = cities.ToList(),
+                    TotalCount = totalCount,
+                    Page = pageNumber,
+                    PageSize = pageSize
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting basic city list");
+            return StatusCode(500, new ApiResponse<PaginatedResponse<CityListItemDto>>
+            {
+                Success = false,
+                Message = "An error occurred while retrieving basic city list",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    ///     Get city counts batch (MeetupCount, CoworkingCount, ReviewCount, AverageCost)
+    ///     For async loading of aggregated data
+    /// </summary>
+    [HttpPost("counts")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<Dictionary<Guid, CityCountsDto>>>> GetCityCountsBatch([FromBody] CityBatchRequest request)
+    {
+        if (request.CityIds == null || request.CityIds.Count == 0)
+            return BadRequest(new ApiResponse<Dictionary<Guid, CityCountsDto>>
+            {
+                Success = false,
+                Message = "CityIds cannot be empty"
+            });
+
+        if (request.CityIds.Count > 100)
+            return BadRequest(new ApiResponse<Dictionary<Guid, CityCountsDto>>
+            {
+                Success = false,
+                Message = "Up to 100 cityIds are allowed per request"
+            });
+
+        try
+        {
+            var counts = await _cityService.GetCityCountsBatchAsync(request.CityIds);
+            return Ok(new ApiResponse<Dictionary<Guid, CityCountsDto>>
+            {
+                Success = true,
+                Message = "City counts retrieved successfully",
+                Data = counts
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting city counts batch");
+            return StatusCode(500, new ApiResponse<Dictionary<Guid, CityCountsDto>>
+            {
+                Success = false,
+                Message = "An error occurred while retrieving city counts",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
     ///     批量根据 ID 获取城市信息
     /// </summary>
     [HttpPost("lookup")]
@@ -160,6 +303,52 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
+    ///     城市匹配 - 根据经纬度和城市名称匹配现有城市
+    ///     POST /api/v1/cities/match
+    /// </summary>
+    [HttpPost("match")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<CityMatchResult>>> MatchCity([FromBody] CityMatchRequest request)
+    {
+        try
+        {
+            _logger.LogInformation(
+                "📍 [MatchCity] 接收城市匹配请求: Lat={Lat}, Lng={Lng}, CityName={CityName}, CityNameEn={CityNameEn}",
+                request.Latitude, request.Longitude, request.CityName, request.CityNameEn);
+
+            var result = await _cityMatchingService.MatchCityAsync(request);
+
+            if (result.IsMatched)
+            {
+                _logger.LogInformation(
+                    "✅ [MatchCity] 匹配成功: CityId={CityId}, Method={Method}, Confidence={Confidence}",
+                    result.CityId, result.MatchMethod, result.Confidence);
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ [MatchCity] 匹配失败: {ErrorMessage}", result.ErrorMessage);
+            }
+
+            return Ok(new ApiResponse<CityMatchResult>
+            {
+                Success = result.IsMatched,
+                Message = result.IsMatched ? "城市匹配成功" : "未找到匹配的城市",
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MatchCity] 城市匹配出错");
+            return StatusCode(500, new ApiResponse<CityMatchResult>
+            {
+                Success = false,
+                Message = "城市匹配过程中发生错误",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
     ///     Get recommended cities
     ///     GET /api/v1/cities/recommended?count=10
     /// </summary>
@@ -185,6 +374,37 @@ public class CitiesController : ControllerBase
             {
                 Success = false,
                 Message = "An error occurred while retrieving recommended cities",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    ///     Get popular cities
+    ///     GET /api/v1/cities/popular?limit=10
+    /// </summary>
+    [HttpGet("popular")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<IEnumerable<CityDto>>>> GetPopularCities([FromQuery] int limit = 10)
+    {
+        try
+        {
+            var userId = _currentUser.TryGetUserId();
+            var cities = await _cityService.GetPopularCitiesAsync(limit, userId);
+            return Ok(new ApiResponse<IEnumerable<CityDto>>
+            {
+                Success = true,
+                Message = "Popular cities retrieved successfully",
+                Data = cities.ToList()
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting popular cities");
+            return StatusCode(500, new ApiResponse<IEnumerable<CityDto>>
+            {
+                Success = false,
+                Message = "An error occurred while retrieving popular cities",
                 Errors = new List<string> { ex.Message }
             });
         }
@@ -432,6 +652,46 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
+    ///     Get coworking space count for a city
+    ///     GET /api/v1/cities/{id}/coworking-count
+    /// </summary>
+    [HttpGet("{id:guid}/coworking-count")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<CoworkingCountDto>>> GetCityCoworkingCount(Guid id)
+    {
+        try
+        {
+            // 调用 CoworkingService 获取数量
+            var cityIdStrings = new List<string> { id.ToString() };
+            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchCountResponse>(
+                HttpMethod.Post,
+                "coworking-service",
+                "api/v1/coworking/cities/counts",
+                cityIdStrings
+            );
+
+            var count = response?.Counts?.FirstOrDefault(c => c.CityId == id.ToString())?.Count ?? 0;
+
+            return Ok(new ApiResponse<CoworkingCountDto>
+            {
+                Success = true,
+                Message = "Coworking count retrieved successfully",
+                Data = new CoworkingCountDto { CityId = id.ToString(), Count = count }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting coworking count for city {CityId}", id);
+            return Ok(new ApiResponse<CoworkingCountDto>
+            {
+                Success = true,
+                Message = "Coworking count retrieved (default)",
+                Data = new CoworkingCountDto { CityId = id.ToString(), Count = 0 }
+            });
+        }
+    }
+
+    /// <summary>
     ///     Create a new city (Admin only)
     /// </summary>
     [HttpPost]
@@ -511,7 +771,20 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            var result = await _cityService.DeleteCityAsync(id);
+            // 检查管理员权限
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            if (userContext?.Role != "admin")
+            {
+                return StatusCode(403, new ApiResponse<bool>
+                {
+                    Success = false,
+                    Message = "只有管理员可以删除城市",
+                    Errors = new List<string> { "权限不足" }
+                });
+            }
+
+            var userId = !string.IsNullOrEmpty(userContext.UserId) ? Guid.Parse(userContext.UserId) : (Guid?)null;
+            var result = await _cityService.DeleteCityAsync(id, userId);
             if (!result)
                 return NotFound(new ApiResponse<bool>
                 {
@@ -520,6 +793,7 @@ public class CitiesController : ControllerBase
                     Errors = new List<string> { "City not found" }
                 });
 
+            _logger.LogInformation("✅ 管理员 {UserId} 成功删除城市 {CityId}", userContext.UserId, id);
             return Ok(new ApiResponse<bool>
             {
                 Success = true,
@@ -543,6 +817,7 @@ public class CitiesController : ControllerBase
     ///     Get cities with coworking count for coworking home page
     ///     专门为 coworking_home 页面提供城市列表和每个城市的 coworking 数量
     ///     只返回有 coworking 空间的城市
+    ///     优化：使用数据库 RPC 函数，一次查询获取所有数据
     /// </summary>
     [HttpGet("with-coworking-count")]
     public async Task<ActionResult<ApiResponse<PaginatedResponse<CityDto>>>> GetCitiesWithCoworkingCount(
@@ -551,74 +826,30 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            // 第一步：获取所有有 coworking 空间的城市ID及其数量
-            var coworkingCountByCity = await GetCoworkingCountByCityAsync();
-            
-            // 如果没有任何城市有 coworking 空间，返回空列表
-            if (coworkingCountByCity.Count == 0)
+            // 使用 RPC 函数一次查询获取城市信息和 coworking 数量
+            var result = await GetCitiesWithCoworkingFromDbAsync(page, pageSize);
+
+            if (result.Cities.Count == 0)
             {
                 return Ok(new ApiResponse<PaginatedResponse<CityDto>>
                 {
                     Success = true,
-                    Message = "暂无有 Coworking 空间的城市",
+                    Message = page > 1 ? "已无更多数据" : "暂无有 Coworking 空间的城市",
                     Data = new PaginatedResponse<CityDto>
                     {
                         Items = new List<CityDto>(),
-                        TotalCount = 0,
+                        TotalCount = result.TotalCount,
                         Page = page,
                         PageSize = pageSize
                     }
                 });
-            }
-
-            // 获取有 coworking 的城市 ID 列表
-            var cityIdsWithCoworking = coworkingCountByCity.Keys.ToList();
-            var totalCount = cityIdsWithCoworking.Count;
-
-            // 第二步：获取这些城市的详细信息并按评分降序排序
-            var userId = _currentUser.TryGetUserId();
-            var userRole = _currentUser.GetUserRole();
-            var allCities = (await _cityService.GetCitiesByIdsAsync(cityIdsWithCoworking))
-                .OrderByDescending(c => c.OverallScore ?? 0)
-                .ToList();
-
-            // 计算分页的偏移量
-            var skip = (page - 1) * pageSize;
-
-            // 如果偏移量超过总数，返回空列表
-            if (skip >= totalCount)
-            {
-                return Ok(new ApiResponse<PaginatedResponse<CityDto>>
-                {
-                    Success = true,
-                    Message = "已无更多数据",
-                    Data = new PaginatedResponse<CityDto>
-                    {
-                        Items = new List<CityDto>(),
-                        TotalCount = totalCount,
-                        Page = page,
-                        PageSize = pageSize
-                    }
-                });
-            }
-
-            // 分页后的城市列表（已按评分降序排序）
-            var cityList = allCities
-                .Skip(skip)
-                .Take(pageSize)
-                .ToList();
-
-            // 填充 coworking 数量
-            foreach (var city in cityList)
-            {
-                city.CoworkingCount = coworkingCountByCity.TryGetValue(city.Id, out var count) ? count : 0;
             }
 
             _logger.LogInformation(
                 "获取城市列表(含Coworking数量)成功: {CityCount} 个城市, 第 {Page} 页, 共 {TotalCount} 个",
-                cityList.Count,
+                result.Cities.Count,
                 page,
-                totalCount);
+                result.TotalCount);
 
             return Ok(new ApiResponse<PaginatedResponse<CityDto>>
             {
@@ -626,8 +857,8 @@ public class CitiesController : ControllerBase
                 Message = "城市列表(含Coworking数量)获取成功",
                 Data = new PaginatedResponse<CityDto>
                 {
-                    Items = cityList,
-                    TotalCount = totalCount,
+                    Items = result.Cities,
+                    TotalCount = result.TotalCount,
                     Page = page,
                     PageSize = pageSize
                 }
@@ -646,36 +877,125 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
-    ///     获取所有有 coworking 空间的城市及其数量
+    ///     使用数据库 RPC 函数获取有 coworking 空间的城市列表
+    ///     一次查询获取城市信息、coworking 数量和总数
     /// </summary>
-    private async Task<Dictionary<Guid, int>> GetCoworkingCountByCityAsync()
+    private async Task<(List<CityDto> Cities, int TotalCount)> GetCitiesWithCoworkingFromDbAsync(int page, int pageSize)
     {
         try
         {
-            // 直接查询 coworking_spaces 表
-            var response = await _supabaseClient
-                .From<CoworkingSpaceDto>()
-                .Where(x => x.IsActive == true)
-                .Get();
+            // 调用数据库 RPC 函数
+            var response = await _supabaseClient.Rpc(
+                "get_cities_with_coworking_details",
+                new { p_page = page, p_page_size = pageSize });
 
-            // 按城市ID分组统计，只保留有 CityId 的记录
-            return response.Models
-                .Where(x => x.CityId.HasValue)
-                .GroupBy(x => x.CityId!.Value)
-                .ToDictionary(g => g.Key, g => g.Count());
+            if (response.Content == null)
+            {
+                _logger.LogWarning("RPC 函数返回空结果");
+                return (new List<CityDto>(), 0);
+            }
+
+            var results = System.Text.Json.JsonSerializer.Deserialize<List<CityWithCoworkingResult>>(
+                response.Content,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (results == null || results.Count == 0)
+            {
+                return (new List<CityDto>(), 0);
+            }
+
+            var totalCount = (int)(results.FirstOrDefault()?.TotalCount ?? 0);
+            var cities = results.Select(r => new CityDto
+            {
+                Id = r.Id,
+                Name = r.Name ?? string.Empty,
+                Country = r.Country ?? string.Empty,
+                Region = r.Region,
+                Description = r.Description,
+                ImageUrl = r.ImageUrl,
+                OverallScore = r.OverallScore,
+                Latitude = r.Latitude,
+                Longitude = r.Longitude,
+                CoworkingCount = (int)(r.CoworkingCount ?? 0)
+            }).ToList();
+
+            return (cities, totalCount);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "获取 Coworking 数量统计失败");
-            return new Dictionary<Guid, int>();
+            _logger.LogWarning(ex, "RPC 函数调用失败，回退到传统查询方式");
+            // 回退到传统方式
+            return await GetCitiesWithCoworkingFallbackAsync(page, pageSize);
         }
     }
 
     /// <summary>
-    ///     Coworking 空间 DTO（用于统计数量）
+    ///     回退方法：使用传统方式获取有 coworking 空间的城市列表
+    /// </summary>
+    private async Task<(List<CityDto> Cities, int TotalCount)> GetCitiesWithCoworkingFallbackAsync(int page, int pageSize)
+    {
+        // 查询 coworking_spaces 表统计
+        var coworkingResponse = await _supabaseClient
+            .From<CoworkingSpaceSimpleDto>()
+            .Where(x => x.IsActive == true)
+            .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
+            .Get();
+
+        var coworkingCountByCity = coworkingResponse.Models
+            .Where(x => x.CityId.HasValue)
+            .GroupBy(x => x.CityId!.Value)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        if (coworkingCountByCity.Count == 0)
+        {
+            return (new List<CityDto>(), 0);
+        }
+
+        var cityIdsWithCoworking = coworkingCountByCity.Keys.ToList();
+        var totalCount = cityIdsWithCoworking.Count;
+
+        var allCities = (await _cityService.GetCitiesByIdsAsync(cityIdsWithCoworking))
+            .OrderByDescending(c => c.OverallScore ?? 0)
+            .ToList();
+
+        var skip = (page - 1) * pageSize;
+        var cityList = allCities.Skip(skip).Take(pageSize).ToList();
+
+        foreach (var city in cityList)
+        {
+            city.CoworkingCount = coworkingCountByCity.TryGetValue(city.Id, out var count) ? count : 0;
+        }
+
+        return (cityList, totalCount);
+    }
+
+    /// <summary>
+    ///     RPC 函数返回结果 DTO
+    /// </summary>
+    private class CityWithCoworkingResult
+    {
+        public Guid Id { get; set; }
+        public string? Name { get; set; }
+        public string? Country { get; set; }
+        public string? Region { get; set; }
+        public string? Description { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("image_url")]
+        public string? ImageUrl { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("overall_score")]
+        public decimal? OverallScore { get; set; }
+        public double? Latitude { get; set; }
+        public double? Longitude { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("coworking_count")]
+        public long? CoworkingCount { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("total_count")]
+        public long? TotalCount { get; set; }
+    }
+
+    /// <summary>
+    ///     Coworking 空间简单 DTO（用于回退查询）
     /// </summary>
     [Table("coworking_spaces")]
-    private class CoworkingSpaceDto : BaseModel
+    private class CoworkingSpaceSimpleDto : BaseModel
     {
         [PrimaryKey("id")]
         public Guid Id { get; set; }
@@ -685,6 +1005,156 @@ public class CitiesController : ControllerBase
 
         [Column("is_active")]
         public bool IsActive { get; set; }
+
+        [Column("is_deleted")]
+        public bool IsDeleted { get; set; }
+    }
+
+    /// <summary>
+    ///     Get city IDs that have coworking spaces (lightweight API for fast loading)
+    ///     获取有 coworking 空间的城市ID列表（轻量级接口，用于快速加载）
+    ///     优化：使用数据库 RPC 函数
+    /// </summary>
+    [HttpGet("with-coworking-ids")]
+    public async Task<ActionResult<ApiResponse<List<Guid>>>> GetCityIdsWithCoworking()
+    {
+        try
+        {
+            var cityIds = await GetCityIdsWithCoworkingFromDbAsync();
+
+            _logger.LogInformation("获取有 Coworking 空间的城市ID列表: {Count} 个", cityIds.Count);
+
+            return Ok(new ApiResponse<List<Guid>>
+            {
+                Success = true,
+                Message = $"获取成功，共 {cityIds.Count} 个城市有 Coworking 空间",
+                Data = cityIds
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取有 Coworking 空间的城市ID列表失败");
+            return StatusCode(500, new ApiResponse<List<Guid>>
+            {
+                Success = false,
+                Message = "获取失败，请稍后重试",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    ///     使用数据库 RPC 函数获取有 coworking 空间的城市ID列表
+    /// </summary>
+    private async Task<List<Guid>> GetCityIdsWithCoworkingFromDbAsync()
+    {
+        try
+        {
+            var response = await _supabaseClient.Rpc(
+                "get_cities_with_coworking_count",
+                null);
+
+            if (response.Content == null)
+            {
+                return new List<Guid>();
+            }
+
+            var results = System.Text.Json.JsonSerializer.Deserialize<List<CoworkingCountResult>>(
+                response.Content,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            return results?.Select(r => r.CityId).ToList() ?? new List<Guid>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "RPC 函数调用失败，回退到传统方式");
+            // 回退到传统方式
+            var response = await _supabaseClient
+                .From<CoworkingSpaceSimpleDto>()
+                .Where(x => x.IsActive == true)
+                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
+                .Get();
+
+            return response.Models
+                .Where(x => x.CityId.HasValue)
+                .Select(x => x.CityId!.Value)
+                .Distinct()
+                .ToList();
+        }
+    }
+
+    /// <summary>
+    ///     Coworking 数量统计结果 DTO
+    /// </summary>
+    private class CoworkingCountResult
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("city_id")]
+        public Guid CityId { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("coworking_count")]
+        public long CoworkingCount { get; set; }
+    }
+
+    /// <summary>
+    ///     Get cities that have coworking spaces (for coworking home page)
+    ///     获取有共享办公空间的城市列表（专门为 coworking_home 页面优化）
+    ///     优化：使用数据库 RPC 函数，一次查询获取所有数据
+    /// </summary>
+    [HttpGet("with-coworking")]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<CityDto>>>> GetCitiesWithCoworking(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            // 使用 RPC 函数一次查询获取城市信息和 coworking 数量
+            var result = await GetCitiesWithCoworkingFromDbAsync(page, pageSize);
+
+            if (result.Cities.Count == 0)
+            {
+                return Ok(new ApiResponse<PaginatedResponse<CityDto>>
+                {
+                    Success = true,
+                    Message = page > 1 ? "已无更多数据" : "暂无有 Coworking 空间的城市",
+                    Data = new PaginatedResponse<CityDto>
+                    {
+                        Items = new List<CityDto>(),
+                        TotalCount = result.TotalCount,
+                        Page = page,
+                        PageSize = pageSize
+                    }
+                });
+            }
+
+            _logger.LogInformation(
+                "获取有 Coworking 空间的城市列表成功: {CityCount} 个城市, 第 {Page} 页, 共 {TotalCount} 个",
+                result.Cities.Count,
+                page,
+                result.TotalCount);
+
+            return Ok(new ApiResponse<PaginatedResponse<CityDto>>
+            {
+                Success = true,
+                Message = "城市列表获取成功",
+                Data = new PaginatedResponse<CityDto>
+                {
+                    Items = result.Cities,
+                    TotalCount = result.TotalCount,
+                    Page = page,
+                    PageSize = pageSize
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取有 Coworking 空间的城市列表失败");
+            return StatusCode(500, new ApiResponse<PaginatedResponse<CityDto>>
+            {
+                Success = false,
+                Message = "获取城市列表失败，请稍后重试",
+                Errors = new List<string> { ex.Message }
+            });
+        }
     }
 
     #region Digital Nomad Guide APIs
@@ -1587,4 +2057,30 @@ public class SimpleRoleDto
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+}
+
+/// <summary>
+///     Coworking 数量 DTO
+/// </summary>
+public class CoworkingCountDto
+{
+    public string CityId { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
+/// <summary>
+///     批量获取数量响应模型 - 用于 Dapr 服务间调用
+/// </summary>
+internal class BatchCountResponse
+{
+    public List<CityCountItem> Counts { get; set; } = new();
+}
+
+/// <summary>
+///     城市数量项模型
+/// </summary>
+internal class CityCountItem
+{
+    public string CityId { get; set; } = string.Empty;
+    public int Count { get; set; }
 }

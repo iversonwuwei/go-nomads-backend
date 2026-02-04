@@ -13,25 +13,25 @@ public class AIConversation : BaseAIModel
     [Required]
     [MaxLength(200)]
     [Column("title")]
-    public string Title { get; private set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
 
-    [Required] [Column("user_id")] public Guid UserId { get; private set; }
+    [Required] [Column("user_id")] public Guid UserId { get; set; }
 
     [MaxLength(50)]
     [Column("status")]
-    public string Status { get; private set; } = "active"; // active, archived, deleted
+    public string Status { get; set; } = "active"; // active, archived, deleted
 
     [MaxLength(100)]
     [Column("model_name")]
-    public string ModelName { get; private set; } = "qwen-plus";
+    public string ModelName { get; set; } = "qwen-plus";
 
-    [Column("system_prompt")] public string? SystemPrompt { get; private set; }
+    [Column("system_prompt")] public string? SystemPrompt { get; set; }
 
-    [Column("total_messages")] public int TotalMessages { get; private set; }
+    [Column("total_messages")] public int TotalMessages { get; set; }
 
-    [Column("total_tokens")] public int TotalTokens { get; private set; }
+    [Column("total_tokens")] public int TotalTokens { get; set; }
 
-    [Column("last_message_at")] public DateTime? LastMessageAt { get; private set; }
+    [Column("last_message_at")] public DateTime? LastMessageAt { get; set; }
 
     // 领域行为方法
 

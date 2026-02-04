@@ -23,9 +23,11 @@ public interface IEventRepository
     Task<Event> UpdateAsync(Event @event);
 
     /// <summary>
-    ///     删除 Event
+    ///     删除 Event（逻辑删除）
     /// </summary>
-    Task DeleteAsync(Guid id);
+    /// <param name="id">Event ID</param>
+    /// <param name="deletedBy">删除者ID</param>
+    Task DeleteAsync(Guid id, Guid? deletedBy = null);
 
     /// <summary>
     ///     获取 Event 列表（支持筛选和分页）
@@ -53,6 +55,11 @@ public interface IEventRepository
     Task<List<Event>> GetExpiredEventsAsync(DateTime currentTime);
 
     /// <summary>
+    ///     获取需要检查状态更新的活动（状态为 upcoming 或 ongoing）
+    /// </summary>
+    Task<List<Event>> GetActiveEventsForStatusUpdateAsync();
+
+    /// <summary>
     ///     根据ID列表批量获取活动（支持状态过滤和分页）
     /// </summary>
     Task<(List<Event> Events, int Total)> GetByIdsAsync(
@@ -60,4 +67,40 @@ public interface IEventRepository
         string? status = null,
         int page = 1,
         int pageSize = 20);
+
+    /// <summary>
+    ///     获取用户作为组织者创建的活动（支持状态过滤和分页）
+    /// </summary>
+    Task<(List<Event> Events, int Total)> GetByOrganizerAsync(
+        Guid organizerId,
+        string? status = null,
+        int page = 1,
+        int pageSize = 20);
+
+    /// <summary>
+    ///     更新组织者信息（冗余字段）
+    /// </summary>
+    /// <param name="organizerId">组织者ID</param>
+    /// <param name="name">新的名称</param>
+    /// <param name="avatarUrl">新的头像URL</param>
+    /// <returns>更新的记录数</returns>
+    Task<int> UpdateOrganizerInfoAsync(Guid organizerId, string? name, string? avatarUrl);
+
+    /// <summary>
+    ///     更新城市信息（冗余字段）
+    /// </summary>
+    /// <param name="cityId">城市ID</param>
+    /// <param name="name">城市名称（中文）</param>
+    /// <param name="nameEn">城市名称（英文）</param>
+    /// <param name="country">国家</param>
+    /// <returns>更新的记录数</returns>
+    Task<int> UpdateCityInfoAsync(Guid cityId, string? name, string? nameEn, string? country);
+
+    /// <summary>
+    ///     批量获取城市的活动数量（优化版：单次查询）
+    /// </summary>
+    /// <param name="cityIds">城市ID列表</param>
+    /// <param name="status">活动状态（可选，默认 upcoming）</param>
+    /// <returns>城市ID到活动数量的映射</returns>
+    Task<Dictionary<Guid, int>> GetEventCountsByCityIdsAsync(List<Guid> cityIds, string? status = "upcoming");
 }

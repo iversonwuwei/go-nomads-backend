@@ -2,16 +2,16 @@
 
 ## 问题描述
 
-在 Windows 环境下，Consul、Zipkin 和 Elasticsearch 容器启动失败，原因是它们使用的端口被 Windows Hyper-V 保留。
+在 Windows 环境下，Consul 和 Zipkin 容器启动失败，原因是它们使用的端口被 Windows Hyper-V 保留。
 
 ## Windows 保留端口范围
 
 通过 `netsh interface ipv4 show excludedportrange protocol=tcp` 检查发现以下端口范围被保留：
 
 - `8488-8587` (包含原 Consul 端口 8500, 8502)
-- `9129-9228` (包含原 Elasticsearch 端口 9200)
-- `9229-9328` (包含原 Elasticsearch 端口 9300)
 - `9329-9428` (包含原 Zipkin 端口 9411)
+
+注：Elasticsearch 9200/9300 端口通常不在保留范围内，可以使用标准端口。
 
 ## 解决方案
 
@@ -25,8 +25,8 @@
 | **Consul GRPC** | 8502 | **7502** | - |
 | **Consul DNS** | 8600 | **7600** | - |
 | **Zipkin** | 9411 | **9811** | http://localhost:9811 |
-| **Elasticsearch HTTP** | 9200 | **10200** | http://localhost:10200 |
-| **Elasticsearch Transport** | 9300 | **10300** | - |
+| **Elasticsearch HTTP** | 9200 | **9200** | http://localhost:9200 |
+| **Elasticsearch Transport** | 9300 | **9300** | - |
 
 ## 修改的文件
 

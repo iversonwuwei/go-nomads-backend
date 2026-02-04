@@ -328,6 +328,69 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
+    ///     删除活动（仅管理员）
+    /// </summary>
+    [HttpDelete("{id}")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteEvent(Guid id)
+    {
+        try
+        {
+            // 从 UserContext 获取当前用户信息
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+                return Unauthorized(new ApiResponse<bool>
+                {
+                    Success = false,
+                    Message = "用户未认证",
+                    Errors = new List<string> { "用户未认证" }
+                });
+
+            // 检查是否是管理员
+            if (!userContext.IsAdmin)
+                return StatusCode(403, new ApiResponse<bool>
+                {
+                    Success = false,
+                    Message = "只有管理员可以删除活动",
+                    Errors = new List<string> { "权限不足" }
+                });
+
+            var userId = Guid.Parse(userContext.UserId);
+            var result = await _eventService.DeleteEventAsync(id, userId);
+
+            _logger.LogInformation("✅ 管理员 {UserId} 成功删除活动 {EventId}", userContext.UserId, id);
+            return Ok(new ApiResponse<bool>
+            {
+                Success = true,
+                Message = "活动已删除",
+                Data = result
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<bool>
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "删除活动失败");
+            return StatusCode(500, new ApiResponse<bool>
+            {
+                Success = false,
+                Message = "删除活动失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
     ///     获取用户已加入的活动列表
     /// </summary>
     [HttpGet("joined")]
@@ -856,6 +919,31 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
+    ///     获取指定用户参加的未结束 Event 数量（供其他服务调用）
+    /// </summary>
+    [HttpGet("user/{userId}/joined/count")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<int>> GetUserJoinedEventsCount(string userId)
+    {
+        try
+        {
+            if (!Guid.TryParse(userId, out var userGuid))
+            {
+                return BadRequest(0);
+            }
+
+            var count = await _eventService.GetUserJoinedEventsCountAsync(userGuid);
+            _logger.LogInformation("✅ 获取用户 {UserId} 参加的未结束 Event 数量: {Count}", userId, count);
+            return Ok(count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取用户参加的 Event 数量失败: UserId={UserId}", userId);
+            return Ok(0);
+        }
+    }
+
+    /// <summary>
     ///     获取当前用户参加的 Event 列表
     /// </summary>
     [HttpGet("me/joined")]
@@ -940,4 +1028,441 @@ public class EventsController : ControllerBase
             });
         }
     }
+
+    #region 邀请 API
+
+    /// <summary>
+    ///     邀请用户参加活动
+    /// </summary>
+    [HttpPost("{eventId}/invitations")]
+    [ProducesResponseType(typeof(ApiResponse<EventInvitationResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<EventInvitationResponse>>> InviteToEvent(
+        Guid eventId,
+        [FromBody] InviteToEventRequest request)
+    {
+        try
+        {
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+                return Unauthorized(new ApiResponse<EventInvitationResponse>
+                {
+                    Success = false,
+                    Message = "用户未认证",
+                    Errors = new List<string> { "用户未认证" }
+                });
+
+            var inviterId = Guid.Parse(userContext.UserId);
+
+            _logger.LogInformation("📨 用户 {InviterId} 邀请用户 {InviteeId} 参加活动 {EventId}",
+                inviterId, request.InviteeId, eventId);
+
+            var invitation = await _eventService.InviteToEventAsync(eventId, inviterId, request);
+
+            // 发送通知给被邀请人
+            try
+            {
+                await SendInvitationNotificationAsync(invitation);
+            }
+            catch (Exception notifyEx)
+            {
+                _logger.LogWarning(notifyEx, "发送邀请通知失败，但邀请已创建");
+            }
+
+            return CreatedAtAction(
+                nameof(GetInvitation),
+                new { invitationId = invitation.Id },
+                new ApiResponse<EventInvitationResponse>
+                {
+                    Success = true,
+                    Message = "邀请发送成功",
+                    Data = invitation
+                });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<EventInvitationResponse>
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new ApiResponse<EventInvitationResponse>
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<EventInvitationResponse>
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "邀请用户参加活动失败");
+            return StatusCode(500, new ApiResponse<EventInvitationResponse>
+            {
+                Success = false,
+                Message = "邀请发送失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    ///     响应邀请（接受或拒绝）
+    /// </summary>
+    [HttpPost("invitations/{invitationId}/respond")]
+    [ProducesResponseType(typeof(ApiResponse<EventInvitationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<EventInvitationResponse>>> RespondToInvitation(
+        Guid invitationId,
+        [FromBody] RespondToInvitationRequest request)
+    {
+        try
+        {
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+                return Unauthorized(new ApiResponse<EventInvitationResponse>
+                {
+                    Success = false,
+                    Message = "用户未认证",
+                    Errors = new List<string> { "用户未认证" }
+                });
+
+            var userId = Guid.Parse(userContext.UserId);
+
+            _logger.LogInformation("📩 用户 {UserId} 响应邀请 {InvitationId}: {Response}",
+                userId, invitationId, request.Response);
+
+            var invitation = await _eventService.RespondToInvitationAsync(invitationId, userId, request.Response);
+
+            // 发送响应通知给邀请人
+            try
+            {
+                await SendInvitationResponseNotificationAsync(invitation, request.Response);
+            }
+            catch (Exception notifyEx)
+            {
+                _logger.LogWarning(notifyEx, "发送邀请响应通知失败");
+            }
+
+            return Ok(new ApiResponse<EventInvitationResponse>
+            {
+                Success = true,
+                Message = request.Response.ToLower() == "accept" ? "已接受邀请并加入活动" : "已拒绝邀请",
+                Data = invitation
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<EventInvitationResponse>
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new ApiResponse<EventInvitationResponse>
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<EventInvitationResponse>
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "响应邀请失败");
+            return StatusCode(500, new ApiResponse<EventInvitationResponse>
+            {
+                Success = false,
+                Message = "响应邀请失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    ///     获取邀请详情
+    /// </summary>
+    [HttpGet("invitations/{invitationId}")]
+    [ProducesResponseType(typeof(ApiResponse<EventInvitationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<EventInvitationResponse>>> GetInvitation(Guid invitationId)
+    {
+        try
+        {
+            var invitation = await _eventService.GetInvitationAsync(invitationId);
+
+            return Ok(new ApiResponse<EventInvitationResponse>
+            {
+                Success = true,
+                Message = "获取邀请详情成功",
+                Data = invitation
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<EventInvitationResponse>
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取邀请详情失败");
+            return StatusCode(500, new ApiResponse<EventInvitationResponse>
+            {
+                Success = false,
+                Message = "获取邀请详情失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    ///     获取当前用户收到的邀请列表
+    /// </summary>
+    [HttpGet("invitations/received")]
+    [ProducesResponseType(typeof(ApiResponse<List<EventInvitationResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse<List<EventInvitationResponse>>>> GetReceivedInvitations(
+        [FromQuery] string? status = null)
+    {
+        try
+        {
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+                return Unauthorized(new ApiResponse<List<EventInvitationResponse>>
+                {
+                    Success = false,
+                    Message = "用户未认证",
+                    Errors = new List<string> { "用户未认证" }
+                });
+
+            var userId = Guid.Parse(userContext.UserId);
+            var invitations = await _eventService.GetReceivedInvitationsAsync(userId, status);
+
+            return Ok(new ApiResponse<List<EventInvitationResponse>>
+            {
+                Success = true,
+                Message = "获取收到的邀请列表成功",
+                Data = invitations
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取收到的邀请列表失败");
+            return StatusCode(500, new ApiResponse<List<EventInvitationResponse>>
+            {
+                Success = false,
+                Message = "获取收到的邀请列表失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    ///     获取当前用户发出的邀请列表
+    /// </summary>
+    [HttpGet("invitations/sent")]
+    [ProducesResponseType(typeof(ApiResponse<List<EventInvitationResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse<List<EventInvitationResponse>>>> GetSentInvitations(
+        [FromQuery] string? status = null)
+    {
+        try
+        {
+            var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+            if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+                return Unauthorized(new ApiResponse<List<EventInvitationResponse>>
+                {
+                    Success = false,
+                    Message = "用户未认证",
+                    Errors = new List<string> { "用户未认证" }
+                });
+
+            var userId = Guid.Parse(userContext.UserId);
+            var invitations = await _eventService.GetSentInvitationsAsync(userId, status);
+
+            return Ok(new ApiResponse<List<EventInvitationResponse>>
+            {
+                Success = true,
+                Message = "获取发出的邀请列表成功",
+                Data = invitations
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取发出的邀请列表失败");
+            return StatusCode(500, new ApiResponse<List<EventInvitationResponse>>
+            {
+                Success = false,
+                Message = "获取发出的邀请列表失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    ///     发送邀请通知给被邀请人
+    /// </summary>
+    private async Task SendInvitationNotificationAsync(EventInvitationResponse invitation)
+    {
+        try
+        {
+            var notificationPayload = new
+            {
+                UserId = invitation.InviteeId.ToString(),
+                Title = "您收到了活动邀请",
+                Message = $"{invitation.Inviter?.Name ?? "某位用户"} 邀请您参加活动「{invitation.Event?.Title}」",
+                Type = "event_invitation",
+                RelatedId = invitation.Id.ToString(),
+                Metadata = new Dictionary<string, object>
+                {
+                    { "eventId", invitation.EventId.ToString() },
+                    { "inviterId", invitation.InviterId.ToString() },
+                    { "invitationId", invitation.Id.ToString() },
+                    { "eventTitle", invitation.Event?.Title ?? "" },
+                    { "inviterName", invitation.Inviter?.Name ?? "" },
+                    { "inviterAvatar", invitation.Inviter?.Avatar ?? "" }
+                }
+            };
+
+            // 使用 Dapr 调用 MessageService API 创建通知
+            await _daprClient.InvokeMethodAsync(
+                HttpMethod.Post,
+                "message-service",
+                "api/v1/notifications",
+                notificationPayload
+            );
+            _logger.LogInformation("✅ 邀请通知已发送给用户 {InviteeId}", invitation.InviteeId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发送邀请通知失败");
+            throw;
+        }
+    }
+
+    /// <summary>
+    ///     发送邀请响应通知给邀请人
+    /// </summary>
+    private async Task SendInvitationResponseNotificationAsync(EventInvitationResponse invitation, string response)
+    {
+        try
+        {
+            var action = response.ToLower() == "accept" ? "接受" : "拒绝";
+            var notificationPayload = new
+            {
+                UserId = invitation.InviterId.ToString(),
+                Title = "活动邀请已被响应",
+                Message = $"{invitation.Invitee?.Name ?? "被邀请用户"} {action}了您的活动「{invitation.Event?.Title}」邀请",
+                Type = "event_invitation_response",
+                RelatedId = invitation.Id.ToString(),
+                Metadata = new Dictionary<string, object>
+                {
+                    { "eventId", invitation.EventId.ToString() },
+                    { "inviteeId", invitation.InviteeId.ToString() },
+                    { "invitationId", invitation.Id.ToString() },
+                    { "response", response.ToLower() },
+                    { "eventTitle", invitation.Event?.Title ?? "" },
+                    { "inviteeName", invitation.Invitee?.Name ?? "" },
+                    { "inviteeAvatar", invitation.Invitee?.Avatar ?? "" }
+                }
+            };
+
+            // 使用 Dapr 调用 MessageService API 创建通知
+            await _daprClient.InvokeMethodAsync(
+                HttpMethod.Post,
+                "message-service",
+                "api/v1/notifications",
+                notificationPayload
+            );
+            _logger.LogInformation("✅ 邀请响应通知已发送给用户 {InviterId}", invitation.InviterId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发送邀请响应通知失败");
+            throw;
+        }
+    }
+
+    #endregion
+    
+    #region 城市活动统计 API
+
+    /// <summary>
+    ///     批量获取城市活动数量（供 CityService 调用）
+    /// </summary>
+    [HttpPost("cities/counts")]
+    [ProducesResponseType(typeof(BatchCityCountResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<BatchCityCountResponse>> GetCitiesEventCounts([FromBody] List<string> cityIds)
+    {
+        try
+        {
+            _logger.LogInformation("📊 批量获取城市活动数量: {Count} 个城市", cityIds.Count);
+
+            var counts = await _eventService.GetCitiesEventCountsAsync(cityIds);
+
+            return Ok(new BatchCityCountResponse
+            {
+                Counts = counts.Select(kvp => new CityCountItem
+                {
+                    CityId = kvp.Key,
+                    Count = kvp.Value
+                }).ToList()
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "批量获取城市活动数量失败");
+            return StatusCode(500, new BatchCityCountResponse { Counts = new List<CityCountItem>() });
+        }
+    }
+
+    #endregion
+}
+
+/// <summary>
+/// 批量城市数量响应
+/// </summary>
+public class BatchCityCountResponse
+{
+    public List<CityCountItem> Counts { get; set; } = new();
+}
+
+/// <summary>
+/// 城市数量项
+/// </summary>
+public class CityCountItem
+{
+    public string CityId { get; set; } = string.Empty;
+    public int Count { get; set; }
 }

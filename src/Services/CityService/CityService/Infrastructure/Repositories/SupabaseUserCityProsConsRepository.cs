@@ -33,7 +33,7 @@ public class SupabaseUserCityProsConsRepository : SupabaseRepositoryBase<CityPro
         var query = SupabaseClient
             .From<CityProsCons>()
             .Where(x => x.CityId == cityId)
-            .Where(x => x.IsDeleted == false);
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true");
 
         if (isPro.HasValue) query = query.Where(x => x.IsPro == isPro.Value);
 

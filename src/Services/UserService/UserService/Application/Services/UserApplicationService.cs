@@ -1,3 +1,5 @@
+using MassTransit;
+using Shared.Messages;
 using UserService.Application.DTOs;
 using UserService.Domain.Entities;
 using UserService.Domain.Repositories;
@@ -12,8 +14,10 @@ public class UserApplicationService : IUserService
     private readonly IInterestService _interestService;
     private readonly ILogger<UserApplicationService> _logger;
     private readonly IMembershipService _membershipService;
+    private readonly IPublishEndpoint _publishEndpoint;
     private readonly IRoleRepository _roleRepository;
     private readonly ISkillService _skillService;
+    private readonly ITravelHistoryService _travelHistoryService;
     private readonly IUserRepository _userRepository;
 
     public UserApplicationService(
@@ -22,6 +26,8 @@ public class UserApplicationService : IUserService
         ISkillService skillService,
         IInterestService interestService,
         IMembershipService membershipService,
+        ITravelHistoryService travelHistoryService,
+        IPublishEndpoint publishEndpoint,
         ILogger<UserApplicationService> logger)
     {
         _userRepository = userRepository;
@@ -29,6 +35,8 @@ public class UserApplicationService : IUserService
         _skillService = skillService;
         _interestService = interestService;
         _membershipService = membershipService;
+        _travelHistoryService = travelHistoryService;
+        _publishEndpoint = publishEndpoint;
         _logger = logger;
     }
 
@@ -85,6 +93,60 @@ public class UserApplicationService : IUserService
             // 即使加载失败也返回用户基本信息
             userDto.Skills = new List<UserSkillDto>();
             userDto.Interests = new List<UserInterestDto>();
+        }
+
+        // 加载用户最新旅行历史
+        try
+        {
+            userDto.LatestTravelHistory = await _travelHistoryService.GetLatestTravelHistoryAsync(id, cancellationToken);
+            _logger.LogInformation("📍 用户最新旅行历史: UserId={UserId}, HasData={HasData}, City={City}",
+                id,
+                userDto.LatestTravelHistory != null,
+                userDto.LatestTravelHistory?.City ?? "null");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 加载用户最新旅行历史失败: UserId={UserId}", id);
+            userDto.LatestTravelHistory = null;
+        }
+
+        // 加载用户旅行历史列表（最多 10 条已确认的记录）
+        try
+        {
+            userDto.TravelHistory = await _travelHistoryService.GetConfirmedTravelHistoryAsync(id, cancellationToken);
+            _logger.LogInformation("📜 用户旅行历史列表: UserId={UserId}, Count={Count}",
+                id, userDto.TravelHistory?.Count ?? 0);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 加载用户旅行历史列表失败: UserId={UserId}", id);
+            userDto.TravelHistory = new List<DTOs.TravelHistoryDto>();
+        }
+
+        // 加载用户旅行统计数据（从 travel_history 表计算）
+        try
+        {
+            var travelStats = await _travelHistoryService.GetUserTravelStatsAsync(id, cancellationToken);
+            userDto.Stats = new UserTravelStatsDto
+            {
+                CountriesVisited = travelStats.CountriesVisited,
+                CitiesVisited = travelStats.CitiesVisited,
+                TotalDays = travelStats.TotalDays,
+                TotalTrips = travelStats.ConfirmedTrips
+            };
+            _logger.LogInformation("📊 用户旅行统计: UserId={UserId}, Countries={Countries}, Cities={Cities}",
+                id, travelStats.CountriesVisited, travelStats.CitiesVisited);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 加载用户旅行统计失败: UserId={UserId}", id);
+            userDto.Stats = new UserTravelStatsDto
+            {
+                CountriesVisited = 0,
+                CitiesVisited = 0,
+                TotalDays = 0,
+                TotalTrips = 0
+            };
         }
 
         return userDto;
@@ -199,11 +261,43 @@ public class UserApplicationService : IUserService
                 throw new InvalidOperationException($"邮箱 '{email}' 已被其他用户使用");
         }
 
+        // 记录更新的字段（用于事件通知）
+        var updatedFields = new List<string>();
+        if (name != null && name != user.Name) updatedFields.Add("name");
+        if (email != null && email != user.Email) updatedFields.Add("email");
+        if (avatarUrl != null && avatarUrl != user.AvatarUrl) updatedFields.Add("avatarUrl");
+
         // 使用领域方法进行部分更新（只更新非null字段）
         user.PartialUpdate(name, email, phone, avatarUrl, bio);
 
         // 持久化
         var updatedUser = await _userRepository.UpdateAsync(user, cancellationToken);
+
+        // 如果更新了 name 或 avatarUrl，发布 UserUpdatedMessage 事件
+        if (updatedFields.Contains("name") || updatedFields.Contains("avatarUrl"))
+        {
+            try
+            {
+                var message = new UserUpdatedMessage
+                {
+                    UserId = id,
+                    Name = updatedUser.Name,
+                    AvatarUrl = updatedUser.AvatarUrl,
+                    Email = updatedUser.Email,
+                    UpdatedAt = DateTime.UtcNow,
+                    UpdatedFields = updatedFields
+                };
+
+                await _publishEndpoint.Publish(message, cancellationToken);
+                _logger.LogInformation("📤 已发布用户更新事件: UserId={UserId}, UpdatedFields=[{Fields}]",
+                    id, string.Join(", ", updatedFields));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ 发布用户更新事件失败: UserId={UserId}", id);
+                // 不抛出异常，用户更新已成功，事件发布失败不影响主流程
+            }
+        }
 
         _logger.LogInformation("✅ 成功更新用户: {UserId}", updatedUser.Id);
         return await MapToDtoAsync(updatedUser, cancellationToken);

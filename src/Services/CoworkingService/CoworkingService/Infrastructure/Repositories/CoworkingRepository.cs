@@ -81,6 +81,7 @@ public class CoworkingRepository : ICoworkingRepository
             var response = await _supabaseClient
                 .From<CoworkingSpace>()
                 .Where(x => x.Id == id)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Single();
 
             return response;
@@ -113,16 +114,31 @@ public class CoworkingRepository : ICoworkingRepository
         }
     }
 
-    public async Task DeleteAsync(Guid id)
+    public async Task DeleteAsync(Guid id, Guid? deletedBy = null)
     {
         try
         {
+            // 逻辑删除：设置 IsDeleted = true
+            var coworkingSpace = await GetByIdAsync(id);
+            if (coworkingSpace == null)
+            {
+                _logger.LogWarning("⚠️ 要删除的共享办公空间不存在: {Id}", id);
+                return;
+            }
+
+            coworkingSpace.MarkAsDeleted(deletedBy);
+
             await _supabaseClient
                 .From<CoworkingSpace>()
-                .Filter("id", Constants.Operator.Equals, id.ToString())
-                .Delete();
+                .Where(x => x.Id == id)
+                .Set(x => x.IsDeleted, true)
+                .Set(x => x.DeletedAt, coworkingSpace.DeletedAt)
+                .Set(x => x.DeletedBy, deletedBy)
+                .Set(x => x.UpdatedAt, coworkingSpace.UpdatedAt)
+                .Set(x => x.UpdatedBy, deletedBy)
+                .Update();
 
-            _logger.LogInformation("✅ Supabase 删除成功: {Id}", id);
+            _logger.LogInformation("✅ Supabase 逻辑删除成功: {Id}, DeletedBy: {DeletedBy}", id, deletedBy);
         }
         catch (Exception ex)
         {
@@ -150,6 +166,7 @@ public class CoworkingRepository : ICoworkingRepository
                 var response = await _supabaseClient
                     .From<CoworkingSpace>()
                     .Where(x => x.IsActive == isActive.Value && x.CityId == cityId.Value)
+                    .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                     .Order(x => x.CreatedAt, Constants.Ordering.Descending)
                     .Range(offset, offset + pageSize - 1)
                     .Get();
@@ -160,6 +177,7 @@ public class CoworkingRepository : ICoworkingRepository
                 var response = await _supabaseClient
                     .From<CoworkingSpace>()
                     .Where(x => x.IsActive == isActive.Value)
+                    .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                     .Order(x => x.CreatedAt, Constants.Ordering.Descending)
                     .Range(offset, offset + pageSize - 1)
                     .Get();
@@ -170,6 +188,7 @@ public class CoworkingRepository : ICoworkingRepository
                 var response = await _supabaseClient
                     .From<CoworkingSpace>()
                     .Where(x => x.CityId == cityId.Value)
+                    .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                     .Order(x => x.CreatedAt, Constants.Ordering.Descending)
                     .Range(offset, offset + pageSize - 1)
                     .Get();
@@ -179,14 +198,58 @@ public class CoworkingRepository : ICoworkingRepository
             {
                 var response = await _supabaseClient
                     .From<CoworkingSpace>()
+                    .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                     .Order(x => x.CreatedAt, Constants.Ordering.Descending)
                     .Range(offset, offset + pageSize - 1)
                     .Get();
                 items = response.Models.ToList();
             }
 
-            // 获取总数（这里简化处理，实际应该单独查询）
-            var totalCount = items.Count; // TODO: 实现准确的总数查询
+            // 获取准确的总数
+            int totalCount;
+            try
+            {
+                if (isActive.HasValue && cityId.HasValue)
+                {
+                    var countResponse = await _supabaseClient
+                        .From<CoworkingSpace>()
+                        .Where(x => x.IsActive == isActive.Value && x.CityId == cityId.Value)
+                        .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                        .Count(Constants.CountType.Exact);
+                    totalCount = countResponse;
+                }
+                else if (isActive.HasValue)
+                {
+                    var countResponse = await _supabaseClient
+                        .From<CoworkingSpace>()
+                        .Where(x => x.IsActive == isActive.Value)
+                        .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                        .Count(Constants.CountType.Exact);
+                    totalCount = countResponse;
+                }
+                else if (cityId.HasValue)
+                {
+                    var countResponse = await _supabaseClient
+                        .From<CoworkingSpace>()
+                        .Where(x => x.CityId == cityId.Value)
+                        .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                        .Count(Constants.CountType.Exact);
+                    totalCount = countResponse;
+                }
+                else
+                {
+                    var countResponse = await _supabaseClient
+                        .From<CoworkingSpace>()
+                        .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                        .Count(Constants.CountType.Exact);
+                    totalCount = countResponse;
+                }
+            }
+            catch (Exception countEx)
+            {
+                _logger.LogWarning(countEx, "⚠️ 获取总数失败，使用当前页数量作为估计");
+                totalCount = items.Count;
+            }
 
             return (items, totalCount);
         }
@@ -203,7 +266,9 @@ public class CoworkingRepository : ICoworkingRepository
         {
             var response = await _supabaseClient
                 .From<CoworkingSpace>()
-                .Where(x => x.CityId == cityId && x.IsActive)
+                .Filter("city_id", Constants.Operator.Equals, cityId.ToString())
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Order(x => x.Rating, Constants.Ordering.Descending)
                 .Get();
 
@@ -220,26 +285,39 @@ public class CoworkingRepository : ICoworkingRepository
     {
         try
         {
-            // 获取所有活跃的共享办公空间
-            var response = await _supabaseClient
-                .From<CoworkingSpace>()
-                .Where(x => x.IsActive)
-                .Get();
+            var offset = (page - 1) * pageSize;
 
-            var spaces = response.Models.AsEnumerable();
-
-            // 客户端过滤（Supabase 文本搜索限制）
+            // 使用数据库级 ILIKE 过滤，避免加载所有数据到内存
             if (!string.IsNullOrWhiteSpace(searchTerm))
-                spaces = spaces.Where(s =>
-                    (s.Name != null && s.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) ||
-                    (s.Address != null && s.Address.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));
+            {
+                // PostgREST 使用 or 条件进行多字段 ILIKE 搜索
+                var searchPattern = $"%{searchTerm}%";
+                var response = await _supabaseClient
+                    .From<CoworkingSpace>()
+                    .Where(x => x.IsActive)
+                    .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                    .Filter("or", Constants.Operator.Equals, $"(name.ilike.{searchPattern},address.ilike.{searchPattern})")
+                    .Order(x => x.CreatedAt, Constants.Ordering.Descending)
+                    .Range(offset, offset + pageSize - 1)
+                    .Get();
 
-            // 应用分页
-            spaces = spaces
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize);
+                _logger.LogInformation("✅ 搜索共享办公空间: Term={SearchTerm}, Found={Count}",
+                    searchTerm, response.Models.Count);
+                return response.Models.ToList();
+            }
+            else
+            {
+                // 无搜索词时，直接分页获取
+                var response = await _supabaseClient
+                    .From<CoworkingSpace>()
+                    .Where(x => x.IsActive)
+                    .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                    .Order(x => x.CreatedAt, Constants.Ordering.Descending)
+                    .Range(offset, offset + pageSize - 1)
+                    .Get();
 
-            return spaces.ToList();
+                return response.Models.ToList();
+            }
         }
         catch (Exception ex)
         {
@@ -255,12 +333,12 @@ public class CoworkingRepository : ICoworkingRepository
     {
         try
         {
-            var query = _supabaseClient
-                .From<CoworkingSpace>()
-                .Where(x => x.IsActive);
-
             // 客户端过滤价格范围（Supabase 查询限制）
-            var response = await query.Get();
+            var response = await _supabaseClient
+                .From<CoworkingSpace>()
+                .Where(x => x.IsActive)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                .Get();
             var spaces = response.Models.AsEnumerable();
 
             if (minPrice.HasValue && maxPrice.HasValue)
@@ -288,6 +366,7 @@ public class CoworkingRepository : ICoworkingRepository
             var response = await _supabaseClient
                 .From<CoworkingSpace>()
                 .Where(x => x.IsActive)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Order(x => x.Rating, Constants.Ordering.Descending)
                 .Limit(limit)
                 .Get();
@@ -313,4 +392,162 @@ public class CoworkingRepository : ICoworkingRepository
             return false;
         }
     }
+
+    #region 冗余字段更新方法
+
+    public async Task<int> UpdateCreatorInfoAsync(Guid creatorId, string? creatorName, string? creatorAvatar)
+    {
+        try
+        {
+            _logger.LogInformation("🔄 更新创建者信息: CreatorId={CreatorId}, Name={Name}", creatorId, creatorName);
+
+            // 获取该创建者的所有 Coworking 空间
+            var response = await _supabaseClient
+                .From<CoworkingSpace>()
+                .Filter("created_by", Constants.Operator.Equals, creatorId.ToString())
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                .Get();
+
+            var spaces = response.Models;
+            if (!spaces.Any())
+            {
+                _logger.LogInformation("ℹ️ 该创建者没有 Coworking 空间需要更新");
+                return 0;
+            }
+
+            // 批量更新
+            var updatedCount = 0;
+            foreach (var space in spaces)
+            {
+                space.CreatorName = creatorName;
+                space.CreatorAvatar = creatorAvatar;
+                space.UpdatedAt = DateTime.UtcNow;
+
+                await _supabaseClient
+                    .From<CoworkingSpace>()
+                    .Upsert(space);
+                updatedCount++;
+            }
+
+            _logger.LogInformation("✅ 已更新 {Count} 个 Coworking 空间的创建者信息", updatedCount);
+            return updatedCount;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 更新创建者信息失败: CreatorId={CreatorId}", creatorId);
+            throw;
+        }
+    }
+
+    public async Task<int> UpdateCityInfoAsync(Guid cityId, string? cityName, string? cityNameEn, string? cityCountry)
+    {
+        try
+        {
+            _logger.LogInformation("🔄 更新城市信息: CityId={CityId}, Name={Name}, Country={Country}",
+                cityId, cityName, cityCountry);
+
+            // 获取该城市的所有 Coworking 空间
+            var response = await _supabaseClient
+                .From<CoworkingSpace>()
+                .Filter("city_id", Constants.Operator.Equals, cityId.ToString())
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                .Get();
+
+            var spaces = response.Models;
+            if (!spaces.Any())
+            {
+                _logger.LogInformation("ℹ️ 该城市没有 Coworking 空间需要更新");
+                return 0;
+            }
+
+            // 批量更新
+            var updatedCount = 0;
+            foreach (var space in spaces)
+            {
+                space.CityName = cityName;
+                space.CityNameEn = cityNameEn;
+                space.CityCountry = cityCountry;
+                space.UpdatedAt = DateTime.UtcNow;
+
+                await _supabaseClient
+                    .From<CoworkingSpace>()
+                    .Upsert(space);
+                updatedCount++;
+            }
+
+            _logger.LogInformation("✅ 已更新 {Count} 个 Coworking 空间的城市信息", updatedCount);
+            return updatedCount;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 更新城市信息失败: CityId={CityId}", cityId);
+            throw;
+        }
+    }
+
+    public Task FillRedundantFieldsAsync(CoworkingSpace coworkingSpace, string? creatorName, string? creatorAvatar,
+        string? cityName, string? cityNameEn, string? cityCountry)
+    {
+        coworkingSpace.CreatorName = creatorName;
+        coworkingSpace.CreatorAvatar = creatorAvatar;
+        coworkingSpace.CityName = cityName;
+        coworkingSpace.CityNameEn = cityNameEn;
+        coworkingSpace.CityCountry = cityCountry;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    ///     批量获取城市的 Coworking 空间数量（优化版：单次查询）
+    /// </summary>
+    public async Task<Dictionary<Guid, int>> GetCoworkingCountsByCityIdsAsync(List<Guid> cityIds)
+    {
+        var result = new Dictionary<Guid, int>();
+
+        if (cityIds.Count == 0)
+            return result;
+
+        try
+        {
+            _logger.LogInformation("📊 [优化] 批量获取 {Count} 个城市的 Coworking 数量 (单次查询)", cityIds.Count);
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            // 构建 IN 查询 - 一次性获取所有指定城市的 Coworking 空间
+            var cityIdStrings = cityIds.Select(id => id.ToString()).ToList();
+
+            var response = await _supabaseClient
+                .From<CoworkingSpace>()
+                .Select("id, city_id")
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Filter("city_id", Constants.Operator.In, cityIdStrings)
+                .Get();
+
+            var spaces = response.Models.ToList();
+
+            // 按城市ID分组计数（过滤掉 CityId 为 null 的记录）
+            var groupedCounts = spaces
+                .Where(s => s.CityId.HasValue)
+                .GroupBy(s => s.CityId!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            // 确保所有请求的城市都有结果（没有 Coworking 的城市计数为0）
+            foreach (var cityId in cityIds)
+            {
+                result[cityId] = groupedCounts.GetValueOrDefault(cityId, 0);
+            }
+
+            stopwatch.Stop();
+            _logger.LogInformation("✅ [优化] 批量获取城市 Coworking 数量完成: {Count} 个城市, 耗时 {Elapsed}ms",
+                result.Count, stopwatch.ElapsedMilliseconds);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量获取城市 Coworking 数量失败");
+            return result;
+        }
+    }
+
+    #endregion
 }

@@ -83,12 +83,53 @@ public class MembershipService : IMembershipService
     public async Task<bool> RecordAiUsageAsync(string userId)
     {
         var membership = await _membershipRepository.GetByUserIdAsync(userId);
-        if (membership == null || !membership.CanUseAI)
+        if (membership == null)
+        {
+            // 如果用户没有会员记录，创建免费会员
+            membership = Membership.CreateFree(userId);
+            await _membershipRepository.CreateAsync(membership);
+        }
+
+        if (!membership.CanUseAI)
             return false;
 
         membership.IncrementAiUsage();
         await _membershipRepository.UpdateAsync(membership);
         return true;
+    }
+
+    /// <summary>
+    /// 检查用户是否可以使用 AI 服务
+    /// </summary>
+    public async Task<AiUsageCheckResponse> CheckAiUsageAsync(string userId)
+    {
+        var membership = await _membershipRepository.GetByUserIdAsync(userId);
+        if (membership == null)
+        {
+            // 如果用户没有会员记录，创建免费会员
+            membership = Membership.CreateFree(userId);
+            await _membershipRepository.CreateAsync(membership);
+        }
+
+        // 重置月度使用量（如果需要）
+        membership.ResetAiUsageIfNeeded();
+        await _membershipRepository.UpdateAsync(membership);
+
+        var limit = membership.AiUsageLimit;
+        var used = membership.AiUsageThisMonth;
+        var remaining = limit < 0 ? -1 : Math.Max(0, limit - used);
+
+        return new AiUsageCheckResponse
+        {
+            CanUse = membership.CanUseAI,
+            Level = membership.Level,
+            LevelName = membership.MembershipLevel.ToString(),
+            Limit = limit,
+            Used = used,
+            Remaining = remaining,
+            IsUnlimited = limit < 0,
+            ResetDate = membership.AiUsageResetDate
+        };
     }
 
     public async Task<IEnumerable<MembershipResponse>> GetExpiringMembershipsAsync(int daysBeforeExpiry = 7)

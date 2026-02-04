@@ -108,7 +108,7 @@ public class CityServiceClient : ICityServiceClient
     }
 
     /// <summary>
-    ///     批量获取城市信息
+    ///     批量获取城市信息 (使用批量 API)
     /// </summary>
     public async Task<Dictionary<string, CityInfoDto>> GetCitiesInfoAsync(
         IEnumerable<string> cityIds,
@@ -122,27 +122,81 @@ public class CityServiceClient : ICityServiceClient
             return result;
         }
 
-        _logger.LogDebug("📞 批量获取城市信息: {Count} 个城市", uniqueCityIds.Count);
-
-        // 并发获取城市信息
-        var tasks = uniqueCityIds.Select(async cityId =>
+        try
         {
-            var cityInfo = await GetCityInfoAsync(cityId, cancellationToken);
-            return (cityId, cityInfo);
-        });
+            _logger.LogDebug("📞 批量获取城市信息 - POST /api/v1/cities/lookup: {Count} 个城市", uniqueCityIds.Count);
 
-        var results = await Task.WhenAll(tasks);
+            // 转换为 Guid 列表
+            var cityGuids = uniqueCityIds
+                .Where(id => Guid.TryParse(id, out _))
+                .Select(id => Guid.Parse(id))
+                .ToList();
 
-        foreach (var (cityId, cityInfo) in results)
-        {
-            if (cityInfo != null)
+            if (!cityGuids.Any())
             {
-                result[cityId] = cityInfo;
+                return result;
+            }
+
+            // 使用批量 API 一次获取所有城市信息
+            var requestBody = new { CityIds = cityGuids };
+            var response = await _daprClient.InvokeMethodAsync<object, JsonElement>(
+                HttpMethod.Post,
+                _cityServiceAppId,
+                "api/v1/cities/lookup",
+                requestBody,
+                cancellationToken);
+
+            // 解析响应
+            if (response.ValueKind == JsonValueKind.Object)
+            {
+                var success = response.TryGetProperty("success", out var successProp) && successProp.GetBoolean();
+
+                if (success && response.TryGetProperty("data", out var dataElement) &&
+                    dataElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var cityElement in dataElement.EnumerateArray())
+                    {
+                        var cityInfo = new CityInfoDto
+                        {
+                            Id = GetStringProperty(cityElement, "id") ?? string.Empty,
+                            Name = GetStringProperty(cityElement, "name") ?? string.Empty,
+                            NameEn = GetStringProperty(cityElement, "nameEn") ?? string.Empty,
+                            Country = GetStringProperty(cityElement, "country") ?? string.Empty,
+                            CountryCode = GetStringProperty(cityElement, "countryCode") ?? string.Empty
+                        };
+
+                        if (!string.IsNullOrEmpty(cityInfo.Id))
+                        {
+                            result[cityInfo.Id] = cityInfo;
+                        }
+                    }
+                }
+            }
+
+            _logger.LogDebug("✅ 批量 API 获取城市信息完成: {Success}/{Total}",
+                result.Count, uniqueCityIds.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 批量 API 失败，降级为并发单独调用");
+
+            // 降级：并发获取城市信息
+            var tasks = uniqueCityIds.Select(async cityId =>
+            {
+                var cityInfo = await GetCityInfoAsync(cityId, cancellationToken);
+                return (cityId, cityInfo);
+            });
+
+            var results = await Task.WhenAll(tasks);
+
+            foreach (var (cityId, cityInfo) in results)
+            {
+                if (cityInfo != null)
+                {
+                    result[cityId] = cityInfo;
+                }
             }
         }
-
-        _logger.LogDebug("✅ 批量获取城市信息完成: {Success}/{Total}",
-            result.Count, uniqueCityIds.Count);
 
         return result;
     }

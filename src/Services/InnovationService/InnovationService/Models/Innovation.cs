@@ -19,7 +19,43 @@ public class Innovation : BaseModel
 
     [Required] [Column("description")] public string Description { get; set; } = string.Empty;
 
+    [Column("elevator_pitch")] public string? ElevatorPitch { get; set; }
+
+    [Column("problem")] public string? Problem { get; set; }
+
+    [Column("solution")] public string? Solution { get; set; }
+
+    [Column("target_audience")] public string? TargetAudience { get; set; }
+
+    [MaxLength(100)]
+    [Column("product_type")]
+    public string? ProductType { get; set; }
+
+    [Column("key_features")] public string? KeyFeatures { get; set; }
+
+    [Column("competitive_advantage")] public string? CompetitiveAdvantage { get; set; }
+
+    [Column("business_model")] public string? BusinessModel { get; set; }
+
+    [Column("market_opportunity")] public string? MarketOpportunity { get; set; }
+
+    [Column("ask")] public string? Ask { get; set; }
+
     [Required] [Column("creator_id")] public Guid CreatorId { get; set; }
+
+    /// <summary>
+    ///     冗余字段：创建者名称（来源于 users.name，通过事件驱动同步）
+    /// </summary>
+    [MaxLength(255)]
+    [Column("creator_name")]
+    public string? CreatorName { get; set; }
+
+    /// <summary>
+    ///     冗余字段：创建者头像（来源于 users.avatar，通过事件驱动同步）
+    /// </summary>
+    [MaxLength(500)]
+    [Column("creator_avatar")]
+    public string? CreatorAvatar { get; set; }
 
     [MaxLength(50)]
     [Column("category")]
@@ -66,6 +102,71 @@ public class Innovation : BaseModel
     [Column("created_at")] public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     [Column("updated_at")] public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    ///     是否已删除（逻辑删除标记）
+    /// </summary>
+    [Column("is_deleted")]
+    public bool IsDeleted { get; set; } = false;
+
+    /// <summary>
+    ///     删除时间
+    /// </summary>
+    [Column("deleted_at")]
+    public DateTime? DeletedAt { get; set; }
+
+    /// <summary>
+    ///     删除者ID
+    /// </summary>
+    [Column("deleted_by")]
+    public Guid? DeletedBy { get; set; }
+
+    /// <summary>
+    ///     标记为已删除
+    /// </summary>
+    public void MarkAsDeleted(Guid? deletedBy = null)
+    {
+        IsDeleted = true;
+        DeletedAt = DateTime.UtcNow;
+        DeletedBy = deletedBy;
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = deletedBy;
+    }
+}
+
+/// <summary>
+///     创新项目团队成员实体模型
+/// </summary>
+[Table("innovation_team_members")]
+public class InnovationTeamMember : BaseModel
+{
+    [PrimaryKey("id")] public Guid Id { get; set; }
+
+    [Required] [Column("innovation_id")] public Guid InnovationId { get; set; }
+
+    [Column("user_id")] public Guid? UserId { get; set; }
+
+    [Required]
+    [MaxLength(100)]
+    [Column("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(100)]
+    [Column("role")]
+    public string Role { get; set; } = string.Empty;
+
+    [Column("description")] public string? Description { get; set; }
+
+    [Column("avatar_url")] public string? AvatarUrl { get; set; }
+
+    [Column("is_founder")] public bool IsFounder { get; set; }
+
+    [Column("joined_at")] public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
+
+    [Column("created_at")] public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [Column("updated_at")] public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
 
 /// <summary>
@@ -94,6 +195,20 @@ public class InnovationComment : BaseModel
     [Required] [Column("innovation_id")] public Guid InnovationId { get; set; }
 
     [Required] [Column("user_id")] public Guid UserId { get; set; }
+
+    /// <summary>
+    ///     冗余字段：评论者名称（来源于 users.name，通过事件驱动同步）
+    /// </summary>
+    [MaxLength(255)]
+    [Column("user_name")]
+    public string? UserName { get; set; }
+
+    /// <summary>
+    ///     冗余字段：评论者头像（来源于 users.avatar，通过事件驱动同步）
+    /// </summary>
+    [MaxLength(500)]
+    [Column("user_avatar")]
+    public string? UserAvatar { get; set; }
 
     [Required] [Column("content")] public string Content { get; set; } = string.Empty;
 

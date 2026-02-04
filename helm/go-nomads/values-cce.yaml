@@ -1,0 +1,43 @@
+# CCE 优化配置 - 低资源版本
+global:
+  namespace: default
+  storageClass: ""
+
+redis:
+  enabled: true
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+  persistence:
+    enabled: false  # CCE 需要单独配置存储
+
+rabbitmq:
+  enabled: true
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  persistence:
+    enabled: false
+
+elasticsearch:
+  enabled: false
+
+consul:
+  enabled: false
+
+zipkin:
+  enabled: false
+
+prometheus:
+  enabled: false
+
+grafana:
+  enabled: false

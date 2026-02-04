@@ -13,9 +13,17 @@ public interface ICityRepository
     Task<IEnumerable<City>> SearchAsync(CitySearchCriteria criteria);
     Task<City> CreateAsync(City city);
     Task<City?> UpdateAsync(Guid id, City city);
-    Task<bool> DeleteAsync(Guid id);
+    
+    /// <summary>
+    ///     删除城市（逻辑删除）
+    /// </summary>
+    /// <param name="id">城市ID</param>
+    /// <param name="deletedBy">删除操作执行者ID</param>
+    Task<bool> DeleteAsync(Guid id, Guid? deletedBy = null);
+    
     Task<int> GetTotalCountAsync();
     Task<IEnumerable<City>> GetRecommendedAsync(int count);
+    Task<IEnumerable<City>> GetPopularAsync(int limit);
     Task<IEnumerable<City>> GetByCountryAsync(string countryName);
 
     /// <summary>
@@ -34,4 +42,30 @@ public interface ICityRepository
     /// 直接更新城市经纬度（绕过 ORM）
     /// </summary>
     Task<bool> UpdateCoordinatesDirectAsync(Guid cityId, double latitude, double longitude);
+
+    /// <summary>
+    /// 按名称搜索城市（支持模糊匹配）
+    /// </summary>
+    /// <param name="cityName">城市名称</param>
+    /// <param name="countryName">国家名称（可选）</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>匹配的城市列表</returns>
+    Task<IEnumerable<City>> SearchByNameAsync(
+        string cityName,
+        string? countryName = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 查找最近的城市（基于经纬度）
+    /// </summary>
+    /// <param name="latitude">纬度</param>
+    /// <param name="longitude">经度</param>
+    /// <param name="maxDistanceKm">最大搜索距离（公里）</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>最近的城市</returns>
+    Task<City?> FindNearestCityAsync(
+        double latitude,
+        double longitude,
+        double maxDistanceKm = 50,
+        CancellationToken cancellationToken = default);
 }

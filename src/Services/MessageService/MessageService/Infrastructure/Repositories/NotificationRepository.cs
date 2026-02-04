@@ -74,7 +74,8 @@ public class NotificationRepository : INotificationRepository
         {
             var response = await _supabaseClient
                 .From<Notification>()
-                .Where(n => n.UserId == userId && n.IsRead == false)
+                .Where(n => n.UserId == userId)
+                .Where(n => n.IsRead == false)
                 .Get(cancellationToken);
 
             var count = response.Models.Count;
@@ -297,6 +298,35 @@ public class NotificationRepository : INotificationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ 删除通知失败: Id={Id}", id);
+            throw;
+        }
+    }
+
+    public async Task<bool> UpdateMetadataAsync(Guid id, string metadata, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var notification = await GetByIdAsync(id, cancellationToken);
+            if (notification == null)
+            {
+                _logger.LogWarning("⚠️ 通知不存在: Id={Id}", id);
+                return false;
+            }
+
+            notification.Metadata = metadata;
+
+            await _supabaseClient
+                .From<Notification>()
+                .Where(n => n.Id == id)
+                .Update(notification);
+
+            _logger.LogInformation("✅ 更新通知元数据: Id={Id}", id);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 更新通知元数据失败: Id={Id}", id);
             throw;
         }
     }

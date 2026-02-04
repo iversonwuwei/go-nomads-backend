@@ -24,9 +24,11 @@ public interface ICoworkingService
     Task<CoworkingSpaceResponse> UpdateCoworkingSpaceAsync(Guid id, UpdateCoworkingSpaceRequest request);
 
     /// <summary>
-    ///     删除共享办公空间
+    ///     删除共享办公空间（逻辑删除）
     /// </summary>
-    Task DeleteCoworkingSpaceAsync(Guid id);
+    /// <param name="id">共享办公空间ID</param>
+    /// <param name="deletedBy">删除操作执行者ID</param>
+    Task DeleteCoworkingSpaceAsync(Guid id, Guid? deletedBy = null);
 
     /// <summary>
     ///     获取共享办公空间列表（分页）
@@ -113,4 +115,9 @@ public interface ICoworkingService
     ///     删除评论
     /// </summary>
     Task DeleteCommentAsync(Guid id, Guid userId);
+    
+    /// <summary>
+    ///     批量获取城市 Coworking 空间数量
+    /// </summary>
+    Task<Dictionary<string, int>> GetCitiesCoworkingCountsAsync(List<string> cityIds);
 }

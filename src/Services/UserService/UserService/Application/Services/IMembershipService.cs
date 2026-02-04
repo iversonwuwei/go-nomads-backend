@@ -33,6 +33,11 @@ public interface IMembershipService
     Task<bool> RecordAiUsageAsync(string userId);
 
     /// <summary>
+    ///     检查用户 AI 使用配额
+    /// </summary>
+    Task<AiUsageCheckResponse> CheckAiUsageAsync(string userId);
+
+    /// <summary>
     ///     获取即将过期的会员列表（用于发送提醒）
     /// </summary>
     Task<IEnumerable<MembershipResponse>> GetExpiringMembershipsAsync(int daysBeforeExpiry = 7);

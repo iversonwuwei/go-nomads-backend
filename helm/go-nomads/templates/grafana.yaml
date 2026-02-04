@@ -1,0 +1,86 @@
+{{- if .Values.grafana.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "go-nomads-infra.componentLabels" (dict "root" . "name" "grafana" "component" "monitoring") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "go-nomads-infra.selectorLabels" (dict "name" "grafana") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "go-nomads-infra.selectorLabels" (dict "name" "grafana") | nindent 8 }}
+    spec:
+      containers:
+        - name: grafana
+          image: "{{ .Values.grafana.image.repository }}:{{ .Values.grafana.image.tag }}"
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: {{ .Values.grafana.adminPassword | quote }}
+          resources:
+            {{- toYaml .Values.grafana.resources | nindent 12 }}
+          {{- if .Values.grafana.persistence.enabled }}
+          volumeMounts:
+            - name: grafana-data
+              mountPath: /var/lib/grafana
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+      {{- if .Values.grafana.persistence.enabled }}
+      volumes:
+        - name: grafana-data
+          persistentVolumeClaim:
+            claimName: grafana-pvc
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "go-nomads-infra.componentLabels" (dict "root" . "name" "grafana" "component" "monitoring") | nindent 4 }}
+spec:
+  type: {{ .Values.grafana.service.type }}
+  ports:
+    - port: {{ .Values.grafana.service.port }}
+      targetPort: 3000
+      name: http
+  selector:
+    {{- include "go-nomads-infra.selectorLabels" (dict "name" "grafana") | nindent 4 }}
+{{- if .Values.grafana.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-pvc
+  namespace: {{ .Values.global.namespace }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.grafana.persistence.size }}
+  {{- if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+{{- end }}
+{{- end }}

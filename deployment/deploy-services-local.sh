@@ -201,6 +201,40 @@ deploy_service_local() {
         )
     fi
 
+    # city-service 需要 RabbitMQ 和 Elasticsearch 配置
+    if [[ "$service_name" == "city-service" ]]; then
+        extra_env+=(
+            "-e" "ConnectionStrings__Elasticsearch=http://go-nomads-elasticsearch:9200"
+            "-e" "RabbitMQ__Host=go-nomads-rabbitmq"
+            "-e" "RabbitMQ__Username=walden"
+            "-e" "RabbitMQ__Password=walden"
+        )
+    fi
+    
+    # message-service 需要指定 ServiceAddress 和 RabbitMQ 配置
+    if [[ "$service_name" == "message-service" ]]; then
+        extra_env+=(
+            "-e" "Consul__ServiceAddress=go-nomads-$service_name"
+            "-e" "Consul__ServicePort=8080"
+            "-e" "RabbitMQ__HostName=go-nomads-rabbitmq"
+            "-e" "RabbitMQ__Port=5672"
+            "-e" "RabbitMQ__UserName=walden"
+            "-e" "RabbitMQ__Password=walden"
+        )
+    fi
+
+    # search-service 需要 Elasticsearch 和服务 URL 配置
+    if [[ "$service_name" == "search-service" ]]; then
+        extra_env+=(
+            "-e" "Elasticsearch__Url=http://go-nomads-elasticsearch:9200"
+            "-e" "ServiceUrls__CityService=http://go-nomads-city-service:8080"
+            "-e" "ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080"
+            "-e" "RabbitMQ__Host=go-nomads-rabbitmq"
+            "-e" "RabbitMQ__Username=walden"
+            "-e" "RabbitMQ__Password=walden"
+        )
+    fi
+
     # 启动应用容器
     echo -e "${YELLOW}  启动应用容器...${NC}"
     
@@ -220,9 +254,11 @@ deploy_service_local() {
         $CONTAINER_RUNTIME run -d \
             --name "go-nomads-$service_name" \
             --network "$NETWORK_NAME" \
-            -p "$app_port:8080" \
+            --label "com.docker.compose.project=go-nomads" \
+            --label "com.docker.compose.service=$service_name" \
+            -p "$app_port:5000" \
             "${env_config[@]}" \
-            -e ASPNETCORE_URLS="http://+:8080" \
+            -e ASPNETCORE_URLS="http://+:5000" \
             -e Consul__Address="http://go-nomads-consul:7500" \
             -e HTTP_PROXY= \
             -e HTTPS_PROXY= \
@@ -237,6 +273,8 @@ deploy_service_local() {
         $CONTAINER_RUNTIME run -d \
             --name "go-nomads-$service_name" \
             --network "$NETWORK_NAME" \
+            --label "com.docker.compose.project=go-nomads" \
+            --label "com.docker.compose.service=$service_name" \
             -p "$app_port:8080" \
             -p "$dapr_http_port:$dapr_http_port" \
             "${env_config[@]}" \
@@ -267,7 +305,7 @@ deploy_service_local() {
 
     # Gateway 不需要 Dapr sidecar（只使用 YARP 反向代理 + JWT 验证）
     if [[ "$service_name" == "gateway" ]]; then
-        echo -e "${YELLOW}  跳过 Dapr sidecar (Gateway 不需要 Dapr)${NC}"
+        echo -e "${YELLOW}  跳过 Dapr sidecar ($service_name 不需要 Dapr)${NC}"
         echo -e "${GREEN}  $service_name 部署成功!${NC}"
         echo -e "${GREEN}  应用端口: http://localhost:$app_port${NC}"
         sleep 2
@@ -282,6 +320,8 @@ deploy_service_local() {
     $CONTAINER_RUNTIME run -d \
         --name "go-nomads-$service_name-dapr" \
         --network "container:go-nomads-$service_name" \
+        --label "com.docker.compose.project=go-nomads" \
+        --label "com.docker.compose.service=$service_name-dapr" \
         daprio/daprd:latest \
         ./daprd \
         --app-id "$app_id" \
@@ -335,6 +375,13 @@ check_prerequisites() {
     fi
     echo -e "${GREEN}  Consul 运行正常${NC}"
     
+    # 检查 Nginx
+    if ! container_running "go-nomads-nginx"; then
+        echo -e "${YELLOW}  [提示] Nginx 未运行，可通过 deploy-infrastructure-local.sh 部署${NC}"
+    else
+        echo -e "${GREEN}  Nginx 运行正常${NC}"
+    fi
+    
     echo -e "${GREEN}  前置条件检查完成${NC}"
 }
 
@@ -359,7 +406,7 @@ main() {
     deploy_service_local \
         "gateway" \
         "src/Gateway/Gateway" \
-        "5000" \
+        "5080" \
         "Gateway.dll" \
         "3500" \
         "gateway"
@@ -455,23 +502,59 @@ main() {
         "message-service"
     echo ""
     
+    # 部署 AccommodationService
+    deploy_service_local \
+        "accommodation-service" \
+        "src/Services/AccommodationService/AccommodationService" \
+        "8012" \
+        "AccommodationService.dll" \
+        "3513" \
+        "accommodation-service"
+    echo ""
+    
+    # 部署 InnovationService
+    deploy_service_local \
+        "innovation-service" \
+        "src/Services/InnovationService/InnovationService" \
+        "8011" \
+        "InnovationService.dll" \
+        "3514" \
+        "innovation-service"
+    echo ""
+    
+    # 部署 SearchService
+    deploy_service_local \
+        "search-service" \
+        "src/Services/SearchService/SearchService" \
+        "8015" \
+        "SearchService.dll" \
+        "3517" \
+        "search-service"
+    echo ""
+    
     # 显示部署摘要
     show_header "部署摘要"
     
     echo -e "${GREEN}所有服务部署完成!${NC}"
     echo ""
+    echo -e "${BLUE}反向代理:${NC}"
+    echo -e "  ${GREEN}Nginx (推荐):      http://localhost${NC}"
+    echo ""
     echo -e "${BLUE}服务访问地址:${NC}"
-    echo -e "  ${GREEN}Gateway:          http://localhost:5000${NC}"
-    echo -e "  ${GREEN}User Service:     http://localhost:5001${NC}"
-    echo -e "  ${GREEN}Product Service:  http://localhost:5002${NC}"
-    echo -e "  ${GREEN}Document Service: http://localhost:5003${NC}"
-    echo -e "  ${GREEN}City Service:     http://localhost:8002${NC}"
-    echo -e "  ${GREEN}Event Service:    http://localhost:8005${NC}"
-    echo -e "  ${GREEN}Coworking Service: http://localhost:8006${NC}"
-    echo -e "  ${GREEN}AI Service:       http://localhost:8009${NC}"
-    echo -e "  ${GREEN}Cache Service:    http://localhost:8010${NC}"
-    echo -e "  ${GREEN}Message Service:  http://localhost:5005${NC}"
-    echo -e "  ${GREEN}Message Swagger:  http://localhost:5005/swagger${NC}"
+    echo -e "  ${GREEN}Gateway:             http://localhost:5080${NC}"
+    echo -e "  ${GREEN}User Service:        http://localhost:5001${NC}"
+    echo -e "  ${GREEN}Product Service:     http://localhost:5002${NC}"
+    echo -e "  ${GREEN}Document Service:    http://localhost:5003${NC}"
+    echo -e "  ${GREEN}City Service:        http://localhost:8002${NC}"
+    echo -e "  ${GREEN}Event Service:       http://localhost:8005${NC}"
+    echo -e "  ${GREEN}Coworking Service:   http://localhost:8006${NC}"
+    echo -e "  ${GREEN}AI Service:          http://localhost:8009${NC}"
+    echo -e "  ${GREEN}Cache Service:       http://localhost:8010${NC}"
+    echo -e "  ${GREEN}Accommodation Service: http://localhost:8012${NC}"
+    echo -e "  ${GREEN}Message Service:     http://localhost:5005${NC}"
+    echo -e "  ${GREEN}Innovation Service:  http://localhost:8011${NC}"
+    echo -e "  ${GREEN}Search Service:      http://localhost:8015${NC}"
+    echo -e "  ${GREEN}Message Swagger:     http://localhost:5005/swagger${NC}"
     echo ""
     echo -e "${BLUE}Dapr 配置:${NC}"
     echo -e "  ${GREEN}模式:             Container Sidecar (共享网络命名空间)${NC}"

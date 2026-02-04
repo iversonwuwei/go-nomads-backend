@@ -18,6 +18,41 @@ public class UserDto
     
     // 会员信息
     public UserMembershipDto? Membership { get; set; }
+    
+    // 最新旅行历史（用于 Profile 页面显示）
+    public TravelHistoryDto? LatestTravelHistory { get; set; }
+
+    // 旅行历史列表（用于 Profile 页面显示，最多返回最近 10 条已确认的旅行记录）
+    public List<TravelHistoryDto>? TravelHistory { get; set; }
+
+    // 旅行统计数据（从 travel_history 表计算，去重后的国家/城市数）
+    public UserTravelStatsDto? Stats { get; set; }
+}
+
+/// <summary>
+///     用户旅行统计 DTO（嵌套在 UserDto 中，用于 Profile 页面显示）
+/// </summary>
+public class UserTravelStatsDto
+{
+    /// <summary>
+    ///     访问过的国家数（去重）
+    /// </summary>
+    public int CountriesVisited { get; set; }
+    
+    /// <summary>
+    ///     访问过的城市数（去重）
+    /// </summary>
+    public int CitiesVisited { get; set; }
+    
+    /// <summary>
+    ///     总旅行天数
+    /// </summary>
+    public int TotalDays { get; set; }
+    
+    /// <summary>
+    ///     总行程数（已确认）
+    /// </summary>
+    public int TotalTrips { get; set; }
 }
 
 /// <summary>

@@ -21,9 +21,10 @@ public class JwtAuthenticationMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var path = context.Request.Path.Value ?? string.Empty;
+        var method = context.Request.Method;
 
-        // 检查是否需要认证
-        if (RouteAuthorizationConfig.RequiresAuthentication(path))
+        // 检查是否需要认证（考虑 HTTP Method）
+        if (RouteAuthorizationConfig.RequiresAuthentication(path, method))
         {
             // 检查用户是否已认证
             if (!context.User.Identity?.IsAuthenticated ?? true)

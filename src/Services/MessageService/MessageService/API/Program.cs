@@ -7,11 +7,15 @@ using MessageService.Application.Services;
 using MessageService.Domain.Repositories;
 using MessageService.Infrastructure.Consumers;
 using MessageService.Infrastructure.Repositories;
+using MessageService.Infrastructure.TencentIM;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using Serilog;
 using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Observability;
 using StackExchange.Redis;
+
+const string serviceName = "MessageService";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,15 +28,21 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
+// ============================================================
+// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// ============================================================
+builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
+builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
+
 // 添加服务
 builder.Services.AddControllers().AddDapr();
 builder.Services.AddEndpointsApiExplorer();
 
-// 配置 DaprClient
-var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50001";
+// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync）
+var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
-    daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
+    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
     daprClientBuilder.UseTimeout(TimeSpan.FromSeconds(30));
 });
 builder.Services.AddOpenApi(options =>
@@ -68,14 +78,29 @@ builder.Services.AddSingleton<ISignalRNotifier, SignalRNotifierImpl>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<INotificationService, NotificationApplicationService>();
 
+// 注册 UserService 客户端 (用于动态获取用户信息)
+builder.Services.AddScoped<IUserServiceClient, UserServiceClient>();
+
 // 注册聊天服务
 builder.Services.AddScoped<IChatRoomRepository, SupabaseChatRoomRepository>();
 builder.Services.AddScoped<IChatMessageRepository, SupabaseChatMessageRepository>();
 builder.Services.AddScoped<IChatMemberRepository, SupabaseChatMemberRepository>();
 builder.Services.AddScoped<IChatService, ChatApplicationService>();
 
+// 注册腾讯云IM服务
+builder.Services.Configure<TencentIMConfig>(builder.Configuration.GetSection(TencentIMConfig.SectionName));
+builder.Services.AddHttpClient<ITencentIMService, TencentIMService>();
+
 // 配置 SignalR + Redis Backplane
-builder.Services.AddSignalR()
+builder.Services.AddSignalR(options =>
+    {
+        // 增加超时配置，防止连接超时
+        options.ClientTimeoutInterval = TimeSpan.FromSeconds(60); // 客户端超时 60 秒
+        options.KeepAliveInterval = TimeSpan.FromSeconds(15); // 保持连接间隔 15 秒
+        options.HandshakeTimeout = TimeSpan.FromSeconds(30); // 握手超时 30 秒
+        options.MaximumReceiveMessageSize = 1024 * 1024; // 最大消息大小 1MB
+        options.StreamBufferCapacity = 20; // 流缓冲区容量
+    })
     .AddStackExchangeRedis(builder.Configuration.GetConnectionString("Redis")
                            ?? "localhost:6379",
         options => { options.Configuration.ChannelPrefix = RedisChannel.Literal("MessageService"); });
@@ -93,6 +118,9 @@ builder.Services.AddMassTransit(x =>
     x.AddConsumer<AITaskCompletedMessageConsumer>();
     x.AddConsumer<AITaskFailedMessageConsumer>();
 
+    // 注册 AI Chat 流式响应消费者
+    x.AddConsumer<AIChatStreamChunkConsumer>();
+
     // 注册城市图片生成完成消息消费者
     x.AddConsumer<CityImageGeneratedMessageConsumer>();
 
@@ -101,6 +129,12 @@ builder.Services.AddMassTransit(x =>
 
     // 注册 Coworking 验证人数变化消息消费者
     x.AddConsumer<CoworkingVerificationVotesConsumer>();
+
+    // 注册城市评分更新消息消费者
+    x.AddConsumer<CityRatingUpdatedMessageConsumer>();
+
+    // 注册城市评论更新消息消费者
+    x.AddConsumer<CityReviewUpdatedMessageConsumer>();
 
     x.UsingRabbitMq((context, cfg) =>
     {
@@ -191,6 +225,30 @@ builder.Services.AddMassTransit(x =>
             e.PrefetchCount = 16;
             e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
         });
+
+        // 配置城市评分更新消息队列
+        cfg.ReceiveEndpoint("city-rating-updated-queue", e =>
+        {
+            e.ConfigureConsumer<CityRatingUpdatedMessageConsumer>(context);
+            e.PrefetchCount = 16;
+            e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
+        });
+
+        // 配置城市评论更新消息队列
+        cfg.ReceiveEndpoint("city-review-updated-queue", e =>
+        {
+            e.ConfigureConsumer<CityReviewUpdatedMessageConsumer>(context);
+            e.PrefetchCount = 16;
+            e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
+        });
+
+        // 配置 AI Chat 流式响应消息队列
+        cfg.ReceiveEndpoint("ai-chat-stream-chunk-queue", e =>
+        {
+            e.ConfigureConsumer<AIChatStreamChunkConsumer>(context);
+            e.PrefetchCount = 64; // 流式消息非常频繁，增加并发
+            e.UseMessageRetry(r => r.Interval(2, TimeSpan.FromSeconds(1)));
+        });
     });
 });
 
@@ -233,14 +291,22 @@ var consulClient = app.Services.GetRequiredService<IConsulClient>();
 var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
 
 var serviceId = $"message-service-{Guid.NewGuid()}";
-var serviceName = "message-service";
-var serviceAddress = builder.Configuration["ServiceAddress"] ?? "go-nomads-message-service";
-var servicePort = 8080;
+var consulServiceName = builder.Configuration["Consul:ServiceName"] ?? "message-service";
+
+// 优先使用 POD_IP 环境变量（K8s 部署），否则使用配置的 ServiceAddress
+var podIp = Environment.GetEnvironmentVariable("POD_IP");
+var serviceAddress = !string.IsNullOrEmpty(podIp) 
+    ? podIp
+    : builder.Configuration["Consul:ServiceAddress"] ?? "localhost";
+var servicePort = int.Parse(builder.Configuration["Consul:ServicePort"] ?? "8080");
+
+Log.Information("Consul 服务注册: ServiceName={ServiceName}, Address={Address}, Port={Port}, POD_IP={PodIp}", 
+    consulServiceName, serviceAddress, servicePort, podIp ?? "N/A");
 
 var registration = new AgentServiceRegistration
 {
     ID = serviceId,
-    Name = serviceName,
+    Name = consulServiceName,
     Address = serviceAddress,
     Port = servicePort,
     Tags = new[] { "message-service", "signalr", "rabbitmq", "api" },

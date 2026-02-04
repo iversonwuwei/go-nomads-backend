@@ -21,8 +21,10 @@ public class JwtTokenService
         _secret = configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret is not configured");
         _issuer = configuration["Jwt:Issuer"] ?? "go-nomads";
         _audience = configuration["Jwt:Audience"] ?? "go-nomads-users";
-        _accessTokenExpirationMinutes = configuration.GetValue("Jwt:AccessTokenExpirationMinutes", 60);
-        _refreshTokenExpirationDays = configuration.GetValue("Jwt:RefreshTokenExpirationDays", 7);
+        // Access Token 默认有效期：24小时（1440分钟）
+        _accessTokenExpirationMinutes = configuration.GetValue("Jwt:AccessTokenExpirationMinutes", 1440);
+        // Refresh Token 默认有效期：30天
+        _refreshTokenExpirationDays = configuration.GetValue("Jwt:RefreshTokenExpirationDays", 30);
     }
 
     /// <summary>
@@ -117,5 +119,21 @@ public class JwtTokenService
     {
         var principal = ValidateToken(token);
         return principal?.FindFirst("sub")?.Value;
+    }
+
+    /// <summary>
+    ///     获取 Access Token 过期时间（秒）
+    /// </summary>
+    public int GetAccessTokenExpirationSeconds()
+    {
+        return _accessTokenExpirationMinutes * 60;
+    }
+
+    /// <summary>
+    ///     获取 Refresh Token 过期时间（秒）
+    /// </summary>
+    public int GetRefreshTokenExpirationSeconds()
+    {
+        return _refreshTokenExpirationDays * 24 * 60 * 60;
     }
 }

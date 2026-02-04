@@ -96,6 +96,7 @@ public class UserPreferencesController : ControllerBase
             preferences.Update(
                 request.NotificationsEnabled,
                 request.TravelHistoryVisible,
+                request.AutoTravelDetectionEnabled,
                 request.ProfilePublic,
                 request.Currency,
                 request.TemperatureUnit,
@@ -177,6 +178,7 @@ public class UserPreferencesController : ControllerBase
             UserId = preferences.UserId,
             NotificationsEnabled = preferences.NotificationsEnabled,
             TravelHistoryVisible = preferences.TravelHistoryVisible,
+            AutoTravelDetectionEnabled = preferences.AutoTravelDetectionEnabled,
             ProfilePublic = preferences.ProfilePublic,
             Currency = preferences.Currency,
             TemperatureUnit = preferences.TemperatureUnit,

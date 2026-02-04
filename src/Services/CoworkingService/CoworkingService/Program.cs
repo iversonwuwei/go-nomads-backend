@@ -2,10 +2,13 @@ using CoworkingService.Application.Services;
 using CoworkingService.Domain.Repositories;
 using CoworkingService.Infrastructure.Repositories;
 using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Observability;
 using MassTransit;
 using Scalar.AspNetCore;
 using Serilog;
 using System.Text.Json.Serialization;
+
+const string serviceName = "CoworkingService";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,25 +21,31 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
+// ============================================================
+// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// ============================================================
+builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
+builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
+
 // 添加 Supabase 客户端
 builder.Services.AddSupabase(builder.Configuration);
 
 // 添加当前用户服务（统一的用户身份和权限检查）
 builder.Services.AddCurrentUserService();
 
-// 配置 DaprClient 使用 gRPC 协议
+// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync，访问控制策略自动生效）
 // 在 container sidecar 模式下，CoworkingService 和 Dapr 共享网络命名空间，使用 localhost
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
-    // 使用 gRPC 端点（默认端口 50001）
-    var daprGrpcPort = builder.Configuration.GetValue("Dapr:GrpcPort", 50001);
-    var daprGrpcEndpoint = $"http://localhost:{daprGrpcPort}";
+    // 使用 HTTP 端点（默认端口 3500）
+    var daprHttpPort = builder.Configuration.GetValue("Dapr:HttpPort", 3500);
+    var daprHttpEndpoint = $"http://localhost:{daprHttpPort}";
 
-    daprClientBuilder.UseGrpcEndpoint(daprGrpcEndpoint);
+    daprClientBuilder.UseHttpEndpoint(daprHttpEndpoint);
 
     // 记录配置
     var logger = LoggerFactory.Create(loggingBuilder => loggingBuilder.AddConsole()).CreateLogger("DaprSetup");
-    logger.LogInformation("🚀 Dapr Client 配置使用 gRPC: {Endpoint}", daprGrpcEndpoint);
+    logger.LogInformation("🚀 Dapr Client 配置使用 HTTP: {Endpoint}", daprHttpEndpoint);
 });
 
 // ============================================================
@@ -61,9 +70,13 @@ builder.Services.AddScoped<CoworkingService.Services.ICityServiceClient, Coworki
 
 // Domain Layer 不需要注册（纯 POCO）
 
-// 配置 MassTransit + RabbitMQ（用于发布消息到 MessageService）
+// 配置 MassTransit + RabbitMQ（用于发布消息到 MessageService 和接收事件）
 builder.Services.AddMassTransit(x =>
 {
+    // 注册事件消费者
+    x.AddConsumer<CoworkingService.Infrastructure.Consumers.UserUpdatedMessageConsumer>();
+    x.AddConsumer<CoworkingService.Infrastructure.Consumers.CityUpdatedMessageConsumer>();
+
     x.UsingRabbitMq((context, cfg) =>
     {
         var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
@@ -71,6 +84,17 @@ builder.Services.AddMassTransit(x =>
         {
             h.Username(rabbitMqConfig["Username"] ?? "guest");
             h.Password(rabbitMqConfig["Password"] ?? "guest");
+        });
+
+        // 配置接收端点用于消费事件
+        cfg.ReceiveEndpoint("coworking-service-user-updated", e =>
+        {
+            e.ConfigureConsumer<CoworkingService.Infrastructure.Consumers.UserUpdatedMessageConsumer>(context);
+        });
+
+        cfg.ReceiveEndpoint("coworking-service-city-updated", e =>
+        {
+            e.ConfigureConsumer<CoworkingService.Infrastructure.Consumers.CityUpdatedMessageConsumer>(context);
         });
     });
 });

@@ -1,0 +1,57 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: go-nomads-staging
+
+# 引用基础配置
+resources:
+  - ../../
+
+# Staging 环境特定配置
+commonLabels:
+  environment: staging
+
+# ConfigMap 覆盖
+configMapGenerator:
+  - name: go-nomads-config
+    behavior: merge
+    literals:
+      - ASPNETCORE_ENVIRONMENT=Staging
+
+# 镜像配置 (staging 环境使用 staging 标签)
+images:
+  - name: ${DOCKER_REGISTRY}/go-nomads-gateway
+    newTag: staging
+  - name: ${DOCKER_REGISTRY}/go-nomads-user-service
+    newTag: staging
+  - name: ${DOCKER_REGISTRY}/go-nomads-city-service
+    newTag: staging
+  - name: ${DOCKER_REGISTRY}/go-nomads-coworking-service
+    newTag: staging
+  - name: ${DOCKER_REGISTRY}/go-nomads-event-service
+    newTag: staging
+  - name: ${DOCKER_REGISTRY}/go-nomads-ai-service
+    newTag: staging
+  - name: ${DOCKER_REGISTRY}/go-nomads-message-service
+    newTag: staging
+  - name: ${DOCKER_REGISTRY}/go-nomads-cache-service
+    newTag: staging
+
+# 副本数调整 (staging 环境使用中等副本数)
+replicas:
+  - name: gateway
+    count: 2
+  - name: user-service
+    count: 1
+  - name: city-service
+    count: 1
+  - name: coworking-service
+    count: 1
+  - name: event-service
+    count: 1
+  - name: ai-service
+    count: 2
+  - name: message-service
+    count: 1
+  - name: cache-service
+    count: 1

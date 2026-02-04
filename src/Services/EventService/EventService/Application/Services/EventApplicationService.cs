@@ -13,26 +13,32 @@ public class EventApplicationService : IEventService
     private readonly ICityGrpcClient _cityGrpcClient;
     private readonly IEventRepository _eventRepository;
     private readonly IEventFollowerRepository _followerRepository;
+    private readonly IEventInvitationRepository _invitationRepository;
     private readonly ILogger<EventApplicationService> _logger;
     private readonly IEventParticipantRepository _participantRepository;
     private readonly IUserGrpcClient _userGrpcClient;
     private readonly IEventTypeRepository _eventTypeRepository;
+    private readonly IMeetupNotificationService _notificationService;
 
     public EventApplicationService(
         IEventRepository eventRepository,
         IEventParticipantRepository participantRepository,
         IEventFollowerRepository followerRepository,
+        IEventInvitationRepository invitationRepository,
         ICityGrpcClient cityGrpcClient,
         IUserGrpcClient userGrpcClient,
         IEventTypeRepository eventTypeRepository,
+        IMeetupNotificationService notificationService,
         ILogger<EventApplicationService> logger)
     {
         _eventRepository = eventRepository;
         _participantRepository = participantRepository;
         _followerRepository = followerRepository;
+        _invitationRepository = invitationRepository;
         _cityGrpcClient = cityGrpcClient;
         _userGrpcClient = userGrpcClient;
         _eventTypeRepository = eventTypeRepository;
+        _notificationService = notificationService;
         _logger = logger;
     }
 
@@ -69,6 +75,9 @@ public class EventApplicationService : IEventService
         response.IsOrganizer = true;
         response.IsParticipant = false; // 创建者默认未参加，需要手动 RSVP
 
+        // 🔔 发送实时通知 - 推送完整的 Meetup 数据
+        await _notificationService.NotifyMeetupCreatedAsync(response);
+
         return response;
     }
 
@@ -101,21 +110,29 @@ public class EventApplicationService : IEventService
         // 获取参与者列表
         var participants = await GetParticipantsAsync(id);
 
+        // 🔧 过滤掉组织者，确保参与者列表不包含组织者
+        var participantsExcludeOrganizer = participants
+            .Where(p => p.UserId != @event.OrganizerId)
+            .ToList();
+        
+        _logger.LogInformation("👥 活动 {EventId} 参与者总数: {Total}, 排除组织者后: {Filtered}", 
+            id, participants.Count, participantsExcludeOrganizer.Count);
+
         // 🔧 为参与者填充用户信息（通过 gRPC 调用 UserService）
-        if (participants.Any())
+        if (participantsExcludeOrganizer.Any())
         {
-            var userIds = participants.Select(p => p.UserId).Distinct().ToList();
+            var userIds = participantsExcludeOrganizer.Select(p => p.UserId).Distinct().ToList();
             _logger.LogInformation("📞 通过 gRPC 获取 {Count} 个参与者的完整用户信息", userIds.Count);
 
             try
             {
                 var users = await _userGrpcClient.GetUsersInfoByIdsAsync(userIds);
 
-                foreach (var participant in participants)
+                foreach (var participant in participantsExcludeOrganizer)
                     if (users.TryGetValue(participant.UserId, out var userInfo))
                         participant.User = userInfo;
 
-                _logger.LogInformation("✅ 成功为 {Count} 个参与者填充用户信息", participants.Count(p => p.User != null));
+                _logger.LogInformation("✅ 成功为 {Count} 个参与者填充用户信息", participantsExcludeOrganizer.Count(p => p.User != null));
             }
             catch (Exception ex)
             {
@@ -124,10 +141,10 @@ public class EventApplicationService : IEventService
             }
         }
 
-        response.Participants = participants.ToList();
+        response.Participants = participantsExcludeOrganizer;
 
-        // 🔧 修正参与者数量:使用实际参与者列表的长度,确保数据准确
-        response.CurrentParticipants = participants.Count;
+        // 🔧 修正参与者数量:使用排除组织者后的参与者列表长度
+        response.CurrentParticipants = participantsExcludeOrganizer.Count;
 
         // 填充关联数据
         await EnrichEventResponsesWithRelatedDataAsync(new List<EventResponse> { response });
@@ -162,8 +179,12 @@ public class EventApplicationService : IEventService
             request.Tags?.ToArray());
 
         var updatedEvent = await _eventRepository.UpdateAsync(@event);
+        var response = await MapToResponseAsync(updatedEvent);
 
-        return await MapToResponseAsync(updatedEvent);
+        // 🔔 发送实时通知 - 推送完整的 Meetup 数据
+        await _notificationService.NotifyMeetupUpdatedAsync(response);
+
+        return response;
     }
 
     /// <summary>
@@ -184,7 +205,31 @@ public class EventApplicationService : IEventService
 
         _logger.LogInformation("✅ 活动 {EventId} 已被用户 {UserId} 取消", id, userId);
 
-        return await MapToResponseAsync(updatedEvent);
+        var response = await MapToResponseAsync(updatedEvent);
+
+        // 🔔 发送实时通知 - 推送完整的 Meetup 数据
+        await _notificationService.NotifyMeetupCancelledAsync(response);
+
+        return response;
+    }
+
+    /// <summary>
+    ///     删除活动（逻辑删除，仅Admin）
+    /// </summary>
+    public async Task<bool> DeleteEventAsync(Guid id, Guid? deletedBy = null)
+    {
+        var @event = await _eventRepository.GetByIdAsync(id);
+        if (@event == null)
+        {
+            _logger.LogWarning("❌ 尝试删除不存在的活动 {EventId}", id);
+            throw new KeyNotFoundException($"Event {id} 不存在");
+        }
+
+        await _eventRepository.DeleteAsync(id, deletedBy);
+        
+        _logger.LogInformation("✅ 活动 {EventId} 已被用户 {DeletedBy} 删除", id, deletedBy);
+        
+        return true;
     }
 
     public async Task<(List<EventResponse> Events, int Total)> GetEventsAsync(
@@ -238,8 +283,15 @@ public class EventApplicationService : IEventService
             
             // 更新参与人数
             @event.AddParticipant();
-            await _eventRepository.UpdateAsync(@event);
-            
+            var updatedEvent = await _eventRepository.UpdateAsync(@event);
+
+            // 🔔 发送实时通知 - 包含新的参与人数
+            await _notificationService.NotifyParticipantJoinedAsync(
+                eventId.ToString(),
+                updatedEvent.CityId?.ToString(),
+                userId.ToString(),
+                updatedEvent.CurrentParticipants);
+
             return MapToParticipantResponse(updatedParticipant);
         }
 
@@ -252,7 +304,14 @@ public class EventApplicationService : IEventService
 
         // 更新参与人数（领域逻辑）
         @event.AddParticipant();
-        await _eventRepository.UpdateAsync(@event);
+        var updatedEventAfterJoin = await _eventRepository.UpdateAsync(@event);
+
+        // 🔔 发送实时通知 - 包含新的参与人数
+        await _notificationService.NotifyParticipantJoinedAsync(
+            eventId.ToString(),
+            updatedEventAfterJoin.CityId?.ToString(),
+            userId.ToString(),
+            updatedEventAfterJoin.CurrentParticipants);
 
         return MapToParticipantResponse(createdParticipant);
     }
@@ -274,7 +333,14 @@ public class EventApplicationService : IEventService
         if (@event != null)
         {
             @event.RemoveParticipant();
-            await _eventRepository.UpdateAsync(@event);
+            var updatedEvent = await _eventRepository.UpdateAsync(@event);
+
+            // 🔔 发送实时通知 - 包含新的参与人数
+            await _notificationService.NotifyParticipantLeftAsync(
+                eventId.ToString(),
+                updatedEvent.CityId?.ToString(),
+                userId.ToString(),
+                updatedEvent.CurrentParticipants);
         }
 
         _logger.LogInformation("✅ 用户 {UserId} 的参与状态已更新为 cancelled", userId);
@@ -335,6 +401,35 @@ public class EventApplicationService : IEventService
         return events.Count;
     }
 
+    /// <summary>
+    ///     获取用户参加的未结束 Event 数量（upcoming + ongoing）
+    /// </summary>
+    public async Task<int> GetUserJoinedEventsCountAsync(Guid userId)
+    {
+        // 1. 获取用户未取消的参与记录
+        var participants = await _participantRepository.GetByUserIdWithStatusAsync(userId);
+        var activeParticipants = participants
+            .Where(p => p.Status != "cancelled")
+            .ToList();
+
+        var joinedEventIds = activeParticipants.Select(p => p.EventId).ToHashSet();
+
+        if (!joinedEventIds.Any())
+        {
+            return 0;
+        }
+
+        // 2. 获取这些活动，只计算未结束的（upcoming + ongoing）
+        var (events, _) = await _eventRepository.GetByIdsAsync(
+            joinedEventIds.ToList(),
+            status: "upcoming,ongoing",
+            page: 1,
+            pageSize: 1000); // 足够大以获取所有活动
+
+        _logger.LogInformation("✅ 获取用户 {UserId} 参加的未结束 Event 数量: {Count}", userId, events.Count);
+        return events.Count;
+    }
+
     public async Task<List<EventResponse>> GetUserJoinedEventsAsync(Guid userId)
     {
         var participants = await _participantRepository.GetByUserIdAsync(userId);
@@ -369,6 +464,7 @@ public class EventApplicationService : IEventService
 
     /// <summary>
     ///     为事件列表填充关联数据（城市、组织者信息）
+    ///     优先使用冗余字段，仅对冗余字段为空的事件通过 gRPC 补充查询
     /// </summary>
     private async Task EnrichEventResponsesWithRelatedDataAsync(List<EventResponse> responses)
     {
@@ -380,16 +476,42 @@ public class EventApplicationService : IEventService
             return;
         }
 
+        // 筛选出需要从 CityService 获取城市信息的事件（City 为空但 CityId 有值）
+        var responsesNeedCityInfo = responses
+            .Where(r => r.CityId.HasValue && r.City == null)
+            .ToList();
+
+        // 筛选出需要从 UserService 获取组织者信息的事件（Organizer 为空）
+        var responsesNeedOrganizerInfo = responses
+            .Where(r => r.Organizer == null)
+            .ToList();
+
+        var hasRedundantData = responses.Count - responsesNeedCityInfo.Count > 0 ||
+                               responses.Count - responsesNeedOrganizerInfo.Count > 0;
+
+        if (hasRedundantData)
+        {
+            _logger.LogInformation("📊 {TotalCount} 个事件中，{NeedCityCount} 个需要获取城市信息，{NeedOrganizerCount} 个需要获取组织者信息",
+                responses.Count, responsesNeedCityInfo.Count, responsesNeedOrganizerInfo.Count);
+        }
+
+        // 如果所有事件都有冗余字段，无需调用外部服务
+        if (responsesNeedCityInfo.Count == 0 && responsesNeedOrganizerInfo.Count == 0)
+        {
+            _logger.LogInformation("✅ 所有事件已有冗余字段，无需调用 CityService/UserService");
+            return;
+        }
+
         try
         {
-            // 收集所有需要查询的 CityId 和 OrganizerId
-            var cityIds = responses
+            // 收集需要查询的 CityId 和 OrganizerId
+            var cityIds = responsesNeedCityInfo
                 .Where(r => r.CityId.HasValue)
                 .Select(r => r.CityId!.Value)
                 .Distinct()
                 .ToList();
 
-            var organizerIds = responses
+            var organizerIds = responsesNeedOrganizerInfo
                 .Select(r => r.OrganizerId)
                 .Distinct()
                 .ToList();
@@ -398,8 +520,12 @@ public class EventApplicationService : IEventService
                 cityIds.Count, organizerIds.Count);
 
             // 并行批量获取城市和用户信息
-            var getCitiesTask = _cityGrpcClient.GetCitiesByIdsAsync(cityIds);
-            var getUsersTask = _userGrpcClient.GetUsersByIdsAsync(organizerIds);
+            var getCitiesTask = cityIds.Count > 0
+                ? _cityGrpcClient.GetCitiesByIdsAsync(cityIds)
+                : Task.FromResult(new Dictionary<Guid, CityInfo>());
+            var getUsersTask = organizerIds.Count > 0
+                ? _userGrpcClient.GetUsersByIdsAsync(organizerIds)
+                : Task.FromResult(new Dictionary<Guid, OrganizerInfo>());
 
             await Task.WhenAll(getCitiesTask, getUsersTask);
 
@@ -409,19 +535,21 @@ public class EventApplicationService : IEventService
             _logger.LogInformation("📥 获取到 {CityCount} 个城市和 {UserCount} 个组织者信息",
                 cities.Count, users.Count);
 
-            // 填充数据到每个 EventResponse
-            foreach (var response in responses)
+            // 填充数据到需要补充的 EventResponse
+            foreach (var response in responsesNeedCityInfo)
             {
-                // 填充城市信息
                 if (response.CityId.HasValue && cities.TryGetValue(response.CityId.Value, out var cityInfo))
                     response.City = cityInfo;
-
-                // 填充组织者信息
-                if (users.TryGetValue(response.OrganizerId, out var organizerInfo)) response.Organizer = organizerInfo;
             }
 
-            _logger.LogInformation("✅ 已为 {Count} 个事件填充关联数据（城市: {CityCount}, 组织者: {OrganizerCount}）",
-                responses.Count, cities.Count, users.Count);
+            foreach (var response in responsesNeedOrganizerInfo)
+            {
+                if (users.TryGetValue(response.OrganizerId, out var organizerInfo))
+                    response.Organizer = organizerInfo;
+            }
+
+            _logger.LogInformation("✅ 已为事件填充关联数据（城市: {CityCount}, 组织者: {OrganizerCount}）",
+                cities.Count, users.Count);
         }
         catch (Exception ex)
         {
@@ -494,6 +622,29 @@ public class EventApplicationService : IEventService
             UpdatedAt = @event.UpdatedAt
         };
 
+        // 优先使用冗余字段填充城市信息
+        if (@event.CityId.HasValue && !string.IsNullOrEmpty(@event.CityName))
+        {
+            response.City = new CityInfo
+            {
+                Id = @event.CityId.Value,
+                Name = @event.CityName,
+                Country = @event.CityCountry ?? string.Empty
+            };
+        }
+
+        // 优先使用冗余字段填充组织者信息
+        if (!string.IsNullOrEmpty(@event.OrganizerName))
+        {
+            response.Organizer = new OrganizerInfo
+            {
+                Id = @event.OrganizerId.ToString(),
+                Name = @event.OrganizerName,
+                AvatarUrl = @event.OrganizerAvatar,
+                Email = string.Empty // 冗余字段不包含 email
+            };
+        }
+
         // 🔍 根据 category (UUID) 查询 EventType
         if (!string.IsNullOrEmpty(@event.Category) && Guid.TryParse(@event.Category, out var eventTypeId))
         {
@@ -553,85 +704,396 @@ public class EventApplicationService : IEventService
 
     /// <summary>
     ///     获取用户已加入的活动列表(分页)
+    ///     包含: 1. 用户加入的活动 2. 用户创建的活动
+    ///     排除: 已过期和已取消的活动
     /// </summary>
     public async Task<(List<EventResponse> Events, int Total)> GetJoinedEventsAsync(
         Guid userId,
         int page = 1,
         int pageSize = 20)
     {
-        // ✅ 优化方案:使用Repository层过滤,避免内存加载全部数据
+        // ✅ 优化方案:同时获取用户加入和创建的活动
         
-        // 1. 只查询未取消的参与记录
+        // 1. 获取用户未取消的参与记录
         var participants = await _participantRepository.GetByUserIdWithStatusAsync(userId);
         var activeParticipants = participants
             .Where(p => p.Status != "cancelled")
             .ToList();
 
-        if (!activeParticipants.Any())
+        var joinedEventIds = activeParticipants.Select(p => p.EventId).ToHashSet();
+
+        // 2. 获取用户创建的活动
+        var createdEvents = await _eventRepository.GetByOrganizerIdAsync(userId);
+        var createdEventIds = createdEvents.Select(e => e.Id).ToHashSet();
+
+        // 3. 合并所有活动 ID（去重）
+        var allEventIds = joinedEventIds.Union(createdEventIds).ToList();
+
+        if (!allEventIds.Any())
         {
             return (new List<EventResponse>(), 0);
         }
 
-        var eventIds = activeParticipants.Select(p => p.EventId).ToList();
+        _logger.LogInformation("🔍 获取用户活动，用户ID: {UserId}, 加入: {JoinedCount}, 创建: {CreatedCount}, 合计: {TotalCount}", 
+            userId, joinedEventIds.Count, createdEventIds.Count, allEventIds.Count);
 
-        // 2. 使用批量查询,在数据库层过滤status=upcoming并分页
+        // 4. 使用批量查询,在数据库层过滤status=upcoming或ongoing(排除已过期和取消的),并分页
         var (events, total) = await _eventRepository.GetByIdsAsync(
-            eventIds,
-            status: "upcoming",
+            allEventIds,
+            status: "upcoming,ongoing",
             page: page,
             pageSize: pageSize);
 
-        // 3. 转换为 DTO
+        // 5. 转换为 DTO
         var responses = await Task.WhenAll(events.Select(e => MapToResponseAsync(e)));
         var responsesList = responses.ToList();
 
-        // 4. 批量获取关联数据
+        // 6. 批量获取关联数据
         await EnrichEventResponsesWithRelatedDataAsync(responsesList);
 
-        // 5. 设置 IsParticipant 为 true(因为都是已加入的活动)
+        // 7. 设置 IsParticipant 和 IsOrganizer 标志
         foreach (var response in responsesList)
         {
-            response.IsParticipant = true;
+            response.IsParticipant = joinedEventIds.Contains(response.Id);
+            // IsOrganizer 通常已在 MapToResponseAsync 中设置，但这里确保正确
+            if (createdEventIds.Contains(response.Id))
+            {
+                response.IsOrganizer = true;
+            }
         }
 
         return (responsesList, total);
     }
 
     /// <summary>
-    ///     获取用户取消参与的活动列表(分页)
+    ///     获取用户取消的活动列表(作为创建者取消的活动)
     /// </summary>
     public async Task<(List<EventResponse> Events, int Total)> GetCancelledEventsByUserAsync(
         Guid userId,
         int page = 1,
         int pageSize = 20)
     {
-        // ✅ 优化方案:使用Repository层过滤,避免N+1查询
-        
-        // 1. 只查询已取消的参与记录
-        var cancelledParticipants = await _participantRepository.GetByUserIdWithStatusAsync(userId, "cancelled");
+        // 查询当前用户作为组织者创建的、状态为 cancelled 的活动
+        var (events, total) = await _eventRepository.GetByOrganizerAsync(
+            userId,
+            status: "cancelled",
+            page: page,
+            pageSize: pageSize);
 
-        if (!cancelledParticipants.Any())
+        if (!events.Any())
         {
             return (new List<EventResponse>(), 0);
         }
 
-        var eventIds = cancelledParticipants.Select(p => p.EventId).ToList();
-
-        // 2. 使用批量查询并分页
-        var (events, total) = await _eventRepository.GetByIdsAsync(
-            eventIds,
-            status: null,  // 不过滤状态,显示所有已取消参与的活动
-            page: page,
-            pageSize: pageSize);
-
-        // 3. 转换为 DTO
+        // 转换为 DTO
         var responses = await Task.WhenAll(events.Select(e => MapToResponseAsync(e)));
         var responsesList = responses.ToList();
 
-        // 4. 批量获取关联数据
+        // 批量获取关联数据
         await EnrichEventResponsesWithRelatedDataAsync(responsesList);
 
         return (responsesList, total);
+    }
+
+    #endregion
+
+    #region 邀请相关
+
+    /// <summary>
+    ///     邀请用户参加活动
+    /// </summary>
+    public async Task<EventInvitationResponse> InviteToEventAsync(Guid eventId, Guid inviterId, InviteToEventRequest request)
+    {
+        _logger.LogInformation("📨 用户 {InviterId} 邀请用户 {InviteeId} 参加活动 {EventId}",
+            inviterId, request.InviteeId, eventId);
+
+        // 1. 检查活动是否存在
+        var @event = await _eventRepository.GetByIdAsync(eventId);
+        if (@event == null) throw new KeyNotFoundException($"活动 {eventId} 不存在");
+
+        // 2. 检查活动状态是否为 upcoming
+        if (@event.Status != "upcoming")
+            throw new InvalidOperationException("只能邀请用户参加即将举行的活动");
+
+        // 3. 检查被邀请人是否是活动的创建者（组织者不需要被邀请参加自己的活动）
+        if (@event.OrganizerId == request.InviteeId)
+            throw new InvalidOperationException("不能邀请活动创建者参加自己的活动");
+
+        // 4. 不再限制邀请人身份，任何用户都可以邀请他人参加活动
+        // 但邀请人不能邀请自己
+        if (inviterId == request.InviteeId)
+            throw new InvalidOperationException("不能邀请自己");
+
+        // 5. 检查被邀请人是否已经是参与者
+        if (await _participantRepository.IsParticipantAsync(eventId, request.InviteeId))
+            throw new InvalidOperationException("该用户已经是活动参与者");
+
+        // 6. 检查是否已存在待处理的邀请
+        if (await _invitationRepository.ExistsAsync(eventId, request.InviteeId))
+            throw new InvalidOperationException("已存在待处理的邀请");
+
+        // 7. 检查活动是否还有剩余名额（考虑待处理的邀请）
+        if (@event.MaxParticipants.HasValue)
+        {
+            var pendingInvitationsCount = await _invitationRepository.GetPendingCountAsync(eventId);
+            var potentialParticipants = @event.CurrentParticipants + pendingInvitationsCount;
+            
+            if (potentialParticipants >= @event.MaxParticipants.Value)
+            {
+                var availableSlots = @event.MaxParticipants.Value - @event.CurrentParticipants;
+                throw new InvalidOperationException(
+                    availableSlots <= 0 
+                        ? "活动人数已满，无法发送邀请" 
+                        : $"活动剩余名额不足（剩余 {availableSlots} 个名额，待处理邀请 {pendingInvitationsCount} 个）");
+            }
+        }
+
+        // 8. 创建邀请
+        var invitation = EventInvitation.Create(eventId, inviterId, request.InviteeId, request.Message);
+        var createdInvitation = await _invitationRepository.CreateAsync(invitation);
+
+        _logger.LogInformation("✅ 邀请创建成功，ID: {InvitationId}", createdInvitation.Id);
+
+        // 9. 返回邀请响应（包含关联数据）
+        return await MapToInvitationResponseAsync(createdInvitation, @event);
+    }
+
+    /// <summary>
+    ///     响应邀请（接受或拒绝）
+    /// </summary>
+    public async Task<EventInvitationResponse> RespondToInvitationAsync(Guid invitationId, Guid userId, string response)
+    {
+        _logger.LogInformation("📩 用户 {UserId} 响应邀请 {InvitationId}: {Response}",
+            userId, invitationId, response);
+
+        // 1. 获取邀请
+        var invitation = await _invitationRepository.GetByIdAsync(invitationId);
+        if (invitation == null) throw new KeyNotFoundException($"邀请 {invitationId} 不存在");
+
+        // 2. 验证是否是被邀请人
+        if (invitation.InviteeId != userId)
+            throw new UnauthorizedAccessException("只有被邀请人才能响应邀请");
+
+        // 3. 检查邀请状态
+        if (invitation.Status != "pending")
+            throw new InvalidOperationException($"邀请已处理，当前状态: {invitation.Status}");
+
+        // 4. 检查邀请是否过期
+        if (invitation.IsExpired())
+            throw new InvalidOperationException("邀请已过期");
+
+        // 5. 处理响应
+        if (response.ToLower() == "accept")
+        {
+            // 获取活动信息
+            var @event = await _eventRepository.GetByIdAsync(invitation.EventId);
+            if (@event == null) throw new KeyNotFoundException($"活动 {invitation.EventId} 不存在");
+
+            // 检查活动是否已满（防止并发接受导致超员）
+            if (@event.MaxParticipants.HasValue && @event.CurrentParticipants >= @event.MaxParticipants.Value)
+                throw new InvalidOperationException("活动人数已满，无法接受邀请");
+
+            // 接受邀请 - 自动加入活动
+            invitation.Accept();
+
+            // 检查是否已经是参与者
+            if (!await _participantRepository.IsParticipantAsync(invitation.EventId, userId))
+            {
+                // 创建参与记录
+                var participant = EventParticipant.Create(invitation.EventId, userId);
+                await _participantRepository.CreateAsync(participant);
+
+                // 更新活动参与人数
+                @event.CurrentParticipants++;
+                await _eventRepository.UpdateAsync(@event);
+
+                _logger.LogInformation("✅ 用户 {UserId} 接受邀请并加入活动 {EventId}", userId, invitation.EventId);
+            }
+        }
+        else if (response.ToLower() == "reject")
+        {
+            invitation.Reject();
+            _logger.LogInformation("❌ 用户 {UserId} 拒绝了邀请 {InvitationId}", userId, invitationId);
+        }
+        else
+        {
+            throw new ArgumentException("无效的响应，请使用 'accept' 或 'reject'");
+        }
+
+        // 6. 更新邀请
+        var updatedInvitation = await _invitationRepository.UpdateAsync(invitation);
+
+        return await MapToInvitationResponseAsync(updatedInvitation);
+    }
+
+    /// <summary>
+    ///     获取用户收到的邀请列表
+    /// </summary>
+    public async Task<List<EventInvitationResponse>> GetReceivedInvitationsAsync(Guid userId, string? status = null)
+    {
+        _logger.LogInformation("📋 获取用户 {UserId} 收到的邀请, Status: {Status}", userId, status ?? "all");
+
+        var invitations = await _invitationRepository.GetReceivedInvitationsAsync(userId, status);
+        var responses = new List<EventInvitationResponse>();
+
+        foreach (var invitation in invitations)
+        {
+            responses.Add(await MapToInvitationResponseAsync(invitation));
+        }
+
+        return responses;
+    }
+
+    /// <summary>
+    ///     获取用户发出的邀请列表
+    /// </summary>
+    public async Task<List<EventInvitationResponse>> GetSentInvitationsAsync(Guid userId, string? status = null)
+    {
+        _logger.LogInformation("📋 获取用户 {UserId} 发出的邀请, Status: {Status}", userId, status ?? "all");
+
+        var invitations = await _invitationRepository.GetSentInvitationsAsync(userId, status);
+        var responses = new List<EventInvitationResponse>();
+
+        foreach (var invitation in invitations)
+        {
+            responses.Add(await MapToInvitationResponseAsync(invitation));
+        }
+
+        return responses;
+    }
+
+    /// <summary>
+    ///     获取邀请详情
+    /// </summary>
+    public async Task<EventInvitationResponse> GetInvitationAsync(Guid invitationId)
+    {
+        var invitation = await _invitationRepository.GetByIdAsync(invitationId);
+        if (invitation == null) throw new KeyNotFoundException($"邀请 {invitationId} 不存在");
+
+        return await MapToInvitationResponseAsync(invitation);
+    }
+
+    /// <summary>
+    ///     映射邀请实体到响应DTO
+    /// </summary>
+    private async Task<EventInvitationResponse> MapToInvitationResponseAsync(EventInvitation invitation, Event? @event = null)
+    {
+        var response = new EventInvitationResponse
+        {
+            Id = invitation.Id,
+            EventId = invitation.EventId,
+            InviterId = invitation.InviterId,
+            InviteeId = invitation.InviteeId,
+            Status = invitation.Status,
+            Message = invitation.Message,
+            CreatedAt = invitation.CreatedAt,
+            RespondedAt = invitation.RespondedAt,
+            ExpiresAt = invitation.ExpiresAt
+        };
+
+        // 获取活动信息
+        if (@event == null)
+        {
+            @event = await _eventRepository.GetByIdAsync(invitation.EventId);
+        }
+        if (@event != null)
+        {
+            response.Event = await MapToResponseAsync(@event);
+        }
+
+        // 获取邀请人信息
+        try
+        {
+            var inviterInfo = await _userGrpcClient.GetUserByIdAsync(invitation.InviterId);
+            if (inviterInfo != null)
+            {
+                response.Inviter = new UserInfo
+                {
+                    Id = inviterInfo.Id,
+                    Name = inviterInfo.Name,
+                    Email = inviterInfo.Email,
+                    Avatar = inviterInfo.AvatarUrl
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "获取邀请人信息失败: {InviterId}", invitation.InviterId);
+        }
+
+        // 获取被邀请人信息
+        try
+        {
+            var inviteeInfo = await _userGrpcClient.GetUserByIdAsync(invitation.InviteeId);
+            if (inviteeInfo != null)
+            {
+                response.Invitee = new UserInfo
+                {
+                    Id = inviteeInfo.Id,
+                    Name = inviteeInfo.Name,
+                    Email = inviteeInfo.Email,
+                    Avatar = inviteeInfo.AvatarUrl
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "获取被邀请人信息失败: {InviteeId}", invitation.InviteeId);
+        }
+
+        return response;
+    }
+
+    #endregion
+
+    #region 城市统计
+
+    /// <summary>
+    ///     批量获取城市活动数量（优化版：使用单次查询）
+    /// </summary>
+    public async Task<Dictionary<string, int>> GetCitiesEventCountsAsync(List<string> cityIds)
+    {
+        var result = new Dictionary<string, int>();
+        
+        if (cityIds.Count == 0)
+            return result;
+
+        try
+        {
+            _logger.LogInformation("📊 [优化] 批量获取城市活动数量: {Count} 个城市", cityIds.Count);
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            // 转换并过滤有效的 GUID
+            var validCityIds = cityIds
+                .Where(id => Guid.TryParse(id, out _))
+                .Select(id => Guid.Parse(id))
+                .ToList();
+
+            if (validCityIds.Count == 0)
+            {
+                _logger.LogWarning("⚠️ 没有有效的城市ID");
+                return result;
+            }
+
+            // 使用优化的批量查询方法（单次数据库查询）
+            var counts = await _eventRepository.GetEventCountsByCityIdsAsync(validCityIds, "upcoming");
+
+            // 转换结果为字符串键
+            foreach (var kvp in counts)
+            {
+                result[kvp.Key.ToString()] = kvp.Value;
+            }
+
+            stopwatch.Stop();
+            _logger.LogInformation("✅ [优化] 成功获取 {Count} 个城市的活动数量, 耗时 {Elapsed}ms",
+                result.Count, stopwatch.ElapsedMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "批量获取城市活动数量失败");
+        }
+
+        return result;
     }
 
     #endregion

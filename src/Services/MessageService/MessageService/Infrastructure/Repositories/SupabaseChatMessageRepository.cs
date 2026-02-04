@@ -28,7 +28,8 @@ public class SupabaseChatMessageRepository : IChatMessageRepository
             var skip = (page - 1) * pageSize;
             var response = await _supabaseClient
                 .From<ChatRoomMessageModel>()
-                .Where(m => m.RoomId == roomId && m.IsDeleted == false)
+                .Where(m => m.RoomId == roomId)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Order("timestamp", Constants.Ordering.Descending)
                 .Range(skip, skip + pageSize - 1)
                 .Get();
@@ -131,7 +132,8 @@ public class SupabaseChatMessageRepository : IChatMessageRepository
         {
             var response = await _supabaseClient
                 .From<ChatRoomMessageModel>()
-                .Where(m => m.RoomId == roomId && m.IsDeleted == false)
+                .Where(m => m.RoomId == roomId)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Get();
 
             return response.Models.Count;
@@ -153,7 +155,7 @@ public class SupabaseChatMessageRepository : IChatMessageRepository
             var response = await _supabaseClient
                 .From<ChatRoomMessageModel>()
                 .Filter("room_id", Constants.Operator.Equals, roomId)
-                .Filter("is_deleted", Constants.Operator.Equals, "false")
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Filter("message", Constants.Operator.ILike, $"%{keyword}%")
                 .Order("timestamp", Constants.Ordering.Descending)
                 .Range(skip, skip + pageSize - 1)
@@ -177,8 +179,9 @@ public class SupabaseChatMessageRepository : IChatMessageRepository
             Id = model.Id,
             RoomId = model.RoomId,
             UserId = model.UserId,
-            UserName = model.UserName,
-            UserAvatar = model.UserAvatar,
+            // UserName 和 UserAvatar 从 UserService 获取
+            UserName = string.Empty,
+            UserAvatar = null,
             Message = model.Message,
             MessageType = model.MessageType,
             ReplyToId = model.ReplyToId,
@@ -197,8 +200,7 @@ public class SupabaseChatMessageRepository : IChatMessageRepository
             Id = message.Id,
             RoomId = message.RoomId,
             UserId = message.UserId,
-            UserName = message.UserName,
-            UserAvatar = message.UserAvatar,
+            // UserName 和 UserAvatar 不再存储到数据库
             Message = message.Message,
             MessageType = message.MessageType,
             ReplyToId = message.ReplyToId,
@@ -228,11 +230,8 @@ public class ChatRoomMessageModel : Postgrest.Models.BaseModel
     [Column("user_id")]
     public string UserId { get; set; } = string.Empty;
 
-    [Column("user_name")]
-    public string UserName { get; set; } = string.Empty;
-
-    [Column("user_avatar")]
-    public string? UserAvatar { get; set; }
+    // user_name 和 user_avatar 已从数据库表中删除
+    // 用户信息现在通过 UserService 动态获取
 
     [Column("message")]
     public string Message { get; set; } = string.Empty;

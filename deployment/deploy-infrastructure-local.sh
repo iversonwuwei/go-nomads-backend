@@ -59,8 +59,10 @@ start_redis() {
     docker run -d \
         --name go-nomads-redis \
         --network "${NETWORK_NAME}" \
+        --label "com.docker.compose.project=go-nomads-infras" \
+        --label "com.docker.compose.service=redis" \
         -p 6379:6379 \
-        redis:7-alpine >/dev/null
+        redis:latest redis-server --appendonly yes >/dev/null
     echo "Redis running at redis://localhost:6379"
 }
 
@@ -92,6 +94,8 @@ EOF
     docker run -d \
         --name go-nomads-consul \
         --network "${NETWORK_NAME}" \
+        --label "com.docker.compose.project=go-nomads-infras" \
+        --label "com.docker.compose.service=consul" \
         -p 7500:7500 \
         -p 7502:7502 \
         -p 7600:7600/udp \
@@ -100,15 +104,23 @@ EOF
     echo "Consul UI available at http://localhost:7500"
 }
 
-start_zipkin() {
-    header "Deploying Zipkin"
-    remove_container go-nomads-zipkin
+start_jaeger() {
+    header "Deploying Jaeger"
+    remove_container go-nomads-jaeger
     docker run -d \
-        --name go-nomads-zipkin \
+        --name go-nomads-jaeger \
         --network "${NETWORK_NAME}" \
-        -p 9811:9411 \
-        openzipkin/zipkin:latest >/dev/null
-    echo "Zipkin UI available at http://localhost:9811"
+        --label "com.docker.compose.project=go-nomads-infras" \
+        --label "com.docker.compose.service=jaeger" \
+        -e COLLECTOR_OTLP_ENABLED=true \
+        -p 16686:16686 \
+        -p 4317:4317 \
+        -p 4318:4318 \
+        -p 9411:9411 \
+        jaegertracing/all-in-one:1.54 \
+        --memory.max-traces=100000 >/dev/null
+    echo "Jaeger UI available at http://localhost:16686"
+    echo "OTLP gRPC: localhost:4317, OTLP HTTP: localhost:4318"
 }
 
 start_prometheus() {
@@ -119,52 +131,107 @@ start_prometheus() {
     cat > "${prom_dir}/prometheus-local.yml" <<'EOF'
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'go-nomads'
+    env: 'development'
 
 scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
-  
-  # 完全依赖 Consul 自动服务发现 - 无需手动配置服务列表
-  - job_name: 'consul-services'
+
+  # Gateway
+  - job_name: 'gateway'
     metrics_path: /metrics
-    consul_sd_configs:
-      - server: 'go-nomads-consul:7500'
-        # 不指定 services，自动发现所有已注册的服务
-    relabel_configs:
-      # 只抓取有 metrics_path 元数据的服务
-      - source_labels: [__meta_consul_service_metadata_metrics_path]
-        action: keep
-        regex: /.+
-      
-      # 使用自定义 metrics 路径（如果有）
-      - source_labels: [__meta_consul_service_metadata_metrics_path]
-        target_label: __metrics_path__
-        regex: (.+)
-        replacement: $1
-      
-      # 服务名称标签
-      - source_labels: [__meta_consul_service]
-        target_label: service
-      
-      # 版本标签
-      - source_labels: [__meta_consul_service_metadata_version]
-        target_label: version
-      
-      # 协议标签
-      - source_labels: [__meta_consul_service_metadata_protocol]
-        target_label: protocol
-      
-      # 实例标签
-      - source_labels: [__address__]
-        target_label: instance
+    static_configs:
+      - targets: ['host.docker.internal:5000']
+        labels:
+          service: 'gateway'
+
+  # User Service
+  - job_name: 'user-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:5001']
+        labels:
+          service: 'user-service'
+
+  # City Service
+  - job_name: 'city-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:8002']
+        labels:
+          service: 'city-service'
+
+  # Accommodation Service
+  - job_name: 'accommodation-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:8003']
+        labels:
+          service: 'accommodation-service'
+
+  # Coworking Service
+  - job_name: 'coworking-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:8004']
+        labels:
+          service: 'coworking-service'
+
+  # Event Service
+  - job_name: 'event-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:8005']
+        labels:
+          service: 'event-service'
+
+  # AI Service
+  - job_name: 'ai-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:8006']
+        labels:
+          service: 'ai-service'
+
+  # Message Service
+  - job_name: 'message-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:8007']
+        labels:
+          service: 'message-service'
+
+  # Search Service
+  - job_name: 'search-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:8008']
+        labels:
+          service: 'search-service'
+
+  # Jaeger
+  - job_name: 'jaeger'
+    static_configs:
+      - targets: ['go-nomads-jaeger:14269']
+        labels:
+          service: 'jaeger'
 EOF
     docker run -d \
         --name go-nomads-prometheus \
         --network "${NETWORK_NAME}" \
+        --label "com.docker.compose.project=go-nomads-infras" \
+        --label "com.docker.compose.service=prometheus" \
+        --add-host host.docker.internal:host-gateway \
         -p 9090:9090 \
         -v "${prom_dir}/prometheus-local.yml:/etc/prometheus/prometheus.yml:ro" \
-        prom/prometheus:latest >/dev/null
+        prom/prometheus:v2.49.1 \
+        --config.file=/etc/prometheus/prometheus.yml \
+        --storage.tsdb.path=/prometheus \
+        --web.enable-lifecycle >/dev/null
     echo "Prometheus UI available at http://localhost:9090"
 }
 
@@ -172,15 +239,48 @@ start_grafana() {
     header "Deploying Grafana"
     remove_container go-nomads-grafana
     local grafana_dir="${SCRIPT_DIR}/grafana"
+    local datasources_dir="${grafana_dir}/provisioning/datasources"
+    mkdir -p "${datasources_dir}"
+    
+    # Create datasources config
+    cat > "${datasources_dir}/datasources.yml" <<'EOF'
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://go-nomads-prometheus:9090
+    isDefault: true
+    editable: false
+
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://go-nomads-jaeger:16686
+    editable: false
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: ''
+      tracesToMetrics:
+        datasourceUid: Prometheus
+        tags:
+          - key: service.name
+            value: service
+EOF
+    
     docker run -d \
         --name go-nomads-grafana \
         --network "${NETWORK_NAME}" \
+        --label "com.docker.compose.project=go-nomads-infras" \
+        --label "com.docker.compose.service=grafana" \
+        --add-host host.docker.internal:host-gateway \
         -p 3000:3000 \
         -e GF_SECURITY_ADMIN_PASSWORD=admin \
+        -e GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource \
         -v "${grafana_dir}/provisioning:/etc/grafana/provisioning:ro" \
-        grafana/grafana:latest >/dev/null
+        grafana/grafana:10.3.1 >/dev/null
     echo "Grafana UI available at http://localhost:3000 (admin/admin)"
-    echo "Dashboards will be automatically provisioned"
+    echo "Datasources: Prometheus, Jaeger auto-provisioned"
 }
 
 start_elasticsearch() {
@@ -189,13 +289,15 @@ start_elasticsearch() {
     docker run -d \
         --name go-nomads-elasticsearch \
         --network "${NETWORK_NAME}" \
-        -p 10200:9200 \
-        -p 10300:9300 \
+        --label "com.docker.compose.project=go-nomads-infras" \
+        --label "com.docker.compose.service=elasticsearch" \
+        -p 9200:9200 \
+        -p 9300:9300 \
         -e "discovery.type=single-node" \
         -e "xpack.security.enabled=false" \
         -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" \
-        docker.elastic.co/elasticsearch/elasticsearch:8.11.0 >/dev/null
-    echo "Elasticsearch available at http://localhost:10200"
+        docker.elastic.co/elasticsearch/elasticsearch:8.16.1 >/dev/null
+    echo "Elasticsearch available at http://localhost:9200"
 }
 
 start_rabbitmq() {
@@ -204,24 +306,36 @@ start_rabbitmq() {
     docker run -d \
         --name go-nomads-rabbitmq \
         --network "${NETWORK_NAME}" \
+        --label "com.docker.compose.project=go-nomads-infras" \
+        --label "com.docker.compose.service=rabbitmq" \
         -p 5672:5672 \
         -p 15672:15672 \
-        -e RABBITMQ_DEFAULT_USER=guest \
-        -e RABBITMQ_DEFAULT_PASS=guest \
+        -e RABBITMQ_DEFAULT_USER=walden \
+        -e RABBITMQ_DEFAULT_PASS=walden \
         rabbitmq:3-management-alpine >/dev/null
     echo "RabbitMQ running at amqp://localhost:5672"
-    echo "RabbitMQ Management UI: http://localhost:15672 (guest/guest)"
+    echo "RabbitMQ Management UI: http://localhost:15672 (walden/walden)"
 }
 
 start_nginx() {
     header "Deploying Nginx"
     remove_container go-nomads-nginx
+    local nginx_conf="${SCRIPT_DIR}/nginx/nginx.conf"
+    if [[ ! -f "$nginx_conf" ]]; then
+        echo "[WARNING] Nginx config not found: $nginx_conf"
+        echo "Skipping Nginx deployment. Run deploy-services-local.sh to deploy Nginx with gateway."
+        return 0
+    fi
     docker run -d \
         --name go-nomads-nginx \
         --network "${NETWORK_NAME}" \
+        --label "com.docker.compose.project=go-nomads-infras" \
+        --label "com.docker.compose.service=nginx" \
         -p 80:80 \
         -p 443:443 \
-        nginx:latest >/dev/null
+        -v "${nginx_conf}:/etc/nginx/conf.d/default.conf:ro" \
+        --restart unless-stopped \
+        nginx:alpine >/dev/null
     echo "Nginx running at http://localhost"
 }
 
@@ -232,7 +346,7 @@ start_all() {
     start_redis
     start_rabbitmq
     start_consul
-    start_zipkin
+    start_jaeger
     start_prometheus
     start_grafana
     start_elasticsearch
@@ -249,7 +363,7 @@ stop_all() {
         go-nomads-elasticsearch
         go-nomads-grafana
         go-nomads-prometheus
-        go-nomads-zipkin
+        go-nomads-jaeger
         go-nomads-consul
         go-nomads-rabbitmq
         go-nomads-redis
@@ -271,8 +385,9 @@ clean_all() {
         go-nomads-elasticsearch
         go-nomads-grafana
         go-nomads-prometheus
-        go-nomads-zipkin
+        go-nomads-jaeger
         go-nomads-consul
+        go-nomads-rabbitmq
         go-nomads-redis
     )
     for c in "${containers[@]}"; do
@@ -282,7 +397,7 @@ clean_all() {
         echo "Removing network ${NETWORK_NAME}..."
         docker network rm "${NETWORK_NAME}" >/dev/null
     fi
-    rm -rf "${SCRIPT_DIR}/consul" "${SCRIPT_DIR}/prometheus"
+    rm -rf "${SCRIPT_DIR}/consul" "${SCRIPT_DIR}/prometheus" "${SCRIPT_DIR}/grafana"
     echo "Clean complete."
 }
 
@@ -295,10 +410,11 @@ status_all() {
     echo "  Nginx:          http://localhost"
     echo "  Redis:          redis://localhost:6379"
     echo "  Consul:         http://localhost:7500"
-    echo "  Zipkin:         http://localhost:9811"
+    echo "  Jaeger UI:      http://localhost:16686"
+    echo "  Jaeger OTLP:    localhost:4317 (gRPC), localhost:4318 (HTTP)"
     echo "  Prometheus:     http://localhost:9090"
     echo "  Grafana:        http://localhost:3000 (admin/admin)"
-    echo "  Elasticsearch:  http://localhost:10200"
+    echo "  Elasticsearch:  http://localhost:9200"
 }
 
 show_help() {

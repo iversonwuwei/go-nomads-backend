@@ -6,9 +6,11 @@ using CityService.Domain.Repositories;
 using CityService.Domain.ValueObjects;
 using Dapr.Client;
 using GoNomads.Shared.Models;
+using MassTransit;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
+using Shared.Messages;
 
 namespace CityService.Application.Services;
 
@@ -20,32 +22,38 @@ public class CityApplicationService : ICityService
     private readonly IMemoryCache _cache;
     private readonly ICityRepository _cityRepository;
     private readonly ICountryRepository _countryRepository;
+    private readonly ICityRatingRepository _ratingRepository;
     private readonly DaprClient _daprClient;
     private readonly IUserFavoriteCityService _favoriteCityService;
     private readonly ILogger<CityApplicationService> _logger;
     private readonly ICityModeratorRepository _moderatorRepository;
+    private readonly IPublishEndpoint _publishEndpoint;
     private readonly IWeatherService _weatherService;
     private readonly IConfiguration _configuration;
 
     public CityApplicationService(
         ICityRepository cityRepository,
         ICountryRepository countryRepository,
+        ICityRatingRepository ratingRepository,
         IWeatherService weatherService,
         IUserFavoriteCityService favoriteCityService,
         ICityModeratorRepository moderatorRepository,
         DaprClient daprClient,
         IMemoryCache cache,
         IConfiguration configuration,
+        IPublishEndpoint publishEndpoint,
         ILogger<CityApplicationService> logger)
     {
         _cityRepository = cityRepository;
         _countryRepository = countryRepository;
+        _ratingRepository = ratingRepository;
         _weatherService = weatherService;
         _favoriteCityService = favoriteCityService;
         _moderatorRepository = moderatorRepository;
         _daprClient = daprClient;
         _cache = cache;
         _configuration = configuration;
+        _publishEndpoint = publishEndpoint;
         _logger = logger;
     }
 
@@ -55,16 +63,16 @@ public class CityApplicationService : ICityService
         var cities = await _cityRepository.GetAllAsync(pageNumber, pageSize);
         var cityDtos = cities.Select(MapToDto).ToList();
 
-        // 并行填充数据
-        var weatherTask = EnrichCitiesWithWeatherAsync(cityDtos);
+        // 并行填充数据（不再获取天气数据）
         var moderatorTask = EnrichCitiesWithModeratorInfoAsync(cityDtos);
         var ratingsAndCostsTask = EnrichCitiesWithRatingsAndCostsAsync(cityDtos);
+        var meetupAndCoworkingTask = EnrichCitiesWithMeetupAndCoworkingCountsAsync(cityDtos);
         var favoriteTask = userId.HasValue
             ? EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value)
             : Task.CompletedTask;
 
         // 等待所有任务完成（即使某些任务失败，其他任务也会继续执行）
-        var allTasks = new[] { weatherTask, moderatorTask, ratingsAndCostsTask, favoriteTask };
+        var allTasks = new[] { moderatorTask, ratingsAndCostsTask, meetupAndCoworkingTask, favoriteTask };
         await Task.WhenAll(allTasks.Select(t => t.ContinueWith(_ => { })));
 
         // 设置用户上下文
@@ -72,6 +80,470 @@ public class CityApplicationService : ICityService
 
         // 数据库已按 OverallScore 降序排序，无需再次排序
         return cityDtos;
+    }
+
+    /// <summary>
+    /// 清除城市列表缓存（当城市数据变更时调用）
+    /// </summary>
+    public void InvalidateCityListCache()
+    {
+        // 使用 CancellationTokenSource 来使所有城市列表缓存失效
+        // 由于 IMemoryCache 没有直接的 Clear 或 RemoveByPrefix 方法，
+        // 我们通过递增版本号来使旧缓存失效
+        var newVersion = DateTime.UtcNow.Ticks;
+        _cache.Set("city_list:version", newVersion);
+        _logger.LogInformation("🗑️ [Cache] 城市列表缓存已失效, 新版本号: {Version}", newVersion);
+    }
+
+    /// <summary>
+    /// 获取城市列表（轻量级版本，不包含天气数据）
+    /// 用于城市列表页面，提升加载性能
+    /// </summary>
+    public async Task<IEnumerable<CityListItemDto>> GetCityListAsync(int pageNumber, int pageSize, string? search = null, Guid? userId = null, string? userRole = null)
+    {
+        _logger.LogInformation("🚀 [GetCityList] 开始获取轻量级城市列表: page={Page}, size={Size}, search={Search}",
+            pageNumber, pageSize, search);
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        // 获取当前缓存版本号
+        var cacheVersion = _cache.GetOrCreate("city_list:version", entry => DateTime.UtcNow.Ticks);
+
+        // 尝试从缓存获取基础城市列表数据（不包含用户相关数据）
+        var baseCacheKey = $"city_list:v{cacheVersion}:p{pageNumber}:s{pageSize}:q{search ?? "all"}";
+        List<CityListItemDto> cityListItems;
+        bool fromCache = false;
+
+        if (_cache.TryGetValue(baseCacheKey, out List<CityListItemDto>? cachedItems) && cachedItems != null)
+        {
+            // 深拷贝缓存数据，避免修改缓存中的对象
+            cityListItems = cachedItems.Select(c => c.Clone()).ToList();
+            fromCache = true;
+            _logger.LogInformation("📦 [GetCityList] 从缓存获取城市列表: {Count} 个城市", cityListItems.Count);
+        }
+        else
+        {
+            // 缓存未命中，从数据库获取
+            IEnumerable<Domain.Entities.City> cities;
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var criteria = new Domain.ValueObjects.CitySearchCriteria
+                {
+                    Name = search,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                };
+                cities = await _cityRepository.SearchAsync(criteria);
+            }
+            else
+            {
+                cities = await _cityRepository.GetAllAsync(pageNumber, pageSize);
+            }
+
+            cityListItems = cities.Select(city => new CityListItemDto
+            {
+                Id = city.Id,
+                Name = city.Name,
+                NameEn = city.NameEn,
+                Country = city.Country,
+                CountryId = city.CountryId,
+                Region = city.Region,
+                ImageUrl = city.ImageUrl,
+                PortraitImageUrl = city.PortraitImageUrl,
+                LandscapeImageUrls = city.LandscapeImageUrls,
+
+                // 城市基本信息 - 帮助数字游民了解城市
+                Description = city.Description,
+                TimeZone = city.TimeZone,
+                Currency = city.Currency,
+
+                // 综合评分
+                OverallScore = city.OverallScore,
+
+                // 数字游民核心关注指标（静态评分，非实时数据）
+                InternetQualityScore = city.InternetQualityScore,
+                SafetyScore = city.SafetyScore,
+                CostScore = city.CostScore,
+                CommunityScore = city.CommunityScore,
+                WeatherScore = city.WeatherScore,
+
+                // 城市标签
+                Tags = city.Tags,
+
+                // 地理位置
+                Latitude = city.Latitude,
+                Longitude = city.Longitude,
+            }).ToList();
+
+            // 并行填充非用户相关的数据
+            var ratingsTask = EnrichCityListWithRatingsAndCostsAsync(cityListItems);
+            var countsTask = EnrichCityListWithCountsAsync(cityListItems);
+            var moderatorTask = EnrichCityListWithModeratorInfoAsync(cityListItems, null, null); // 不传用户信息
+
+            await Task.WhenAll(ratingsTask, countsTask, moderatorTask);
+
+            // 缓存基础数据（2分钟过期）
+            var cacheOptions = new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(2))
+                .SetSlidingExpiration(TimeSpan.FromMinutes(1));
+            _cache.Set(baseCacheKey, cityListItems.Select(c => c.Clone()).ToList(), cacheOptions);
+
+            _logger.LogInformation("💾 [GetCityList] 城市列表已缓存: key={CacheKey}", baseCacheKey);
+        }
+
+        // 填充用户相关数据（收藏状态、权限等）- 不缓存
+        if (userId.HasValue || !string.IsNullOrEmpty(userRole))
+        {
+            // 更新版主相关的用户权限
+            var isAdmin = userRole?.ToLower() == "admin";
+            foreach (var city in cityListItems)
+            {
+                city.IsCurrentUserAdmin = isAdmin;
+                city.IsCurrentUserModerator = userId.HasValue && city.ModeratorId.HasValue && city.ModeratorId.Value == userId.Value;
+            }
+
+            // 填充收藏状态
+            if (userId.HasValue)
+            {
+                await EnrichCityListWithFavoriteStatusAsync(cityListItems, userId.Value);
+            }
+        }
+
+        stopwatch.Stop();
+        _logger.LogInformation("✅ [GetCityList] 轻量级城市列表获取完成: {Count} 个城市, 耗时 {Elapsed}ms, 缓存命中={FromCache}",
+            cityListItems.Count, stopwatch.ElapsedMilliseconds, fromCache);
+
+        return cityListItems;
+    }
+
+    /// <summary>
+    /// 获取城市列表（基础版本，不包含聚合数据）
+    /// 用于快速首屏加载，聚合数据（MeetupCount, CoworkingCount等）后续异步加载
+    /// </summary>
+    public async Task<IEnumerable<CityListItemDto>> GetCityListBasicAsync(int pageNumber, int pageSize, string? search = null, Guid? userId = null, string? userRole = null)
+    {
+        _logger.LogInformation("🚀 [GetCityListBasic] 开始获取基础城市列表: page={Page}, size={Size}, search={Search}",
+            pageNumber, pageSize, search);
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        // 从数据库获取基础数据
+        IEnumerable<Domain.Entities.City> cities;
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var criteria = new Domain.ValueObjects.CitySearchCriteria
+            {
+                Name = search,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+            cities = await _cityRepository.SearchAsync(criteria);
+        }
+        else
+        {
+            cities = await _cityRepository.GetAllAsync(pageNumber, pageSize);
+        }
+
+        var cityListItems = cities.Select(city => new CityListItemDto
+        {
+            Id = city.Id,
+            Name = city.Name,
+            NameEn = city.NameEn,
+            Country = city.Country,
+            CountryId = city.CountryId,
+            Region = city.Region,
+            ImageUrl = city.ImageUrl,
+            PortraitImageUrl = city.PortraitImageUrl,
+            LandscapeImageUrls = city.LandscapeImageUrls,
+            Description = city.Description,
+            TimeZone = city.TimeZone,
+            Currency = city.Currency,
+            OverallScore = city.OverallScore,
+            InternetQualityScore = city.InternetQualityScore,
+            SafetyScore = city.SafetyScore,
+            CostScore = city.CostScore,
+            CommunityScore = city.CommunityScore,
+            WeatherScore = city.WeatherScore,
+            Tags = city.Tags,
+            Latitude = city.Latitude,
+            Longitude = city.Longitude,
+            // 聚合数据设为默认值，后续异步加载
+            MeetupCount = 0,
+            CoworkingCount = 0,
+            ReviewCount = 0,
+            AverageCost = 0,
+        }).ToList();
+
+        // 只填充版主信息（快速）
+        await EnrichCityListWithModeratorInfoAsync(cityListItems, userId, userRole);
+
+        // 填充用户相关数据（收藏状态）
+        if (userId.HasValue)
+        {
+            await EnrichCityListWithFavoriteStatusAsync(cityListItems, userId.Value);
+        }
+
+        // 更新用户权限
+        var isAdmin = userRole?.ToLower() == "admin";
+        foreach (var city in cityListItems)
+        {
+            city.IsCurrentUserAdmin = isAdmin;
+            city.IsCurrentUserModerator = userId.HasValue && city.ModeratorId.HasValue && city.ModeratorId.Value == userId.Value;
+        }
+
+        stopwatch.Stop();
+        _logger.LogInformation("✅ [GetCityListBasic] 基础城市列表获取完成: {Count} 个城市, 耗时 {Elapsed}ms",
+            cityListItems.Count, stopwatch.ElapsedMilliseconds);
+
+        return cityListItems;
+    }
+
+    /// <summary>
+    /// 批量获取城市聚合数据（MeetupCount, CoworkingCount, ReviewCount, AverageCost）
+    /// </summary>
+    public async Task<Dictionary<Guid, CityCountsDto>> GetCityCountsBatchAsync(IEnumerable<Guid> cityIds)
+    {
+        var idList = cityIds.ToList();
+        _logger.LogInformation("🚀 [GetCityCountsBatch] 开始获取城市聚合数据: {Count} 个城市", idList.Count);
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        var result = new Dictionary<Guid, CityCountsDto>();
+
+        if (idList.Count == 0) return result;
+
+        try
+        {
+            // 并行获取所有聚合数据
+            var meetupCountsTask = GetMeetupCountsFromEventServiceAsync(idList);
+            var coworkingCountsTask = GetCoworkingCountsFromCoworkingServiceAsync(idList);
+            var reviewCountsTask = _ratingRepository.GetCityReviewCountsBatchAsync(idList);
+            var costsTask = GetCityCostsFromCacheServiceAsync(idList);
+
+            await Task.WhenAll(meetupCountsTask, coworkingCountsTask, reviewCountsTask, costsTask);
+
+            var meetupCounts = await meetupCountsTask;
+            var coworkingCounts = await coworkingCountsTask;
+            var reviewCounts = await reviewCountsTask;
+            var costs = await costsTask;
+
+            foreach (var cityId in idList)
+            {
+                result[cityId] = new CityCountsDto
+                {
+                    CityId = cityId,
+                    MeetupCount = meetupCounts.GetValueOrDefault(cityId),
+                    CoworkingCount = coworkingCounts.GetValueOrDefault(cityId),
+                    ReviewCount = reviewCounts.GetValueOrDefault(cityId),
+                    AverageCost = costs.GetValueOrDefault(cityId),
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "获取城市聚合数据时出错");
+        }
+
+        stopwatch.Stop();
+        _logger.LogInformation("✅ [GetCityCountsBatch] 城市聚合数据获取完成: {Count} 个城市, 耗时 {Elapsed}ms",
+            result.Count, stopwatch.ElapsedMilliseconds);
+
+        return result;
+    }
+
+    /// <summary>
+    /// 为轻量级城市列表填充评分和费用
+    /// </summary>
+    private async Task EnrichCityListWithRatingsAndCostsAsync(List<CityListItemDto> cities)
+    {
+        if (cities.Count == 0) return;
+
+        try
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var cityIds = cities.Select(c => c.Id).ToList();
+
+            // 并行获取评分、费用和总评分
+            var reviewCountsTask = _ratingRepository.GetCityReviewCountsBatchAsync(cityIds);
+            var costsTask = GetCityCostsFromCacheServiceAsync(cityIds);
+            var scoresTask = GetCityScoresFromCacheServiceAsync(cityIds);
+
+            await Task.WhenAll(reviewCountsTask, costsTask, scoresTask);
+
+            var reviewCounts = await reviewCountsTask;
+            var costs = await costsTask;
+            var scores = await scoresTask;
+
+            foreach (var city in cities)
+            {
+                city.ReviewCount = reviewCounts.GetValueOrDefault(city.Id);
+                city.AverageCost = costs.GetValueOrDefault(city.Id);
+
+                // 只有当 CacheService 返回了有效评分时才更新，否则保留数据库原值
+                if (scores.TryGetValue(city.Id, out var score) && score > 0)
+                {
+                    city.OverallScore = score;
+                }
+                else if (!city.OverallScore.HasValue || city.OverallScore == 0)
+                {
+                    // 如果数据库也没有评分，尝试从其他评分计算一个平均值
+                    var availableScores = new List<decimal?> 
+                    { 
+                        city.InternetQualityScore, 
+                        city.SafetyScore, 
+                        city.CostScore, 
+                        city.CommunityScore,
+                        city.WeatherScore 
+                    }.Where(s => s.HasValue && s > 0).ToList();
+                    
+                    if (availableScores.Count > 0)
+                    {
+                        city.OverallScore = availableScores.Average(s => s!.Value);
+                    }
+                }
+            }
+
+            stopwatch.Stop();
+            _logger.LogInformation("⏱️ [EnrichRatings] 评分费用填充耗时: {Elapsed}ms, Scores={ScoreCount}, Costs={CostCount}, Reviews={ReviewCount}",
+                stopwatch.ElapsedMilliseconds, scores.Count, costs.Count, reviewCounts.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "填充轻量级城市列表评分和费用时出错");
+        }
+    }
+
+    /// <summary>
+    /// 为轻量级城市列表填充 Meetup 和 Coworking 数量
+    /// </summary>
+    private async Task EnrichCityListWithCountsAsync(List<CityListItemDto> cities)
+    {
+        if (cities.Count == 0) return;
+
+        try
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var cityIds = cities.Select(c => c.Id).ToList();
+
+            // 并行获取 Meetup 和 Coworking 数量
+            var meetupCountsTask = GetMeetupCountsFromEventServiceAsync(cityIds);
+            var coworkingCountsTask = GetCoworkingCountsFromCoworkingServiceAsync(cityIds);
+
+            await Task.WhenAll(meetupCountsTask, coworkingCountsTask);
+
+            var meetupCounts = await meetupCountsTask;
+            var coworkingCounts = await coworkingCountsTask;
+
+            foreach (var city in cities)
+            {
+                city.MeetupCount = meetupCounts.GetValueOrDefault(city.Id);
+                city.CoworkingCount = coworkingCounts.GetValueOrDefault(city.Id);
+            }
+
+            stopwatch.Stop();
+            _logger.LogInformation("⏱️ [EnrichCounts] Meetup/Coworking 数量填充耗时: {Elapsed}ms", stopwatch.ElapsedMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "填充轻量级城市列表数量时出错");
+        }
+    }
+
+    /// <summary>
+    /// 为轻量级城市列表填充收藏状态
+    /// </summary>
+    private async Task EnrichCityListWithFavoriteStatusAsync(List<CityListItemDto> cities, Guid userId)
+    {
+        if (cities.Count == 0) return;
+
+        try
+        {
+            // 获取用户收藏的所有城市ID
+            var favoriteCityIds = await _favoriteCityService.GetUserFavoriteCityIdsAsync(userId);
+            var favoriteCityIdSet = new HashSet<string>(favoriteCityIds);
+
+            foreach (var city in cities)
+            {
+                city.IsFavorite = favoriteCityIdSet.Contains(city.Id.ToString());
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "填充轻量级城市列表收藏状态时出错");
+        }
+    }
+
+    /// <summary>
+    /// 为轻量级城市列表填充版主信息
+    /// </summary>
+    private async Task EnrichCityListWithModeratorInfoAsync(List<CityListItemDto> cities, Guid? userId, string? userRole)
+    {
+        if (cities.Count == 0) return;
+
+        try
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var cityIds = cities.Select(c => c.Id).ToList();
+
+            // 批量获取所有城市的版主信息
+            var allModerators = await _moderatorRepository.GetByCityIdsAsync(cityIds);
+
+            // 按城市分组，取每个城市的第一个活跃版主
+            var cityModeratorMap = allModerators
+                .Where(m => m.IsActive)
+                .GroupBy(m => m.CityId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderBy(m => m.CreatedAt).First()
+                );
+
+            // 收集所有需要查询的用户ID
+            var userIds = cityModeratorMap.Values
+                .Select(m => m.UserId)
+                .Distinct()
+                .ToList();
+
+            // 批量获取用户信息（使用缓存）
+            var userInfoMap = await GetUsersInfoBatchWithCacheAsync(userIds);
+
+            // 判断当前用户是否为管理员
+            var isAdmin = userRole?.ToLower() == "admin";
+
+            // 填充每个城市的版主信息
+            foreach (var city in cities)
+            {
+                if (cityModeratorMap.TryGetValue(city.Id, out var moderator))
+                {
+                    city.ModeratorId = moderator.UserId;
+
+                    if (userInfoMap.TryGetValue(moderator.UserId, out var userInfo))
+                    {
+                        city.Moderator = new ModeratorDto
+                        {
+                            Id = userInfo.Id,
+                            Name = userInfo.Name,
+                            Email = userInfo.Email,
+                            Avatar = userInfo.Avatar
+                        };
+                    }
+
+                    // 设置当前用户权限
+                    city.IsCurrentUserAdmin = isAdmin;
+                    city.IsCurrentUserModerator = userId.HasValue && moderator.UserId == userId.Value;
+                }
+                else
+                {
+                    city.IsCurrentUserAdmin = isAdmin;
+                    city.IsCurrentUserModerator = false;
+                }
+            }
+
+            stopwatch.Stop();
+            _logger.LogInformation("⏱️ [EnrichModerators] 版主信息填充耗时: {Elapsed}ms", stopwatch.ElapsedMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "填充轻量级城市列表版主信息时出错");
+        }
     }
 
     public async Task<CityDto?> GetCityByIdAsync(Guid id, Guid? userId = null, string? userRole = null)
@@ -132,8 +604,7 @@ public class CityApplicationService : ICityService
         var cities = await _cityRepository.SearchAsync(criteria);
         var cityDtos = cities.Select(MapToDto).ToList();
 
-        // 并行填充数据
-        var weatherTask = EnrichCitiesWithWeatherAsync(cityDtos);
+        // 并行填充数据（不再获取天气数据）
         var moderatorTask = EnrichCitiesWithModeratorInfoAsync(cityDtos);
         var ratingsAndCostsTask = EnrichCitiesWithRatingsAndCostsAsync(cityDtos);
         var favoriteTask = userId.HasValue
@@ -141,7 +612,7 @@ public class CityApplicationService : ICityService
             : Task.CompletedTask;
 
         // 等待所有任务完成（即使某些任务失败，其他任务也会继续执行）
-        var allTasks = new[] { weatherTask, moderatorTask, ratingsAndCostsTask, favoriteTask };
+        var allTasks = new[] { moderatorTask, ratingsAndCostsTask, favoriteTask };
         await Task.WhenAll(allTasks.Select(t => t.ContinueWith(_ => { })));
 
         // 设置用户上下文
@@ -176,6 +647,10 @@ public class CityApplicationService : ICityService
             city.Location = $"POINT({createCityDto.Longitude.Value} {createCityDto.Latitude.Value})";
 
         var createdCity = await _cityRepository.CreateAsync(city);
+
+        // 清除城市列表缓存
+        InvalidateCityListCache();
+
         _logger.LogInformation("City created: {CityId} - {CityName}", createdCity.Id, createdCity.Name);
         return MapToDto(createdCity);
     }
@@ -184,6 +659,13 @@ public class CityApplicationService : ICityService
     {
         var existingCity = await _cityRepository.GetByIdAsync(id);
         if (existingCity == null) return null;
+
+        // 记录更新的字段（用于事件通知）
+        var updatedFields = new List<string>();
+        if (!string.IsNullOrWhiteSpace(updateCityDto.Name) && updateCityDto.Name != existingCity.Name)
+            updatedFields.Add("name");
+        if (!string.IsNullOrWhiteSpace(updateCityDto.Country) && updateCityDto.Country != existingCity.Country)
+            updatedFields.Add("country");
 
         if (!string.IsNullOrWhiteSpace(updateCityDto.Name)) existingCity.Name = updateCityDto.Name;
         if (!string.IsNullOrWhiteSpace(updateCityDto.Country)) existingCity.Country = updateCityDto.Country;
@@ -211,14 +693,49 @@ public class CityApplicationService : ICityService
         var updatedCity = await _cityRepository.UpdateAsync(id, existingCity);
         if (updatedCity == null) return null;
 
+        // 如果更新了 name 或 country，发布 CityUpdatedMessage 事件
+        if (updatedFields.Contains("name") || updatedFields.Contains("country"))
+        {
+            try
+            {
+                var message = new CityUpdatedMessage
+                {
+                    CityId = id.ToString(),
+                    Name = updatedCity.Name,
+                    NameEn = updatedCity.NameEn,
+                    Country = updatedCity.Country,
+                    CountryCode = null, // City 实体暂无 CountryCode 字段
+                    UpdatedAt = DateTime.UtcNow,
+                    UpdatedFields = updatedFields
+                };
+
+                await _publishEndpoint.Publish(message);
+                _logger.LogInformation("📤 已发布城市更新事件: CityId={CityId}, UpdatedFields=[{Fields}]",
+                    id, string.Join(", ", updatedFields));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ 发布城市更新事件失败: CityId={CityId}", id);
+                // 不抛出异常，城市更新已成功，事件发布失败不影响主流程
+            }
+        }
+
+        // 清除城市列表缓存
+        InvalidateCityListCache();
+
         _logger.LogInformation("City updated: {CityId} - {CityName}", id, existingCity.Name);
         return MapToDto(updatedCity);
     }
 
-    public async Task<bool> DeleteCityAsync(Guid id)
+    public async Task<bool> DeleteCityAsync(Guid id, Guid? deletedBy = null)
     {
-        var result = await _cityRepository.DeleteAsync(id);
-        if (result) _logger.LogInformation("City deleted: {CityId}", id);
+        var result = await _cityRepository.DeleteAsync(id, deletedBy);
+        if (result)
+        {
+            // 清除城市列表缓存
+            InvalidateCityListCache();
+            _logger.LogInformation("City deleted: {CityId}, DeletedBy: {DeletedBy}", id, deletedBy);
+        }
 
         return result;
     }
@@ -231,6 +748,17 @@ public class CityApplicationService : ICityService
     public async Task<IEnumerable<CityDto>> GetRecommendedCitiesAsync(int count, Guid? userId = null)
     {
         var cities = await _cityRepository.GetRecommendedAsync(count);
+        var cityDtos = cities.Select(MapToDto).ToList();
+
+        // 填充收藏状态
+        if (userId.HasValue) await EnrichCitiesWithFavoriteStatusAsync(cityDtos, userId.Value);
+
+        return cityDtos;
+    }
+
+    public async Task<IEnumerable<CityDto>> GetPopularCitiesAsync(int limit, Guid? userId = null)
+    {
+        var cities = await _cityRepository.GetPopularAsync(limit);
         var cityDtos = cities.Select(MapToDto).ToList();
 
         // 填充收藏状态
@@ -274,6 +802,7 @@ public class CityApplicationService : ICityService
                     {
                         Id = city.Id,
                         Name = city.Name,
+                        NameEn = city.NameEn,
                         Region = city.Region
                     }).ToList()
                 };
@@ -301,6 +830,7 @@ public class CityApplicationService : ICityService
             {
                 Id = city.Id,
                 Name = city.Name,
+                NameEn = city.NameEn,
                 Region = city.Region
             });
         }
@@ -325,7 +855,7 @@ public class CityApplicationService : ICityService
         }
     }
 
-    public async Task<IEnumerable<CityDto>> GetCitiesByIdsAsync(IEnumerable<Guid> cityIds)
+    public async Task<IEnumerable<CityDto>> GetCitiesByIdsAsync(IEnumerable<Guid> cityIds, bool includeWeather = true)
     {
         var normalized = cityIds?
             .Where(id => id != Guid.Empty)
@@ -341,15 +871,17 @@ public class CityApplicationService : ICityService
         var cities = await _cityRepository.GetByIdsAsync(normalized);
         var cityDtos = cities.Select(MapToDto).ToList();
 
-        // 填充天气信息（静默失败，不影响主流程）
-        try
-        {
-            await EnrichCitiesWithWeatherAsync(cityDtos);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "[CityBatch] 填充天气信息失败，继续返回城市数据");
-        }
+        // 并行填充数据（不包含天气数据以提升性能）
+        var moderatorTask = EnrichCitiesWithModeratorInfoAsync(cityDtos);
+        var ratingsAndCostsTask = EnrichCitiesWithRatingsAndCostsAsync(cityDtos);
+        var meetupAndCoworkingTask = EnrichCitiesWithMeetupAndCoworkingCountsAsync(cityDtos);
+
+        // 等待所有任务完成
+        await Task.WhenAll(
+            moderatorTask.ContinueWith(_ => { }),
+            ratingsAndCostsTask.ContinueWith(_ => { }),
+            meetupAndCoworkingTask.ContinueWith(_ => { })
+        );
 
         return cityDtos;
     }
@@ -466,6 +998,8 @@ public class CityApplicationService : ICityService
 
             await _cityRepository.UpdateAsync(city.Id, city);
 
+            // 失效城市列表缓存，确保下次获取列表时能看到新版主
+            InvalidateCityListCache();
             _logger.LogInformation("用户 {UserId} 申请成为城市 {CityId} 的版主成功", userId, dto.CityId);
             return true;
         }
@@ -506,6 +1040,8 @@ public class CityApplicationService : ICityService
                     existingModerator.IsActive = true;
                     existingModerator.AssignedAt = DateTime.UtcNow;
                     await _moderatorRepository.UpdateAsync(existingModerator);
+                    // 失效城市列表缓存
+                    InvalidateCityListCache();
                     _logger.LogInformation("重新激活版主 - CityId: {CityId}, UserId: {UserId}", dto.CityId, dto.UserId);
                 }
                 else
@@ -534,6 +1070,8 @@ public class CityApplicationService : ICityService
 
             await _moderatorRepository.AddAsync(cityModerator);
 
+            // 失效城市列表缓存，确保下次获取列表时能看到新版主
+            InvalidateCityListCache();
             _logger.LogInformation("城市 {CityId} 的版主已设置为 {UserId}", dto.CityId, dto.UserId);
             return true;
         }
@@ -613,6 +1151,9 @@ public class CityApplicationService : ICityService
 
             // 🆕 通过 CacheService 批量获取城市平均费用
             var averageCosts = await GetCityCostsFromCacheServiceAsync(cityIds);
+            
+            // 🆕 批量获取城市评论数量（去重后的用户数）
+            var reviewCounts = await _ratingRepository.GetCityReviewCountsBatchAsync(cityIds);
 
             // 填充数据（仅当 CacheService 返回有效值时更新，保留数据库原有排序）
             foreach (var city in cities)
@@ -624,18 +1165,162 @@ public class CityApplicationService : ICityService
                 }
                 // AverageCost 可以直接更新
                 city.AverageCost = averageCosts.GetValueOrDefault(city.Id);
+                
+                // 填充 ReviewCount
+                city.ReviewCount = reviewCounts.GetValueOrDefault(city.Id);
 
-                _logger.LogDebug("📊 城市 {CityName}({CityId}): OverallScore={OverallScore}, AverageCost={AverageCost}",
-                    city.Name, city.Id, city.OverallScore, city.AverageCost);
+                _logger.LogDebug("📊 城市 {CityName}({CityId}): OverallScore={OverallScore}, AverageCost={AverageCost}, ReviewCount={ReviewCount}",
+                    city.Name, city.Id, city.OverallScore, city.AverageCost, city.ReviewCount);
             }
 
-            _logger.LogInformation("💰 批量填充评分和花费信息完成: {Count} 个城市, 总评分: {ScoreCount} 个, 费用: {CostCount} 个",
-                cities.Count, overallScores.Count, averageCosts.Count);
+            _logger.LogInformation("💰 批量填充评分和花费信息完成: {Count} 个城市, 总评分: {ScoreCount} 个, 费用: {CostCount} 个, 评论: {ReviewCount} 个",
+                cities.Count, overallScores.Count, averageCosts.Count, reviewCounts.Count);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "批量填充评分和花费信息失败");
         }
+    }
+    
+    /// <summary>
+    /// 批量填充城市的 Meetup 和 Coworking 数量
+    /// </summary>
+    private async Task EnrichCitiesWithMeetupAndCoworkingCountsAsync(List<CityDto> cities)
+    {
+        if (cities.Count == 0) return;
+
+        _logger.LogInformation("🔧 开始批量填充 Meetup 和 Coworking 数量: {Count} 个城市", cities.Count);
+
+        try
+        {
+            var cityIds = cities.Select(c => c.Id).ToList();
+
+            // 并行获取 Meetup 和 Coworking 数量
+            var meetupCountsTask = GetMeetupCountsFromEventServiceAsync(cityIds);
+            var coworkingCountsTask = GetCoworkingCountsFromCoworkingServiceAsync(cityIds);
+
+            await Task.WhenAll(meetupCountsTask, coworkingCountsTask);
+
+            var meetupCounts = await meetupCountsTask;
+            var coworkingCounts = await coworkingCountsTask;
+
+            // 填充数据
+            foreach (var city in cities)
+            {
+                city.MeetupCount = meetupCounts.GetValueOrDefault(city.Id);
+                city.CoworkingCount = coworkingCounts.GetValueOrDefault(city.Id);
+            }
+
+            _logger.LogInformation("✅ 批量填充 Meetup 和 Coworking 数量完成: Meetup={MeetupCount} 个城市, Coworking={CoworkingCount} 个城市",
+                meetupCounts.Count, coworkingCounts.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "批量填充 Meetup 和 Coworking 数量失败");
+        }
+    }
+
+    /// <summary>
+    /// 从 EventService 批量获取城市 Meetup 数量
+    /// </summary>
+    private async Task<Dictionary<Guid, int>> GetMeetupCountsFromEventServiceAsync(List<Guid> cityIds)
+    {
+        var counts = new Dictionary<Guid, int>();
+
+        if (cityIds.Count == 0) return counts;
+
+        try
+        {
+            _logger.LogDebug("🔍 通过 EventService 批量获取城市 Meetup 数量: {Count} 个城市", cityIds.Count);
+
+            // 调用 EventService 的批量获取接口
+            var cityIdStrings = cityIds.Select(id => id.ToString()).ToList();
+            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchCountResponse>(
+                HttpMethod.Post,
+                "event-service",
+                "api/v1/events/cities/counts",
+                cityIdStrings
+            );
+
+            if (response?.Counts != null)
+            {
+                foreach (var item in response.Counts)
+                {
+                    if (Guid.TryParse(item.CityId, out var cityId))
+                    {
+                        counts[cityId] = item.Count;
+                    }
+                }
+
+                _logger.LogInformation("✅ 成功获取城市 Meetup 数量: {Count} 个城市", counts.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 从 EventService 获取 Meetup 数量失败");
+        }
+
+        return counts;
+    }
+
+    /// <summary>
+    /// 从 CoworkingService 批量获取城市 Coworking 数量
+    /// </summary>
+    private async Task<Dictionary<Guid, int>> GetCoworkingCountsFromCoworkingServiceAsync(List<Guid> cityIds)
+    {
+        var counts = new Dictionary<Guid, int>();
+
+        if (cityIds.Count == 0) return counts;
+
+        try
+        {
+            _logger.LogDebug("🔍 通过 CoworkingService 批量获取城市 Coworking 数量: {Count} 个城市", cityIds.Count);
+
+            // 调用 CoworkingService 的批量获取接口
+            var cityIdStrings = cityIds.Select(id => id.ToString()).ToList();
+            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchCountResponse>(
+                HttpMethod.Post,
+                "coworking-service",
+                "api/v1/coworking/cities/counts",
+                cityIdStrings
+            );
+
+            if (response?.Counts != null)
+            {
+                foreach (var item in response.Counts)
+                {
+                    if (Guid.TryParse(item.CityId, out var cityId))
+                    {
+                        counts[cityId] = item.Count;
+                    }
+                }
+
+                _logger.LogInformation("✅ 成功获取城市 Coworking 数量: {Count} 个城市", counts.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 从 CoworkingService 获取 Coworking 数量失败");
+        }
+
+        return counts;
+    }
+
+    /// <summary>
+    /// 批量获取数量响应模型
+    /// </summary>
+    private class BatchCountResponse
+    {
+        public List<CityCountItem> Counts { get; set; } = new();
+    }
+
+    /// <summary>
+    /// 城市数量项模型
+    /// </summary>
+    private class CityCountItem
+    {
+        public string CityId { get; set; } = string.Empty;
+        public int Count { get; set; }
     }
 
     /// <summary>
@@ -918,10 +1603,25 @@ public class CityApplicationService : ICityService
                         Id = userInfo.Id,
                         Name = userInfo.Name,
                         Email = userInfo.Email,
-                        Avatar = userInfo.Avatar
+                        Avatar = userInfo.Avatar,
+                        Stats = userInfo.Stats != null ? new ModeratorTravelStatsDto
+                        {
+                            CountriesVisited = userInfo.Stats.CountriesVisited,
+                            CitiesVisited = userInfo.Stats.CitiesVisited,
+                            TotalDays = userInfo.Stats.TotalDays,
+                            TotalTrips = userInfo.Stats.TotalTrips
+                        } : null,
+                        LatestTravelHistory = userInfo.LatestTravelHistory != null ? new ModeratorTravelHistoryDto
+                        {
+                            CityName = userInfo.LatestTravelHistory.CityName,
+                            CountryName = userInfo.LatestTravelHistory.CountryName,
+                            StartDate = userInfo.LatestTravelHistory.StartDate,
+                            EndDate = userInfo.LatestTravelHistory.EndDate,
+                            Status = userInfo.LatestTravelHistory.Status
+                        } : null
                     };
-                    _logger.LogInformation("✅ [EnrichModerator] 已填充版主信息 - Name: {Name}, Email: {Email}", 
-                        userInfo.Name, userInfo.Email);
+                    _logger.LogInformation("✅ [EnrichModerator] 已填充版主信息 - Name: {Name}, Email: {Email}, Stats: {HasStats}, TravelHistory: {HasTravelHistory}",
+                        userInfo.Name, userInfo.Email, userInfo.Stats != null, userInfo.LatestTravelHistory != null);
                 }
                 else
                 {
@@ -969,13 +1669,8 @@ public class CityApplicationService : ICityService
                 .Distinct()
                 .ToList();
 
-            // 批量获取用户信息（使用缓存）
-            var userInfoMap = new Dictionary<Guid, SimpleUserDto>();
-            foreach (var userId in userIds)
-            {
-                var userInfo = await GetUserInfoWithCacheAsync(userId);
-                if (userInfo != null) userInfoMap[userId] = userInfo;
-            }
+            // 🚀 优化：并行获取用户信息（使用缓存）
+            var userInfoMap = await GetUsersInfoBatchWithCacheAsync(userIds);
 
             // 填充每个城市的版主信息
             foreach (var city in cities)
@@ -1002,6 +1697,57 @@ public class CityApplicationService : ICityService
         {
             _logger.LogWarning(ex, "批量填充城市版主信息失败");
         }
+    }
+
+    /// <summary>
+    /// 批量获取用户信息（带缓存和并行请求）
+    /// </summary>
+    private async Task<Dictionary<Guid, SimpleUserDto>> GetUsersInfoBatchWithCacheAsync(List<Guid> userIds)
+    {
+        var result = new Dictionary<Guid, SimpleUserDto>();
+
+        if (userIds.Count == 0) return result;
+
+        var uncachedUserIds = new List<Guid>();
+
+        // 首先检查缓存
+        foreach (var userId in userIds)
+        {
+            var cacheKey = $"user_info:{userId}";
+            if (_cache.TryGetValue<SimpleUserDto>(cacheKey, out var cachedUser) && cachedUser != null)
+            {
+                result[userId] = cachedUser;
+            }
+            else
+            {
+                uncachedUserIds.Add(userId);
+            }
+        }
+
+        _logger.LogDebug("🔍 批量获取用户信息: 缓存命中={CacheHit}, 需要查询={NeedFetch}",
+            result.Count, uncachedUserIds.Count);
+
+        // 并行获取未缓存的用户信息
+        if (uncachedUserIds.Count > 0)
+        {
+            var tasks = uncachedUserIds.Select(async userId =>
+            {
+                var userInfo = await GetUserInfoWithCacheAsync(userId);
+                return (userId, userInfo);
+            });
+
+            var results = await Task.WhenAll(tasks);
+
+            foreach (var (userId, userInfo) in results)
+            {
+                if (userInfo != null)
+                {
+                    result[userId] = userInfo;
+                }
+            }
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -1145,6 +1891,8 @@ public class CityApplicationService : ICityService
 
             if (result)
             {
+                // 失效城市列表缓存，确保下次获取列表时能看到新图片
+                InvalidateCityListCache();
                 _logger.LogInformation("✅ 城市图片全部更新成功: CityId={CityId}", cityId);
                 return true;
             }
@@ -1168,6 +1916,40 @@ internal class SimpleUserDto
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
-    public string? Avatar { get; set; }
+    public string? AvatarUrl { get; set; }
     public string Role { get; set; } = string.Empty;
+
+    // 兼容性属性：将 AvatarUrl 映射到 Avatar
+    public string? Avatar => AvatarUrl;
+
+    // 旅行统计
+    public SimpleUserTravelStatsDto? Stats { get; set; }
+
+    // 最新旅行历史
+    public SimpleUserTravelHistoryDto? LatestTravelHistory { get; set; }
+}
+
+internal class SimpleUserTravelStatsDto
+{
+    public int CountriesVisited { get; set; }
+    public int CitiesVisited { get; set; }
+    public int TotalDays { get; set; }
+    public int TotalTrips { get; set; }
+}
+
+internal class SimpleUserTravelHistoryDto
+{
+    // 匹配 UserService 的 TravelHistoryDto 字段名
+    public string? City { get; set; }
+    public string? Country { get; set; }
+    public DateTime ArrivalTime { get; set; }
+    public DateTime? DepartureTime { get; set; }
+    public bool IsOngoing { get; set; }
+
+    // 兼容性属性
+    public string? CityName => City;
+    public string? CountryName => Country;
+    public DateTime? StartDate => ArrivalTime;
+    public DateTime? EndDate => DepartureTime;
+    public string? Status => IsOngoing ? "current" : "completed";
 }

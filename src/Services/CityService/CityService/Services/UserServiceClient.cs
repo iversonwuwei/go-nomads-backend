@@ -12,11 +12,20 @@ public class UserInfoDto
     public string Name { get; set; } = string.Empty; // ✅ UserService 返回的字段名是 "name"
     public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
+    public string? AvatarUrl { get; set; } // ✅ 用户头像 URL
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
     // 便捷属性:用于兼容,返回 name 或 email 前缀
     public string Username => !string.IsNullOrWhiteSpace(Name) ? Name : Email.Split('@')[0];
+}
+
+/// <summary>
+///     批量获取用户请求
+/// </summary>
+public class BatchUserIdsRequest
+{
+    public List<string> UserIds { get; set; } = new();
 }
 
 /// <summary>
@@ -80,7 +89,7 @@ public class UserServiceClient : IUserServiceClient
     }
 
     /// <summary>
-    ///     批量获取用户信息 (并发调用)
+    ///     批量获取用户信息 (使用批量接口，一次请求获取所有用户)
     /// </summary>
     public async Task<Dictionary<string, UserInfoDto>> GetUsersInfoAsync(
         IEnumerable<string> userIds,
@@ -93,22 +102,29 @@ public class UserServiceClient : IUserServiceClient
 
         try
         {
-            _logger.LogInformation("📞 通过 Dapr 批量调用 UserService - 用户数量: {Count}", userIdList.Count);
+            _logger.LogInformation("📞 通过 Dapr 批量调用 UserService - POST /api/v1/users/batch - 用户数量: {Count}", userIdList.Count);
 
-            // 并发调用多个用户信息
-            var tasks = userIdList.Select(async userId =>
+            // ✅ 使用批量接口，一次请求获取所有用户信息
+            var request = new BatchUserIdsRequest { UserIds = userIdList };
+            var response = await _daprClient.InvokeMethodAsync<BatchUserIdsRequest, ApiResponse<List<UserInfoDto>>>(
+                HttpMethod.Post,
+                _userServiceAppId,
+                "api/v1/users/batch",
+                request,
+                cancellationToken);
+
+            if (response?.Success == true && response.Data != null)
             {
-                var userInfo = await GetUserInfoAsync(userId, cancellationToken);
-                return (userId, userInfo);
-            });
-
-            var results = await Task.WhenAll(tasks);
-
-            foreach (var (userId, userInfo) in results)
-                if (userInfo != null)
-                    result[userId] = userInfo;
-
-            _logger.LogInformation("✅ 成功获取 {Count}/{Total} 个用户信息", result.Count, userIdList.Count);
+                foreach (var userInfo in response.Data)
+                {
+                    result[userInfo.Id] = userInfo;
+                }
+                _logger.LogInformation("✅ 批量获取成功 {Count}/{Total} 个用户信息", result.Count, userIdList.Count);
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ 批量获取用户信息失败: {Message}", response?.Message ?? "Unknown error");
+            }
         }
         catch (Exception ex)
         {

@@ -1,0 +1,190 @@
+# Prometheus 配置文件
+# Go Nomads 微服务监控
+
+global:
+  scrape_interval: 15s      # 默认抓取间隔
+  evaluation_interval: 15s  # 规则评估间隔
+  external_labels:
+    cluster: 'go-nomads'
+    env: 'development'
+
+# Alertmanager 配置 (可选)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# 加载告警规则
+rule_files:
+  - /etc/prometheus/alerts/*.yml
+
+# 抓取配置
+scrape_configs:
+  # Prometheus 自身监控
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # ============================================================
+  # Go Nomads 微服务监控
+  # ============================================================
+  
+  # API Gateway
+  - job_name: 'gateway'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['go-nomads-gateway:5000']
+        labels:
+          service: 'gateway'
+          tier: 'gateway'
+
+  # User Service
+  - job_name: 'user-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['go-nomads-user-service:8080']
+        labels:
+          service: 'user-service'
+          tier: 'application'
+
+  # City Service
+  - job_name: 'city-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['go-nomads-city-service:8080']
+        labels:
+          service: 'city-service'
+          tier: 'application'
+
+  # Accommodation Service
+  - job_name: 'accommodation-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['go-nomads-accommodation-service:8080']
+        labels:
+          service: 'accommodation-service'
+          tier: 'application'
+
+  # Coworking Service
+  - job_name: 'coworking-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['go-nomads-coworking-service:8080']
+        labels:
+          service: 'coworking-service'
+          tier: 'application'
+
+  # Event Service
+  - job_name: 'event-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['go-nomads-event-service:8080']
+        labels:
+          service: 'event-service'
+          tier: 'application'
+
+  # AI Service
+  - job_name: 'ai-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['go-nomads-ai-service:8080']
+        labels:
+          service: 'ai-service'
+          tier: 'application'
+
+  # Message Service
+  - job_name: 'message-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['go-nomads-message-service:8080']
+        labels:
+          service: 'message-service'
+          tier: 'application'
+
+  # Search Service
+  - job_name: 'search-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['go-nomads-search-service:8080']
+        labels:
+          service: 'search-service'
+          tier: 'application'
+
+  # Document Service
+  - job_name: 'document-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['go-nomads-document-service:8080']
+        labels:
+          service: 'document-service'
+          tier: 'application'
+
+  # Product Service
+  - job_name: 'product-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['go-nomads-product-service:8080']
+        labels:
+          service: 'product-service'
+          tier: 'application'
+
+  # Innovation Service
+  - job_name: 'innovation-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['go-nomads-innovation-service:8080']
+        labels:
+          service: 'innovation-service'
+          tier: 'application'
+
+  # Cache Service
+  - job_name: 'cache-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['go-nomads-cache-service:8080']
+        labels:
+          service: 'cache-service'
+          tier: 'infrastructure'
+
+  # ============================================================
+  # 基础设施监控
+  # ============================================================
+  
+  # Jaeger
+  - job_name: 'jaeger'
+    static_configs:
+      - targets: ['go-nomads-jaeger:14269']
+        labels:
+          service: 'jaeger'
+          tier: 'observability'
+
+  # RabbitMQ (如果启用了 prometheus 插件)
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['go-nomads-rabbitmq:15692']
+        labels:
+          service: 'rabbitmq'
+          tier: 'infrastructure'
+
+  # Redis (需要 redis_exporter)
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+  #       labels:
+  #         service: 'redis'
+  #         tier: 'infrastructure'
+
+  # ============================================================
+  # 动态服务发现 (Consul)
+  # ============================================================
+  # - job_name: 'consul-services'
+  #   consul_sd_configs:
+  #     - server: 'go-nomads-consul:7500'
+  #   relabel_configs:
+  #     - source_labels: [__meta_consul_service]
+  #       target_label: service
+  #     - source_labels: [__meta_consul_node]
+  #       target_label: node

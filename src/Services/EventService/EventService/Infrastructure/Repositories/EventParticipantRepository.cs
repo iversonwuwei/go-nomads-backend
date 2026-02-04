@@ -70,7 +70,8 @@ public class EventParticipantRepository : IEventParticipantRepository
         {
             var result = await _supabaseClient
                 .From<EventParticipant>()
-                .Where(p => p.EventId == eventId && p.UserId == userId)
+                .Filter("event_id", Constants.Operator.Equals, eventId.ToString())
+                .Filter("user_id", Constants.Operator.Equals, userId.ToString())
                 .Get();
 
             return result.Models.FirstOrDefault();
@@ -106,7 +107,7 @@ public class EventParticipantRepository : IEventParticipantRepository
         {
             var result = await _supabaseClient
                 .From<EventParticipant>()
-                .Where(p => p.EventId == eventId)
+                .Where(p => p.EventId == eventId && p.Status == "registered")  // 只返回已注册的参与者，过滤已取消的
                 .Get();
 
             return result.Models.ToList();

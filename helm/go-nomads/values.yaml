@@ -1,0 +1,160 @@
+# Go-Nomads Infrastructure Helm Chart Values
+# 仅包含基础设施组件（对应 docker-compose-infras.yml）
+
+# 全局配置
+global:
+  namespace: go-nomads
+  storageClass: ""  # 使用默认存储类
+
+# ============ Redis ============
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+  service:
+    type: ClusterIP
+    port: 6379
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  persistence:
+    enabled: true
+    size: 5Gi
+  command:
+    - redis-server
+    - --appendonly
+    - "yes"
+
+# ============ RabbitMQ ============
+rabbitmq:
+  enabled: true
+  image:
+    repository: rabbitmq
+    tag: "3-management-alpine"
+  service:
+    type: ClusterIP
+    amqpPort: 5672
+    managementPort: 15672
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  persistence:
+    enabled: true
+    size: 5Gi
+  auth:
+    username: guest
+    password: guest
+
+# ============ Elasticsearch ============
+elasticsearch:
+  enabled: false  # 默认禁用，资源消耗大
+  image:
+    repository: docker.elastic.co/elasticsearch/elasticsearch
+    tag: "8.11.0"
+  service:
+    type: ClusterIP
+    httpPort: 9200
+    transportPort: 9300
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  persistence:
+    enabled: true
+    size: 10Gi
+  env:
+    discoveryType: single-node
+    xpackSecurityEnabled: "false"
+    javaOpts: "-Xms512m -Xmx512m"
+
+# ============ Consul ============
+consul:
+  enabled: false  # 默认禁用
+  image:
+    repository: hashicorp/consul
+    tag: "latest"
+  service:
+    type: ClusterIP
+    httpPort: 8500
+    grpcPort: 8502
+    dnsPort: 8600
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  persistence:
+    enabled: true
+    size: 2Gi
+
+# ============ Zipkin ============
+zipkin:
+  enabled: false  # 默认禁用
+  image:
+    repository: openzipkin/zipkin
+    tag: "latest"
+  service:
+    type: ClusterIP
+    port: 9411
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# ============ Prometheus ============
+prometheus:
+  enabled: false  # 默认禁用
+  image:
+    repository: prom/prometheus
+    tag: "latest"
+  service:
+    type: ClusterIP
+    port: 9090
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  persistence:
+    enabled: true
+    size: 10Gi
+
+# ============ Grafana ============
+grafana:
+  enabled: false  # 默认禁用
+  image:
+    repository: grafana/grafana
+    tag: "latest"
+  service:
+    type: ClusterIP
+    port: 3000
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  persistence:
+    enabled: true
+    size: 5Gi
+  adminPassword: admin

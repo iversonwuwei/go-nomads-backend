@@ -15,6 +15,13 @@ public interface ISignalRNotifier
     Task BroadcastNotificationAsync(NotificationMessage notification);
 
     /// <summary>
+    ///     发送 AI Chat 流式响应块
+    /// </summary>
+    /// <param name="userId">用户ID</param>
+    /// <param name="chunk">响应块数据</param>
+    Task SendAIChatChunkAsync(string userId, object chunk);
+
+    /// <summary>
     ///     发送城市图片更新通知
     /// </summary>
     /// <param name="cityId">城市ID</param>
@@ -35,4 +42,18 @@ public interface ISignalRNotifier
     /// <param name="coworkingId">Coworking ID</param>
     /// <param name="votesData">验证人数数据</param>
     Task SendCoworkingVerificationVotesAsync(string coworkingId, object votesData);
+
+    /// <summary>
+    ///     发送城市评分更新通知（广播给所有订阅该城市的用户）
+    /// </summary>
+    /// <param name="cityId">城市ID</param>
+    /// <param name="ratingData">评分数据 (包含 overallScore, reviewCount 等)</param>
+    Task BroadcastCityRatingUpdatedAsync(string cityId, object ratingData);
+
+    /// <summary>
+    ///     发送城市评论更新通知（广播给所有订阅该城市的用户）
+    /// </summary>
+    /// <param name="cityId">城市ID</param>
+    /// <param name="reviewData">评论数据 (包含 changeType, reviewCount 等)</param>
+    Task BroadcastCityReviewUpdatedAsync(string cityId, object reviewData);
 }

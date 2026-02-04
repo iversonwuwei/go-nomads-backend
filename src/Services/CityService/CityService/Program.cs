@@ -10,6 +10,7 @@ using CityService.Infrastructure.Repositories;
 using CityService.Infrastructure.Services;
 using CityService.Services;
 using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Observability;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -18,6 +19,8 @@ using Scalar.AspNetCore;
 using Serilog;
 using Shared.Messages;
 using IUserCityContentService = CityService.Application.Services.IUserCityContentService;
+
+const string serviceName = "CityService";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +36,12 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 builder.Host.UseSerilog();
+
+// ============================================================
+// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// ============================================================
+builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
+builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
 
 // Add services to the container
 builder.Services.AddControllers()
@@ -61,11 +70,11 @@ builder.Services.AddSupabase(builder.Configuration);
 // 添加当前用户服务（统一的用户身份和权限检查）
 builder.Services.AddCurrentUserService();
 
-// 配置 DaprClient - 使用 gRPC 端点
-var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50001";
+// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync）
+var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
-    daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
+    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
 });
 
 // 注册服务客户端
@@ -124,6 +133,7 @@ builder.Services.AddScoped<IDigitalNomadGuideRepository, SupabaseDigitalNomadGui
 builder.Services.AddScoped<INearbyCityRepository, SupabaseNearbyCityRepository>();
 builder.Services.AddScoped<ICityModeratorRepository, CityModeratorRepository>();
 builder.Services.AddScoped<IModeratorApplicationRepository, ModeratorApplicationRepository>();
+builder.Services.AddScoped<IModeratorTransferRepository, ModeratorTransferRepository>();
 builder.Services.AddScoped<ICityRatingCategoryRepository, CityRatingCategoryRepository>();
 builder.Services.AddScoped<ICityRatingRepository, CityRatingRepository>();
 builder.Services.AddScoped<IWeatherCacheRepository, WeatherCacheRepository>();
@@ -136,6 +146,7 @@ builder.Services.AddScoped<IGeoNamesImportService, GeoNamesImportService>();
 builder.Services.AddScoped<IDigitalNomadGuideService, DigitalNomadGuideService>();
 builder.Services.AddScoped<INearbyCityService, NearbyCityService>();
 builder.Services.AddScoped<IModeratorApplicationService, ModeratorApplicationService>();
+builder.Services.AddScoped<IModeratorTransferService, ModeratorTransferService>();
 builder.Services.AddScoped<GeographyDataSeeder>();
 builder.Services.AddScoped<RatingCategorySeeder>();
 
@@ -147,7 +158,11 @@ builder.Services.AddHostedService<WeatherCacheRefreshService>();
 
 // 注册天气服务
 builder.Services.AddHttpClient<IWeatherService, WeatherService>();
-builder.Services.AddHttpClient<IAmapGeocodingService, AmapGeocodingService>();
+builder.Services.AddHttpClient<IAmapGeocodingService, CityService.Infrastructure.Integrations.Geocoding.AmapGeocodingService>();
+
+// 注册城市匹配服务
+builder.Services.AddScoped<IGeocodingService, CityService.Application.Services.AmapGeocodingService>();
+builder.Services.AddScoped<ICityMatchingService, CityMatchingService>();
 
 // 注册 AIService 客户端 (使用 Dapr Service Invocation)
 builder.Services.AddScoped<CityService.Infrastructure.Clients.IAIServiceClient, CityService.Infrastructure.Clients.AIServiceClient>();

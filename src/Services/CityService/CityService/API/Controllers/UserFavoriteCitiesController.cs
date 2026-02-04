@@ -108,6 +108,23 @@ public class UserFavoriteCitiesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> RemoveFavoriteCity(string cityId)
     {
+        return await RemoveFavoriteCityInternal(cityId);
+    }
+
+    /// <summary>
+    ///     移除收藏城市（POST 方式，用于某些不支持 DELETE 方法的网络环境）
+    /// </summary>
+    /// <param name="cityId">城市ID</param>
+    /// <returns>操作结果</returns>
+    [HttpPost("{cityId}/remove")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> RemoveFavoriteCityPost(string cityId)
+    {
+        return await RemoveFavoriteCityInternal(cityId);
+    }
+
+    private async Task<IActionResult> RemoveFavoriteCityInternal(string cityId)
+    {
         try
         {
             var userId = _currentUser.GetUserId();
@@ -252,7 +269,8 @@ public class UserFavoriteCitiesController : ControllerBase
                 .Select(x => x!.Value)
                 .ToList();
                 
-            var cities = await _cityService.GetCitiesByIdsAsync(cityIds);
+            // 跳过天气信息以提升性能（收藏列表不需要实时天气）
+            var cities = await _cityService.GetCitiesByIdsAsync(cityIds, includeWeather: false);
             
             // 按收藏顺序排序
             var cityDict = cities.ToDictionary(c => c.Id);

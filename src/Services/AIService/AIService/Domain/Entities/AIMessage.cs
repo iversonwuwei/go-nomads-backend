@@ -10,32 +10,32 @@ namespace AIService.Domain.Entities;
 [Table("ai_messages")]
 public class AIMessage : BaseAIModel
 {
-    [Required] [Column("conversation_id")] public Guid ConversationId { get; private set; }
+    [Required] [Column("conversation_id")] public Guid ConversationId { get; set; }
 
     [Required]
     [MaxLength(20)]
     [Column("role")]
-    public string Role { get; private set; } = string.Empty; // user, assistant, system
+    public string Role { get; set; } = string.Empty; // user, assistant, system
 
-    [Required] [Column("content")] public string Content { get; private set; } = string.Empty;
+    [Required] [Column("content")] public string Content { get; set; } = string.Empty;
 
-    [Column("token_count")] public int TokenCount { get; private set; }
+    [Column("token_count")] public int TokenCount { get; set; }
 
-    [Column("model_name")] public string? ModelName { get; private set; }
+    [Column("model_name")] public string? ModelName { get; set; }
 
-    [Column("prompt_tokens")] public int? PromptTokens { get; private set; }
+    [Column("prompt_tokens")] public int? PromptTokens { get; set; }
 
-    [Column("completion_tokens")] public int? CompletionTokens { get; private set; }
+    [Column("completion_tokens")] public int? CompletionTokens { get; set; }
 
-    [Column("total_tokens")] public int? TotalTokens { get; private set; }
+    [Column("total_tokens")] public int? TotalTokens { get; set; }
 
-    [Column("response_time_ms")] public int? ResponseTimeMs { get; private set; }
+    [Column("response_time_ms")] public int? ResponseTimeMs { get; set; }
 
-    [Column("metadata")] public string? Metadata { get; private set; } // JSON格式存储额外信息
+    [Column("metadata")] public string? Metadata { get; set; } // JSON格式存储额外信息
 
-    [Column("error_message")] public string? ErrorMessage { get; private set; }
+    [Column("error_message")] public string? ErrorMessage { get; set; }
 
-    [Column("is_error")] public bool IsError { get; private set; }
+    [Column("is_error")] public bool IsError { get; set; }
 
     // 领域行为方法
 

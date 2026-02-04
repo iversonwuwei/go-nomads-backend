@@ -88,6 +88,42 @@ public class CoworkingApplicationService : ICoworkingService
                 request.CreatedBy,
                 desiredStatus);
 
+            // 1.5 获取并填充冗余字段（创建者和城市信息）
+            if (request.CreatedBy.HasValue)
+            {
+                try
+                {
+                    var userInfo = await _userServiceClient.GetUserInfoAsync(request.CreatedBy.Value.ToString());
+                    if (userInfo != null)
+                    {
+                        coworkingSpace.CreatorName = userInfo.Name;
+                        coworkingSpace.CreatorAvatar = userInfo.AvatarUrl;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ 获取创建者信息失败，冗余字段将为空: {CreatedBy}", request.CreatedBy);
+                }
+            }
+
+            if (request.CityId.HasValue)
+            {
+                try
+                {
+                    var cityInfo = await _cityServiceClient.GetCityInfoAsync(request.CityId.Value.ToString());
+                    if (cityInfo != null)
+                    {
+                        coworkingSpace.CityName = cityInfo.Name;
+                        coworkingSpace.CityNameEn = cityInfo.NameEn;
+                        coworkingSpace.CityCountry = cityInfo.Country;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ 获取城市信息失败，冗余字段将为空: {CityId}", request.CityId);
+                }
+            }
+
             // 2. 通过仓储持久化
             var created = await _coworkingRepository.CreateAsync(coworkingSpace);
 
@@ -196,18 +232,18 @@ public class CoworkingApplicationService : ICoworkingService
         return await MapToResponseAsync(updated, votesBeforeUpdate, averageRating, reviewCount);
     }
 
-    public async Task DeleteCoworkingSpaceAsync(Guid id)
+    public async Task DeleteCoworkingSpaceAsync(Guid id, Guid? deletedBy = null)
     {
-        _logger.LogInformation("删除共享办公空间: {Id}", id);
+        _logger.LogInformation("删除共享办公空间: {Id}, DeletedBy: {DeletedBy}", id, deletedBy);
 
         try
         {
             var exists = await _coworkingRepository.ExistsAsync(id);
             if (!exists) throw new KeyNotFoundException($"未找到 ID 为 {id} 的共享办公空间");
 
-            await _coworkingRepository.DeleteAsync(id);
+            await _coworkingRepository.DeleteAsync(id, deletedBy);
 
-            _logger.LogInformation("✅ 共享办公空间删除成功: {Id}", id);
+            _logger.LogInformation("✅ 共享办公空间逻辑删除成功: {Id}, DeletedBy: {DeletedBy}", id, deletedBy);
         }
         catch (Exception ex)
         {
@@ -226,53 +262,25 @@ public class CoworkingApplicationService : ICoworkingService
 
         var (items, totalCount) = await _coworkingRepository.GetListAsync(page, pageSize, cityId);
         var coworkingIds = items.Select(i => i.Id).ToList();
-        
-        // 并行批量获取所有关联数据
+
+        // 并行批量获取所有关联数据（验证数和评分）
         var verificationCountsTask = _verificationRepository.GetCountsByCoworkingIdsAsync(coworkingIds);
         var ratingsTask = _reviewRepository.GetAverageRatingsByCoworkingIdsAsync(coworkingIds);
-        
-        // 批量获取创建者信息
-        var creatorIds = items.Where(s => s.CreatedBy.HasValue)
-                             .Select(s => s.CreatedBy!.Value.ToString())
-                             .Distinct()
-                             .ToList();
-        _logger.LogInformation("🔍 批量获取创建者信息 - 创建者ID数量: {Count}", creatorIds.Count);
-        var creatorInfosTask = creatorIds.Any() 
-            ? _userServiceClient.GetUsersInfoAsync(creatorIds) 
-            : Task.FromResult(new Dictionary<string, UserInfoDto>());
-        
-        // 批量获取城市信息
-        var cityIds = items.Where(s => s.CityId.HasValue)
-                          .Select(s => s.CityId!.Value.ToString())
-                          .Distinct()
-                          .ToList();
-        var cityInfosTask = cityIds.Any()
-            ? _cityServiceClient.GetCitiesInfoAsync(cityIds)
-            : Task.FromResult(new Dictionary<string, CityInfoDto>());
-        
+
         // 等待所有批量查询完成
-        await Task.WhenAll(verificationCountsTask, ratingsTask, creatorInfosTask, cityInfosTask);
-        
+        await Task.WhenAll(verificationCountsTask, ratingsTask);
+
         var verificationCounts = await verificationCountsTask;
         var ratings = await ratingsTask;
-        var creatorInfos = await creatorInfosTask;
-        var cityInfos = await cityInfosTask;
-        
-        _logger.LogInformation("✅ 获取到创建者信息数量: {Count}, 城市信息数量: {CityCount}", 
-            creatorInfos.Count, cityInfos.Count);
-        
-        // 同步映射（不再需要异步调用）
+
+        // 同步映射 - 使用实体中的冗余字段，无需远程服务调用
         var responses = items.Select(space =>
         {
             var votes = verificationCounts.TryGetValue(space.Id, out var v) ? v : 0;
             var (averageRating, reviewCount) = ratings.TryGetValue(space.Id, out var r) ? r : (0, 0);
-            var creatorName = space.CreatedBy.HasValue && creatorInfos.TryGetValue(space.CreatedBy.Value.ToString(), out var creator)
-                ? creator.Name
-                : null;
-            var (cityName, country) = space.CityId.HasValue && cityInfos.TryGetValue(space.CityId.Value.ToString(), out var city)
-                ? (city.Name, city.Country)
-                : (null, null);
-            return MapToResponseSync(space, votes, averageRating, reviewCount, creatorName, cityName, country);
+            // 直接从实体的冗余字段读取创建者和城市信息
+            return MapToResponseSync(space, votes, averageRating, reviewCount,
+                space.CreatorName, space.CityName, space.CityCountry);
         }).ToList();
 
         return new PaginatedCoworkingSpacesResponse
@@ -293,47 +301,23 @@ public class CoworkingApplicationService : ICoworkingService
 
         var spaces = await _coworkingRepository.SearchAsync(searchTerm, page, pageSize);
         var coworkingIds = spaces.Select(s => s.Id).ToList();
-        
-        // 并行批量获取所有关联数据
+
+        // 并行批量获取所有关联数据（验证数和评分）
         var verificationCountsTask = _verificationRepository.GetCountsByCoworkingIdsAsync(coworkingIds);
         var ratingsTask = _reviewRepository.GetAverageRatingsByCoworkingIdsAsync(coworkingIds);
-        
-        // 批量获取创建者信息
-        var creatorIds = spaces.Where(s => s.CreatedBy.HasValue)
-                               .Select(s => s.CreatedBy!.Value.ToString())
-                               .Distinct()
-                               .ToList();
-        var creatorInfosTask = creatorIds.Any() 
-            ? _userServiceClient.GetUsersInfoAsync(creatorIds) 
-            : Task.FromResult(new Dictionary<string, UserInfoDto>());
-        
-        // 批量获取城市信息
-        var cityIds = spaces.Where(s => s.CityId.HasValue)
-                           .Select(s => s.CityId!.Value.ToString())
-                           .Distinct()
-                           .ToList();
-        var cityInfosTask = cityIds.Any()
-            ? _cityServiceClient.GetCitiesInfoAsync(cityIds)
-            : Task.FromResult(new Dictionary<string, CityInfoDto>());
-        
-        await Task.WhenAll(verificationCountsTask, ratingsTask, creatorInfosTask, cityInfosTask);
-        
+
+        await Task.WhenAll(verificationCountsTask, ratingsTask);
+
         var verificationCounts = await verificationCountsTask;
         var ratings = await ratingsTask;
-        var creatorInfos = await creatorInfosTask;
-        var cityInfos = await cityInfosTask;
-        
+
+        // 使用实体中的冗余字段，无需远程服务调用
         return spaces.Select(space =>
         {
             var votes = verificationCounts.TryGetValue(space.Id, out var v) ? v : 0;
             var (averageRating, reviewCount) = ratings.TryGetValue(space.Id, out var r) ? r : (0, 0);
-            var creatorName = space.CreatedBy.HasValue && creatorInfos.TryGetValue(space.CreatedBy.Value.ToString(), out var creator)
-                ? creator.Name
-                : null;
-            var (cityName, country) = space.CityId.HasValue && cityInfos.TryGetValue(space.CityId.Value.ToString(), out var city)
-                ? (city.Name, city.Country)
-                : (null, null);
-            return MapToResponseSync(space, votes, averageRating, reviewCount, creatorName, cityName, country);
+            return MapToResponseSync(space, votes, averageRating, reviewCount,
+                space.CreatorName, space.CityName, space.CityCountry);
         }).ToList();
     }
 
@@ -343,47 +327,23 @@ public class CoworkingApplicationService : ICoworkingService
 
         var spaces = await _coworkingRepository.GetTopRatedAsync(limit);
         var coworkingIds = spaces.Select(s => s.Id).ToList();
-        
-        // 并行批量获取所有关联数据
+
+        // 并行批量获取所有关联数据（验证数和评分）
         var verificationCountsTask = _verificationRepository.GetCountsByCoworkingIdsAsync(coworkingIds);
         var ratingsTask = _reviewRepository.GetAverageRatingsByCoworkingIdsAsync(coworkingIds);
-        
-        // 批量获取创建者信息
-        var creatorIds = spaces.Where(s => s.CreatedBy.HasValue)
-                               .Select(s => s.CreatedBy!.Value.ToString())
-                               .Distinct()
-                               .ToList();
-        var creatorInfosTask = creatorIds.Any() 
-            ? _userServiceClient.GetUsersInfoAsync(creatorIds) 
-            : Task.FromResult(new Dictionary<string, UserInfoDto>());
-        
-        // 批量获取城市信息
-        var cityIds = spaces.Where(s => s.CityId.HasValue)
-                           .Select(s => s.CityId!.Value.ToString())
-                           .Distinct()
-                           .ToList();
-        var cityInfosTask = cityIds.Any()
-            ? _cityServiceClient.GetCitiesInfoAsync(cityIds)
-            : Task.FromResult(new Dictionary<string, CityInfoDto>());
-        
-        await Task.WhenAll(verificationCountsTask, ratingsTask, creatorInfosTask, cityInfosTask);
-        
+
+        await Task.WhenAll(verificationCountsTask, ratingsTask);
+
         var verificationCounts = await verificationCountsTask;
         var ratings = await ratingsTask;
-        var creatorInfos = await creatorInfosTask;
-        var cityInfos = await cityInfosTask;
-        
+
+        // 使用实体中的冗余字段，无需远程服务调用
         return spaces.Select(space =>
         {
             var votes = verificationCounts.TryGetValue(space.Id, out var v) ? v : 0;
             var (averageRating, reviewCount) = ratings.TryGetValue(space.Id, out var r) ? r : (0, 0);
-            var creatorName = space.CreatedBy.HasValue && creatorInfos.TryGetValue(space.CreatedBy.Value.ToString(), out var creator)
-                ? creator.Name
-                : null;
-            var (cityName, country) = space.CityId.HasValue && cityInfos.TryGetValue(space.CityId.Value.ToString(), out var city)
-                ? (city.Name, city.Country)
-                : (null, null);
-            return MapToResponseSync(space, votes, averageRating, reviewCount, creatorName, cityName, country);
+            return MapToResponseSync(space, votes, averageRating, reviewCount,
+                space.CreatorName, space.CityName, space.CityCountry);
         }).ToList();
     }
 
@@ -497,9 +457,9 @@ public class CoworkingApplicationService : ICoworkingService
 
         _logger.LogInformation("认证成功: CoworkingId={CoworkingId}, UserId={UserId}, 当前投票数={Votes}", id, userId, votes);
 
-        // 4. 检查是否需要自动更新验证状态（超过 3 票自动变为已认证）
+        // 4. 检查是否需要自动更新验证状态（达到 3 票自动变为已认证）
         var isVerified = coworkingSpace.VerificationStatus == CoworkingVerificationStatus.Verified;
-        if (coworkingSpace.VerificationStatus == CoworkingVerificationStatus.Unverified && votes > 3)
+        if (coworkingSpace.VerificationStatus == CoworkingVerificationStatus.Unverified && votes >= 3)
         {
             _logger.LogInformation("自动更新认证状态: CoworkingId={CoworkingId}, Votes={Votes}", id, votes);
             coworkingSpace.SetVerificationStatus(CoworkingVerificationStatus.Verified, userId);
@@ -683,6 +643,7 @@ public class CoworkingApplicationService : ICoworkingService
 
     /// <summary>
     ///     映射实体到响应 DTO
+    ///     优先使用实体的冗余字段（无远程调用），当冗余字段为空时才回退到远程服务
     /// </summary>
     private async Task<CoworkingSpaceResponse> MapToResponseAsync(
         CoworkingSpace space, 
@@ -691,7 +652,10 @@ public class CoworkingApplicationService : ICoworkingService
         int? reviewCount = null,
         string? creatorName = null)
     {
-        // 如果没有传入 creatorName，则尝试获取
+        // 优先使用实体中的冗余字段
+        creatorName ??= space.CreatorName;
+
+        // 如果冗余字段为空且有创建者ID，则回退到远程服务（兼容历史数据）
         if (creatorName == null && space.CreatedBy.HasValue)
         {
             try
@@ -705,10 +669,12 @@ public class CoworkingApplicationService : ICoworkingService
             }
         }
 
-        // 获取城市信息（城市名称和国家）
-        string? cityName = null;
-        string? country = null;
-        if (space.CityId.HasValue)
+        // 优先使用实体中的冗余字段
+        string? cityName = space.CityName;
+        string? country = space.CityCountry;
+
+        // 如果冗余字段为空且有城市ID，则回退到远程服务（兼容历史数据）
+        if (cityName == null && space.CityId.HasValue)
         {
             try
             {
@@ -909,7 +875,13 @@ public class CoworkingApplicationService : ICoworkingService
 
             _logger.LogInformation("✅ 评论创建成功: {Id}", created.Id);
 
-            return MapToCommentResponse(created);
+            // 获取用户信息用于返回
+            var userInfo = await _userServiceClient.GetUserInfoAsync(userId.ToString());
+            var usersInfo = userInfo != null 
+                ? new Dictionary<string, UserInfoDto> { { userId.ToString(), userInfo } } 
+                : null;
+
+            return MapToCommentResponse(created, usersInfo);
         }
         catch (Exception ex)
         {
@@ -926,7 +898,12 @@ public class CoworkingApplicationService : ICoworkingService
         _logger.LogInformation("获取评论列表: CoworkingId={CoworkingId}, Page={Page}", coworkingId, page);
 
         var comments = await _commentRepository.GetByCoworkingIdAsync(coworkingId, page, pageSize);
-        return comments.Select(MapToCommentResponse).ToList();
+        
+        // 批量获取用户信息
+        var userIds = comments.Select(c => c.UserId.ToString()).Distinct().ToList();
+        var usersInfo = await _userServiceClient.GetUsersInfoAsync(userIds);
+        
+        return comments.Select(c => MapToCommentResponse(c, usersInfo)).ToList();
     }
 
     public async Task<int> GetCommentCountAsync(Guid coworkingId)
@@ -960,19 +937,85 @@ public class CoworkingApplicationService : ICoworkingService
         }
     }
 
-    private CoworkingCommentResponse MapToCommentResponse(CoworkingComment comment)
+    private CoworkingCommentResponse MapToCommentResponse(
+        CoworkingComment comment, 
+        Dictionary<string, UserInfoDto>? usersInfo = null)
     {
+        // 动态获取用户信息
+        string? userName = null;
+        string? userAvatar = null;
+        
+        if (usersInfo != null && usersInfo.TryGetValue(comment.UserId.ToString(), out var userInfo))
+        {
+            userName = userInfo.Username;
+            userAvatar = userInfo.AvatarUrl;
+        }
+        
         return new CoworkingCommentResponse
         {
             Id = comment.Id,
             CoworkingId = comment.CoworkingId,
             UserId = comment.UserId,
+            UserName = userName,
+            UserAvatar = userAvatar,
             Content = comment.Content,
             Rating = comment.Rating,
             Images = comment.Images,
             CreatedAt = comment.CreatedAt,
             UpdatedAt = comment.UpdatedAt
         };
+    }
+
+    #endregion
+
+    #region 城市统计
+
+    /// <summary>
+    ///     批量获取城市 Coworking 空间数量（优化版：使用单次查询）
+    /// </summary>
+    public async Task<Dictionary<string, int>> GetCitiesCoworkingCountsAsync(List<string> cityIds)
+    {
+        var result = new Dictionary<string, int>();
+        
+        if (cityIds.Count == 0)
+            return result;
+
+        try
+        {
+            _logger.LogInformation("📊 [优化] 批量获取城市 Coworking 数量: {Count} 个城市", cityIds.Count);
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            // 转换并过滤有效的 GUID
+            var validCityIds = cityIds
+                .Where(id => Guid.TryParse(id, out _))
+                .Select(id => Guid.Parse(id))
+                .ToList();
+
+            if (validCityIds.Count == 0)
+            {
+                _logger.LogWarning("⚠️ 没有有效的城市ID");
+                return result;
+            }
+
+            // 使用优化的批量查询方法（单次数据库查询）
+            var counts = await _coworkingRepository.GetCoworkingCountsByCityIdsAsync(validCityIds);
+
+            // 转换结果为字符串键
+            foreach (var kvp in counts)
+            {
+                result[kvp.Key.ToString()] = kvp.Value;
+            }
+
+            stopwatch.Stop();
+            _logger.LogInformation("✅ [优化] 成功获取 {Count} 个城市的 Coworking 数量, 耗时 {Elapsed}ms",
+                result.Count, stopwatch.ElapsedMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "批量获取城市 Coworking 数量失败");
+        }
+
+        return result;
     }
 
     #endregion

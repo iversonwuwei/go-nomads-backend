@@ -1,0 +1,17 @@
+# 测试流水线
+version: '1.0'
+name: test-pipeline
+displayName: 测试流水线
+
+stages:
+  - name: test
+    displayName: 测试阶段
+    steps:
+      - step: shell@agent
+        name: test_step
+        displayName: 测试步骤
+        agentSelector:
+          labels:
+            - docker
+        script:
+          - echo "Hello World"

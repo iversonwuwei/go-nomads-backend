@@ -55,6 +55,20 @@ public interface IAIChatService
         Guid userId);
 
     /// <summary>
+    ///     发送消息并通过 RabbitMQ 异步推送流式 AI 回复（用于 SignalR）
+    /// </summary>
+    /// <param name="conversationId">对话 ID</param>
+    /// <param name="request">发送消息请求</param>
+    /// <param name="userId">用户 ID</param>
+    /// <param name="requestId">请求 ID（用于关联响应）</param>
+    /// <returns>用户消息响应</returns>
+    Task<MessageResponse> SendMessageWithSignalRStreamAsync(
+        Guid conversationId,
+        SendMessageRequest request,
+        Guid userId,
+        string requestId);
+
+    /// <summary>
     ///     获取对话的消息历史
     /// </summary>
     Task<PagedResponse<MessageResponse>> GetMessagesAsync(Guid conversationId, GetMessagesRequest request, Guid userId);

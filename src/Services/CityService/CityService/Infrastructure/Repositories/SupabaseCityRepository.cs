@@ -2,6 +2,7 @@ using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
 using CityService.Domain.ValueObjects;
 using Postgrest;
+using Postgrest.Interfaces;
 using Shared.Repositories;
 using Client = Supabase.Client;
 
@@ -10,7 +11,7 @@ namespace CityService.Infrastructure.Repositories;
 /// <summary>
 ///     基于 Supabase 的城市仓储实现
 /// </summary>
-public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityRepository
+public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityRepository
 {
     private readonly IConfiguration _configuration;
 
@@ -27,6 +28,7 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
             .Order(x => x.OverallScore!, Constants.Ordering.Descending)
             .Range(offset, offset + pageSize - 1)
             .Get();
@@ -41,6 +43,7 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
             var response = await SupabaseClient
                 .From<City>()
                 .Where(x => x.Id == id)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Single();
 
             if (response != null)
@@ -120,46 +123,72 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
 
     public async Task<IEnumerable<City>> SearchAsync(CitySearchCriteria criteria)
     {
-        var response = await SupabaseClient
+        var offset = (criteria.PageNumber - 1) * criteria.PageSize;
+
+        // 🚀 优化：在数据库级别进行过滤，而不是加载所有数据到内存
+        var query = SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true");
+
+        // 使用数据库级别的 ILIKE 搜索（支持中英文）
+        if (!string.IsNullOrWhiteSpace(criteria.Name))
+        {
+            // 简化搜索：先只搜索 name 字段，避免 PostgREST OR 语法问题
+            // 后续可以通过数据库视图或函数实现多字段搜索
+            query = query.Filter("name", Constants.Operator.ILike, $"%{criteria.Name}%");
+        }
+
+        // 国家过滤
+        if (!string.IsNullOrWhiteSpace(criteria.Country))
+        {
+            query = query.Filter("country", Constants.Operator.ILike, $"%{criteria.Country}%");
+        }
+
+        // 地区过滤
+        if (!string.IsNullOrWhiteSpace(criteria.Region))
+        {
+            query = query.Filter("region", Constants.Operator.ILike, $"%{criteria.Region}%");
+        }
+
+        // 费用过滤
+        if (criteria.MinCostOfLiving.HasValue)
+        {
+            query = query.Filter("average_cost_of_living", Constants.Operator.GreaterThanOrEqual,
+                criteria.MinCostOfLiving.Value.ToString());
+        }
+
+        if (criteria.MaxCostOfLiving.HasValue)
+        {
+            query = query.Filter("average_cost_of_living", Constants.Operator.LessThanOrEqual,
+                criteria.MaxCostOfLiving.Value.ToString());
+        }
+
+        // 评分过滤
+        if (criteria.MinScore.HasValue)
+        {
+            query = query.Filter("overall_score", Constants.Operator.GreaterThanOrEqual,
+                criteria.MinScore.Value.ToString());
+        }
+
+        // 排序和分页（在数据库级别）
+        var response = await query
             .Order(x => x.OverallScore!, Constants.Ordering.Descending)
+            .Range(offset, offset + criteria.PageSize - 1)
             .Get();
 
         var cities = response.Models.AsEnumerable();
 
-        if (!string.IsNullOrWhiteSpace(criteria.Name))
-            // 支持中英文搜索: 在 name 或 name_en 字段中搜索
-            cities = cities.Where(c =>
-                c.Name.Contains(criteria.Name, StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrWhiteSpace(c.NameEn) &&
-                 c.NameEn.Contains(criteria.Name, StringComparison.OrdinalIgnoreCase))
-            );
-
-        if (!string.IsNullOrWhiteSpace(criteria.Country))
-            cities = cities.Where(c => c.Country.Contains(criteria.Country, StringComparison.OrdinalIgnoreCase));
-
-        if (!string.IsNullOrWhiteSpace(criteria.Region))
-            cities = cities.Where(c =>
-                c.Region != null && c.Region.Contains(criteria.Region, StringComparison.OrdinalIgnoreCase));
-
-        if (criteria.MinCostOfLiving.HasValue)
-            cities = cities.Where(c => c.AverageCostOfLiving >= criteria.MinCostOfLiving.Value);
-
-        if (criteria.MaxCostOfLiving.HasValue)
-            cities = cities.Where(c => c.AverageCostOfLiving <= criteria.MaxCostOfLiving.Value);
-
-        if (criteria.MinScore.HasValue) cities = cities.Where(c => c.OverallScore >= criteria.MinScore.Value);
-
+        // 标签过滤仍需在内存中进行（因为是数组字段）
         if (criteria.Tags is { Count: > 0 })
+        {
             cities = cities.Where(c => c.Tags != null && criteria.Tags.All(tag => c.Tags.Contains(tag)));
+        }
 
-        // 确保最终结果按评分降序排序（过滤后重新排序）
-        return cities
-            .OrderByDescending(c => c.OverallScore ?? 0)
-            .Skip((criteria.PageNumber - 1) * criteria.PageSize)
-            .Take(criteria.PageSize)
-            .ToList();
+        Logger.LogInformation("🔍 [SearchAsync] 搜索完成: 条件={Criteria}, 结果数={Count}",
+            criteria.Name, cities.Count());
+
+        return cities.ToList();
     }
 
     public async Task<City> CreateAsync(City city)
@@ -384,19 +413,29 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         }
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    public async Task<bool> DeleteAsync(Guid id, Guid? deletedBy = null)
     {
         try
         {
+            // 逻辑删除：设置 is_deleted = true, is_active = false
+            var now = DateTime.UtcNow;
             await SupabaseClient
                 .From<City>()
                 .Where(x => x.Id == id)
-                .Delete();
+                .Set(x => x.IsActive, false)
+                .Set(x => x.IsDeleted, true)
+                .Set(x => x.DeletedAt, now)
+                .Set(x => x.DeletedBy, deletedBy)
+                .Set(x => x.UpdatedAt, now)
+                .Set(x => x.UpdatedById, deletedBy)
+                .Update();
 
+            Logger.LogInformation("✅ City 逻辑删除成功，ID: {CityId}, DeletedBy: {DeletedBy}", id, deletedBy);
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "❌ 删除 City 失败，ID: {CityId}", id);
             return false;
         }
     }
@@ -406,6 +445,7 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
             .Get();
 
         return response.Models.Count;
@@ -416,9 +456,26 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
             .Order(x => x.OverallScore!, Constants.Ordering.Descending)
             .Order(x => x.CommunityScore!, Constants.Ordering.Descending)
             .Limit(count)
+            .Get();
+
+        return response.Models;
+    }
+
+    public async Task<IEnumerable<City>> GetPopularAsync(int limit)
+    {
+        // 热门城市按照评分、社区活跃度排序
+        var response = await SupabaseClient
+            .From<City>()
+            .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+            .Order(x => x.OverallScore!, Constants.Ordering.Descending)
+            .Order(x => x.CommunityScore!, Constants.Ordering.Descending)
+            .Order(x => x.Name, Constants.Ordering.Ascending)
+            .Limit(limit)
             .Get();
 
         return response.Models;
@@ -429,6 +486,7 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
             .Filter("country", Constants.Operator.ILike, $"%{countryName}%")
             .Order(x => x.Name, Constants.Ordering.Ascending)
             .Get();
@@ -441,6 +499,7 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
             .Filter("country_id", Constants.Operator.Equals, countryId.ToString())
             .Order(x => x.Name, Constants.Ordering.Ascending)
             .Get();
@@ -457,6 +516,7 @@ public class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityReposit
         var response = await SupabaseClient
             .From<City>()
             .Filter("id", Constants.Operator.In, idList)
+            .Filter("is_deleted", Constants.Operator.NotEqual, "true")
             .Get();
 
         return response.Models;
@@ -541,4 +601,141 @@ internal class CityUpdatePayload : Postgrest.Models.BaseModel
 
     [Postgrest.Attributes.Column("updated_at")] 
     public DateTime? UpdatedAt { get; set; }
+}
+
+// ============ 城市匹配相关方法 ============
+
+public partial class SupabaseCityRepository
+{
+    /// <summary>
+    ///     按城市名称搜索（支持中英文、模糊匹配）
+    /// </summary>
+    public async Task<IEnumerable<City>> SearchByNameAsync(
+        string name,
+        string? countryCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return Enumerable.Empty<City>();
+
+        try
+        {
+            var query = SupabaseClient
+                .From<City>()
+                .Filter("is_active", Constants.Operator.Equals, "true");
+
+            // 如果指定了国家代码，添加国家过滤
+            if (!string.IsNullOrWhiteSpace(countryCode))
+            {
+                query = query.Filter("country_code", Constants.Operator.Equals, countryCode.ToUpperInvariant());
+            }
+
+            var response = await query.Get();
+
+            // 在内存中进行名称模糊匹配（支持中英文）
+            var cities = response.Models.Where(c =>
+                (!string.IsNullOrWhiteSpace(c.Name) &&
+                 c.Name.Contains(name, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(c.NameEn) &&
+                 c.NameEn.Contains(name, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+
+            Logger.LogInformation(
+                "🔍 [SearchByNameAsync] 搜索城市: Name={Name}, CountryCode={CountryCode}, Found={Count}",
+                name, countryCode, cities.Count);
+
+            return cities;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ [SearchByNameAsync] 搜索城市失败: Name={Name}", name);
+            return Enumerable.Empty<City>();
+        }
+    }
+
+    /// <summary>
+    ///     查找最近的城市（基于经纬度）
+    /// </summary>
+    public async Task<City?> FindNearestCityAsync(
+        double latitude,
+        double longitude,
+        double maxDistanceKm = 50.0,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // 获取所有活跃城市
+            var response = await SupabaseClient
+                .From<City>()
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Get();
+
+            // 在内存中计算距离并找出最近的城市
+            City? nearestCity = null;
+            var minDistance = double.MaxValue;
+
+            foreach (var city in response.Models)
+            {
+                // 跳过没有坐标的城市
+                if (!city.Latitude.HasValue || !city.Longitude.HasValue)
+                    continue;
+
+                var distance = CalculateDistanceKm(
+                    latitude, longitude,
+                    city.Latitude.Value, city.Longitude.Value);
+
+                if (distance < minDistance && distance <= maxDistanceKm)
+                {
+                    minDistance = distance;
+                    nearestCity = city;
+                }
+            }
+
+            if (nearestCity != null)
+            {
+                Logger.LogInformation(
+                    "📍 [FindNearestCityAsync] 找到最近城市: CityId={CityId}, CityName={CityName}, Distance={Distance}km",
+                    nearestCity.Id, nearestCity.Name, minDistance);
+            }
+            else
+            {
+                Logger.LogInformation(
+                    "📍 [FindNearestCityAsync] 未找到 {MaxDistance}km 范围内的城市: Lat={Lat}, Lng={Lng}",
+                    maxDistanceKm, latitude, longitude);
+            }
+
+            return nearestCity;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ [FindNearestCityAsync] 查找最近城市失败: Lat={Lat}, Lng={Lng}", latitude, longitude);
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     计算两点之间的距离（Haversine公式）
+    /// </summary>
+    private static double CalculateDistanceKm(
+        double lat1, double lon1,
+        double lat2, double lon2)
+    {
+        const double R = 6371; // 地球半径（公里）
+
+        var dLat = ToRadians(lat2 - lat1);
+        var dLon = ToRadians(lon2 - lon1);
+
+        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) *
+                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+
+        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+        return R * c;
+    }
+
+    private static double ToRadians(double degrees)
+    {
+        return degrees * Math.PI / 180;
+    }
 }

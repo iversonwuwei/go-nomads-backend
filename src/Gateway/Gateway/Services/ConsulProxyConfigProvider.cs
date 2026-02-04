@@ -13,19 +13,37 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
 {
     private const int MaxRetryCount = 5;
     private readonly IConsulClient _consulClient;
+    private readonly IConfiguration _configuration;
     private readonly IHostApplicationLifetime _lifetime;
     private readonly ILogger<ConsulProxyConfigProvider> _logger;
     private readonly CancellationTokenSource _watchCancellation;
     private CancellationTokenSource _changeToken;
     private volatile InMemoryConfig _config;
     private int _retryCount;
+    
+    // Docker Compose 静态服务配置 (当 Consul 中无服务时作为后备)
+    // 端口需要与 docker-compose-services-swr.yml 中各服务的 ASPNETCORE_URLS 保持一致
+    private static readonly Dictionary<string, string> K8sServiceUrls = new()
+    {
+        ["user-service"] = "http://user-service:8080",           // docker-compose: 8080
+        ["city-service"] = "http://city-service:8002",           // docker-compose: 8002
+        ["coworking-service"] = "http://coworking-service:8006", // docker-compose: 8006
+        ["event-service"] = "http://event-service:8005",         // docker-compose: 8005
+        ["ai-service"] = "http://ai-service:8080",               // docker-compose: 8080
+        ["cache-service"] = "http://cache-service:8010",         // docker-compose: 8010
+        ["message-service"] = "http://message-service:8080",     // docker-compose: 8080
+        ["innovation-service"] = "http://innovation-service:8011", // docker-compose: 8011
+        ["search-service"] = "http://search-service:8080"        // docker-compose: 8080
+    };
 
     public ConsulProxyConfigProvider(
         IConsulClient consulClient,
+        IConfiguration configuration,
         ILogger<ConsulProxyConfigProvider> logger,
         IHostApplicationLifetime lifetime)
     {
         _consulClient = consulClient;
+        _configuration = configuration;
         _logger = logger;
         _lifetime = lifetime;
         _changeToken = new CancellationTokenSource();
@@ -246,9 +264,20 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                 clusters.Add(cluster);
             }
 
+            // 如果 Consul 中没有服务，使用 K8s 静态配置作为后备
+            if (!routes.Any())
+            {
+                _logger.LogWarning("No services found in Consul, falling back to K8s static service configuration...");
+                LoadK8sStaticConfig(routes, clusters);
+            }
+
             if (routes.Any())
             {
-                _logger.LogInformation("Loaded {RouteCount} routes from Consul", routes.Count);
+                _logger.LogInformation("Loaded {RouteCount} routes (source: {Source})", 
+                    routes.Count, 
+                    clusters.Any(c => c.Metadata?.ContainsKey("source") == true && c.Metadata["source"] == "k8s") 
+                        ? "K8s Static" 
+                        : "Consul");
 
                 // Log route details for debugging
                 foreach (var route in routes)
@@ -275,7 +304,126 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load configuration from Consul");
+            _logger.LogError(ex, "Failed to load configuration from Consul, attempting K8s static fallback...");
+            
+            // 即使 Consul 出错，也尝试加载 K8s 静态配置
+            try
+            {
+                var routes = new List<YarpRouteConfig>();
+                var clusters = new List<YarpClusterConfig>();
+                LoadK8sStaticConfig(routes, clusters);
+                
+                if (routes.Any())
+                {
+                    var oldToken = _changeToken;
+                    _changeToken = new CancellationTokenSource();
+                    _config = new InMemoryConfig(routes, clusters, new CancellationChangeToken(_changeToken.Token));
+                    oldToken.Cancel();
+                    oldToken.Dispose();
+                    _logger.LogInformation("Loaded {RouteCount} routes from K8s static configuration", routes.Count);
+                }
+            }
+            catch (Exception fallbackEx)
+            {
+                _logger.LogError(fallbackEx, "Failed to load K8s static fallback configuration");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 加载 K8s 静态服务配置作为 Consul 的后备
+    /// </summary>
+    private void LoadK8sStaticConfig(List<YarpRouteConfig> routes, List<YarpClusterConfig> clusters)
+    {
+        // 首先尝试从配置文件读取 ServiceUrls
+        var serviceUrls = new Dictionary<string, string>(K8sServiceUrls);
+        
+        var configSection = _configuration.GetSection("ServiceUrls");
+        if (configSection.Exists())
+        {
+            foreach (var child in configSection.GetChildren())
+            {
+                var serviceName = child.Key.ToLower().Replace("service", "-service");
+                if (!serviceName.EndsWith("-service"))
+                    serviceName = child.Key.ToLower() + "-service";
+                
+                // 转换为标准格式: UserService -> user-service
+                serviceName = child.Key switch
+                {
+                    "UserService" => "user-service",
+                    "CityService" => "city-service",
+                    "CoworkingService" => "coworking-service",
+                    "EventService" => "event-service",
+                    "AIService" => "ai-service",
+                    "CacheService" => "cache-service",
+                    _ => serviceName
+                };
+                
+                if (!string.IsNullOrEmpty(child.Value))
+                {
+                    serviceUrls[serviceName] = child.Value;
+                    _logger.LogDebug("Loaded ServiceUrl from config: {ServiceName} -> {Url}", serviceName, child.Value);
+                }
+            }
+        }
+        
+        foreach (var (serviceName, serviceUrl) in serviceUrls)
+        {
+            var servicePathMappings = GetServicePathMappings(serviceName);
+            
+            foreach (var (pathPattern, order) in servicePathMappings)
+            {
+                var route = new YarpRouteConfig
+                {
+                    RouteId = $"{serviceName}-{pathPattern.Replace("/", "-").Replace("{", "").Replace("}", "").Replace("*", "")}-k8s-route",
+                    ClusterId = $"{serviceName}-cluster",
+                    Match = new YarpRouteMatch
+                    {
+                        Path = pathPattern
+                    },
+                    Order = order
+                };
+                routes.Add(route);
+            }
+            
+            var cluster = new YarpClusterConfig
+            {
+                ClusterId = $"{serviceName}-cluster",
+                Destinations = new Dictionary<string, YarpDestinationConfig>
+                {
+                    [serviceName] = new YarpDestinationConfig
+                    {
+                        Address = serviceUrl
+                    }
+                },
+                LoadBalancingPolicy = "RoundRobin",
+                HttpClient = new HttpClientConfig
+                {
+                    RequestHeaderEncoding = "utf-8"
+                },
+                HttpRequest = new ForwarderRequestConfig
+                {
+                    ActivityTimeout = TimeSpan.FromMinutes(10)
+                },
+                HealthCheck = new HealthCheckConfig
+                {
+                    Active = new ActiveHealthCheckConfig
+                    {
+                        Enabled = true,
+                        Interval = TimeSpan.FromSeconds(30),
+                        Timeout = TimeSpan.FromSeconds(10),
+                        Policy = "ConsecutiveFailures",
+                        Path = "/health"
+                    }
+                },
+                Metadata = new Dictionary<string, string>
+                {
+                    ["source"] = "k8s"
+                }
+            };
+            clusters.Add(cluster);
+            
+            _logger.LogInformation("Added K8s static route for {ServiceName} -> {ServiceUrl}", serviceName, serviceUrl);
         }
     }
 
@@ -290,6 +438,7 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             "event-service" => "v1/events",
             "coworking-service" => "v1/coworking",
             "ai-service" => "v1/ai",
+            "search-service" => "v1/search",
             "gateway" => "gateway",
             _ => serviceName
         };
@@ -331,23 +480,30 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                 ("/api/v1/auth/{**catch-all}", 2),
                 ("/api/v1/users", 3),
                 ("/api/v1/users/{**catch-all}", 4),
-                ("/api/v1/membership", 5),
-                ("/api/v1/membership/{**catch-all}", 6),
-                ("/api/v1/payments", 7),
-                ("/api/v1/payments/{**catch-all}", 8),
-                ("/api/v1/roles", 9),
-                ("/api/v1/roles/{**catch-all}", 10),
-                ("/api/v1/skills", 11),
-                ("/api/v1/skills/{**catch-all}", 12),
-                ("/api/v1/interests", 13),
-                ("/api/v1/interests/{**catch-all}", 14)
+                ("/api/v1/travel-history", 5),
+                ("/api/v1/travel-history/{**catch-all}", 6),
+                ("/api/v1/visited-places", 7),
+                ("/api/v1/visited-places/{**catch-all}", 8),
+                ("/api/v1/membership", 9),
+                ("/api/v1/membership/{**catch-all}", 10),
+                ("/api/v1/payments", 11),
+                ("/api/v1/payments/{**catch-all}", 12),
+                ("/api/v1/roles", 13),
+                ("/api/v1/roles/{**catch-all}", 14),
+                ("/api/v1/skills", 15),
+                ("/api/v1/skills/{**catch-all}", 16),
+                ("/api/v1/interests", 17),
+                ("/api/v1/interests/{**catch-all}", 18)
             },
             "event-service" => new List<(string, int)>
             {
                 ("/api/v1/event-types", 1),  // Event types endpoint
                 ("/api/v1/event-types/{**catch-all}", 2),
                 ("/api/v1/events", 3),
-                ("/api/v1/events/{**catch-all}", 4)
+                ("/api/v1/events/{**catch-all}", 4),
+                // SignalR Hub endpoints for Meetup real-time updates
+                ("/hubs/meetup", 5),
+                ("/hubs/meetup/{**catch-all}", 6)
             },
             "ai-service" => new List<(string, int)>
             {
@@ -359,6 +515,18 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                 ("/api/v1/coworking", 1),
                 ("/api/v1/coworking/{**catch-all}", 2)
             },
+            "search-service" => new List<(string, int)>
+            {
+                ("/api/v1/search", 1),
+                ("/api/v1/search/{**catch-all}", 2),
+                ("/api/v1/index", 3),
+                ("/api/v1/index/{**catch-all}", 4)
+            },
+            "accommodation-service" => new List<(string, int)>
+            {
+                ("/api/v1/hotels", 1),
+                ("/api/v1/hotels/{**catch-all}", 2)
+            },
             "product-service" => new List<(string, int)>
             {
                 ("/api/v1/products", 1),
@@ -366,13 +534,26 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             },
             "message-service" => new List<(string, int)>
             {
-                ("/api/v1/notifications", 1),
-                ("/api/v1/notifications/{**catch-all}", 2),
-                ("/api/v1/chats", 3),
-                ("/api/v1/chats/{**catch-all}", 4),
+                ("/api/v1/im", 1),
+                ("/api/v1/im/{**catch-all}", 2),
+                ("/api/v1/notifications", 3),
+                ("/api/v1/notifications/{**catch-all}", 4),
+                ("/api/v1/chats", 5),
+                ("/api/v1/chats/{**catch-all}", 6),
                 // SignalR Hub endpoints
-                ("/hubs/chat", 5),
-                ("/hubs/chat/{**catch-all}", 6)
+                ("/hubs/chat", 7),
+                ("/hubs/chat/{**catch-all}", 8),
+                ("/hubs/notifications", 9),
+                ("/hubs/notifications/{**catch-all}", 10),
+                ("/hubs/ai-progress", 11),
+                ("/hubs/ai-progress/{**catch-all}", 12)
+            },
+            "innovation-service" => new List<(string, int)>
+            {
+                ("/api/innovations", 1),
+                ("/api/innovations/{**catch-all}", 2),
+                ("/api/v1/innovations", 3),
+                ("/api/v1/innovations/{**catch-all}", 4)
             },
             _ => new List<(string, int)>
             {

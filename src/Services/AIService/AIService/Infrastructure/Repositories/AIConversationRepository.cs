@@ -46,7 +46,8 @@ public class AIConversationRepository : IAIConversationRepository
         {
             var response = await _supabaseClient
                 .From<AIConversation>()
-                .Where(c => c.Id == id && c.DeletedAt == null)
+                .Where(c => c.Id == id)
+                .Filter("deleted_at", Constants.Operator.Is, "null")
                 .Single();
 
             return response;
@@ -68,15 +69,16 @@ public class AIConversationRepository : IAIConversationRepository
         {
             var query = _supabaseClient
                 .From<AIConversation>()
-                .Where(c => c.UserId == userId && c.DeletedAt == null);
+                .Where(c => c.UserId == userId)
+                .Filter("deleted_at", Constants.Operator.Is, "null");
 
             // 状态过滤
             if (!string.IsNullOrEmpty(status) && status != "all") query = query.Where(c => c.Status == status);
 
-            // 分页
+            // 分页 - 使用 CreatedAt 排序（Postgrest 不支持复杂表达式）
             var offset = (page - 1) * pageSize;
             query = query
-                .Order(c => c.LastMessageAt ?? DateTime.MinValue, Constants.Ordering.Descending)
+                .Order(c => c.CreatedAt, Constants.Ordering.Descending)
                 .Range(offset, offset + pageSize - 1);
 
             var response = await query.Get();
@@ -85,7 +87,8 @@ public class AIConversationRepository : IAIConversationRepository
             // 获取总数（简化实现，实际应该用 count 查询）
             var totalQuery = _supabaseClient
                 .From<AIConversation>()
-                .Where(c => c.UserId == userId && c.DeletedAt == null);
+                .Where(c => c.UserId == userId)
+                .Filter("deleted_at", Constants.Operator.Is, "null");
 
             if (!string.IsNullOrEmpty(status) && status != "all")
                 totalQuery = totalQuery.Where(c => c.Status == status);
@@ -165,7 +168,8 @@ public class AIConversationRepository : IAIConversationRepository
         {
             var response = await _supabaseClient
                 .From<AIConversation>()
-                .Where(c => c.Id == conversationId && c.UserId == userId && c.DeletedAt == null)
+                .Where(c => c.Id == conversationId && c.UserId == userId)
+                .Filter("deleted_at", Constants.Operator.Is, "null")
                 .Single();
 
             return response != null;
@@ -184,7 +188,8 @@ public class AIConversationRepository : IAIConversationRepository
             // 获取总对话数
             var totalResponse = await _supabaseClient
                 .From<AIConversation>()
-                .Where(c => c.UserId == userId && c.DeletedAt == null)
+                .Where(c => c.UserId == userId)
+                .Filter("deleted_at", Constants.Operator.Is, "null")
                 .Get();
 
             var totalConversations = totalResponse.Models?.Count ?? 0;
@@ -192,7 +197,8 @@ public class AIConversationRepository : IAIConversationRepository
             // 获取活跃对话数
             var activeResponse = await _supabaseClient
                 .From<AIConversation>()
-                .Where(c => c.UserId == userId && c.Status == "active" && c.DeletedAt == null)
+                .Where(c => c.UserId == userId && c.Status == "active")
+                .Filter("deleted_at", Constants.Operator.Is, "null")
                 .Get();
 
             var activeConversations = activeResponse.Models?.Count ?? 0;

@@ -28,6 +28,13 @@ public interface IEventService
     Task<EventResponse> CancelEventAsync(Guid id, Guid userId);
 
     /// <summary>
+    ///     删除活动（逻辑删除，仅Admin）
+    /// </summary>
+    /// <param name="id">Event ID</param>
+    /// <param name="deletedBy">删除者ID</param>
+    Task<bool> DeleteEventAsync(Guid id, Guid? deletedBy = null);
+
+    /// <summary>
     ///     获取 Event 列表
     /// </summary>
     Task<(List<EventResponse> Events, int Total)> GetEventsAsync(
@@ -79,6 +86,11 @@ public interface IEventService
     Task<int> GetUserCreatedEventsCountAsync(Guid userId);
 
     /// <summary>
+    ///     获取用户参加的未结束 Event 数量（upcoming + ongoing）
+    /// </summary>
+    Task<int> GetUserJoinedEventsCountAsync(Guid userId);
+
+    /// <summary>
     ///     获取用户参加的 Event
     /// </summary>
     Task<List<EventResponse>> GetUserJoinedEventsAsync(Guid userId);
@@ -103,4 +115,42 @@ public interface IEventService
         Guid userId,
         int page = 1,
         int pageSize = 20);
+
+    #region 邀请相关
+
+    /// <summary>
+    ///     邀请用户参加活动
+    /// </summary>
+    Task<EventInvitationResponse> InviteToEventAsync(Guid eventId, Guid inviterId, InviteToEventRequest request);
+
+    /// <summary>
+    ///     响应邀请（接受或拒绝）
+    /// </summary>
+    Task<EventInvitationResponse> RespondToInvitationAsync(Guid invitationId, Guid userId, string response);
+
+    /// <summary>
+    ///     获取用户收到的邀请列表
+    /// </summary>
+    Task<List<EventInvitationResponse>> GetReceivedInvitationsAsync(Guid userId, string? status = null);
+
+    /// <summary>
+    ///     获取用户发出的邀请列表
+    /// </summary>
+    Task<List<EventInvitationResponse>> GetSentInvitationsAsync(Guid userId, string? status = null);
+
+    /// <summary>
+    ///     获取邀请详情
+    /// </summary>
+    Task<EventInvitationResponse> GetInvitationAsync(Guid invitationId);
+
+    #endregion
+    
+    #region 城市统计
+
+    /// <summary>
+    ///     批量获取城市活动数量
+    /// </summary>
+    Task<Dictionary<string, int>> GetCitiesEventCountsAsync(List<string> cityIds);
+
+    #endregion
 }

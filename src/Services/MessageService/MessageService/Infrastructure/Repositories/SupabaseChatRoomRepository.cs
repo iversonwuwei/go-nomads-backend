@@ -28,7 +28,8 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
             var skip = (page - 1) * pageSize;
             var response = await _supabaseClient
                 .From<ChatRoomModel>()
-                .Where(r => r.IsPublic == true && r.IsDeleted == false)
+                .Where(r => r.IsPublic == true)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Order("created_at", Constants.Ordering.Descending)
                 .Range(skip, skip + pageSize - 1)
                 .Get();
@@ -48,7 +49,9 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
         {
             var response = await _supabaseClient
                 .From<ChatRoomModel>()
-                .Where(r => r.City == city && r.Country == country && r.IsDeleted == false)
+                .Where(r => r.City == city)
+                .Where(r => r.Country == country)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Get();
 
             return response.Models.Select(MapToDomain).ToList();
@@ -66,7 +69,8 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
         {
             var response = await _supabaseClient
                 .From<ChatRoomModel>()
-                .Where(r => r.MeetupId == meetupId && r.IsDeleted == false)
+                .Where(r => r.MeetupId == meetupId)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Single();
 
             return response != null ? MapToDomain(response) : null;
@@ -98,7 +102,8 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
 
             var response = await _supabaseClient
                 .From<ChatRoomModel>()
-                .Where(r => r.Id == guid && r.IsDeleted == false)
+                .Where(r => r.Id == guid)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
                 .Single();
 
             return response != null ? MapToDomain(response) : null;
@@ -191,7 +196,8 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
             // 先获取用户加入的聊天室 ID 列表
             var memberResponse = await _supabaseClient
                 .From<ChatRoomMemberModel>()
-                .Where(m => m.UserId == userId && m.HasLeft == false)
+                .Where(m => m.UserId == userId)
+                .Where(m => m.HasLeft == false)
                 .Select("room_id")
                 .Get();
 
@@ -226,13 +232,29 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
     {
         try
         {
+            _logger.LogInformation("查询私聊房间: DirectChatKey={Key}", directChatKey);
+
             // 私聊房间的 Name 字段存储了 directChatKey
+            // 使用 Get() + FirstOrDefault 代替 Single()，更加稳定
             var response = await _supabaseClient
                 .From<ChatRoomModel>()
-                .Where(r => r.RoomType == "direct" && r.Name == directChatKey && r.IsDeleted == false)
-                .Single();
+                .Where(r => r.RoomType == "direct")
+                .Where(r => r.Name == directChatKey)
+                .Filter("is_deleted", Constants.Operator.NotEqual, "true")
+                .Order("created_at", Postgrest.Constants.Ordering.Ascending)
+                .Limit(1)
+                .Get();
 
-            return response != null ? MapToDomain(response) : null;
+            var room = response.Models.FirstOrDefault();
+
+            if (room != null)
+            {
+                _logger.LogInformation("找到私聊房间: RoomId={RoomId}, Name={Name}", room.Id, room.Name);
+                return MapToDomain(room);
+            }
+
+            _logger.LogInformation("未找到私聊房间: DirectChatKey={Key}", directChatKey);
+            return null;
         }
         catch (Exception ex)
         {
@@ -350,11 +372,8 @@ public class ChatRoomMemberModel : Postgrest.Models.BaseModel
     [Column("user_id")]
     public string UserId { get; set; } = string.Empty;
 
-    [Column("user_name")]
-    public string UserName { get; set; } = string.Empty;
-
-    [Column("user_avatar")]
-    public string? UserAvatar { get; set; }
+    // user_name 和 user_avatar 已从数据库表中删除
+    // 用户信息现在通过 UserService 动态获取
 
     [Column("role")]
     public string Role { get; set; } = "member";

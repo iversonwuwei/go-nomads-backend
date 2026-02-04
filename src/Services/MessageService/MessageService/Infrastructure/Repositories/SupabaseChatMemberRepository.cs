@@ -27,7 +27,8 @@ public class SupabaseChatMemberRepository : IChatMemberRepository
             var skip = (page - 1) * pageSize;
             var response = await _supabaseClient
                 .From<ChatRoomMemberModel>()
-                .Where(m => m.RoomId == roomId && m.HasLeft == false)
+                .Where(m => m.RoomId == roomId)
+                .Where(m => m.HasLeft == false)
                 .Order("joined_at", Constants.Ordering.Descending)
                 .Range(skip, skip + pageSize - 1)
                 .Get();
@@ -50,7 +51,8 @@ public class SupabaseChatMemberRepository : IChatMemberRepository
 
             var response = await _supabaseClient
                 .From<ChatRoomMemberModel>()
-                .Where(m => m.RoomId == roomId && m.HasLeft == false)
+                .Where(m => m.RoomId == roomId)
+                .Where(m => m.HasLeft == false)
                 .Filter("last_seen_at", Constants.Operator.GreaterThanOrEqual, fiveMinutesAgo.ToString("O"))
                 .Get();
 
@@ -69,7 +71,8 @@ public class SupabaseChatMemberRepository : IChatMemberRepository
         {
             var response = await _supabaseClient
                 .From<ChatRoomMemberModel>()
-                .Where(m => m.RoomId == roomId && m.UserId == userId)
+                .Where(m => m.RoomId == roomId)
+                .Where(m => m.UserId == userId)
                 .Single();
 
             return response != null ? MapToDomain(response) : null;
@@ -191,7 +194,8 @@ public class SupabaseChatMemberRepository : IChatMemberRepository
         {
             var response = await _supabaseClient
                 .From<ChatRoomMemberModel>()
-                .Where(m => m.RoomId == roomId && m.HasLeft == false)
+                .Where(m => m.RoomId == roomId)
+                .Where(m => m.HasLeft == false)
                 .Get();
 
             return response.Models.Count;
@@ -212,8 +216,9 @@ public class SupabaseChatMemberRepository : IChatMemberRepository
             Id = model.Id,
             RoomId = model.RoomId,
             UserId = model.UserId,
-            UserName = model.UserName,
-            UserAvatar = model.UserAvatar,
+            // UserName 和 UserAvatar 从 UserService 获取
+            UserName = string.Empty,
+            UserAvatar = null,
             Role = model.Role,
             JoinedAt = model.JoinedAt,
             LastSeenAt = model.LastSeenAt,
@@ -231,8 +236,7 @@ public class SupabaseChatMemberRepository : IChatMemberRepository
             Id = member.Id,
             RoomId = member.RoomId,
             UserId = member.UserId,
-            UserName = member.UserName,
-            UserAvatar = member.UserAvatar,
+            // UserName 和 UserAvatar 不再存储到数据库
             Role = member.Role,
             JoinedAt = member.JoinedAt,
             LastSeenAt = member.LastSeenAt,

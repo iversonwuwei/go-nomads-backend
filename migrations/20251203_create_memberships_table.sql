@@ -119,19 +119,19 @@ END $$;
 INSERT INTO public.membership_plans (level, name, description, price_yearly, price_monthly, icon, color, features, ai_usage_limit, can_use_ai, can_apply_moderator, moderator_deposit, sort_order)
 VALUES 
     (0, 'Free', 'Basic access to the platform', 0, 0, '🆓', '#6B7280', 
-     '["Browse cities and reviews", "View coworking spaces", "Basic city search", "Limited AI travel plans (3/month)"]'::jsonb, 
-     3, false, false, 0, 0),
+     '["Browse cities and reviews", "View coworking spaces", "Basic city search", "AI travel plan generation (3/month)", "Basic AI assistance", "Community guidelines apply"]'::jsonb, 
+     3, true, false, 0, 0),
     
     (1, 'Basic', 'Essential features for digital nomads', 49, 4.08, '⭐', '#3B82F6', 
-     '["Everything in Free", "AI travel plan generation (20/month)", "AI digital nomad guides", "Save favorite cities", "Create meetups", "Join city chats"]'::jsonb, 
-     20, true, false, 0, 1),
+     '["Everything in Free", "AI travel plan generation (30/month)", "AI digital nomad guides", "AI city recommendations", "Save favorite cities", "Create meetups", "Join city chats", "Content moderation protection"]'::jsonb, 
+     30, true, false, 0, 1),
     
     (2, 'Pro', 'Advanced features for serious travelers', 99, 8.25, '💎', '#8B5CF6', 
-     '["Everything in Basic", "Unlimited AI travel plans (100/month)", "Priority AI generation", "Apply to become a moderator", "Advanced city analytics", "Export travel plans"]'::jsonb, 
-     100, true, true, 50, 2),
+     '["Everything in Basic", "Extended AI usage (60/month)", "Priority AI generation", "Apply to become city moderator", "Manage city boards and content", "Advanced city analytics", "Export travel plans", "Verified member badge", "Priority content review"]'::jsonb, 
+     60, true, true, 50, 2),
     
     (3, 'Premium', 'Full access to all features', 149, 12.42, '👑', '#FF4458', 
-     '["Everything in Pro", "Unlimited AI usage", "Early access to new features", "Priority support", "Custom travel recommendations", "API access", "No ads"]'::jsonb, 
+     '["Everything in Pro", "Unlimited AI usage", "Early access to new features", "Priority 24/7 support", "Custom AI travel recommendations", "API access for developers", "Ad-free experience", "Premium member badge", "Reduced moderator deposit", "Exclusive community events"]'::jsonb, 
      -1, true, true, 30, 3)
 ON CONFLICT (level) DO UPDATE SET
     name = EXCLUDED.name,

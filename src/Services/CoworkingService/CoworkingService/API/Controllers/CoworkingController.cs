@@ -212,16 +212,29 @@ public class CoworkingController : ControllerBase
     }
 
     /// <summary>
-    ///     删除 Coworking 空间
+    ///     删除 Coworking 空间（仅管理员）
     /// </summary>
     [HttpDelete("{id}")]
     [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<string>>> DeleteCoworkingSpace(Guid id)
     {
         try
         {
-            await _coworkingService.DeleteCoworkingSpaceAsync(id);
+            // 检查管理员权限
+            if (!_currentUser.IsAdmin())
+            {
+                return StatusCode(403, ApiResponse<object>.ErrorResponse(
+                    "只有管理员可以删除 Coworking 空间",
+                    new List<string> { "权限不足" }));
+            }
+
+            var userId = _currentUser.TryGetUserId();
+            await _coworkingService.DeleteCoworkingSpaceAsync(id, userId);
+
+            _logger.LogInformation("✅ 管理员 {UserId} 成功删除 Coworking 空间 {CoworkingId}", 
+                userId, id);
 
             return Ok(ApiResponse<string>.SuccessResponse(
                 "删除成功",
@@ -695,4 +708,54 @@ public class CoworkingController : ControllerBase
     }
 
     #endregion
+    
+    #region 城市统计 API
+
+    /// <summary>
+    ///     批量获取城市 Coworking 空间数量（供 CityService 调用）
+    /// </summary>
+    [HttpPost("cities/counts")]
+    [ProducesResponseType(typeof(BatchCityCountResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<BatchCityCountResponse>> GetCitiesCoworkingCounts([FromBody] List<string> cityIds)
+    {
+        try
+        {
+            _logger.LogInformation("📊 批量获取城市 Coworking 数量: {Count} 个城市", cityIds.Count);
+
+            var counts = await _coworkingService.GetCitiesCoworkingCountsAsync(cityIds);
+
+            return Ok(new BatchCityCountResponse
+            {
+                Counts = counts.Select(kvp => new CityCountItem
+                {
+                    CityId = kvp.Key,
+                    Count = kvp.Value
+                }).ToList()
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "批量获取城市 Coworking 数量失败");
+            return StatusCode(500, new BatchCityCountResponse { Counts = new List<CityCountItem>() });
+        }
+    }
+
+    #endregion
+}
+
+/// <summary>
+/// 批量城市数量响应
+/// </summary>
+public class BatchCityCountResponse
+{
+    public List<CityCountItem> Counts { get; set; } = new();
+}
+
+/// <summary>
+/// 城市数量项
+/// </summary>
+public class CityCountItem
+{
+    public string CityId { get; set; } = string.Empty;
+    public int Count { get; set; }
 }

@@ -1,0 +1,23 @@
+version: '1.0'
+name: go-nomads-backend
+displayName: Go-Nomads后端CI/CD
+
+stages:
+  - name: build
+    displayName: 构建镜像
+    strategy: naturally
+    trigger: auto
+    steps:
+      - step: build@docker
+        name: build_gateway
+        displayName: 构建Gateway
+        dockerFilePath: src/Gateway/Gateway/Dockerfile
+        dockerContext: .
+        artifacts:
+          - name: gateway-image
+        isCache: false
+        registry: ${SWR_LOGIN_SERVER}
+        username: ${SWR_REGION}@${SWR_AK}
+        password: ${SWR_SK}
+        repository: ${SWR_ORGANIZATION}/gateway
+        tags: latest

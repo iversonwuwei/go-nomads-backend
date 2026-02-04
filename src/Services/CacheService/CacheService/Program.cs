@@ -4,10 +4,13 @@ using CacheService.Domain.Repositories;
 using CacheService.Infrastructure.Integrations;
 using CacheService.Infrastructure.Repositories;
 using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Observability;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using Serilog;
 using StackExchange.Redis;
+
+const string serviceName = "CacheService";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +23,12 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 builder.Host.UseSerilog();
+
+// ============================================================
+// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// ============================================================
+builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
+builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
 
 // Add services to the container
 builder.Services.AddControllers().AddDapr();
@@ -49,11 +58,11 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     return ConnectionMultiplexer.Connect(configuration);
 });
 
-// 配置 DaprClient - 使用 gRPC 端点
-var daprGrpcPort = Environment.GetEnvironmentVariable("DAPR_GRPC_PORT") ?? "50001";
+// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync）
+var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
-    daprClientBuilder.UseGrpcEndpoint($"http://localhost:{daprGrpcPort}");
+    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
 });
 
 // CORS

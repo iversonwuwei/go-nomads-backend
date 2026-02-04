@@ -3,6 +3,23 @@ using System.Text.Json.Serialization;
 
 namespace CityService.Application.DTOs;
 
+#region 通用分页 DTO
+
+/// <summary>
+///     分页结果 DTO
+/// </summary>
+public class PagedResult<T>
+{
+    public List<T> Items { get; set; } = new();
+    public int TotalCount { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
+    public bool HasMore => Page < TotalPages;
+}
+
+#endregion
+
 #region 照片相关 DTOs
 
 /// <summary>
@@ -157,6 +174,12 @@ public class UpsertCityReviewRequest
     [Range(1, 5)] public int? CommunityScore { get; set; }
 
     [Range(1, 5)] public int? WeatherScore { get; set; }
+
+    /// <summary>
+    ///     评论关联的照片 URL 列表（最多 5 张）
+    /// </summary>
+    [MaxLength(5)]
+    public List<string>? PhotoUrls { get; set; }
 }
 
 #endregion

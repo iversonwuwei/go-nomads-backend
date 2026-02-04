@@ -1,0 +1,587 @@
+# 本地开发环境 - 业务服务部署配置
+# 使用本地构建的 Docker 镜像
+# 支持动态 Consul 服务发现（使用 Pod IP 进行健康检查）
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: go-nomads
+  labels:
+    app: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "gateway"
+        dapr.io/app-port: "8080"
+        dapr.io/enable-api-logging: "true"
+    spec:
+      containers:
+        - name: gateway
+          image: go-nomads-gateway:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
+            - name: ConnectionStrings__Redis
+              value: "redis-service:6379,abortConnect=false"
+            - name: Consul__Address
+              value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "gateway"
+            - name: Consul__ServicePort
+              value: "8080"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  namespace: go-nomads
+spec:
+  type: NodePort
+  ports:
+    - port: 80
+      targetPort: 8080
+      nodePort: 30080
+  selector:
+    app: gateway
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: go-nomads
+  labels:
+    app: user-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "user-service"
+        dapr.io/app-port: "8080"
+        dapr.io/enable-api-logging: "true"
+    spec:
+      containers:
+        - name: user-service
+          image: go-nomads-user-service:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
+            - name: ConnectionStrings__Redis
+              value: "redis-service:6379,abortConnect=false"
+            - name: Consul__Address
+              value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "user-service"
+            - name: Consul__ServicePort
+              value: "8080"
+            - name: Kestrel__Endpoints__Grpc__Url
+              value: "http://0.0.0.0:50003"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: go-nomads
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: user-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: city-service
+  namespace: go-nomads
+  labels:
+    app: city-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: city-service
+  template:
+    metadata:
+      labels:
+        app: city-service
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "city-service"
+        dapr.io/app-port: "8002"
+        dapr.io/enable-api-logging: "true"
+    spec:
+      containers:
+        - name: city-service
+          image: go-nomads-city-service:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8002
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ASPNETCORE_URLS
+              value: "http://+:8002"
+            - name: ConnectionStrings__Redis
+              value: "redis-service:6379,abortConnect=false"
+            - name: ConnectionStrings__Elasticsearch
+              value: "http://elasticsearch-service:9200"
+            - name: RabbitMQ__Host
+              value: "rabbitmq-service"
+            - name: RabbitMQ__Username
+              value: "guest"
+            - name: RabbitMQ__Password
+              value: "guest"
+            - name: Consul__Address
+              value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "city-service"
+            - name: Consul__ServicePort
+              value: "8002"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: city-service
+  namespace: go-nomads
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8002
+      targetPort: 8002
+  selector:
+    app: city-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coworking-service
+  namespace: go-nomads
+  labels:
+    app: coworking-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coworking-service
+  template:
+    metadata:
+      labels:
+        app: coworking-service
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "coworking-service"
+        dapr.io/app-port: "8003"
+        dapr.io/enable-api-logging: "true"
+    spec:
+      containers:
+        - name: coworking-service
+          image: go-nomads-coworking-service:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8003
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ASPNETCORE_URLS
+              value: "http://+:8003"
+            - name: ConnectionStrings__Redis
+              value: "redis-service:6379,abortConnect=false"
+            - name: Consul__Address
+              value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "coworking-service"
+            - name: Consul__ServicePort
+              value: "8003"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coworking-service
+  namespace: go-nomads
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8003
+      targetPort: 8003
+  selector:
+    app: coworking-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-service
+  namespace: go-nomads
+  labels:
+    app: event-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: event-service
+  template:
+    metadata:
+      labels:
+        app: event-service
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "event-service"
+        dapr.io/app-port: "8005"
+        dapr.io/enable-api-logging: "true"
+    spec:
+      containers:
+        - name: event-service
+          image: go-nomads-event-service:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8005
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ASPNETCORE_URLS
+              value: "http://+:8005"
+            - name: ConnectionStrings__Redis
+              value: "redis-service:6379,abortConnect=false"
+            - name: MessageBroker__Host
+              value: "rabbitmq-service"
+            - name: Consul__Address
+              value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "event-service"
+            - name: Consul__ServicePort
+              value: "8005"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-service
+  namespace: go-nomads
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8005
+      targetPort: 8005
+  selector:
+    app: event-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-service
+  namespace: go-nomads
+  labels:
+    app: ai-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-service
+  template:
+    metadata:
+      labels:
+        app: ai-service
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "ai-service"
+        dapr.io/app-port: "8080"
+        dapr.io/enable-api-logging: "true"
+    spec:
+      containers:
+        - name: ai-service
+          image: go-nomads-ai-service:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
+            - name: ConnectionStrings__Redis
+              value: "redis-service:6379,abortConnect=false"
+            - name: Redis__ConnectionString
+              value: "redis-service:6379,abortConnect=false"
+            - name: Consul__Address
+              value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "ai-service"
+            - name: Consul__ServicePort
+              value: "8080"
+            - name: RabbitMQ__HostName
+              value: "rabbitmq-service"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-service
+  namespace: go-nomads
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+  selector:
+    app: ai-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cache-service
+  namespace: go-nomads
+  labels:
+    app: cache-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cache-service
+  template:
+    metadata:
+      labels:
+        app: cache-service
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "cache-service"
+        dapr.io/app-port: "8011"
+        dapr.io/enable-api-logging: "true"
+    spec:
+      containers:
+        - name: cache-service
+          image: go-nomads-cache-service:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8011
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ASPNETCORE_URLS
+              value: "http://+:8011"
+            - name: ConnectionStrings__Redis
+              value: "redis-service:6379,abortConnect=false"
+            - name: Consul__Address
+              value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "cache-service"
+            - name: Consul__ServicePort
+              value: "8011"
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache-service
+  namespace: go-nomads
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8011
+      targetPort: 8011
+  selector:
+    app: cache-service
+---
+# Message Service - 聊天和通知服务（SignalR WebSocket）
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: message-service
+  namespace: go-nomads
+  labels:
+    app: message-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: message-service
+  template:
+    metadata:
+      labels:
+        app: message-service
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "message-service"
+        dapr.io/app-port: "8010"
+        dapr.io/enable-api-logging: "true"
+    spec:
+      containers:
+        - name: message-service
+          image: go-nomads-message-service:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8010
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ASPNETCORE_URLS
+              value: "http://+:8010"
+            - name: ConnectionStrings__Redis
+              value: "redis-service:6379,abortConnect=false"
+            - name: RabbitMQ__Host
+              value: "rabbitmq-service"
+            - name: RabbitMQ__Username
+              value: "guest"
+            - name: RabbitMQ__Password
+              value: "guest"
+            - name: Consul__Address
+              value: "http://consul-service:8500"
+            - name: Consul__ServiceName
+              value: "message-service"
+            - name: Consul__ServicePort
+              value: "8010"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: message-service
+  namespace: go-nomads
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8010
+      targetPort: 8010
+  selector:
+    app: message-service

@@ -176,4 +176,114 @@ public class CityRatingRepository : ICityRatingRepository
             throw;
         }
     }
+
+    /// <summary>
+    /// 批量获取城市的评论数量（来自 user_city_reviews 表，统计评论条数）
+    /// </summary>
+    public async Task<Dictionary<Guid, int>> GetCityReviewCountsBatchAsync(IEnumerable<Guid> cityIds)
+    {
+        var result = new Dictionary<Guid, int>();
+        var cityIdList = cityIds.ToList();
+
+        if (!cityIdList.Any())
+            return result;
+
+        try
+        {
+            // 获取指定城市的所有评论记录并按城市分组统计条数
+            var cityIdStrings = cityIdList.Select(id => id.ToString()).ToList();
+            var response = await _supabaseClient
+                .From<UserCityReview>()
+                .Filter("city_id", Constants.Operator.In, cityIdStrings)
+                .Get();
+
+            if (response?.Models != null)
+            {
+                foreach (var group in response.Models.GroupBy(r => r.CityId))
+                {
+                    if (!Guid.TryParse(group.Key, out var cityId))
+                    {
+                        _logger.LogWarning("⚠️ 无法解析城市ID: {CityId}", group.Key);
+                        continue;
+                    }
+
+                    result[cityId] = group.Count();
+                }
+            }
+
+            _logger.LogInformation("✅ 批量获取城市评论数量: {Count} 个城市", result.Count);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量获取城市评论数量失败");
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// 批量获取多个城市的评分数据（优化 N+1 查询）
+    /// </summary>
+    public async Task<List<CityRating>> GetCityRatingsBatchAsync(IEnumerable<Guid> cityIds)
+    {
+        var cityIdList = cityIds.ToList();
+
+        if (!cityIdList.Any())
+            return new List<CityRating>();
+
+        try
+        {
+            var cityIdStrings = cityIdList.Select(id => id.ToString()).ToList();
+            var response = await _supabaseClient
+                .From<CityRating>()
+                .Filter("city_id", Constants.Operator.In, cityIdStrings)
+                .Get();
+
+            _logger.LogInformation("✅ 批量获取城市评分: {Count} 个城市, {RatingCount} 条评分",
+                cityIdList.Count, response?.Models?.Count ?? 0);
+
+            return response?.Models ?? new List<CityRating>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量获取城市评分失败");
+            return new List<CityRating>();
+        }
+    }
+
+    /// <summary>
+    /// 批量获取多个城市的平均评分（按分类）
+    /// </summary>
+    public async Task<Dictionary<Guid, Dictionary<Guid, double>>> GetCityAverageRatingsBatchAsync(IEnumerable<Guid> cityIds)
+    {
+        var result = new Dictionary<Guid, Dictionary<Guid, double>>();
+
+        try
+        {
+            var ratings = await GetCityRatingsBatchAsync(cityIds);
+
+            // 按城市分组，然后按分类计算平均分
+            var grouped = ratings.GroupBy(r => r.CityId);
+
+            foreach (var cityGroup in grouped)
+            {
+                var categoryAverages = cityGroup
+                    .GroupBy(r => r.CategoryId)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => Math.Round(g.Average(r => r.Rating), 1)
+                    );
+
+                result[cityGroup.Key] = categoryAverages;
+            }
+
+            _logger.LogInformation("✅ 批量计算城市平均评分: {Count} 个城市", result.Count);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量计算城市平均评分失败");
+            return result;
+        }
+    }
 }

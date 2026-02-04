@@ -53,40 +53,45 @@ public class EventStatusUpdateService : BackgroundService
 
         try
         {
-            _logger.LogInformation("🔄 开始扫描并更新过期活动状态...");
+            _logger.LogInformation("🔄 开始扫描并更新活动状态...");
 
             var now = DateTime.UtcNow;
 
-            // 获取所有状态为 upcoming 且结束时间已过的活动
-            var expiredEvents = await eventRepository.GetExpiredEventsAsync(now);
+            // 获取所有状态为 upcoming 或 ongoing 的活动
+            var activeEvents = await eventRepository.GetActiveEventsForStatusUpdateAsync();
 
-            if (expiredEvents.Count == 0)
+            if (activeEvents.Count == 0)
             {
-                _logger.LogInformation("✅ 没有需要更新的过期活动");
+                _logger.LogInformation("✅ 没有需要更新状态的活动");
                 return;
             }
 
-            _logger.LogInformation("📋 找到 {Count} 个过期活动需要更新", expiredEvents.Count);
+            _logger.LogInformation("📋 找到 {Count} 个活动需要检查状态", activeEvents.Count);
 
-            int successCount = 0;
+            int updatedCount = 0;
             int failCount = 0;
 
-            foreach (var @event in expiredEvents)
+            foreach (var @event in activeEvents)
             {
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
                 try
                 {
-                    // 更新状态为 completed
-                    @event.Status = "completed";
-                    @event.UpdatedAt = DateTime.UtcNow;
+                    var oldStatus = @event.Status;
+                    
+                    // 使用领域方法更新状态
+                    @event.UpdateStatusByTime();
+                    
+                    // 只有状态变化时才更新数据库
+                    if (oldStatus != @event.Status)
+                    {
+                        await eventRepository.UpdateAsync(@event);
+                        updatedCount++;
 
-                    await eventRepository.UpdateAsync(@event);
-                    successCount++;
-
-                    _logger.LogInformation("✅ 活动 {EventId} ({Title}) 状态已更新为 completed",
-                        @event.Id, @event.Title);
+                        _logger.LogInformation("✅ 活动 {EventId} ({Title}) 状态从 {OldStatus} 更新为 {NewStatus}",
+                            @event.Id, @event.Title, oldStatus, @event.Status);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -95,8 +100,8 @@ public class EventStatusUpdateService : BackgroundService
                 }
             }
 
-            _logger.LogInformation("🎉 活动状态更新完成: 成功 {Success} 个, 失败 {Fail} 个",
-                successCount, failCount);
+            _logger.LogInformation("🎉 活动状态更新完成: 更新 {Updated} 个, 失败 {Fail} 个",
+                updatedCount, failCount);
         }
         catch (Exception ex)
         {

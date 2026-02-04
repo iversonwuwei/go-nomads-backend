@@ -89,16 +89,28 @@ public class Membership : BaseModel
     [Newtonsoft.Json.JsonIgnore]
     public int AiUsageLimit => MembershipLevel switch
     {
-        MembershipLevel.Free => 0,
-        MembershipLevel.Basic => 50,
-        MembershipLevel.Pro => 200,
-        MembershipLevel.Premium => -1, // 无限制
-        _ => 0
+        MembershipLevel.Free => 3,    // 免费用户每月3次
+        MembershipLevel.Basic => 30,  // 基础会员每月30次
+        MembershipLevel.Pro => 60,    // 专业会员每月60次
+        MembershipLevel.Premium => -1, // 高级会员无限制
+        _ => 3
     };
 
     [System.Text.Json.Serialization.JsonIgnore]
     [Newtonsoft.Json.JsonIgnore]
-    public bool CanUseAI => Level > (int)MembershipLevel.Free && !IsExpired;
+    public bool CanUseAI
+    {
+        get
+        {
+            // Premium 会员无限制
+            if (MembershipLevel == MembershipLevel.Premium && !IsExpired)
+                return true;
+
+            // 其他用户检查配额（包括免费用户）
+            if (AiUsageLimit < 0) return true; // 无限制
+            return AiUsageThisMonth < AiUsageLimit;
+        }
+    }
 
     [System.Text.Json.Serialization.JsonIgnore]
     [Newtonsoft.Json.JsonIgnore]

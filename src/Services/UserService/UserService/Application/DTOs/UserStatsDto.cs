@@ -29,6 +29,11 @@ public class UserStatsDto
     public int MeetupsCreated { get; set; }
     
     /// <summary>
+    ///     用户参加的未结束 Meetup 数量（从 EventService 获取）
+    /// </summary>
+    public int MeetupsJoined { get; set; }
+    
+    /// <summary>
     ///     完成的旅行数量
     /// </summary>
     public int TripsCompleted { get; set; }

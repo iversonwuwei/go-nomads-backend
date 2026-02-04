@@ -5,12 +5,15 @@ using AIService.Infrastructure.Cache;
 using AIService.Infrastructure.GrpcClients;
 using AIService.Infrastructure.Repositories;
 using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Observability;
 using MassTransit;
 using Microsoft.OpenApi.Models;
 using Microsoft.SemanticKernel;
 using Prometheus;
 using Scalar.AspNetCore;
 using Serilog;
+
+const string serviceName = "AIService";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +24,12 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 builder.Host.UseSerilog();
+
+// ============================================================
+// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// ============================================================
+builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
+builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
 
 // 注册 Supabase 客户端
 builder.Services.AddSupabase(builder.Configuration);
@@ -125,18 +134,18 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 
 Log.Information("✅ MassTransit、缓存服务已注册");
 
-// 配置 DaprClient 使用 gRPC 协议（性能更好）
+// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync，访问控制策略自动生效）
 builder.Services.AddDaprClient(daprClientBuilder =>
 {
-    // 使用 gRPC 端点（默认端口 50001）
-    var daprGrpcPort = builder.Configuration.GetValue("Dapr:GrpcPort", 50001);
-    var daprGrpcEndpoint = $"http://localhost:{daprGrpcPort}";
+    // 使用 HTTP 端点（默认端口 3500）
+    var daprHttpPort = builder.Configuration.GetValue("Dapr:HttpPort", 3500);
+    var daprHttpEndpoint = $"http://localhost:{daprHttpPort}";
 
-    daprClientBuilder.UseGrpcEndpoint(daprGrpcEndpoint);
+    daprClientBuilder.UseHttpEndpoint(daprHttpEndpoint);
 
     // 记录配置
     var logger = LoggerFactory.Create(loggingBuilder => loggingBuilder.AddConsole()).CreateLogger("DaprSetup");
-    logger.LogInformation("🚀 Dapr Client 配置使用 gRPC: {Endpoint}", daprGrpcEndpoint);
+    logger.LogInformation("🚀 Dapr Client 配置使用 HTTP: {Endpoint}", daprHttpEndpoint);
 });
 
 // Add services to the container.

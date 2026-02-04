@@ -1,0 +1,111 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-routes
+  namespace: go-nomads
+data:
+  routes.json: |
+    {
+      "ReverseProxy": {
+        "Routes": {
+          "auth-route": {
+            "ClusterId": "user-service",
+            "Match": {
+              "Path": "/api/v1/auth/{**catch-all}"
+            }
+          },
+          "users-route": {
+            "ClusterId": "user-service",
+            "Match": {
+              "Path": "/api/v1/users/{**catch-all}"
+            }
+          },
+          "cities-route": {
+            "ClusterId": "city-service",
+            "Match": {
+              "Path": "/api/v1/cities/{**catch-all}"
+            }
+          },
+          "city-content-route": {
+            "ClusterId": "city-service",
+            "Match": {
+              "Path": "/api/v1/city-content/{**catch-all}"
+            }
+          },
+          "coworkings-route": {
+            "ClusterId": "coworking-service",
+            "Match": {
+              "Path": "/api/v1/coworkings/{**catch-all}"
+            }
+          },
+          "events-route": {
+            "ClusterId": "event-service",
+            "Match": {
+              "Path": "/api/v1/events/{**catch-all}"
+            }
+          },
+          "ai-route": {
+            "ClusterId": "ai-service",
+            "Match": {
+              "Path": "/api/v1/ai/{**catch-all}"
+            }
+          },
+          "hotels-route": {
+            "ClusterId": "accommodation-service",
+            "Match": {
+              "Path": "/api/v1/hotels/{**catch-all}"
+            }
+          },
+          "home-route": {
+            "ClusterId": "city-service",
+            "Match": {
+              "Path": "/api/v1/home/{**catch-all}"
+            }
+          }
+        },
+        "Clusters": {
+          "user-service": {
+            "Destinations": {
+              "user-service-1": {
+                "Address": "http://user-service:80"
+              }
+            }
+          },
+          "city-service": {
+            "Destinations": {
+              "city-service-1": {
+                "Address": "http://city-service:8002"
+              }
+            }
+          },
+          "coworking-service": {
+            "Destinations": {
+              "coworking-service-1": {
+                "Address": "http://coworking-service:8003"
+              }
+            }
+          },
+          "event-service": {
+            "Destinations": {
+              "event-service-1": {
+                "Address": "http://event-service:8005"
+              }
+            }
+          },
+          "ai-service": {
+            "Destinations": {
+              "ai-service-1": {
+                "Address": "http://ai-service:8080"
+              }
+            }
+          },
+          "accommodation-service": {
+            "Destinations": {
+              "accommodation-service-1": {
+                "Address": "http://accommodation-service:8012"
+              }
+            }
+          }
+        }
+      }
+    }

@@ -10,19 +10,45 @@ public interface ICityService
     Task<IEnumerable<CityDto>> GetAllCitiesAsync(int pageNumber, int pageSize, Guid? userId = null,
         string? userRole = null);
 
+    /// <summary>
+    /// 获取城市列表（轻量级版本，不包含天气数据）
+    /// 用于城市列表页面，提升加载性能
+    /// </summary>
+    Task<IEnumerable<CityListItemDto>> GetCityListAsync(int pageNumber, int pageSize, string? search = null, Guid? userId = null, string? userRole = null);
+
+    /// <summary>
+    /// 获取城市列表（基础版本，不包含聚合数据如 MeetupCount, CoworkingCount 等）
+    /// 用于快速首屏加载
+    /// </summary>
+    Task<IEnumerable<CityListItemDto>> GetCityListBasicAsync(int pageNumber, int pageSize, string? search = null, Guid? userId = null, string? userRole = null);
+
+    /// <summary>
+    /// 批量获取城市聚合数据（MeetupCount, CoworkingCount, ReviewCount, AverageCost）
+    /// 用于异步填充城市卡片的统计信息
+    /// </summary>
+    Task<Dictionary<Guid, CityCountsDto>> GetCityCountsBatchAsync(IEnumerable<Guid> cityIds);
+
     Task<CityDto?> GetCityByIdAsync(Guid id, Guid? userId = null, string? userRole = null);
     Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null, string? userRole = null);
     Task<CityDto> CreateCityAsync(CreateCityDto createCityDto, Guid userId);
     Task<CityDto?> UpdateCityAsync(Guid id, UpdateCityDto updateCityDto, Guid userId);
-    Task<bool> DeleteCityAsync(Guid id);
+    
+    /// <summary>
+    ///     删除城市（逻辑删除）
+    /// </summary>
+    /// <param name="id">城市ID</param>
+    /// <param name="deletedBy">删除操作执行者ID</param>
+    Task<bool> DeleteCityAsync(Guid id, Guid? deletedBy = null);
+    
     Task<int> GetTotalCountAsync();
     Task<IEnumerable<CityDto>> GetRecommendedCitiesAsync(int count, Guid? userId = null);
+    Task<IEnumerable<CityDto>> GetPopularCitiesAsync(int limit, Guid? userId = null);
     Task<CityStatisticsDto?> GetCityStatisticsAsync(Guid id);
     Task<IEnumerable<CountryCitiesDto>> GetCitiesGroupedByCountryAsync();
     Task<IEnumerable<CitySummaryDto>> GetCitiesByCountryIdAsync(Guid countryId);
     Task<IEnumerable<CountryDto>> GetAllCountriesAsync();
     Task<WeatherDto?> GetCityWeatherAsync(Guid id, bool includeForecast = false, int days = 7);
-    Task<IEnumerable<CityDto>> GetCitiesByIdsAsync(IEnumerable<Guid> cityIds);
+    Task<IEnumerable<CityDto>> GetCitiesByIdsAsync(IEnumerable<Guid> cityIds, bool includeWeather = true);
 
     /// <summary>
     ///     申请成为城市版主
@@ -50,4 +76,9 @@ public interface ICityService
     /// <param name="landscapeImageUrls">横屏图片 URL 列表</param>
     /// <returns>是否成功</returns>
     Task<bool> UpdateCityImagesAsync(Guid cityId, string? portraitImageUrl, List<string>? landscapeImageUrls);
+
+    /// <summary>
+    ///     清除城市列表缓存（当城市相关数据变更时调用）
+    /// </summary>
+    void InvalidateCityListCache();
 }

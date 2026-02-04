@@ -8,8 +8,13 @@
 
     <ItemGroup>
         <PackageReference Include="Dapr.AspNetCore" Version="1.16.0"/>
+<PackageReference Include="MassTransit.RabbitMQ" Version="8.4.1"/>
+
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.10"/>
+        <PackageReference Include="postgrest-csharp" Version="3.5.1"/>
         <PackageReference Include="Scalar.AspNetCore" Version="1.2.42"/>
+        <PackageReference Include="Serilog.AspNetCore" Version="9.0.0"/>
+        <PackageReference Include="supabase-csharp" Version="0.16.2"/>
     </ItemGroup>
 
     <ItemGroup>
