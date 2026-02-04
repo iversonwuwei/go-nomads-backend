@@ -1,0 +1,15 @@
+# Grafana 仪表板自动配置
+
+apiVersion: 1
+
+providers:
+  - name: 'Go Nomads Dashboards'
+    orgId: 1
+    folder: 'Go Nomads'
+    folderUid: 'go-nomads'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

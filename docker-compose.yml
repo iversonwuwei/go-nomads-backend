@@ -39,6 +39,10 @@ services:
       - Consul__Address=http://go-nomads-consul:7500
       - Consul__ServiceAddress=go-nomads-gateway
       - Consul__ServicePort=5000
+      # OpenTelemetry 可观测性配置
+      - Observability__JaegerEnabled=true
+      - Observability__JaegerEndpoint=http://go-nomads-jaeger:4317
+      - Observability__PrometheusEnabled=true
     networks:
       - go-nomads-network
 
@@ -129,6 +133,10 @@ services:
       - Consul__ServicePort=8080
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=userservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
+      # OpenTelemetry 可观测性配置
+      - Observability__JaegerEnabled=true
+      - Observability__JaegerEndpoint=http://go-nomads-jaeger:4317
+      - Observability__PrometheusEnabled=true
     networks:
       - go-nomads-network
     depends_on:

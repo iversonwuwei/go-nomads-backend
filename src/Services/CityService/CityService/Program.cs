@@ -10,6 +10,7 @@ using CityService.Infrastructure.Repositories;
 using CityService.Infrastructure.Services;
 using CityService.Services;
 using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Observability;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -18,6 +19,8 @@ using Scalar.AspNetCore;
 using Serilog;
 using Shared.Messages;
 using IUserCityContentService = CityService.Application.Services.IUserCityContentService;
+
+const string serviceName = "CityService";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +36,12 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 builder.Host.UseSerilog();
+
+// ============================================================
+// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// ============================================================
+builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
+builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
 
 // Add services to the container
 builder.Services.AddControllers()

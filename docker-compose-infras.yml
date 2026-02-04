@@ -64,11 +64,17 @@ services:
     networks:
       - go-nomads-network
 
-  zipkin:
-    image: openzipkin/zipkin:latest
-    container_name: go-nomads-zipkin
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    container_name: go-nomads-jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
     ports:
-      - "9811:9411"
+      - "16686:16686"   # Jaeger UI
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
+      - "9411:9411"     # Zipkin compatible
+    command: ["--memory.max-traces=100000"]
     networks:
       - go-nomads-network
 

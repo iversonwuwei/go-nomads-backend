@@ -2,10 +2,13 @@ using CoworkingService.Application.Services;
 using CoworkingService.Domain.Repositories;
 using CoworkingService.Infrastructure.Repositories;
 using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Observability;
 using MassTransit;
 using Scalar.AspNetCore;
 using Serilog;
 using System.Text.Json.Serialization;
+
+const string serviceName = "CoworkingService";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +20,12 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 builder.Host.UseSerilog();
+
+// ============================================================
+// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// ============================================================
+builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
+builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
 
 // 添加 Supabase 客户端
 builder.Services.AddSupabase(builder.Configuration);

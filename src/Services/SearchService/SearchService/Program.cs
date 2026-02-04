@@ -1,4 +1,5 @@
 using GoNomads.Shared.Extensions;
+using GoNomads.Shared.Observability;
 using Scalar.AspNetCore;
 using SearchService.Application.Interfaces;
 using SearchService.Application.Services;
@@ -7,6 +8,8 @@ using SearchService.Infrastructure.HostedServices;
 using SearchService.Infrastructure.Services;
 using Serilog;
 using System.Text.Json.Serialization;
+
+const string serviceName = "SearchService";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +22,12 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 builder.Host.UseSerilog();
+
+// ============================================================
+// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// ============================================================
+builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
+builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
 
 // ============================================================
 // 配置绑定
