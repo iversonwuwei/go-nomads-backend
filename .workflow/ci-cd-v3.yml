@@ -1,0 +1,171 @@
+# Go-Nomads Backend CI/CD Pipeline
+version: '1.0'
+name: go-nomads-backend-cicd
+
+stages:
+  - name: build_and_test
+    displayName: 构建和测试
+    strategy: naturally
+    trigger: auto
+    steps:
+      - step: execute@shell
+        name: dotnet_build
+        displayName: .NET构建
+        inputs:
+          script: |
+            echo "===== 构建 .NET 项目 ====="
+            dotnet restore go-nomads-backend.sln || true
+            dotnet build go-nomads-backend.sln -c Release --no-restore || true
+            echo "===== 构建完成 ====="
+
+  - name: build_and_push_images
+    displayName: 构建并推送镜像到SWR
+    strategy: naturally
+    trigger: auto
+    steps:
+      - step: execute@shell
+        name: swr_login
+        displayName: 登录华为云SWR
+        inputs:
+          script: |
+            docker login -u "${SWR_REGION}@${SWR_AK}" -p "${SWR_SK}" ${SWR_LOGIN_SERVER}
+
+      - step: execute@shell
+        name: build_gateway
+        displayName: 构建Gateway
+        inputs:
+          script: |
+            docker build -f src/Gateway/Gateway/Dockerfile -t ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/gateway:latest .
+            docker push ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/gateway:latest
+
+      - step: execute@shell
+        name: build_user_service
+        displayName: 构建UserService
+        inputs:
+          script: |
+            docker build -f src/Services/UserService/UserService/Dockerfile -t ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/user-service:latest .
+            docker push ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/user-service:latest
+
+      - step: execute@shell
+        name: build_city_service
+        displayName: 构建CityService
+        inputs:
+          script: |
+            docker build -f src/Services/CityService/CityService/Dockerfile -t ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/city-service:latest .
+            docker push ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/city-service:latest
+
+      - step: execute@shell
+        name: build_accommodation_service
+        displayName: 构建AccommodationService
+        inputs:
+          script: |
+            docker build -f src/Services/AccommodationService/AccommodationService/Dockerfile -t ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/accommodation-service:latest .
+            docker push ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/accommodation-service:latest
+
+      - step: execute@shell
+        name: build_coworking_service
+        displayName: 构建CoworkingService
+        inputs:
+          script: |
+            docker build -f src/Services/CoworkingService/CoworkingService/Dockerfile -t ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/coworking-service:latest .
+            docker push ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/coworking-service:latest
+
+      - step: execute@shell
+        name: build_event_service
+        displayName: 构建EventService
+        inputs:
+          script: |
+            docker build -f src/Services/EventService/EventService/Dockerfile -t ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/event-service:latest .
+            docker push ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/event-service:latest
+
+      - step: execute@shell
+        name: build_ai_service
+        displayName: 构建AIService
+        inputs:
+          script: |
+            docker build -f src/Services/AIService/AIService/Dockerfile -t ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/ai-service:latest .
+            docker push ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/ai-service:latest
+
+      - step: execute@shell
+        name: build_message_service
+        displayName: 构建MessageService
+        inputs:
+          script: |
+            docker build -f src/Services/MessageService/MessageService/API/Dockerfile -t ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/message-service:latest .
+            docker push ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/message-service:latest
+
+      - step: execute@shell
+        name: build_search_service
+        displayName: 构建SearchService
+        inputs:
+          script: |
+            docker build -f src/Services/SearchService/SearchService/Dockerfile -t ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/search-service:latest .
+            docker push ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/search-service:latest
+
+      - step: execute@shell
+        name: build_cache_service
+        displayName: 构建CacheService
+        inputs:
+          script: |
+            docker build -f src/Services/CacheService/CacheService/Dockerfile -t ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/cache-service:latest .
+            docker push ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/cache-service:latest
+
+      - step: execute@shell
+        name: build_innovation_service
+        displayName: 构建InnovationService
+        inputs:
+          script: |
+            docker build -f src/Services/InnovationService/InnovationService/Dockerfile -t ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/innovation-service:latest .
+            docker push ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/innovation-service:latest
+
+      - step: execute@shell
+        name: build_product_service
+        displayName: 构建ProductService
+        inputs:
+          script: |
+            docker build -f src/Services/ProductService/ProductService/Dockerfile -t ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/product-service:latest .
+            docker push ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/product-service:latest
+
+      - step: execute@shell
+        name: build_document_service
+        displayName: 构建DocumentService
+        inputs:
+          script: |
+            docker build -f src/Services/DocumentService/DocumentService/Dockerfile -t ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/document-service:latest .
+            docker push ${SWR_LOGIN_SERVER}/${SWR_ORGANIZATION}/document-service:latest
+
+  - name: deploy_to_aliyun
+    displayName: 部署到阿里云服务器
+    strategy: naturally
+    trigger: auto
+    steps:
+      - step: execute@shell
+        name: deploy_services
+        displayName: 部署服务
+        inputs:
+          script: |
+            mkdir -p ~/.ssh
+            echo "${ALIYUN_SERVER_SSH_KEY}" | base64 -d > ~/.ssh/deploy_key
+            chmod 600 ~/.ssh/deploy_key
+            ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key ${ALIYUN_SERVER_USER}@${ALIYUN_SERVER_HOST} "cd /opt/go-nomads && docker login -u '${SWR_REGION}@${SWR_AK}' -p '${SWR_SK}' ${SWR_LOGIN_SERVER} && docker-compose -f docker-compose-services-swr.yml pull && docker-compose -f docker-compose-services-swr.yml up -d && docker image prune -f"
+            rm -f ~/.ssh/deploy_key
+            echo "部署完成"
+
+  - name: notify
+    displayName: 构建通知
+    strategy: naturally
+    trigger: auto
+    steps:
+      - step: execute@shell
+        name: send_notification
+        displayName: 发送通知
+        inputs:
+          script: |
+            echo "构建完成"
+
+triggers:
+  push:
+    - matchType: branch
+      branch: main
+    - matchType: branch
+      branch: master

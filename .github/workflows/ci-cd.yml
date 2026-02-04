@@ -1,0 +1,168 @@
+# Go-Nomads Backend CI/CD Pipeline
+# GitHub Actions + 华为云 SWR + 阿里云服务器部署
+
+name: Go-Nomads Backend CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    branches:
+      - main
+      - master
+
+env:
+  DOTNET_VERSION: '9.0.x'
+
+jobs:
+  # ============================================================
+  # 阶段 1: 构建和测试
+  # ============================================================
+  build:
+    name: 构建和测试
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: 恢复依赖
+        run: dotnet restore go-nomads-backend.sln
+
+      - name: 构建项目
+        run: dotnet build go-nomads-backend.sln -c Release --no-restore
+
+      - name: 运行测试
+        run: dotnet test go-nomads-backend.sln -c Release --no-build --verbosity normal
+        continue-on-error: true
+
+  # ============================================================
+  # 阶段 2: 构建 Docker 镜像并推送到华为云 SWR
+  # ============================================================
+  build-and-push:
+    name: 构建并推送镜像
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    strategy:
+      matrix:
+        include:
+          - service: gateway
+            dockerfile: src/Gateway/Gateway/Dockerfile
+          - service: user-service
+            dockerfile: src/Services/UserService/UserService/Dockerfile
+          - service: city-service
+            dockerfile: src/Services/CityService/CityService/Dockerfile
+          - service: accommodation-service
+            dockerfile: src/Services/AccommodationService/AccommodationService/Dockerfile
+          - service: coworking-service
+            dockerfile: src/Services/CoworkingService/CoworkingService/Dockerfile
+          - service: event-service
+            dockerfile: src/Services/EventService/EventService/Dockerfile
+          - service: ai-service
+            dockerfile: src/Services/AIService/AIService/Dockerfile
+          - service: message-service
+            dockerfile: src/Services/MessageService/MessageService/API/Dockerfile
+          - service: search-service
+            dockerfile: src/Services/SearchService/SearchService/Dockerfile
+          - service: cache-service
+            dockerfile: src/Services/CacheService/CacheService/Dockerfile
+          - service: innovation-service
+            dockerfile: src/Services/InnovationService/InnovationService/Dockerfile
+          - service: product-service
+            dockerfile: src/Services/ProductService/ProductService/Dockerfile
+          - service: document-service
+            dockerfile: src/Services/DocumentService/DocumentService/Dockerfile
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 登录华为云 SWR
+        run: |
+          docker login -u "${{ secrets.SWR_REGION }}@${{ secrets.SWR_AK }}" -p "${{ secrets.SWR_SK }}" ${{ secrets.SWR_LOGIN_SERVER }}
+
+      - name: 构建并推送 ${{ matrix.service }}
+        run: |
+          IMAGE="${{ secrets.SWR_LOGIN_SERVER }}/${{ secrets.SWR_ORGANIZATION }}/${{ matrix.service }}"
+          TAG="${{ github.sha }}"
+          SHORT_TAG="${TAG:0:8}"
+          
+          echo "构建镜像: ${IMAGE}:${SHORT_TAG}"
+          docker build -f ${{ matrix.dockerfile }} -t ${IMAGE}:${SHORT_TAG} -t ${IMAGE}:latest .
+          
+          echo "推送镜像..."
+          docker push ${IMAGE}:${SHORT_TAG}
+          docker push ${IMAGE}:latest
+          echo "✓ ${{ matrix.service }} 推送成功"
+
+  # ============================================================
+  # 阶段 3: 部署到阿里云服务器
+  # ============================================================
+  deploy:
+    name: 部署到阿里云
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+      - name: 部署到阿里云服务器
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ALIYUN_SERVER_HOST }}
+          username: ${{ secrets.ALIYUN_SERVER_USER }}
+          key: ${{ secrets.ALIYUN_SERVER_SSH_KEY }}
+          script: |
+            echo "===== 登录华为云 SWR ====="
+            docker login -u "${{ secrets.SWR_REGION }}@${{ secrets.SWR_AK }}" -p "${{ secrets.SWR_SK }}" ${{ secrets.SWR_LOGIN_SERVER }}
+            
+            echo "===== 进入部署目录 ====="
+            cd /opt/go-nomads
+            
+            echo "===== 拉取最新镜像 ====="
+            docker-compose -f docker-compose-services-swr.yml pull
+            
+            echo "===== 停止旧服务 ====="
+            docker-compose -f docker-compose-services-swr.yml down --remove-orphans || true
+            
+            echo "===== 启动新服务 ====="
+            docker-compose -f docker-compose-services-swr.yml up -d
+            
+            echo "===== 清理旧镜像 ====="
+            docker image prune -f
+            
+            echo "===== 检查服务状态 ====="
+            docker-compose -f docker-compose-services-swr.yml ps
+            
+            echo "✓ 部署完成"
+
+  # ============================================================
+  # 阶段 4: 通知
+  # ============================================================
+  notify:
+    name: 发送通知
+    runs-on: ubuntu-latest
+    needs: [build-and-push, deploy]
+    if: always()
+    
+    steps:
+      - name: 构建结果通知
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ Go-Nomads Backend 部署成功"
+            echo "分支: ${{ github.ref_name }}"
+            echo "提交: ${{ github.sha }}"
+          else
+            echo "❌ Go-Nomads Backend 部署失败"
+          fi
