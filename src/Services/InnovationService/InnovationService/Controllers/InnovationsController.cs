@@ -183,25 +183,24 @@ public class InnovationsController : ControllerBase
 
             var created = await _repository.CreateAsync(innovation);
 
-            // 添加团队成员
+            // 批量添加团队成员（优化：使用单次批量插入代替循环插入）
             if (request.Team != null && request.Team.Any())
             {
-                foreach (var member in request.Team)
+                var teamMembers = request.Team.Select(member => new InnovationTeamMember
                 {
-                    await _repository.AddTeamMemberAsync(new InnovationTeamMember
-                    {
-                        Id = Guid.NewGuid(),
-                        InnovationId = created.Id,
-                        UserId = member.UserId,
-                        Name = member.Name,
-                        Role = member.Role,
-                        Description = member.Description,
-                        AvatarUrl = member.AvatarUrl,
-                        IsFounder = member.IsFounder,
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
-                    });
-                }
+                    Id = Guid.NewGuid(),
+                    InnovationId = created.Id,
+                    UserId = member.UserId,
+                    Name = member.Name,
+                    Role = member.Role,
+                    Description = member.Description,
+                    AvatarUrl = member.AvatarUrl,
+                    IsFounder = member.IsFounder,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                }).ToList();
+                
+                await _repository.AddTeamMembersBatchAsync(teamMembers);
             }
 
             // 获取完整的响应

@@ -23,6 +23,12 @@ public interface IInnovationRepository
     Task<bool> IncrementViewCountAsync(Guid innovationId);
     Task<List<InnovationTeamMember>> GetTeamMembersAsync(Guid innovationId);
     Task<InnovationTeamMember> AddTeamMemberAsync(InnovationTeamMember member);
+    
+    /// <summary>
+    ///     批量添加团队成员（优化性能，避免多次插入）
+    /// </summary>
+    Task<List<InnovationTeamMember>> AddTeamMembersBatchAsync(List<InnovationTeamMember> members);
+    
     Task<bool> RemoveTeamMemberAsync(Guid innovationId, Guid memberId, Guid userId);
     Task<List<CommentResponse>> GetCommentsAsync(Guid innovationId, int page, int pageSize);
     Task<InnovationComment> AddCommentAsync(InnovationComment comment);
@@ -72,42 +78,29 @@ public class InnovationRepository : IInnovationRepository
         {
             var offset = (page - 1) * pageSize;
 
-            // 构建基础查询条件（排除已删除的记录）
-            var baseQuery = _supabase.From<Innovation>()
+            // 构建查询并使用 Supabase 的过滤功能
+            var query = _supabase.From<Innovation>()
                 .Select("*")
                 .Filter("is_public", Postgrest.Constants.Operator.Is, "true")
                 .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true");
 
             if (!string.IsNullOrEmpty(category))
-                baseQuery = baseQuery.Filter("category", Postgrest.Constants.Operator.Equals, category);
+                query = query.Filter("category", Postgrest.Constants.Operator.Equals, category);
 
             if (!string.IsNullOrEmpty(stage))
-                baseQuery = baseQuery.Filter("stage", Postgrest.Constants.Operator.Equals, stage);
+                query = query.Filter("stage", Postgrest.Constants.Operator.Equals, stage);
 
             if (!string.IsNullOrEmpty(search))
-                baseQuery = baseQuery.Filter("title", Postgrest.Constants.Operator.ILike, $"%{search}%");
+                query = query.Filter("title", Postgrest.Constants.Operator.ILike, $"%{search}%");
 
-            // 先获取总数
-            var countResult = await baseQuery.Count(Postgrest.Constants.CountType.Exact);
-            var total = countResult;
+            // 使用单次查询同时获取数据和总数
+            var result = await query
+                .Order("created_at", Postgrest.Constants.Ordering.Descending)
+                .Range(offset, offset + pageSize - 1)
+                .Count(Postgrest.Constants.CountType.Exact)
+                .Get();
 
-            // 重新构建查询获取数据（排除已删除的记录）
-            var dataQuery = _supabase.From<Innovation>()
-                .Select("*")
-                .Filter("is_public", Postgrest.Constants.Operator.Is, "true")
-                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
-                .Order("created_at", Postgrest.Constants.Ordering.Descending);
-
-            if (!string.IsNullOrEmpty(category))
-                dataQuery = dataQuery.Filter("category", Postgrest.Constants.Operator.Equals, category);
-
-            if (!string.IsNullOrEmpty(stage))
-                dataQuery = dataQuery.Filter("stage", Postgrest.Constants.Operator.Equals, stage);
-
-            if (!string.IsNullOrEmpty(search))
-                dataQuery = dataQuery.Filter("title", Postgrest.Constants.Operator.ILike, $"%{search}%");
-
-            var result = await dataQuery.Range(offset, offset + pageSize - 1).Get();
+            var total = result.Count ?? 0;
 
             var items = result.Models.Select(i => new InnovationListItem
             {
@@ -207,22 +200,46 @@ public class InnovationRepository : IInnovationRepository
                 UpdatedAt = result.UpdatedAt
             };
 
-            // 只在冗余字段为空时才调用 UserService
-            if (string.IsNullOrEmpty(response.CreatorName))
-            {
-                var creatorInfo = await GetUserBasicInfoAsync(result.CreatorId);
-                if (creatorInfo != null)
-                {
-                    response.CreatorName = creatorInfo.Name;
-                    response.CreatorAvatar = creatorInfo.AvatarUrl;
-                }
-            }
-
             // 获取团队成员
             var teamMembers = await GetTeamMembersAsync(id);
-            var teamResponses = new List<TeamMemberResponse>();
             
-            foreach (var m in teamMembers)
+            // 批量获取需要补充信息的用户 ID（避免 N+1 查询）
+            var userIdsToFetch = teamMembers
+                .Where(m => string.IsNullOrEmpty(m.Name) && m.UserId.HasValue)
+                .Select(m => m.UserId!.Value)
+                .Distinct()
+                .ToList();
+            
+            // 如果创建者信息也需要查询，一起批量获取
+            if (string.IsNullOrEmpty(response.CreatorName) && !userIdsToFetch.Contains(result.CreatorId))
+            {
+                userIdsToFetch.Add(result.CreatorId);
+            }
+            
+            // 批量获取用户信息
+            Dictionary<Guid, UserInfoDto> userInfoMap = new();
+            if (userIdsToFetch.Count > 0)
+            {
+                try
+                {
+                    userInfoMap = await _userServiceClient.GetUsersInfoBatchAsync(userIdsToFetch);
+                    _logger.LogDebug("✅ 批量获取 {Count} 个用户信息用于详情页", userInfoMap.Count);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ 批量获取用户信息失败");
+                }
+            }
+            
+            // 填充创建者信息
+            if (string.IsNullOrEmpty(response.CreatorName) && userInfoMap.TryGetValue(result.CreatorId, out var creatorInfo))
+            {
+                response.CreatorName = creatorInfo.Name;
+                response.CreatorAvatar = creatorInfo.AvatarUrl;
+            }
+            
+            // 构建团队成员响应
+            var teamResponses = teamMembers.Select(m =>
             {
                 var teamMember = new TeamMemberResponse
                 {
@@ -235,19 +252,16 @@ public class InnovationRepository : IInnovationRepository
                     IsFounder = m.IsFounder
                 };
                 
-                // 如果 name 为空且有 userId，尝试从 UserService 获取用户信息
-                if (string.IsNullOrEmpty(teamMember.Name) && m.UserId.HasValue)
+                // 使用批量获取的用户信息填充
+                if (string.IsNullOrEmpty(teamMember.Name) && m.UserId.HasValue && userInfoMap.TryGetValue(m.UserId.Value, out var userInfo))
                 {
-                    var userInfo = await GetUserBasicInfoAsync(m.UserId.Value);
-                    if (userInfo != null)
-                    {
-                        teamMember.Name = userInfo.Name ?? string.Empty;
-                        teamMember.AvatarUrl = string.IsNullOrEmpty(teamMember.AvatarUrl) ? userInfo.AvatarUrl : teamMember.AvatarUrl;
-                    }
+                    teamMember.Name = userInfo.Name ?? string.Empty;
+                    teamMember.AvatarUrl = string.IsNullOrEmpty(teamMember.AvatarUrl) ? userInfo.AvatarUrl : teamMember.AvatarUrl;
                 }
                 
-                teamResponses.Add(teamMember);
-            }
+                return teamMember;
+            }).ToList();
+            
             response.Team = teamResponses;
 
             // 检查当前用户是否点赞
@@ -471,6 +485,7 @@ public class InnovationRepository : IInnovationRepository
             var result = await _supabase.From<Innovation>()
                 .Select("*")
                 .Filter("creator_id", Postgrest.Constants.Operator.Equals, userId.ToString())
+                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
                 .Order("created_at", Postgrest.Constants.Ordering.Descending)
                 .Range(offset, offset + pageSize - 1)
                 .Get();
@@ -509,6 +524,7 @@ public class InnovationRepository : IInnovationRepository
                 .Select("*")
                 .Filter("is_featured", Postgrest.Constants.Operator.Equals, "true")
                 .Filter("is_public", Postgrest.Constants.Operator.Equals, "true")
+                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
                 .Order("created_at", Postgrest.Constants.Ordering.Descending)
                 .Limit(limit)
                 .Get();
@@ -550,6 +566,7 @@ public class InnovationRepository : IInnovationRepository
             var result = await _supabase.From<Innovation>()
                 .Select("*")
                 .Filter("is_public", Postgrest.Constants.Operator.Equals, "true")
+                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
                 .Order("like_count", Postgrest.Constants.Ordering.Descending)
                 .Limit(limit)
                 .Get();
@@ -635,26 +652,35 @@ public class InnovationRepository : IInnovationRepository
     {
         try
         {
-            var existing = await _supabase.From<Innovation>()
-                .Select("view_count")
-                .Filter("id", Postgrest.Constants.Operator.Equals, innovationId.ToString())
-                .Single();
-
-            if (existing == null) return false;
-
-            existing.ViewCount += 1;
-
-            await _supabase.From<Innovation>()
-                .Filter("id", Postgrest.Constants.Operator.Equals, innovationId.ToString())
-                .Set(x => x.ViewCount, existing.ViewCount)
-                .Update();
-
+            // 使用 Supabase RPC 调用进行原子递增操作，避免并发问题和额外的读取查询
+            await _supabase.Rpc("increment_innovation_view_count", new { p_innovation_id = innovationId });
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "增加浏览次数失败: {InnovationId}", innovationId);
-            return false;
+            // 如果 RPC 函数不存在，回退到原有逻辑
+            _logger.LogWarning(ex, "RPC increment_innovation_view_count 调用失败，回退到标准更新: {InnovationId}", innovationId);
+            try
+            {
+                var existing = await _supabase.From<Innovation>()
+                    .Select("view_count")
+                    .Filter("id", Postgrest.Constants.Operator.Equals, innovationId.ToString())
+                    .Single();
+
+                if (existing == null) return false;
+
+                await _supabase.From<Innovation>()
+                    .Filter("id", Postgrest.Constants.Operator.Equals, innovationId.ToString())
+                    .Set(x => x.ViewCount, existing.ViewCount + 1)
+                    .Update();
+
+                return true;
+            }
+            catch (Exception innerEx)
+            {
+                _logger.LogError(innerEx, "增加浏览次数失败: {InnovationId}", innovationId);
+                return false;
+            }
         }
     }
 
@@ -692,6 +718,35 @@ public class InnovationRepository : IInnovationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "添加团队成员失败");
+            throw;
+        }
+    }
+
+    /// <summary>
+    ///     批量添加团队成员（优化性能，使用单次批量插入）
+    /// </summary>
+    public async Task<List<InnovationTeamMember>> AddTeamMembersBatchAsync(List<InnovationTeamMember> members)
+    {
+        if (members.Count == 0) return new List<InnovationTeamMember>();
+        
+        try
+        {
+            // 使用单次批量插入
+            var result = await _supabase.From<InnovationTeamMember>().Insert(members);
+            
+            // 获取所有不同的 InnovationId 并批量更新团队人数
+            var innovationIds = members.Select(m => m.InnovationId).Distinct().ToList();
+            foreach (var innovationId in innovationIds)
+            {
+                await UpdateTeamSizeAsync(innovationId);
+            }
+            
+            _logger.LogInformation("✅ 批量添加 {Count} 个团队成员成功", members.Count);
+            return result.Models;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "批量添加团队成员失败");
             throw;
         }
     }
@@ -863,14 +918,17 @@ public class InnovationRepository : IInnovationRepository
     /// </summary>
     private async Task EnrichLikeStatusAsync(List<InnovationListItem> items, Guid userId)
     {
+        if (items.Count == 0) return;
+        
         try
         {
             var innovationIds = items.Select(i => i.Id).ToList();
 
-            // 查询当前用户对这些项目的点赞记录
+            // 查询当前用户对这些项目的点赞记录，使用 In 过滤减少返回数据量
             var likeResult = await _supabase.From<InnovationLike>()
                 .Select("innovation_id")
                 .Filter("user_id", Postgrest.Constants.Operator.Equals, userId.ToString())
+                .In("innovation_id", innovationIds.Select(id => id.ToString()).ToList())
                 .Get();
 
             var likedIds = likeResult.Models
@@ -885,7 +943,7 @@ public class InnovationRepository : IInnovationRepository
                 item.CanEdit = item.CreatorId == userId;
             }
 
-            _logger.LogInformation("✅ 成功获取 {Count} 个项目的点赞状态和编辑权限", items.Count);
+            _logger.LogDebug("✅ 成功获取 {Count} 个项目的点赞状态和编辑权限，用户点赞了 {LikedCount} 个", items.Count, likedIds.Count);
         }
         catch (Exception ex)
         {
@@ -913,24 +971,33 @@ public class InnovationRepository : IInnovationRepository
     {
         try
         {
-            var existing = await _supabase.From<Innovation>()
-                .Select("like_count")
-                .Filter("id", Postgrest.Constants.Operator.Equals, innovationId.ToString())
-                .Single();
-
-            if (existing != null)
-            {
-                existing.LikeCount = Math.Max(0, existing.LikeCount + delta);
-
-                await _supabase.From<Innovation>()
-                    .Filter("id", Postgrest.Constants.Operator.Equals, innovationId.ToString())
-                    .Set(x => x.LikeCount, existing.LikeCount)
-                    .Update();
-            }
+            // 使用 Supabase RPC 调用进行原子递增/递减操作
+            await _supabase.Rpc("update_innovation_like_count", new { p_innovation_id = innovationId, p_delta = delta });
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "更新点赞计数失败: {InnovationId}", innovationId);
+            // 如果 RPC 函数不存在，回退到原有逻辑
+            _logger.LogWarning(ex, "RPC update_innovation_like_count 调用失败，回退到标准更新: {InnovationId}", innovationId);
+            try
+            {
+                var existing = await _supabase.From<Innovation>()
+                    .Select("like_count")
+                    .Filter("id", Postgrest.Constants.Operator.Equals, innovationId.ToString())
+                    .Single();
+
+                if (existing != null)
+                {
+                    var newCount = Math.Max(0, existing.LikeCount + delta);
+                    await _supabase.From<Innovation>()
+                        .Filter("id", Postgrest.Constants.Operator.Equals, innovationId.ToString())
+                        .Set(x => x.LikeCount, newCount)
+                        .Update();
+                }
+            }
+            catch (Exception innerEx)
+            {
+                _logger.LogWarning(innerEx, "更新点赞计数失败: {InnovationId}", innovationId);
+            }
         }
     }
 
@@ -938,24 +1005,33 @@ public class InnovationRepository : IInnovationRepository
     {
         try
         {
-            var existing = await _supabase.From<Innovation>()
-                .Select("comment_count")
-                .Filter("id", Postgrest.Constants.Operator.Equals, innovationId.ToString())
-                .Single();
-
-            if (existing != null)
-            {
-                existing.CommentCount = Math.Max(0, existing.CommentCount + delta);
-
-                await _supabase.From<Innovation>()
-                    .Filter("id", Postgrest.Constants.Operator.Equals, innovationId.ToString())
-                    .Set(x => x.CommentCount, existing.CommentCount)
-                    .Update();
-            }
+            // 使用 Supabase RPC 调用进行原子递增/递减操作
+            await _supabase.Rpc("update_innovation_comment_count", new { p_innovation_id = innovationId, p_delta = delta });
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "更新评论计数失败: {InnovationId}", innovationId);
+            // 如果 RPC 函数不存在，回退到原有逻辑
+            _logger.LogWarning(ex, "RPC update_innovation_comment_count 调用失败，回退到标准更新: {InnovationId}", innovationId);
+            try
+            {
+                var existing = await _supabase.From<Innovation>()
+                    .Select("comment_count")
+                    .Filter("id", Postgrest.Constants.Operator.Equals, innovationId.ToString())
+                    .Single();
+
+                if (existing != null)
+                {
+                    var newCount = Math.Max(0, existing.CommentCount + delta);
+                    await _supabase.From<Innovation>()
+                        .Filter("id", Postgrest.Constants.Operator.Equals, innovationId.ToString())
+                        .Set(x => x.CommentCount, newCount)
+                        .Update();
+                }
+            }
+            catch (Exception innerEx)
+            {
+                _logger.LogWarning(innerEx, "更新评论计数失败: {InnovationId}", innovationId);
+            }
         }
     }
 
