@@ -1,7 +1,8 @@
 using InnovationService.DTOs;
 using InnovationService.Models;
 using InnovationService.Services;
-using Supabase;
+using Postgrest;
+using Client = Supabase.Client;
 
 namespace InnovationService.Repositories;
 
@@ -93,14 +94,13 @@ public class InnovationRepository : IInnovationRepository
             if (!string.IsNullOrEmpty(search))
                 query = query.Filter("title", Postgrest.Constants.Operator.ILike, $"%{search}%");
 
-            // 使用单次查询同时获取数据和总数
+            // 先获取总数，再分页获取数据
+            var total = await query.Count(Postgrest.Constants.CountType.Exact);
+
             var result = await query
                 .Order("created_at", Postgrest.Constants.Ordering.Descending)
                 .Range(offset, offset + pageSize - 1)
-                .Count(Postgrest.Constants.CountType.Exact)
                 .Get();
-
-            var total = result.Count ?? 0;
 
             var items = result.Models.Select(i => new InnovationListItem
             {
@@ -928,7 +928,7 @@ public class InnovationRepository : IInnovationRepository
             var likeResult = await _supabase.From<InnovationLike>()
                 .Select("innovation_id")
                 .Filter("user_id", Postgrest.Constants.Operator.Equals, userId.ToString())
-                .In("innovation_id", innovationIds.Select(id => id.ToString()).ToList())
+                .Filter("innovation_id", Postgrest.Constants.Operator.In, innovationIds.Select(id => id.ToString()).ToList())
                 .Get();
 
             var likedIds = likeResult.Models
