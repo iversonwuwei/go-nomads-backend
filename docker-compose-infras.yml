@@ -65,7 +65,7 @@ services:
       - go-nomads-network
 
   jaeger:
-    image: jaegertracing/all-in-one:1.54
+    image: jaegertracing/all-in-one:latest
     container_name: go-nomads-jaeger
     environment:
       - COLLECTOR_OTLP_ENABLED=true

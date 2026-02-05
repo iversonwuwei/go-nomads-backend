@@ -117,7 +117,7 @@ start_jaeger() {
         -p 4317:4317 \
         -p 4318:4318 \
         -p 9411:9411 \
-        jaegertracing/all-in-one:1.54 \
+        jaegertracing/all-in-one:latest \
         --memory.max-traces=100000 >/dev/null
     echo "Jaeger UI available at http://localhost:16686"
     echo "OTLP gRPC: localhost:4317, OTLP HTTP: localhost:4318"

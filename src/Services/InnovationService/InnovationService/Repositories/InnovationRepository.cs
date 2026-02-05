@@ -79,28 +79,37 @@ public class InnovationRepository : IInnovationRepository
         {
             var offset = (page - 1) * pageSize;
 
-            // 构建查询并使用 Supabase 的过滤功能
-            var query = _supabase.From<Innovation>()
-                .Select("*")
-                .Filter("is_public", Postgrest.Constants.Operator.Is, "true")
-                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true");
+            // 构建基础查询的辅助方法
+            Postgrest.Table<Innovation> BuildBaseQuery()
+            {
+                var q = _supabase.From<Innovation>()
+                    .Select("*")
+                    .Filter("is_public", Postgrest.Constants.Operator.Is, "true")
+                    .Filter("is_deleted", Postgrest.Constants.Operator.Equals, "false");
 
-            if (!string.IsNullOrEmpty(category))
-                query = query.Filter("category", Postgrest.Constants.Operator.Equals, category);
+                if (!string.IsNullOrEmpty(category))
+                    q = q.Filter("category", Postgrest.Constants.Operator.Equals, category);
 
-            if (!string.IsNullOrEmpty(stage))
-                query = query.Filter("stage", Postgrest.Constants.Operator.Equals, stage);
+                if (!string.IsNullOrEmpty(stage))
+                    q = q.Filter("stage", Postgrest.Constants.Operator.Equals, stage);
 
-            if (!string.IsNullOrEmpty(search))
-                query = query.Filter("title", Postgrest.Constants.Operator.ILike, $"%{search}%");
+                if (!string.IsNullOrEmpty(search))
+                    q = q.Filter("title", Postgrest.Constants.Operator.ILike, $"%{search}%");
 
-            // 先获取总数，再分页获取数据
-            var total = await query.Count(Postgrest.Constants.CountType.Exact);
+                return q;
+            }
 
-            var result = await query
+            // 并行执行 Count 和 Get 查询，减少总延迟
+            var countTask = BuildBaseQuery().Count(Postgrest.Constants.CountType.Exact);
+            var dataTask = BuildBaseQuery()
                 .Order("created_at", Postgrest.Constants.Ordering.Descending)
                 .Range(offset, offset + pageSize - 1)
                 .Get();
+
+            await Task.WhenAll(countTask, dataTask);
+
+            var total = await countTask;
+            var result = await dataTask;
 
             var items = result.Models.Select(i => new InnovationListItem
             {

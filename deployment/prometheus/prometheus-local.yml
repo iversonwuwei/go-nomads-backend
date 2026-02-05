@@ -88,9 +88,3 @@ scrape_configs:
       - targets: ['go-nomads-jaeger:14269']
         labels:
           service: 'jaeger'
-
-  # Consul service discovery (optional)
-  # - job_name: 'consul-services'
-  #   metrics_path: /metrics
-  #   consul_sd_configs:
-  #     - server: 'go-nomads-consul:7500'
