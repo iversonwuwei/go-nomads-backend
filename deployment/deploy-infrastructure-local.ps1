@@ -152,7 +152,7 @@ function Start-Jaeger {
         -p 4318:4318 `
         -p 9411:9411 `
         -p 6831:6831/udp `
-        jaegertracing/all-in-one:1.54 | Out-Null
+        jaegertracing/all-in-one:latest | Out-Null
     
     Write-Host "Jaeger UI available at: http://localhost:16686" -ForegroundColor Green
     Write-Host "Jaeger OTLP (gRPC): localhost:4317" -ForegroundColor Green
