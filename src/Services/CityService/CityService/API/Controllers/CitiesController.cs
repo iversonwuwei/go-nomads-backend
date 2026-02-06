@@ -86,8 +86,12 @@ public class CitiesController : ControllerBase
             }
             else
             {
-                cities = await _cityService.GetAllCitiesAsync(pageNumber, pageSize, userId, userRole);
-                totalCount = await _cityService.GetTotalCountAsync();
+                // 并行执行数据查询和计数查询以提升性能
+                var citiesTask = _cityService.GetAllCitiesAsync(pageNumber, pageSize, userId, userRole);
+                var countTask = _cityService.GetTotalCountAsync();
+                await Task.WhenAll(citiesTask, countTask);
+                cities = await citiesTask;
+                totalCount = await countTask;
             }
 
             Response.Headers.Append("X-Total-Count", totalCount.ToString());
@@ -135,8 +139,12 @@ public class CitiesController : ControllerBase
             var userId = _currentUser.TryGetUserId();
             var userRole = _currentUser.GetUserRole();
 
-            var cities = await _cityService.GetCityListAsync(pageNumber, pageSize, search, userId, userRole);
-            var totalCount = await _cityService.GetTotalCountAsync();
+            // 并行执行数据查询和计数查询以提升性能
+            var citiesTask = _cityService.GetCityListAsync(pageNumber, pageSize, search, userId, userRole);
+            var countTask = _cityService.GetTotalCountAsync();
+            await Task.WhenAll(citiesTask, countTask);
+            var cities = await citiesTask;
+            var totalCount = await countTask;
 
             Response.Headers.Append("X-Total-Count", totalCount.ToString());
             Response.Headers.Append("X-Page-Number", pageNumber.ToString());
@@ -183,8 +191,12 @@ public class CitiesController : ControllerBase
             var userId = _currentUser.TryGetUserId();
             var userRole = _currentUser.GetUserRole();
 
-            var cities = await _cityService.GetCityListBasicAsync(pageNumber, pageSize, search, userId, userRole);
-            var totalCount = await _cityService.GetTotalCountAsync();
+            // 并行执行数据查询和计数查询以提升性能
+            var citiesTask = _cityService.GetCityListBasicAsync(pageNumber, pageSize, search, userId, userRole);
+            var countTask = _cityService.GetTotalCountAsync();
+            await Task.WhenAll(citiesTask, countTask);
+            var cities = await citiesTask;
+            var totalCount = await countTask;
 
             Response.Headers.Append("X-Total-Count", totalCount.ToString());
             Response.Headers.Append("X-Page-Number", pageNumber.ToString());

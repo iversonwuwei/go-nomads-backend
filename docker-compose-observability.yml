@@ -9,7 +9,7 @@ services:
   # OTLP HTTP: localhost:4318
   # ============================================================
   jaeger:
-    image: jaegertracing/all-in-one:1.54
+    image: jaegertracing/all-in-one:latest
     container_name: go-nomads-jaeger
     environment:
       - COLLECTOR_ZIPKIN_HOST_PORT=:9411
