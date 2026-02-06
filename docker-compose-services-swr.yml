@@ -123,6 +123,9 @@ services:
       - Consul__ServicePort=8080
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=userservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
+      # 阿里云短信服务 - 通过环境变量注入密钥，请勿明文写入配置文件
+      - AliyunSms__AccessKeyId=${ALIYUN_SMS_ACCESS_KEY_ID}
+      - AliyunSms__AccessKeySecret=${ALIYUN_SMS_ACCESS_KEY_SECRET}
     networks:
       - go-nomads-network
     depends_on:
