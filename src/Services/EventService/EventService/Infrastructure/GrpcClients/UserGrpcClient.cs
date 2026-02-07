@@ -1,23 +1,22 @@
-using Dapr.Client;
+using System.Net.Http.Json;
 using EventService.Application.DTOs;
 using GoNomads.Shared.Models;
 
 namespace EventService.Infrastructure.GrpcClients;
 
 /// <summary>
-///     User Service gRPC 客户端实现（通过 Dapr）
+///     User Service gRPC 客户端实现（通过 HttpClient）
 /// </summary>
 public class UserGrpcClient : IUserGrpcClient
 {
-    private const string UserServiceAppId = "user-service";
     private const string UserBatchEndpoint = "api/v1/users/batch";
     private const int BatchSize = 50;
-    private readonly DaprClient _daprClient;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<UserGrpcClient> _logger;
 
-    public UserGrpcClient(DaprClient daprClient, ILogger<UserGrpcClient> logger)
+    public UserGrpcClient(HttpClient httpClient, ILogger<UserGrpcClient> logger)
     {
-        _daprClient = daprClient;
+        _httpClient = httpClient;
         _logger = logger;
     }
 
@@ -54,12 +53,9 @@ public class UserGrpcClient : IUserGrpcClient
             var payload = new BatchUserIdsRequest(batch.Select(id => id.ToString()).ToList());
             try
             {
-                var response = await _daprClient.InvokeMethodAsync<BatchUserIdsRequest, ApiResponse<List<UserDto>>>(
-                    HttpMethod.Post,
-                    UserServiceAppId,
-                    UserBatchEndpoint,
-                    payload,
-                    cancellationToken);
+                var httpResp = await _httpClient.PostAsJsonAsync(UserBatchEndpoint, payload, cancellationToken);
+                httpResp.EnsureSuccessStatusCode();
+                var response = await httpResp.Content.ReadFromJsonAsync<ApiResponse<List<UserDto>>>(cancellationToken);
 
                 if (response?.Success == true && response.Data != null)
                 {
@@ -111,12 +107,9 @@ public class UserGrpcClient : IUserGrpcClient
             var payload = new BatchUserIdsRequest(batch.Select(id => id.ToString()).ToList());
             try
             {
-                var response = await _daprClient.InvokeMethodAsync<BatchUserIdsRequest, ApiResponse<List<UserDto>>>(
-                    HttpMethod.Post,
-                    UserServiceAppId,
-                    UserBatchEndpoint,
-                    payload,
-                    cancellationToken);
+                var httpResp = await _httpClient.PostAsJsonAsync(UserBatchEndpoint, payload, cancellationToken);
+                httpResp.EnsureSuccessStatusCode();
+                var response = await httpResp.Content.ReadFromJsonAsync<ApiResponse<List<UserDto>>>(cancellationToken);
 
                 if (response?.Success == true && response.Data != null)
                 {

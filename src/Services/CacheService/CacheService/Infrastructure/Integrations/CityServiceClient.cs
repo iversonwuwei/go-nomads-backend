@@ -1,20 +1,19 @@
+using System.Net.Http.Json;
 using System.Text.Json;
-using Dapr.Client;
 
 namespace CacheService.Infrastructure.Integrations;
 
 /// <summary>
-/// CityService 客户端实现 (通过 Dapr Service Invocation)
+/// CityService 客户端实现 (通过 HttpClient)
 /// </summary>
 public class CityServiceClient : ICityServiceClient
 {
-    private readonly DaprClient _daprClient;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<CityServiceClient> _logger;
-    private const string CityServiceAppId = "city-service";
 
-    public CityServiceClient(DaprClient daprClient, ILogger<CityServiceClient> logger)
+    public CityServiceClient(HttpClient httpClient, ILogger<CityServiceClient> logger)
     {
-        _daprClient = daprClient;
+        _httpClient = httpClient;
         _logger = logger;
     }
 
@@ -23,11 +22,9 @@ public class CityServiceClient : ICityServiceClient
         try
         {
             _logger.LogInformation("Calling CityService to calculate score for city {CityId}", cityId);
-            
+
             // 调用 CityService 的评分统计接口
-            var response = await _daprClient.InvokeMethodAsync<CityRatingStatsResponse>(
-                HttpMethod.Get,
-                CityServiceAppId,
+            var response = await _httpClient.GetFromJsonAsync<CityRatingStatsResponse>(
                 $"api/v1/cities/{cityId}/ratings/statistics"
             );
 
@@ -81,12 +78,9 @@ public class CityServiceClient : ICityServiceClient
         try
         {
             // 使用新的批量 API 端点（一次请求获取所有城市的评分统计）
-            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchCityRatingStatsResponse>(
-                HttpMethod.Post,
-                CityServiceAppId,
-                "api/v1/cities/ratings/statistics/batch",
-                cityIdList
-            );
+            var httpResp = await _httpClient.PostAsJsonAsync("api/v1/cities/ratings/statistics/batch", cityIdList);
+            httpResp.EnsureSuccessStatusCode();
+            var response = await httpResp.Content.ReadFromJsonAsync<BatchCityRatingStatsResponse>();
 
             if (response?.CityStatistics != null)
             {
@@ -143,9 +137,7 @@ public class CityServiceClient : ICityServiceClient
             _logger.LogInformation("Calling CityService to calculate cost for city {CityId}", cityId);
 
             // 调用 CityService 的费用统计接口
-            var response = await _daprClient.InvokeMethodAsync<CityCostStatsResponse>(
-                HttpMethod.Get,
-                CityServiceAppId,
+            var response = await _httpClient.GetFromJsonAsync<CityCostStatsResponse>(
                 $"api/v1/cities/{cityId}/expenses/statistics"
             );
 

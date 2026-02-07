@@ -1,31 +1,27 @@
 using System.Text;
-using Consul;
 using Gateway.Middleware;
 using Gateway.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
-using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
-using Yarp.ReverseProxy.Configuration;
-using RouteConfig = Yarp.ReverseProxy.Configuration.RouteConfig;
 
 const string serviceName = "gateway";
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================================
-// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// Aspire ServiceDefaults (OpenTelemetry + HealthChecks + ServiceDiscovery)
 // ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
+builder.AddServiceDefaults();
 
-// Add Consul client
-builder.Services.AddSingleton<IConsulClient>(sp =>
-{
-    var consulAddress = builder.Configuration["Consul:Address"] ?? "http://go-nomads-consul:7500";
-    return new ConsulClient(config => config.Address = new Uri(consulAddress));
-});
+// ============================================================
+// YARP 路由配置 (从 yarp.json 加载, Aspire 端点自动覆盖)
+// ============================================================
+builder.Configuration.AddJsonFile("yarp.json", optional: false, reloadOnChange: true);
+
+// 如果运行在 Aspire 编排下，使用 Aspire 注入的服务端点覆盖默认地址
+// Aspire 会通过环境变量注入 services:{name}:http:0 = http://localhost:XXXXX
+ResolveAspireServiceEndpoints(builder.Configuration);
 
 // Configure JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"];
@@ -89,11 +85,13 @@ builder.Services.AddAuthorization();
 // Configure Rate Limiting
 builder.Services.AddRateLimiter(RateLimitConfig.ConfigureRateLimiter);
 
-// Add YARP with Consul-based service discovery
-builder.Services.AddSingleton<IProxyConfigProvider, ConsulProxyConfigProvider>();
+// ============================================================
+// YARP 反向代理 (标准配置加载 + JWT 认证转换)
+// ============================================================
 builder.Services.AddSingleton<JwtAuthenticationTransform>();
 builder.Services.AddReverseProxy()
-    .LoadFromMemory(Array.Empty<RouteConfig>(), Array.Empty<ClusterConfig>())
+    .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
+    .AddServiceDiscoveryDestinationResolver()
     .AddTransforms<JwtAuthenticationTransform>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -124,14 +122,6 @@ app.MapScalarApiReference(options =>
 
 app.UseRouting();
 
-// ============================================================
-// OpenTelemetry 可观测性中间件
-// ============================================================
-app.UseGoNomadsTracing();
-
-// OpenTelemetry Prometheus 指标端点
-app.UseGoNomadsObservability();
-
 // Add Rate Limiting
 app.UseRateLimiter();
 
@@ -150,13 +140,52 @@ app.UseJwtAuthenticationInterceptor();
 // Map controllers BEFORE reverse proxy (so /api/test/* routes are handled first)
 app.MapControllers();
 
-// Add health check endpoint
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+// Aspire 默认端点 (健康检查 /health + /alive)
+app.MapDefaultEndpoints();
 
 // Map the reverse proxy routes (this should be LAST as it's a catch-all)
 app.MapReverseProxy();
 
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
-
 app.Run();
+
+// =============================================================================
+// Aspire 服务端点解析
+// 当运行在 Aspire 编排下时，自动将 YARP 集群目标地址替换为 Aspire 注入的端点
+// 这样 yarp.json 中的默认地址（Docker/K8s 环境）会被 Aspire 动态端口覆盖
+// =============================================================================
+static void ResolveAspireServiceEndpoints(ConfigurationManager configuration)
+{
+    string[] serviceNames =
+    [
+        "user-service",
+        "city-service",
+        "coworking-service",
+        "event-service",
+        "ai-service",
+        "cache-service",
+        "message-service",
+        "innovation-service",
+        "search-service",
+        "accommodation-service",
+        "product-service"
+    ];
+
+    var overrides = new Dictionary<string, string?>();
+
+    foreach (var name in serviceNames)
+    {
+        // Aspire 通过环境变量注入: services:{name}:http:0 = http://localhost:XXXXX
+        var aspireUrl = configuration[$"services:{name}:http:0"]
+                     ?? configuration[$"services:{name}:https:0"];
+
+        if (!string.IsNullOrEmpty(aspireUrl))
+        {
+            overrides[$"ReverseProxy:Clusters:{name}-cluster:Destinations:{name}:Address"] = aspireUrl;
+        }
+    }
+
+    if (overrides.Count > 0)
+    {
+        configuration.AddInMemoryCollection(overrides);
+    }
+}

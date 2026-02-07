@@ -1,5 +1,5 @@
+using System.Net.Http.Json;
 using System.Text.Json;
-using Dapr.Client;
 
 namespace UserService.Infrastructure.Services;
 
@@ -138,17 +138,16 @@ public class CityWeatherInfo
 }
 
 /// <summary>
-///     城市服务客户端实现 - 使用 Dapr Service Invocation
+///     城市服务客户端实现 - 使用 HttpClient
 /// </summary>
 public class CityServiceClient : ICityServiceClient
 {
-    private readonly DaprClient _daprClient;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<CityServiceClient> _logger;
-    private const string CityServiceAppId = "city-service";
 
-    public CityServiceClient(DaprClient daprClient, ILogger<CityServiceClient> logger)
+    public CityServiceClient(HttpClient httpClient, ILogger<CityServiceClient> logger)
     {
-        _daprClient = daprClient;
+        _httpClient = httpClient;
         _logger = logger;
     }
 
@@ -162,12 +161,9 @@ public class CityServiceClient : ICityServiceClient
                 "🔍 调用城市匹配 API: Lat={Lat}, Lng={Lng}, CityName={CityName}",
                 request.Latitude, request.Longitude, request.CityName);
 
-            var response = await _daprClient.InvokeMethodAsync<CityMatchRequest, ApiResponse<CityMatchResult>>(
-                HttpMethod.Post,
-                CityServiceAppId,
-                "api/v1/cities/match",
-                request,
-                cancellationToken);
+            var httpResp = await _httpClient.PostAsJsonAsync("api/v1/cities/match", request, cancellationToken);
+            httpResp.EnsureSuccessStatusCode();
+            var response = await httpResp.Content.ReadFromJsonAsync<ApiResponse<CityMatchResult>>(cancellationToken);
 
             if (response?.Success == true && response.Data != null)
             {
@@ -195,9 +191,7 @@ public class CityServiceClient : ICityServiceClient
         {
             _logger.LogInformation("🏙️ 获取城市详情: CityId={CityId}", cityId);
 
-            var response = await _daprClient.InvokeMethodAsync<ApiResponse<CityDetailDto>>(
-                HttpMethod.Get,
-                CityServiceAppId,
+            var response = await _httpClient.GetFromJsonAsync<ApiResponse<CityDetailDto>>(
                 $"api/v1/cities/{cityId}",
                 cancellationToken);
 
@@ -225,9 +219,7 @@ public class CityServiceClient : ICityServiceClient
         {
             _logger.LogInformation("🌤️ 获取城市天气: CityId={CityId}", cityId);
 
-            var response = await _daprClient.InvokeMethodAsync<ApiResponse<CityWeatherInfo>>(
-                HttpMethod.Get,
-                CityServiceAppId,
+            var response = await _httpClient.GetFromJsonAsync<ApiResponse<CityWeatherInfo>>(
                 $"api/v1/cities/{cityId}/weather",
                 cancellationToken);
 
@@ -256,9 +248,7 @@ public class CityServiceClient : ICityServiceClient
         {
             _logger.LogInformation("🏢 获取共享办公数量: CityId={CityId}", cityId);
 
-            var response = await _daprClient.InvokeMethodAsync<ApiResponse<CoworkingCountResponse>>(
-                HttpMethod.Get,
-                CityServiceAppId,
+            var response = await _httpClient.GetFromJsonAsync<ApiResponse<CoworkingCountResponse>>(
                 $"api/v1/cities/{cityId}/coworking-count",
                 cancellationToken);
 

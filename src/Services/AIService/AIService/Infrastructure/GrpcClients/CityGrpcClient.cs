@@ -1,19 +1,18 @@
-using Dapr.Client;
+using System.Net.Http.Json;
 
 namespace AIService.Infrastructure.GrpcClients;
 
 /// <summary>
-///     城市服务 gRPC 客户端实现 (通过 Dapr Service Invocation)
+///     城市服务 gRPC 客户端实现 (通过 HttpClient)
 /// </summary>
 public class CityGrpcClient : ICityGrpcClient
 {
-    private const string CityServiceName = "city-service";
-    private readonly DaprClient _daprClient;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<CityGrpcClient> _logger;
 
-    public CityGrpcClient(DaprClient daprClient, ILogger<CityGrpcClient> logger)
+    public CityGrpcClient(HttpClient httpClient, ILogger<CityGrpcClient> logger)
     {
-        _daprClient = daprClient;
+        _httpClient = httpClient;
         _logger = logger;
     }
 
@@ -47,9 +46,7 @@ public class CityGrpcClient : ICityGrpcClient
         {
             _logger.LogInformation("获取城市信息，城市ID: {CityId}", cityId);
 
-            var response = await _daprClient.InvokeMethodAsync<ApiResponse<CityDto>>(
-                HttpMethod.Get,
-                CityServiceName,
+            var response = await _httpClient.GetFromJsonAsync<ApiResponse<CityDto>>(
                 $"api/v1/cities/{cityId}"
             );
 

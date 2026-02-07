@@ -4,7 +4,6 @@ using CacheService.Domain.Repositories;
 using CacheService.Infrastructure.Integrations;
 using CacheService.Infrastructure.Repositories;
 using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using Serilog;
@@ -25,13 +24,13 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 // ============================================================
-// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
+// Aspire ServiceDefaults (OpenTelemetry + HealthChecks + ServiceDiscovery)
+// 替代原有的 AddGoNomadsObservability + AddGoNomadsLogging
 // ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
+builder.AddServiceDefaults();
 
 // Add services to the container
-builder.Services.AddControllers().AddDapr();
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi(options =>
 {
@@ -58,12 +57,9 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     return ConnectionMultiplexer.Connect(configuration);
 });
 
-// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync）
-var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
-});
+// 注册 Infrastructure 集成客户端 (typed HttpClient)
+builder.Services.AddServiceClient<ICityServiceClient, CityServiceClient>("city-service");
+builder.Services.AddServiceClient<ICoworkingServiceClient, CoworkingServiceClient>("coworking-service");
 
 // CORS
 builder.Services.AddCors(options =>
@@ -79,10 +75,6 @@ builder.Services.AddCors(options =>
 // 注册 Domain Repositories
 builder.Services.AddScoped<IScoreCacheRepository, RedisScoreCacheRepository>();
 builder.Services.AddScoped<ICostCacheRepository, RedisCostCacheRepository>();
-
-// 注册 Infrastructure 集成客户端
-builder.Services.AddScoped<ICityServiceClient, CityServiceClient>();
-builder.Services.AddScoped<ICoworkingServiceClient, CoworkingServiceClient>();
 
 // 注册 Application Services
 builder.Services.AddScoped<IScoreCacheService, ScoreCacheApplicationService>();
@@ -110,13 +102,9 @@ app.UseUserContext();
 
 app.MapControllers();
 
-// Health check endpoint
-app.MapGet("/health",
-    () => Results.Ok(new { status = "healthy", service = "CacheService", timestamp = DateTime.UtcNow }));
+// Aspire 默认端点 (健康检查 /health + /alive)
+app.MapDefaultEndpoints();
 
 Log.Information("Cache Service starting on port 8010...");
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 app.Run();

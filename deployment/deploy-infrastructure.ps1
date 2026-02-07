@@ -120,7 +120,6 @@ function Import-RedisConfig {
         "go-nomads:config:product-service:endpoint" = "http://go-nomads-product-service:8080"
         "go-nomads:config:user-service:endpoint" = "http://go-nomads-user-service:8080"
         "go-nomads:config:redis:endpoint" = "go-nomads-redis:6379"
-        "go-nomads:config:consul:endpoint" = "http://go-nomads-consul:8500"
         "go-nomads:config:zipkin:endpoint" = "http://go-nomads-zipkin:9411"
         "go-nomads:config:prometheus:endpoint" = "http://go-nomads-prometheus:9090"
         "go-nomads:config:grafana:endpoint" = "http://go-nomads-grafana:3000"
@@ -144,87 +143,6 @@ function Import-RedisConfig {
     }
     
     Write-Host "  Imported $importCount configuration items" -ForegroundColor Green
-}
-
-# Deploy Consul
-function Deploy-Consul {
-    Show-Header "Deploying Consul"
-    
-    Remove-ContainerIfExists "go-nomads-consul"
-    
-    # Create Consul config directory
-    $consulConfigDir = Join-Path $PSScriptRoot "consul"
-    if (-not (Test-Path $consulConfigDir)) {
-        New-Item -ItemType Directory -Path $consulConfigDir | Out-Null
-    }
-    
-    # Create Consul configuration
-    $consulConfig = @"
-{
-  "datacenter": "dc1",
-  "data_dir": "/consul/data",
-  "log_level": "INFO",
-  "server": true,
-  "ui_config": {
-    "enabled": true
-  },
-  "ports": {
-    "http": 8500,
-    "dns": 8600,
-    "grpc": 8502
-  },
-  "addresses": {
-    "http": "0.0.0.0",
-    "dns": "0.0.0.0",
-    "grpc": "0.0.0.0"
-  },
-  "client_addr": "0.0.0.0",
-  "bootstrap_expect": 1
-}
-"@
-    $consulConfig | Out-File -FilePath (Join-Path $consulConfigDir "consul-config.json") -Encoding utf8 -Force
-    
-    Write-Host "  Starting Consul container..." -ForegroundColor Yellow
-    & $CONTAINER_RUNTIME run -d `
-        --name go-nomads-consul `
-        --network $NETWORK_NAME `
-        -p 8500:8500 `
-        -p 8502:8502 `
-        -p 8600:8600/udp `
-        -e CONSUL_BIND_INTERFACE=eth0 `
-        consul:latest agent -server -ui -bootstrap-expect=1 '-client=0.0.0.0' | Out-Null
-    
-    if (Test-ContainerRunning "go-nomads-consul") {
-        Write-Host "  Consul deployed successfully!" -ForegroundColor Green
-        Wait-ForService "Consul" "http://localhost:8500/v1/status/leader" | Out-Null
-        Register-ConsulServices
-    } else {
-        Write-Host "  [ERROR] Failed to start Consul" -ForegroundColor Red
-        exit 1
-    }
-}
-
-# Register Services to Consul
-function Register-ConsulServices {
-    Write-Host "  Registering services to Consul..." -ForegroundColor Yellow
-    
-    $services = @(
-        @{name="gateway"; address="go-nomads-gateway"; port=8080},
-        @{name="product-service"; address="go-nomads-product-service"; port=8080},
-        @{name="user-service"; address="go-nomads-user-service"; port=8080}
-    )
-    
-    Start-Sleep -Seconds 3
-    
-    foreach ($svc in $services) {
-        & $CONTAINER_RUNTIME exec go-nomads-consul consul services register `
-            -name=$($svc.name) `
-            -address=$($svc.address) `
-            -port=$($svc.port) `
-            -tag=dapr 2>&1 | Out-Null
-    }
-    
-    Write-Host "  Registered $($services.Count) services to Consul" -ForegroundColor Green
 }
 
 # Deploy Zipkin
@@ -275,40 +193,6 @@ scrape_configs:
       - targets: ['localhost:9090']
         labels:
           service: 'prometheus'
-
-  # 完全依赖 Consul 自动服务发现 - 无需手动配置服务列表
-  - job_name: 'consul-services'
-    metrics_path: /metrics
-    consul_sd_configs:
-      - server: 'go-nomads-consul:8500'
-        # 不指定 services，自动发现所有已注册的服务
-    relabel_configs:
-      # 只抓取有 metrics_path 元数据的服务
-      - source_labels: [__meta_consul_service_metadata_metrics_path]
-        action: keep
-        regex: /.+
-      
-      # 使用自定义 metrics 路径（如果有）
-      - source_labels: [__meta_consul_service_metadata_metrics_path]
-        target_label: __metrics_path__
-        regex: (.+)
-        replacement: `$1
-      
-      # 服务名称标签
-      - source_labels: [__meta_consul_service]
-        target_label: service
-      
-      # 版本标签
-      - source_labels: [__meta_consul_service_metadata_version]
-        target_label: version
-      
-      # 协议标签
-      - source_labels: [__meta_consul_service_metadata_protocol]
-        target_label: protocol
-      
-      # 实例标签
-      - source_labels: [__address__]
-        target_label: instance
 
   - job_name: 'redis'
     static_configs:
@@ -470,14 +354,6 @@ function Show-Status {
     & $CONTAINER_RUNTIME ps --filter "name=go-nomads" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
     Write-Host ""
     
-    if (Test-ContainerRunning "go-nomads-consul") {
-        Write-Host "Consul Services:" -ForegroundColor Yellow
-        & $CONTAINER_RUNTIME exec go-nomads-consul consul catalog services 2>&1 | ForEach-Object {
-            Write-Host "  - $_" -ForegroundColor Cyan
-        }
-        Write-Host ""
-    }
-    
     if (Test-ContainerRunning "go-nomads-redis") {
         Write-Host "Redis Configuration:" -ForegroundColor Yellow
         $configCount = (& $CONTAINER_RUNTIME exec go-nomads-redis redis-cli KEYS "go-nomads:config:*" 2>&1 | Measure-Object).Count
@@ -487,7 +363,6 @@ function Show-Status {
     
     Write-Host "Access URLs:" -ForegroundColor Yellow
     Write-Host "  - Nginx:        http://localhost" -ForegroundColor Cyan
-    Write-Host "  - Consul UI:    http://localhost:8500" -ForegroundColor Cyan
     Write-Host "  - Prometheus:   http://localhost:9090" -ForegroundColor Cyan
     Write-Host "  - Grafana:      http://localhost:3000 (admin/admin)" -ForegroundColor Cyan
     Write-Host "  - Zipkin:       http://localhost:9411" -ForegroundColor Cyan
@@ -506,7 +381,6 @@ function Stop-Infrastructure {
         "go-nomads-grafana",
         "go-nomads-prometheus",
         "go-nomads-zipkin",
-        "go-nomads-consul",
         "go-nomads-rabbitmq",
         "go-nomads-redis",
         "go-nomads-postgres",
@@ -533,7 +407,6 @@ function Clean-Infrastructure {
         "go-nomads-grafana",
         "go-nomads-prometheus",
         "go-nomads-zipkin",
-        "go-nomads-consul",
         "go-nomads-rabbitmq",
         "go-nomads-redis",
         "go-nomads-postgres",
@@ -548,12 +421,8 @@ function Clean-Infrastructure {
     & $CONTAINER_RUNTIME network rm $NETWORK_NAME 2>&1 | Out-Null
     
     Write-Host "  Removing configuration directories..." -ForegroundColor Yellow
-    $consulDir = Join-Path $PSScriptRoot "consul"
     $prometheusDir = Join-Path $PSScriptRoot "prometheus"
     
-    if (Test-Path $consulDir) {
-        Remove-Item -Path $consulDir -Recurse -Force
-    }
     if (Test-Path $prometheusDir) {
         Remove-Item -Path $prometheusDir -Recurse -Force
     }
@@ -580,7 +449,6 @@ function Show-Help {
     Write-Host ""
     Write-Host "Infrastructure Components:" -ForegroundColor Yellow
     Write-Host "  - Redis (Configuration & State Store)" -ForegroundColor White
-    Write-Host "  - Consul (Service Registry)" -ForegroundColor White
     Write-Host "  - Zipkin (Distributed Tracing)" -ForegroundColor White
     Write-Host "  - Prometheus (Metrics Collection)" -ForegroundColor White
     Write-Host "  - Grafana (Metrics Visualization)" -ForegroundColor White
@@ -598,7 +466,6 @@ switch ($Action) {
         Initialize-Network
         Deploy-Redis
         Deploy-RabbitMQ
-        Deploy-Consul
         Deploy-Zipkin
         Deploy-Prometheus
         Deploy-Grafana

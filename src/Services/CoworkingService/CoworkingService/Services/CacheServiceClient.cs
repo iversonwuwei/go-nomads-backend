@@ -1,4 +1,4 @@
-using Dapr.Client;
+using System.Net.Http.Json;
 
 namespace CoworkingService.Services;
 
@@ -14,22 +14,19 @@ public interface ICacheServiceClient
 }
 
 /// <summary>
-/// CacheService 客户端实现 - 通过 Dapr Service Invocation 调用
+/// CacheService 客户端实现 - 通过 HttpClient 调用
 /// </summary>
 public class CacheServiceClient : ICacheServiceClient
 {
-    private readonly DaprClient _daprClient;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<CacheServiceClient> _logger;
-    private readonly string _cacheServiceAppId;
 
     public CacheServiceClient(
-        DaprClient daprClient,
-        IConfiguration configuration,
+        HttpClient httpClient,
         ILogger<CacheServiceClient> logger)
     {
-        _daprClient = daprClient;
+        _httpClient = httpClient;
         _logger = logger;
-        _cacheServiceAppId = configuration["Dapr:CacheServiceAppId"] ?? "cache-service";
     }
 
     public async Task UpdateCoworkingScoreCacheAsync(Guid coworkingId, double averageRating, int reviewCount)
@@ -45,12 +42,10 @@ public class CacheServiceClient : ICacheServiceClient
                 Statistics = $"{{\"reviewCount\":{reviewCount},\"averageRating\":{averageRating}}}"
             };
 
-            await _daprClient.InvokeMethodAsync(
-                HttpMethod.Put,
-                _cacheServiceAppId,
+            (await _httpClient.PutAsJsonAsync(
                 $"api/v1/cache/scores/coworking/{coworkingId}",
                 request
-            );
+            )).EnsureSuccessStatusCode();
 
             _logger.LogInformation("✅ Coworking {CoworkingId} 评分缓存更新成功", coworkingId);
         }

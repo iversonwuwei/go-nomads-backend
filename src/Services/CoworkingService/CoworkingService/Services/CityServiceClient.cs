@@ -1,5 +1,5 @@
+using System.Net.Http.Json;
 using System.Text.Json;
-using Dapr.Client;
 
 namespace CoworkingService.Services;
 
@@ -16,7 +16,7 @@ public class CityInfoDto
 }
 
 /// <summary>
-///     CityService 客户端接口 - 通过 Dapr Service Invocation 调用
+///     CityService 客户端接口 - 通过 HttpClient 调用
 /// </summary>
 public interface ICityServiceClient
 {
@@ -33,23 +33,19 @@ public interface ICityServiceClient
 }
 
 /// <summary>
-///     CityService 客户端实现 - 通过 Dapr Service Invocation 调用
+///     CityService 客户端实现 - 通过 HttpClient 调用
 /// </summary>
 public class CityServiceClient : ICityServiceClient
 {
-    private readonly DaprClient _daprClient;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<CityServiceClient> _logger;
-    private readonly string _cityServiceAppId;
 
     public CityServiceClient(
-        DaprClient daprClient,
-        IConfiguration configuration,
+        HttpClient httpClient,
         ILogger<CityServiceClient> logger)
     {
-        _daprClient = daprClient;
+        _httpClient = httpClient;
         _logger = logger;
-        // Dapr app-id 从配置读取,默认为 "city-service"
-        _cityServiceAppId = configuration["Dapr:CityServiceAppId"] ?? "city-service";
     }
 
     /// <summary>
@@ -64,14 +60,11 @@ public class CityServiceClient : ICityServiceClient
 
         try
         {
-            _logger.LogDebug("📞 通过 Dapr 调用 CityService - GET /api/v1/cities/{CityId}", cityId);
+            _logger.LogDebug("📞 调用 CityService - GET /api/v1/cities/{CityId}", cityId);
 
-            // 使用 Dapr Service Invocation 调用 CityService
-            var response = await _daprClient.InvokeMethodAsync<JsonElement>(
-                HttpMethod.Get,
-                _cityServiceAppId,
-                $"api/v1/cities/{cityId}",
-                cancellationToken);
+            var httpResp = await _httpClient.GetAsync($"api/v1/cities/{cityId}", cancellationToken);
+            httpResp.EnsureSuccessStatusCode();
+            var response = await httpResp.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
 
             // 手动解析 JSON 响应
             if (response.ValueKind == JsonValueKind.Object)
@@ -137,14 +130,10 @@ public class CityServiceClient : ICityServiceClient
                 return result;
             }
 
-            // 使用批量 API 一次获取所有城市信息
             var requestBody = new { CityIds = cityGuids };
-            var response = await _daprClient.InvokeMethodAsync<object, JsonElement>(
-                HttpMethod.Post,
-                _cityServiceAppId,
-                "api/v1/cities/lookup",
-                requestBody,
-                cancellationToken);
+            var httpResp = await _httpClient.PostAsJsonAsync("api/v1/cities/lookup", requestBody, cancellationToken);
+            httpResp.EnsureSuccessStatusCode();
+            var response = await httpResp.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
 
             // 解析响应
             if (response.ValueKind == JsonValueKind.Object)

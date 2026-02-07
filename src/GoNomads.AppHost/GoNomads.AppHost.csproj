@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Sdk Name="Aspire.AppHost.Sdk" Version="9.2.1" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>go-nomads-apphost</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Aspire Hosting 基础设施集成 -->
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="9.2.1" />
+    <PackageReference Include="Aspire.Hosting.Redis" Version="9.2.1" />
+    <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="9.2.1" />
+    <PackageReference Include="Aspire.Hosting.Elasticsearch" Version="9.4.1" />
+    <!-- YARP 集成通过 Gateway 项目内部的 Microsoft.Extensions.ServiceDiscovery.Yarp 实现 -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 所有微服务项目引用 -->
+    <ProjectReference Include="..\Gateway\Gateway\Gateway.csproj" />
+    <ProjectReference Include="..\Services\UserService\UserService\UserService.csproj" />
+    <ProjectReference Include="..\Services\CityService\CityService\CityService.csproj" />
+    <ProjectReference Include="..\Services\ProductService\ProductService\ProductService.csproj" />
+    <ProjectReference Include="..\Services\DocumentService\DocumentService\DocumentService.csproj" />
+    <ProjectReference Include="..\Services\CoworkingService\CoworkingService\CoworkingService.csproj" />
+    <ProjectReference Include="..\Services\AccommodationService\AccommodationService\AccommodationService.csproj" />
+    <ProjectReference Include="..\Services\EventService\EventService\EventService.csproj" />
+    <ProjectReference Include="..\Services\InnovationService\InnovationService\InnovationService.csproj" />
+    <ProjectReference Include="..\Services\AIService\AIService\AIService.csproj" />
+    <ProjectReference Include="..\Services\SearchService\SearchService\SearchService.csproj" />
+    <ProjectReference Include="..\Services\MessageService\MessageService\API\MessageService.csproj" />
+    <ProjectReference Include="..\Services\CacheService\CacheService\CacheService.csproj" />
+  </ItemGroup>
+
+</Project>

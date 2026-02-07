@@ -1,6 +1,5 @@
 using System.Text;
 using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
 using GoNomads.Shared.Security;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -19,8 +18,22 @@ var builder = WebApplication.CreateBuilder(args);
 // ============================================================
 // OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
 // ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
+builder.AddServiceDefaults();
+
+// 注册 IDistributedCache（Redis 或内存后备）
+var redisConn = builder.Configuration.GetConnectionString("redis");
+if (!string.IsNullOrEmpty(redisConn))
+{
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = redisConn;
+        options.InstanceName = "user-service:";
+    });
+}
+else
+{
+    builder.Services.AddDistributedMemoryCache();
+}
 
 // 添加 Supabase 客户端（使用 Shared 扩展方法）
 builder.Services.AddSupabase(builder.Configuration);
@@ -69,7 +82,12 @@ builder.Services.AddScoped<ITravelHistoryService, TravelHistoryService>();
 builder.Services.AddScoped<IVisitedPlaceService, VisitedPlaceService>();
 
 // Register Service Clients (for inter-service communication)
-builder.Services.AddScoped<ICityServiceClient, CityServiceClient>();
+builder.Services.AddServiceClient<ICityServiceClient, CityServiceClient>("city-service");
+
+// Named HttpClient for controllers using IHttpClientFactory
+builder.Services.AddServiceClient("city-service");
+builder.Services.AddServiceClient("product-service");
+builder.Services.AddServiceClient("event-service");
 
 // 配置 MassTransit + RabbitMQ（用于发布用户更新事件）
 builder.Services.AddMassTransit(x =>
@@ -85,24 +103,12 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
-// 配置 DaprClient 连接到 Dapr sidecar
-// Dapr sidecar 与应用共享网络命名空间，通过 localhost 访问
-// 方案A: 使用 HTTP 端点 - 原生支持 DaprClient.InvokeMethodAsync，访问控制策略自动生效
-// 
-// Dapr 配置 - 使用 HTTP 端点
-var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
-});
-
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-    })
-    .AddDapr();
+    });
 
 // 添加 JWT 认证
 var jwtSettings = builder.Configuration.GetSection("Jwt");
@@ -154,23 +160,13 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// ============================================================
-// OpenTelemetry 可观测性中间件
-// ============================================================
-app.UseGoNomadsTracing();
-app.UseGoNomadsObservability();
-
 // 使用用户上下文中间件 - 从 Gateway 传递的请求头中提取用户信息
 app.UseUserContext();
 
 // Map controllers
 app.MapControllers();
 
-// Add health check endpoint
-app.MapGet("/health",
-    () => Results.Ok(new { status = "healthy", service = "UserService", timestamp = DateTime.UtcNow }));
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
+// Aspire 默认端点 (健康检查 /health + /alive)
+app.MapDefaultEndpoints();
 
 app.Run();

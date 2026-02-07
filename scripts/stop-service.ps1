@@ -3,10 +3,7 @@ param(
     [string]$ServiceName,
 
     [Parameter(Mandatory = $false)]
-    [string]$AppId = $ServiceName,
-
-    [Parameter(Mandatory = $true)]
-    [string]$ImageName
+    [string]$ImageName = ""
 )
 
 Write-Host "Stopping service container: $ServiceName" -ForegroundColor Cyan
@@ -25,20 +22,13 @@ catch {
     Write-Host "⚠️ Failed to stop/remove container: $_" -ForegroundColor Yellow
 }
 
-Write-Host "Stopping Dapr app: $AppId" -ForegroundColor Cyan
-try {
-    dapr stop --app-id $AppId | Out-Null
-    Write-Host "✅ Dapr app stopped (if it was running)" -ForegroundColor Green
-}
-catch {
-    Write-Host "⚠️ Failed to stop Dapr app: $_" -ForegroundColor Yellow
-}
-
-Write-Host "Removing image: $ImageName" -ForegroundColor Cyan
-try {
-    docker image rm -f $ImageName | Out-Null
-    Write-Host "✅ Image removed: $ImageName" -ForegroundColor Green
-}
-catch {
-    Write-Host "⚠️ Failed to remove image: $_" -ForegroundColor Yellow
+if ($ImageName) {
+    Write-Host "Removing image: $ImageName" -ForegroundColor Cyan
+    try {
+        docker image rm -f $ImageName | Out-Null
+        Write-Host "✅ Image removed: $ImageName" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "⚠️ Failed to remove image: $_" -ForegroundColor Yellow
+    }
 }

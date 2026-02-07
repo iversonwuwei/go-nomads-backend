@@ -5,6 +5,19 @@ $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ROOT_DIR = Split-Path -Parent $SCRIPT_DIR
 $NETWORK_NAME = "go-nomads-network"
 
+# ============================================================
+# 基础设施连接配置（Docker 容器名称）
+# ============================================================
+$REDIS_HOST = "go-nomads-redis"
+$REDIS_PORT = "6379"
+$RABBITMQ_HOST = "go-nomads-rabbitmq"
+$RABBITMQ_USER = "walden"
+$RABBITMQ_PASS = "walden"
+$ELASTICSEARCH_URL = "http://go-nomads-elasticsearch:9200"
+
+# 服务发现辅助函数
+function SvcUrl([string]$name) { return "http://go-nomads-${name}:8080" }
+
 # 获取容器运行时
 function Get-Runtime {
     if (Get-Command podman -EA SilentlyContinue) {
@@ -87,7 +100,7 @@ Write-Host "  .NET SDK: $dotnetVersion" -ForegroundColor Green
 Ensure-Network
 
 # 检查前置服务
-$required = @("go-nomads-redis", "go-nomads-consul")
+$required = @("go-nomads-redis")
 foreach ($svc in $required) {
     $running = & $RUNTIME ps --filter "name=$svc" --filter "status=running" --format '{{.Names}}' 2>$null
     if ($running -ne $svc) {
@@ -110,19 +123,19 @@ Write-Host "  前置条件检查完成" -ForegroundColor Green
 Write-Host ""
 
 $services = @(
-    @{Name="gateway"; Port=5080; DaprPort=3500; AppId="gateway"; Path="src/Gateway/Gateway"; Dll="Gateway.dll"; Container="go-nomads-gateway"},
-    @{Name="product-service"; Port=5002; DaprPort=3501; AppId="product-service"; Path="src/Services/ProductService/ProductService"; Dll="ProductService.dll"; Container="go-nomads-product-service"},
-    @{Name="user-service"; Port=5001; DaprPort=3502; AppId="user-service"; Path="src/Services/UserService/UserService"; Dll="UserService.dll"; Container="go-nomads-user-service"},
-    @{Name="document-service"; Port=5003; DaprPort=3503; AppId="document-service"; Path="src/Services/DocumentService/DocumentService"; Dll="DocumentService.dll"; Container="go-nomads-document-service"},
-    @{Name="city-service"; Port=8002; DaprPort=3504; AppId="city-service"; Path="src/Services/CityService/CityService"; Dll="CityService.dll"; Container="go-nomads-city-service"},
-    @{Name="event-service"; Port=8005; DaprPort=3505; AppId="event-service"; Path="src/Services/EventService/EventService"; Dll="EventService.dll"; Container="go-nomads-event-service"},
-    @{Name="coworking-service"; Port=8006; DaprPort=3506; AppId="coworking-service"; Path="src/Services/CoworkingService/CoworkingService"; Dll="CoworkingService.dll"; Container="go-nomads-coworking-service"},
-    @{Name="ai-service"; Port=8009; DaprPort=3509; AppId="ai-service"; Path="src/Services/AIService/AIService"; Dll="AIService.dll"; Container="go-nomads-ai-service"},
-    @{Name="cache-service"; Port=8010; DaprPort=3512; AppId="cache-service"; Path="src/Services/CacheService/CacheService"; Dll="CacheService.dll"; Container="go-nomads-cache-service"},
-    @{Name="message-service"; Port=5005; DaprPort=3511; AppId="message-service"; Path="src/Services/MessageService/MessageService/API"; Dll="MessageService.dll"; Container="go-nomads-message-service"},
-    @{Name="accommodation-service"; Port=8012; DaprPort=3513; AppId="accommodation-service"; Path="src/Services/AccommodationService/AccommodationService"; Dll="AccommodationService.dll"; Container="go-nomads-accommodation-service"},
-    @{Name="innovation-service"; Port=8011; DaprPort=3514; AppId="innovation-service"; Path="src/Services/InnovationService/InnovationService"; Dll="InnovationService.dll"; Container="go-nomads-innovation-service"},
-    @{Name="search-service"; Port=8015; DaprPort=3517; AppId="search-service"; Path="src/Services/SearchService/SearchService"; Dll="SearchService.dll"; Container="go-nomads-search-service"}
+    @{Name="gateway"; Port=5080; Path="src/Gateway/Gateway"; Dll="Gateway.dll"; Container="go-nomads-gateway"},
+    @{Name="product-service"; Port=5002; Path="src/Services/ProductService/ProductService"; Dll="ProductService.dll"; Container="go-nomads-product-service"},
+    @{Name="user-service"; Port=5001; Path="src/Services/UserService/UserService"; Dll="UserService.dll"; Container="go-nomads-user-service"},
+    @{Name="document-service"; Port=5003; Path="src/Services/DocumentService/DocumentService"; Dll="DocumentService.dll"; Container="go-nomads-document-service"},
+    @{Name="city-service"; Port=8002; Path="src/Services/CityService/CityService"; Dll="CityService.dll"; Container="go-nomads-city-service"},
+    @{Name="event-service"; Port=8005; Path="src/Services/EventService/EventService"; Dll="EventService.dll"; Container="go-nomads-event-service"},
+    @{Name="coworking-service"; Port=8006; Path="src/Services/CoworkingService/CoworkingService"; Dll="CoworkingService.dll"; Container="go-nomads-coworking-service"},
+    @{Name="ai-service"; Port=8009; Path="src/Services/AIService/AIService"; Dll="AIService.dll"; Container="go-nomads-ai-service"},
+    @{Name="cache-service"; Port=8010; Path="src/Services/CacheService/CacheService"; Dll="CacheService.dll"; Container="go-nomads-cache-service"},
+    @{Name="message-service"; Port=5005; Path="src/Services/MessageService/MessageService/API"; Dll="MessageService.dll"; Container="go-nomads-message-service"},
+    @{Name="accommodation-service"; Port=8012; Path="src/Services/AccommodationService/AccommodationService"; Dll="AccommodationService.dll"; Container="go-nomads-accommodation-service"},
+    @{Name="innovation-service"; Port=8011; Path="src/Services/InnovationService/InnovationService"; Dll="InnovationService.dll"; Container="go-nomads-innovation-service"},
+    @{Name="search-service"; Port=8015; Path="src/Services/SearchService/SearchService"; Dll="SearchService.dll"; Container="go-nomads-search-service"}
 )
 
 if (-not $SkipBuild) {
@@ -158,14 +171,6 @@ foreach ($oldName in $oldContainers) {
         Write-Host "  停止并移除容器: $oldName" -ForegroundColor Yellow
         & $RUNTIME stop $oldName 2>$null | Out-Null
         & $RUNTIME rm $oldName 2>$null | Out-Null
-        
-        # 同时删除对应的 Dapr sidecar
-        $daprName = "$oldName-dapr"
-        $daprExists = & $RUNTIME ps -a --filter "name=^${daprName}$" --format '{{.Names}}' 2>$null
-        if ($daprExists) {
-            & $RUNTIME stop $daprName 2>$null | Out-Null
-            & $RUNTIME rm $daprName 2>$null | Out-Null
-        }
     }
 }
 
@@ -180,19 +185,13 @@ Write-Host ""
 
 foreach ($svc in $services) {
     $container = $svc.Container
-    $dapr = "$container-dapr"
     
     Write-Host "`n------------------------------------------------------------" -ForegroundColor Cyan
     Write-Host "部署 $($svc.Name)" -ForegroundColor Cyan
     Write-Host "------------------------------------------------------------" -ForegroundColor Cyan
     
-    # Remove existing containers if they exist
+    # Remove existing container if it exists
     $existing = & $RUNTIME ps -a --format '{{.Names}}' 2>$null
-    if ($existing -match $dapr) { 
-        Write-Host "  移除旧 Dapr sidecar..." -ForegroundColor Yellow
-        & $RUNTIME stop $dapr 2>&1 | Out-Null
-        & $RUNTIME rm -f $dapr 2>&1 | Out-Null 
-    }
     if ($existing -match $container) { 
         Write-Host "  移除旧容器..." -ForegroundColor Yellow
         & $RUNTIME stop $container 2>&1 | Out-Null
@@ -205,112 +204,190 @@ foreach ($svc in $services) {
         exit 1
     }
     
-    # Gateway 使用生产配置（不设置 Development 环境）以使用容器化 Consul 地址
+    # Gateway 使用生产配置
     # 其他服务继续使用 Development 环境
     $aspnetEnv = if ($svc.Name -eq "gateway") { "Production" } else { "Development" }
     
-    # 额外的环境变量（针对特定服务）
+    # 额外的环境变量（基础设施连接 + 服务发现）
     $extraEnvArgs = @()
+
+    # --- Gateway: 需要所有服务的服务发现地址 ---
+    if ($svc.Name -eq "gateway") {
+        $extraEnvArgs = @(
+            "-e", "services__user-service__http__0=$(SvcUrl 'user-service')",
+            "-e", "services__city-service__http__0=$(SvcUrl 'city-service')",
+            "-e", "services__product-service__http__0=$(SvcUrl 'product-service')",
+            "-e", "services__document-service__http__0=$(SvcUrl 'document-service')",
+            "-e", "services__coworking-service__http__0=$(SvcUrl 'coworking-service')",
+            "-e", "services__accommodation-service__http__0=$(SvcUrl 'accommodation-service')",
+            "-e", "services__event-service__http__0=$(SvcUrl 'event-service')",
+            "-e", "services__innovation-service__http__0=$(SvcUrl 'innovation-service')",
+            "-e", "services__ai-service__http__0=$(SvcUrl 'ai-service')",
+            "-e", "services__search-service__http__0=$(SvcUrl 'search-service')",
+            "-e", "services__cache-service__http__0=$(SvcUrl 'cache-service')",
+            "-e", "services__message-service__http__0=$(SvcUrl 'message-service')"
+        )
+    }
+
+    # --- User Service: Redis + RabbitMQ + 服务发现 ---
+    if ($svc.Name -eq "user-service") {
+        $extraEnvArgs = @(
+            "-e", "ConnectionStrings__redis=${REDIS_HOST}:${REDIS_PORT}",
+            "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
+            "-e", "RabbitMQ__Username=$RABBITMQ_USER",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "services__city-service__http__0=$(SvcUrl 'city-service')",
+            "-e", "services__product-service__http__0=$(SvcUrl 'product-service')",
+            "-e", "services__event-service__http__0=$(SvcUrl 'event-service')"
+        )
+    }
+
+    # --- City Service: RabbitMQ + 服务发现 ---
+    if ($svc.Name -eq "city-service") {
+        $extraEnvArgs = @(
+            "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
+            "-e", "RabbitMQ__Username=$RABBITMQ_USER",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "services__user-service__http__0=$(SvcUrl 'user-service')",
+            "-e", "services__cache-service__http__0=$(SvcUrl 'cache-service')",
+            "-e", "services__coworking-service__http__0=$(SvcUrl 'coworking-service')",
+            "-e", "services__event-service__http__0=$(SvcUrl 'event-service')",
+            "-e", "services__message-service__http__0=$(SvcUrl 'message-service')",
+            "-e", "services__ai-service__http__0=$(SvcUrl 'ai-service')"
+        )
+    }
+
+    # --- Product Service: 服务发现 ---
+    if ($svc.Name -eq "product-service") {
+        $extraEnvArgs = @(
+            "-e", "services__user-service__http__0=$(SvcUrl 'user-service')"
+        )
+    }
+
+    # --- Document Service: 服务配置 + 服务发现 ---
     if ($svc.Name -eq "document-service") {
         $extraEnvArgs = @(
-            "-e", "Services__Gateway__Url=http://go-nomads-gateway:8080",
-            "-e", "Services__Gateway__OpenApiUrl=http://go-nomads-gateway:8080/openapi/v1.json",
+            "-e", "Services__Gateway__Url=http://go-nomads-gateway:5000",
+            "-e", "Services__Gateway__OpenApiUrl=http://go-nomads-gateway:5000/openapi/v1.json",
             "-e", "Services__ProductService__Url=http://go-nomads-product-service:8080",
             "-e", "Services__ProductService__OpenApiUrl=http://go-nomads-product-service:8080/openapi/v1.json",
             "-e", "Services__UserService__Url=http://go-nomads-user-service:8080",
-            "-e", "Services__UserService__OpenApiUrl=http://go-nomads-user-service:8080/openapi/v1.json"
+            "-e", "Services__UserService__OpenApiUrl=http://go-nomads-user-service:8080/openapi/v1.json",
+            "-e", "services__product-service__http__0=$(SvcUrl 'product-service')"
         )
     }
 
-    # city-service 需要 RabbitMQ 和 Elasticsearch 配置
-    if ($svc.Name -eq "city-service") {
+    # --- Coworking Service: RabbitMQ + 服务发现 ---
+    if ($svc.Name -eq "coworking-service") {
         $extraEnvArgs = @(
-            "-e", "ConnectionStrings__Elasticsearch=http://go-nomads-elasticsearch:9200",
-            "-e", "RabbitMQ__Host=go-nomads-rabbitmq",
-            "-e", "RabbitMQ__Username=walden",
-            "-e", "RabbitMQ__Password=walden"
+            "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
+            "-e", "RabbitMQ__Username=$RABBITMQ_USER",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "services__cache-service__http__0=$(SvcUrl 'cache-service')",
+            "-e", "services__user-service__http__0=$(SvcUrl 'user-service')",
+            "-e", "services__city-service__http__0=$(SvcUrl 'city-service')"
         )
     }
-    
-    # message-service 需要指定 ServiceAddress 和 RabbitMQ 配置
+
+    # --- Event Service: RabbitMQ + 服务发现 ---
+    if ($svc.Name -eq "event-service") {
+        $extraEnvArgs = @(
+            "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
+            "-e", "RabbitMQ__Username=$RABBITMQ_USER",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "services__city-service__http__0=$(SvcUrl 'city-service')",
+            "-e", "services__user-service__http__0=$(SvcUrl 'user-service')",
+            "-e", "services__message-service__http__0=$(SvcUrl 'message-service')"
+        )
+    }
+
+    # --- AI Service: Redis + RabbitMQ (注意: key 名不同!) + 服务发现 ---
+    if ($svc.Name -eq "ai-service") {
+        $extraEnvArgs = @(
+            "-e", "Redis__ConnectionString=${REDIS_HOST}:${REDIS_PORT}",
+            "-e", "RabbitMQ__HostName=$RABBITMQ_HOST",
+            "-e", "RabbitMQ__UserName=$RABBITMQ_USER",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "services__user-service__http__0=$(SvcUrl 'user-service')",
+            "-e", "services__city-service__http__0=$(SvcUrl 'city-service')"
+        )
+    }
+
+    # --- Cache Service: Redis + 服务发现 ---
+    if ($svc.Name -eq "cache-service") {
+        $extraEnvArgs = @(
+            "-e", "ConnectionStrings__Redis=${REDIS_HOST}:${REDIS_PORT}",
+            "-e", "services__city-service__http__0=$(SvcUrl 'city-service')",
+            "-e", "services__coworking-service__http__0=$(SvcUrl 'coworking-service')"
+        )
+    }
+
+    # --- Message Service: Redis + RabbitMQ + 服务发现 ---
     if ($svc.Name -eq "message-service") {
         $extraEnvArgs = @(
-            "-e", "Consul__ServiceAddress=go-nomads-$($svc.Name)",
-            "-e", "Consul__ServicePort=8080",
-            "-e", "RabbitMQ__HostName=go-nomads-rabbitmq",
-            "-e", "RabbitMQ__Port=5672",
-            "-e", "RabbitMQ__UserName=walden",
-            "-e", "RabbitMQ__Password=walden"
+            "-e", "ConnectionStrings__Redis=${REDIS_HOST}:${REDIS_PORT}",
+            "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
+            "-e", "RabbitMQ__Username=$RABBITMQ_USER",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "services__user-service__http__0=$(SvcUrl 'user-service')"
         )
     }
 
-    # search-service 需要 Elasticsearch 和服务 URL 配置
+    # --- Accommodation Service: 服务发现 ---
+    if ($svc.Name -eq "accommodation-service") {
+        $extraEnvArgs = @(
+            "-e", "services__user-service__http__0=$(SvcUrl 'user-service')"
+        )
+    }
+
+    # --- Innovation Service: RabbitMQ + 服务发现 ---
+    if ($svc.Name -eq "innovation-service") {
+        $extraEnvArgs = @(
+            "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
+            "-e", "RabbitMQ__Username=$RABBITMQ_USER",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "services__user-service__http__0=$(SvcUrl 'user-service')"
+        )
+    }
+
+    # --- Search Service: Elasticsearch + RabbitMQ + 服务发现 ---
     if ($svc.Name -eq "search-service") {
         $extraEnvArgs = @(
-            "-e", "Elasticsearch__Url=http://go-nomads-elasticsearch:9200",
-            "-e", "ServiceUrls__CityService=http://go-nomads-city-service:8080",
-            "-e", "ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080",
-            "-e", "RabbitMQ__Host=go-nomads-rabbitmq",
-            "-e", "RabbitMQ__Username=walden",
-            "-e", "RabbitMQ__Password=walden"
+            "-e", "Elasticsearch__Url=$ELASTICSEARCH_URL",
+            "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
+            "-e", "RabbitMQ__Username=$RABBITMQ_USER",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "services__city-service__http__0=$(SvcUrl 'city-service')",
+            "-e", "services__coworking-service__http__0=$(SvcUrl 'coworking-service')"
         )
     }
 
     # 启动应用容器
     Write-Host "  启动应用容器..." -ForegroundColor Yellow
     
-    if ($svc.Name -eq "gateway") {
-        # Gateway 容器配置（不需要 Dapr）
-        $runArgs = @(
-            "run", "-d",
-            "--name", $container,
-            "--network", $NETWORK_NAME,
-            "--label", "com.docker.compose.project=go-nomads",
-            "--label", "com.docker.compose.service=$($svc.Name)",
-            "-p", "$($svc.Port):5000",
-            "-e", "ASPNETCORE_URLS=http://+:5000",
-            "-e", "ASPNETCORE_ENVIRONMENT=$aspnetEnv",
-            "-e", "Consul__Address=http://go-nomads-consul:7500",
-            "-e", "HTTP_PROXY=",
-            "-e", "HTTPS_PROXY=",
-            "-e", "NO_PROXY="
-        )
-        $runArgs += $extraEnvArgs
-        $runArgs += @(
-            "-v", "${publish}:/app:ro",
-            "-w", "/app",
-            "mcr.microsoft.com/dotnet/aspnet:9.0",
-            "dotnet", $svc.Dll
-        )
-    } else {
-        # 其他服务需要 Dapr 支持
-        $runArgs = @(
-            "run", "-d",
-            "--name", $container,
-            "--network", $NETWORK_NAME,
-            "--label", "com.docker.compose.project=go-nomads",
-            "--label", "com.docker.compose.service=$($svc.Name)",
-            "-p", "$($svc.Port):8080",
-            "-p", "$($svc.DaprPort):$($svc.DaprPort)",
-            "-e", "ASPNETCORE_URLS=http://+:8080",
-            "-e", "ASPNETCORE_ENVIRONMENT=$aspnetEnv",
-            "-e", "DAPR_GRPC_PORT=50001",
-            "-e", "DAPR_HTTP_PORT=$($svc.DaprPort)",
-            "-e", "Consul__Address=http://go-nomads-consul:7500",
-            "-e", "Consul__ServicePort=8080",
-            "-e", "DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=true",
-            "-e", "HTTP_PROXY=",
-            "-e", "HTTPS_PROXY=",
-            "-e", "NO_PROXY="
-        )
-        $runArgs += $extraEnvArgs
-        $runArgs += @(
-            "-v", "${publish}:/app:ro",
-            "-w", "/app",
-            "mcr.microsoft.com/dotnet/aspnet:9.0",
-            "dotnet", $svc.Dll
-        )
-    }
+    # 确定监听端口
+    $listenPort = if ($svc.Name -eq "gateway") { "5000" } else { "8080" }
+    
+    $runArgs = @(
+        "run", "-d",
+        "--name", $container,
+        "--network", $NETWORK_NAME,
+        "--label", "com.docker.compose.project=go-nomads",
+        "--label", "com.docker.compose.service=$($svc.Name)",
+        "-p", "$($svc.Port):$listenPort",
+        "-e", "ASPNETCORE_URLS=http://+:$listenPort",
+        "-e", "ASPNETCORE_ENVIRONMENT=$aspnetEnv",
+        "-e", "HTTP_PROXY=",
+        "-e", "HTTPS_PROXY=",
+        "-e", "NO_PROXY="
+    )
+    $runArgs += $extraEnvArgs
+    $runArgs += @(
+        "-v", "${publish}:/app:ro",
+        "-w", "/app",
+        "mcr.microsoft.com/dotnet/aspnet:9.0",
+        "dotnet", $svc.Dll
+    )
     
     & $RUNTIME $runArgs | Out-Null
     
@@ -320,36 +397,8 @@ foreach ($svc in $services) {
         exit 1 
     }
     Write-Host "  应用容器启动成功!" -ForegroundColor Green
-    
-    Start-Sleep -Seconds 2
-    
-    # Gateway 不需要 Dapr sidecar
-    if ($svc.Name -eq "gateway") {
-        Write-Host "  跳过 Dapr sidecar ($($svc.Name) 不需要 Dapr)" -ForegroundColor Yellow
-        Write-Host "  $($svc.Name) 部署成功!" -ForegroundColor Green
-        Write-Host "  应用端口: http://localhost:$($svc.Port)" -ForegroundColor Green
-        Start-Sleep -Seconds 2
-        continue
-    }
-    
-    # 启动 Dapr sidecar（共享应用容器的网络命名空间）
-    # 使用 --network container:<app-container> 实现真正的 sidecar 模式
-    # 应用和 Dapr 通过 localhost 通信，端口已在应用容器暴露
-    Write-Host "  启动 Dapr sidecar (container sidecar 模式)..." -ForegroundColor Yellow
-    
-    & $RUNTIME run -d --name $dapr --network "container:$container" --label "com.docker.compose.project=go-nomads" --label "com.docker.compose.service=$($svc.Name)-dapr" daprio/daprd:latest ./daprd --app-id $svc.AppId --app-port 8080 --dapr-http-port $svc.DaprPort --dapr-grpc-port 50001 --log-level info | Out-Null
-    
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "  [错误] Dapr sidecar 启动失败" -ForegroundColor Red
-        Write-Host "  查看日志: $RUNTIME logs $dapr" -ForegroundColor Yellow
-        exit 1
-    }
-    
-    Write-Host "  Dapr sidecar 启动成功!" -ForegroundColor Green
     Write-Host "  $($svc.Name) 部署成功!" -ForegroundColor Green
     Write-Host "  应用端口: http://localhost:$($svc.Port)" -ForegroundColor Green
-    Write-Host "  Dapr HTTP: localhost:$($svc.DaprPort) (通过应用容器暴露)" -ForegroundColor Green
-    Write-Host "  Dapr gRPC: localhost:50001 (container sidecar 模式)" -ForegroundColor Green
     
     Start-Sleep -Seconds 2
 }
@@ -380,16 +429,6 @@ Write-Host "  Accommodation Service: http://localhost:8012" -ForegroundColor Gre
 Write-Host "  Innovation Service:   http://localhost:8011" -ForegroundColor Green
 Write-Host "  Search Service:       http://localhost:8015" -ForegroundColor Green
 Write-Host "  Message Swagger:      http://localhost:5005/swagger" -ForegroundColor Green
-Write-Host ""
-
-Write-Host "Dapr 配置:" -ForegroundColor Cyan
-Write-Host "  模式:              Container Sidecar (共享网络命名空间)" -ForegroundColor White
-Write-Host "  gRPC 端口:         50001 (通过 DAPR_GRPC_PORT 环境变量)" -ForegroundColor White
-Write-Host "  HTTP 端口:         3500-3511 (各服务独立端口)" -ForegroundColor White
-Write-Host ""
-
-Write-Host "基础设施:" -ForegroundColor Cyan
-Write-Host "  Consul UI:         http://localhost:8500" -ForegroundColor White
 Write-Host ""
 
 Write-Host "常用命令:" -ForegroundColor Cyan

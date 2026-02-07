@@ -1,7 +1,7 @@
+using System.Net.Http.Json;
 using CityService.Application.DTOs;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Dapr.Client;
 
 namespace CityService.Application.Services;
 
@@ -13,20 +13,20 @@ public class ModeratorTransferService : IModeratorTransferService
     private readonly IModeratorTransferRepository _transferRepo;
     private readonly ICityModeratorRepository _moderatorRepo;
     private readonly ICityRepository _cityRepo;
-    private readonly DaprClient _daprClient;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ModeratorTransferService> _logger;
 
     public ModeratorTransferService(
         IModeratorTransferRepository transferRepo,
         ICityModeratorRepository moderatorRepo,
         ICityRepository cityRepo,
-        DaprClient daprClient,
+        IHttpClientFactory httpClientFactory,
         ILogger<ModeratorTransferService> logger)
     {
         _transferRepo = transferRepo;
         _moderatorRepo = moderatorRepo;
         _cityRepo = cityRepo;
-        _daprClient = daprClient;
+        _httpClientFactory = httpClientFactory;
         _logger = logger;
     }
 
@@ -274,15 +274,14 @@ public class ModeratorTransferService : IModeratorTransferService
     }
 
     /// <summary>
-    ///     通过 Dapr 调用 UserService 获取用户信息
+    ///     通过 UserService 获取用户信息
     /// </summary>
     private async Task<UserInfo?> GetUserInfoAsync(Guid userId)
     {
         try
         {
-            var response = await _daprClient.InvokeMethodAsync<UserInfo>(
-                HttpMethod.Get,
-                "user-service",
+            var client = _httpClientFactory.CreateClient("user-service");
+            var response = await client.GetFromJsonAsync<UserInfo>(
                 $"api/v1/users/{userId}/basic"
             );
             return response;
@@ -321,12 +320,7 @@ public class ModeratorTransferService : IModeratorTransferService
                 }
             };
 
-            await _daprClient.InvokeMethodAsync(
-                HttpMethod.Post,
-                "message-service",
-                "api/v1/notifications",
-                notification
-            );
+            await _httpClientFactory.CreateClient("message-service").PostAsJsonAsync("api/v1/notifications", notification);
 
             _logger.LogInformation("📬 已向目标用户 {ToUserId} 发送转让通知", transfer.ToUserId);
         }
@@ -364,12 +358,7 @@ public class ModeratorTransferService : IModeratorTransferService
                 }
             };
 
-            await _daprClient.InvokeMethodAsync(
-                HttpMethod.Post,
-                "message-service",
-                "api/v1/notifications",
-                notification
-            );
+            await _httpClientFactory.CreateClient("message-service").PostAsJsonAsync("api/v1/notifications", notification);
 
             _logger.LogInformation("📬 已向原版主 {FromUserId} 发送转让接受通知", transfer.FromUserId);
         }
@@ -408,12 +397,7 @@ public class ModeratorTransferService : IModeratorTransferService
                 }
             };
 
-            await _daprClient.InvokeMethodAsync(
-                HttpMethod.Post,
-                "message-service",
-                "api/v1/notifications",
-                notification
-            );
+            await _httpClientFactory.CreateClient("message-service").PostAsJsonAsync("api/v1/notifications", notification);
 
             _logger.LogInformation("📬 已向原版主 {FromUserId} 发送转让拒绝通知", transfer.FromUserId);
         }
@@ -451,12 +435,7 @@ public class ModeratorTransferService : IModeratorTransferService
                 }
             };
 
-            await _daprClient.InvokeMethodAsync(
-                HttpMethod.Post,
-                "message-service",
-                "api/v1/notifications",
-                notification
-            );
+            await _httpClientFactory.CreateClient("message-service").PostAsJsonAsync("api/v1/notifications", notification);
 
             _logger.LogInformation("📬 已向目标用户 {ToUserId} 发送转让取消通知", transfer.ToUserId);
         }

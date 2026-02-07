@@ -87,8 +87,6 @@ deploy_service() {
     local service_path=$2
     local dockerfile_path=$3
     local app_port=$4
-    local dapr_http_port=$5
-    local dapr_grpc_port=$6
     
     show_header "部署 $service_name"
     
@@ -115,14 +113,12 @@ deploy_service() {
     # 启动容器
     echo -e "${YELLOW}  启动容器...${NC}"
     
-    # Gateway 使用生产配置（不设置 Development 环境）以使用容器化 Consul 地址
+    # Gateway 使用生产配置
     # 其他服务继续使用 Development 环境
     local env_config=()
     if [[ "$service_name" == "gateway" ]]; then
-        # Gateway 使用生产配置（appsettings.json 中的 go-nomads-consul:8500）
         env_config+=("-e" "ASPNETCORE_ENVIRONMENT=Production")
     else
-        # 其他服务使用 Development 环境
         env_config+=("-e" "ASPNETCORE_ENVIRONMENT=Development")
     fi
     
@@ -130,7 +126,6 @@ deploy_service() {
         --name "go-nomads-$service_name" \
         --network "$NETWORK_NAME" \
         -p "$app_port:8080" \
-        -p "$dapr_grpc_port:$dapr_grpc_port" \
         "${env_config[@]}" \
         -e ASPNETCORE_URLS=http://+:8080 \
         "go-nomads-$service_name:latest" > /dev/null
@@ -138,8 +133,6 @@ deploy_service() {
     if container_running "go-nomads-$service_name"; then
         echo -e "${GREEN}  $service_name 部署成功!${NC}"
         echo -e "${GREEN}  容器端口: $app_port${NC}"
-        echo -e "${GREEN}  Dapr HTTP: $dapr_http_port${NC}"
-        echo -e "${GREEN}  Dapr gRPC: $dapr_grpc_port${NC}"
         return 0
     else
         echo -e "${RED}  [错误] $service_name 启动失败${NC}"
@@ -168,13 +161,6 @@ check_prerequisites() {
     fi
     echo -e "${GREEN}  Redis 运行正常${NC}"
     
-    # 检查 Consul
-    if ! container_running "go-nomads-consul"; then
-        echo -e "${YELLOW}  [警告] Consul 未运行，服务发现功能将不可用${NC}"
-    else
-        echo -e "${GREEN}  Consul 运行正常${NC}"
-    fi
-    
     echo -e "${GREEN}  前置条件检查完成${NC}"
 }
 
@@ -194,9 +180,7 @@ main() {
         "user-service" \
         "src/Services/UserService/UserService" \
         "src/Services/UserService/UserService/Dockerfile" \
-        "5001" \
-        "3001" \
-        "50001"
+        "5001"
     echo ""
     
     # 部署 ProductService
@@ -204,9 +188,7 @@ main() {
         "product-service" \
         "src/Services/ProductService/ProductService" \
         "src/Services/ProductService/ProductService/Dockerfile" \
-        "5002" \
-        "3002" \
-        "50002"
+        "5002"
     echo ""
     
     # 部署 DocumentService
@@ -214,9 +196,7 @@ main() {
         "document-service" \
         "src/Services/DocumentService/DocumentService" \
         "src/Services/DocumentService/DocumentService/Dockerfile" \
-        "5003" \
-        "3003" \
-        "50003"
+        "5003"
     echo ""
     
     # 部署 Gateway
@@ -224,9 +204,7 @@ main() {
         "gateway" \
         "src/Gateway/Gateway" \
         "src/Gateway/Gateway/Dockerfile" \
-        "5000" \
-        "3000" \
-        "50000"
+        "5000"
     echo ""
     
     # 部署 MessageService
@@ -234,9 +212,7 @@ main() {
         "messageservice" \
         "src/Services/MessageService/API" \
         "src/Services/MessageService/API/Dockerfile" \
-        "5005" \
-        "3005" \
-        "50005"
+        "5005"
     echo ""
     
     # 显示部署摘要
@@ -254,7 +230,6 @@ main() {
     echo -e "  ${GREEN}Message Swagger:  http://localhost:5005/swagger${NC}"
     echo ""
     echo -e "${BLUE}基础设施:${NC}"
-    echo -e "  ${GREEN}Consul UI:        http://localhost:8500${NC}"
     echo -e "  ${GREEN}RabbitMQ UI:      http://localhost:15672 (guest/guest)${NC}"
     echo -e "  ${GREEN}Zipkin:           http://localhost:9411${NC}"
     echo -e "  ${GREEN}Prometheus:       http://localhost:9090${NC}"

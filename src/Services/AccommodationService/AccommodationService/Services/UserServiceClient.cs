@@ -1,5 +1,5 @@
+using System.Net.Http.Json;
 using System.Text.Json;
-using Dapr.Client;
 
 namespace AccommodationService.Services;
 
@@ -21,7 +21,7 @@ public class UserInfoDto
 }
 
 /// <summary>
-///     UserService 客户端 - 通过 Dapr Service Invocation 调用
+///     UserService 客户端 - 通过 HttpClient 调用
 /// </summary>
 public interface IUserServiceClient
 {
@@ -33,18 +33,15 @@ public interface IUserServiceClient
 
 public class UserServiceClient : IUserServiceClient
 {
-    private readonly DaprClient _daprClient;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<UserServiceClient> _logger;
-    private readonly string _userServiceAppId;
 
     public UserServiceClient(
-        DaprClient daprClient,
-        IConfiguration configuration,
+        HttpClient httpClient,
         ILogger<UserServiceClient> logger)
     {
-        _daprClient = daprClient;
+        _httpClient = httpClient;
         _logger = logger;
-        _userServiceAppId = configuration["Dapr:UserServiceAppId"] ?? "user-service";
     }
 
     /// <summary>
@@ -54,13 +51,11 @@ public class UserServiceClient : IUserServiceClient
     {
         try
         {
-            _logger.LogInformation("📞 通过 Dapr 调用 UserService - GET /api/v1/users/{UserId}", userId);
+            _logger.LogInformation("📞 调用 UserService - GET /api/v1/users/{UserId}", userId);
 
-            var response = await _daprClient.InvokeMethodAsync<JsonElement>(
-                HttpMethod.Get,
-                _userServiceAppId,
-                $"api/v1/users/{userId}",
-                cancellationToken);
+            var httpResp = await _httpClient.GetAsync($"api/v1/users/{userId}", cancellationToken);
+            httpResp.EnsureSuccessStatusCode();
+            var response = await httpResp.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
 
             if (response.ValueKind == JsonValueKind.Object)
             {
@@ -89,7 +84,7 @@ public class UserServiceClient : IUserServiceClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Dapr 调用 UserService 失败 - UserId: {UserId}", userId);
+            _logger.LogError(ex, "❌ 调用 UserService 失败 - UserId: {UserId}", userId);
             return null;
         }
     }
@@ -119,7 +114,7 @@ public class UserServiceClient : IUserServiceClient
 
         try
         {
-            _logger.LogInformation("📞 通过 Dapr 批量调用 UserService - 用户数量: {Count}", userIdList.Count);
+            _logger.LogInformation("📞 批量调用 UserService - 用户数量: {Count}", userIdList.Count);
 
             var tasks = userIdList.Select(async userId =>
             {
@@ -137,7 +132,7 @@ public class UserServiceClient : IUserServiceClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Dapr 批量调用 UserService 失败");
+            _logger.LogError(ex, "❌ 批量调用 UserService 失败");
         }
 
         return result;

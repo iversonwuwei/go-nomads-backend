@@ -1,26 +1,25 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using Dapr.Client;
+using System.Net.Http.Json;
 using EventService.Application.DTOs;
 using GoNomads.Shared.Models;
 
 namespace EventService.Infrastructure.GrpcClients;
 
 /// <summary>
-///     City Service gRPC 客户端实现（通过 Dapr）
+///     City Service gRPC 客户端实现（通过 HttpClient）
 /// </summary>
 public class CityGrpcClient : ICityGrpcClient
 {
-    private const string CityServiceAppId = "city-service";
     private const string CityLookupEndpoint = "api/v1/cities/lookup";
     private const int LookupBatchSize = 50;
-    private readonly DaprClient _daprClient;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<CityGrpcClient> _logger;
 
-    public CityGrpcClient(DaprClient daprClient, ILogger<CityGrpcClient> logger)
+    public CityGrpcClient(HttpClient httpClient, ILogger<CityGrpcClient> logger)
     {
-        _daprClient = daprClient;
+        _httpClient = httpClient;
         _logger = logger;
     }
 
@@ -64,12 +63,9 @@ public class CityGrpcClient : ICityGrpcClient
             var payload = new CityLookupRequest(batch.ToList());
             try
             {
-                var response = await _daprClient.InvokeMethodAsync<CityLookupRequest, ApiResponse<List<CityDto>>>(
-                    HttpMethod.Post,
-                    CityServiceAppId,
-                    CityLookupEndpoint,
-                    payload,
-                    cancellationToken);
+                var httpResp = await _httpClient.PostAsJsonAsync(CityLookupEndpoint, payload, cancellationToken);
+                httpResp.EnsureSuccessStatusCode();
+                var response = await httpResp.Content.ReadFromJsonAsync<ApiResponse<List<CityDto>>>(cancellationToken);
 
                 if (response?.Success == true && response.Data != null)
                 {

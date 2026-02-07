@@ -47,7 +47,6 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # 容器运行时检测
 CONTAINER_RUNTIME=""
-CONSUL_HTTP_ADDR="${CONSUL_HTTP_ADDR:-http://localhost:8500}"
 
 select_container_runtime() {
     local docker_bin="${DOCKER_BINARY:-$(command -v docker || true)}"
@@ -90,6 +89,24 @@ select_container_runtime
 # 网络名称
 NETWORK_NAME="go-nomads-network"
 
+# ============================================================
+# 基础设施连接配置（Docker 容器名称）
+# ============================================================
+REDIS_HOST="go-nomads-redis"
+REDIS_PORT="6379"
+RABBITMQ_HOST="go-nomads-rabbitmq"
+RABBITMQ_USER="walden"
+RABBITMQ_PASS="walden"
+ELASTICSEARCH_URL="http://go-nomads-elasticsearch:9200"
+
+# Aspire Dashboard OTLP 端点（容器内部地址）
+OTLP_ENDPOINT="http://go-nomads-aspire-dashboard:18889"
+
+# 服务发现辅助函数: 生成 Docker 容器内部 URL
+svc_url() {
+    echo "http://go-nomads-$1:8080"
+}
+
 # 检查网络是否存在
 network_exists() {
     local runtime_name
@@ -111,10 +128,6 @@ ensure_network() {
         echo -e "${GREEN}  网络创建完成${NC}"
     fi
 }
-
-# 注意：服务现在使用自动注册机制
-# 每个服务在启动时会自动调用 RegisterWithConsulAsync() 注册到 Consul
-# 无需手动注册配置文件
 
 # 显示标题
 show_header() {
@@ -147,14 +160,12 @@ remove_container_if_exists() {
     fi
 }
 
-# 本地构建并部署服务（带 Dapr sidecar）- Container Sidecar 模式
+# 本地构建并部署服务
 deploy_service_local() {
     local service_name=$1
     local service_path=$2
     local app_port=$3
     local dll_name=$4
-    local dapr_http_port=$5
-    local app_id=$6
     
     show_header "部署 $service_name"
     
@@ -176,9 +187,8 @@ deploy_service_local() {
         echo -e "${YELLOW}  跳过构建，使用已有的发布文件...${NC}"
     fi
     
-    # 删除旧容器（应用容器和 Dapr sidecar）
+    # 删除旧容器
     remove_container_if_exists "go-nomads-$service_name"
-    remove_container_if_exists "go-nomads-$service_name-dapr"
     
     # 发布目录
     local publish_dir="$ROOT_DIR/$service_path/bin/Release/net9.0/publish"
@@ -188,113 +198,201 @@ deploy_service_local() {
         return 1
     fi
     
-    # 额外的环境变量
+    # 额外的环境变量（基础设施连接 + 服务发现）
     local extra_env=()
+
+    # --- Gateway: 需要所有服务的服务发现地址 ---
+    if [[ "$service_name" == "gateway" ]]; then
+        extra_env+=(
+            "-e" "services__user-service__http__0=$(svc_url user-service)"
+            "-e" "services__city-service__http__0=$(svc_url city-service)"
+            "-e" "services__product-service__http__0=$(svc_url product-service)"
+            "-e" "services__document-service__http__0=$(svc_url document-service)"
+            "-e" "services__coworking-service__http__0=$(svc_url coworking-service)"
+            "-e" "services__accommodation-service__http__0=$(svc_url accommodation-service)"
+            "-e" "services__event-service__http__0=$(svc_url event-service)"
+            "-e" "services__innovation-service__http__0=$(svc_url innovation-service)"
+            "-e" "services__ai-service__http__0=$(svc_url ai-service)"
+            "-e" "services__search-service__http__0=$(svc_url search-service)"
+            "-e" "services__cache-service__http__0=$(svc_url cache-service)"
+            "-e" "services__message-service__http__0=$(svc_url message-service)"
+        )
+    fi
+
+    # --- User Service: Redis + RabbitMQ + 服务发现 ---
+    if [[ "$service_name" == "user-service" ]]; then
+        extra_env+=(
+            "-e" "ConnectionStrings__redis=${REDIS_HOST}:${REDIS_PORT}"
+            "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
+            "-e" "RabbitMQ__Username=$RABBITMQ_USER"
+            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "services__city-service__http__0=$(svc_url city-service)"
+            "-e" "services__product-service__http__0=$(svc_url product-service)"
+            "-e" "services__event-service__http__0=$(svc_url event-service)"
+        )
+    fi
+
+    # --- City Service: RabbitMQ + 服务发现 ---
+    if [[ "$service_name" == "city-service" ]]; then
+        extra_env+=(
+            "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
+            "-e" "RabbitMQ__Username=$RABBITMQ_USER"
+            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "services__user-service__http__0=$(svc_url user-service)"
+            "-e" "services__cache-service__http__0=$(svc_url cache-service)"
+            "-e" "services__coworking-service__http__0=$(svc_url coworking-service)"
+            "-e" "services__event-service__http__0=$(svc_url event-service)"
+            "-e" "services__message-service__http__0=$(svc_url message-service)"
+            "-e" "services__ai-service__http__0=$(svc_url ai-service)"
+        )
+    fi
+
+    # --- Product Service: 服务发现 ---
+    if [[ "$service_name" == "product-service" ]]; then
+        extra_env+=(
+            "-e" "services__user-service__http__0=$(svc_url user-service)"
+        )
+    fi
+
+    # --- Document Service: 服务配置 + 服务发现 ---
     if [[ "$service_name" == "document-service" ]]; then
         extra_env+=(
-            "-e" "Services__Gateway__Url=http://go-nomads-gateway:8080"
-            "-e" "Services__Gateway__OpenApiUrl=http://go-nomads-gateway:8080/openapi/v1.json"
+            "-e" "Services__Gateway__Url=http://go-nomads-gateway:5000"
+            "-e" "Services__Gateway__OpenApiUrl=http://go-nomads-gateway:5000/openapi/v1.json"
             "-e" "Services__ProductService__Url=http://go-nomads-product-service:8080"
             "-e" "Services__ProductService__OpenApiUrl=http://go-nomads-product-service:8080/openapi/v1.json"
             "-e" "Services__UserService__Url=http://go-nomads-user-service:8080"
             "-e" "Services__UserService__OpenApiUrl=http://go-nomads-user-service:8080/openapi/v1.json"
+            "-e" "services__product-service__http__0=$(svc_url product-service)"
         )
     fi
 
-    # city-service 需要 RabbitMQ 和 Elasticsearch 配置
-    if [[ "$service_name" == "city-service" ]]; then
+    # --- Coworking Service: RabbitMQ + 服务发现 ---
+    if [[ "$service_name" == "coworking-service" ]]; then
         extra_env+=(
-            "-e" "ConnectionStrings__Elasticsearch=http://go-nomads-elasticsearch:9200"
-            "-e" "RabbitMQ__Host=go-nomads-rabbitmq"
-            "-e" "RabbitMQ__Username=walden"
-            "-e" "RabbitMQ__Password=walden"
+            "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
+            "-e" "RabbitMQ__Username=$RABBITMQ_USER"
+            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "services__cache-service__http__0=$(svc_url cache-service)"
+            "-e" "services__user-service__http__0=$(svc_url user-service)"
+            "-e" "services__city-service__http__0=$(svc_url city-service)"
         )
     fi
-    
-    # message-service 需要指定 ServiceAddress 和 RabbitMQ 配置
+
+    # --- Event Service: RabbitMQ + 服务发现 ---
+    if [[ "$service_name" == "event-service" ]]; then
+        extra_env+=(
+            "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
+            "-e" "RabbitMQ__Username=$RABBITMQ_USER"
+            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "services__city-service__http__0=$(svc_url city-service)"
+            "-e" "services__user-service__http__0=$(svc_url user-service)"
+            "-e" "services__message-service__http__0=$(svc_url message-service)"
+        )
+    fi
+
+    # --- AI Service: Redis + RabbitMQ (注意: key 名不同!) + 服务发现 ---
+    if [[ "$service_name" == "ai-service" ]]; then
+        extra_env+=(
+            "-e" "Redis__ConnectionString=${REDIS_HOST}:${REDIS_PORT}"
+            "-e" "RabbitMQ__HostName=$RABBITMQ_HOST"
+            "-e" "RabbitMQ__UserName=$RABBITMQ_USER"
+            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "services__user-service__http__0=$(svc_url user-service)"
+            "-e" "services__city-service__http__0=$(svc_url city-service)"
+        )
+    fi
+
+    # --- Cache Service: Redis + 服务发现 ---
+    if [[ "$service_name" == "cache-service" ]]; then
+        extra_env+=(
+            "-e" "ConnectionStrings__Redis=${REDIS_HOST}:${REDIS_PORT}"
+            "-e" "services__city-service__http__0=$(svc_url city-service)"
+            "-e" "services__coworking-service__http__0=$(svc_url coworking-service)"
+        )
+    fi
+
+    # --- Message Service: Redis + RabbitMQ + 服务发现 ---
     if [[ "$service_name" == "message-service" ]]; then
         extra_env+=(
-            "-e" "Consul__ServiceAddress=go-nomads-$service_name"
-            "-e" "Consul__ServicePort=8080"
-            "-e" "RabbitMQ__HostName=go-nomads-rabbitmq"
-            "-e" "RabbitMQ__Port=5672"
-            "-e" "RabbitMQ__UserName=walden"
-            "-e" "RabbitMQ__Password=walden"
+            "-e" "ConnectionStrings__Redis=${REDIS_HOST}:${REDIS_PORT}"
+            "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
+            "-e" "RabbitMQ__Username=$RABBITMQ_USER"
+            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "services__user-service__http__0=$(svc_url user-service)"
         )
     fi
 
-    # search-service 需要 Elasticsearch 和服务 URL 配置
+    # --- Accommodation Service: 服务发现 ---
+    if [[ "$service_name" == "accommodation-service" ]]; then
+        extra_env+=(
+            "-e" "services__user-service__http__0=$(svc_url user-service)"
+        )
+    fi
+
+    # --- Innovation Service: RabbitMQ + 服务发现 ---
+    if [[ "$service_name" == "innovation-service" ]]; then
+        extra_env+=(
+            "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
+            "-e" "RabbitMQ__Username=$RABBITMQ_USER"
+            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "services__user-service__http__0=$(svc_url user-service)"
+        )
+    fi
+
+    # --- Search Service: Elasticsearch + RabbitMQ + 服务发现 ---
     if [[ "$service_name" == "search-service" ]]; then
         extra_env+=(
-            "-e" "Elasticsearch__Url=http://go-nomads-elasticsearch:9200"
-            "-e" "ServiceUrls__CityService=http://go-nomads-city-service:8080"
-            "-e" "ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080"
-            "-e" "RabbitMQ__Host=go-nomads-rabbitmq"
-            "-e" "RabbitMQ__Username=walden"
-            "-e" "RabbitMQ__Password=walden"
+            "-e" "Elasticsearch__Url=$ELASTICSEARCH_URL"
+            "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
+            "-e" "RabbitMQ__Username=$RABBITMQ_USER"
+            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "services__city-service__http__0=$(svc_url city-service)"
+            "-e" "services__coworking-service__http__0=$(svc_url coworking-service)"
         )
     fi
 
     # 启动应用容器
     echo -e "${YELLOW}  启动应用容器...${NC}"
     
-    # Gateway 使用生产配置（appsettings.json 中的 go-nomads-consul:8500）
+    # Gateway 使用生产配置
     # 其他服务使用 Development 环境
     local env_config=()
     if [[ "$service_name" == "gateway" ]]; then
-        # Gateway 使用生产配置，不需要 Dapr
         env_config+=("-e" "ASPNETCORE_ENVIRONMENT=Production")
     else
-        # 其他服务使用 Development 环境
         env_config+=("-e" "ASPNETCORE_ENVIRONMENT=Development")
     fi
     
-    # Gateway 容器配置（不需要 Dapr）
+    # 确定监听端口
+    local listen_port="8080"
     if [[ "$service_name" == "gateway" ]]; then
-        $CONTAINER_RUNTIME run -d \
-            --name "go-nomads-$service_name" \
-            --network "$NETWORK_NAME" \
-            --label "com.docker.compose.project=go-nomads" \
-            --label "com.docker.compose.service=$service_name" \
-            -p "$app_port:5000" \
-            "${env_config[@]}" \
-            -e ASPNETCORE_URLS="http://+:5000" \
-            -e Consul__Address="http://go-nomads-consul:7500" \
-            -e HTTP_PROXY= \
-            -e HTTPS_PROXY= \
-            -e NO_PROXY= \
-            "${extra_env[@]}" \
-            -v "${publish_dir}:/app:ro" \
-            -w /app \
-            mcr.microsoft.com/dotnet/aspnet:9.0 \
-            dotnet "$dll_name" > /dev/null
-    else
-        # 其他服务需要 Dapr 支持
-        $CONTAINER_RUNTIME run -d \
-            --name "go-nomads-$service_name" \
-            --network "$NETWORK_NAME" \
-            --label "com.docker.compose.project=go-nomads" \
-            --label "com.docker.compose.service=$service_name" \
-            -p "$app_port:8080" \
-            -p "$dapr_http_port:$dapr_http_port" \
-            "${env_config[@]}" \
-            -e ASPNETCORE_URLS="http://+:8080" \
-            -e DAPR_GRPC_PORT="50001" \
-            -e DAPR_HTTP_PORT="$dapr_http_port" \
-            -e Consul__Address="http://go-nomads-consul:7500" \
-            -e DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=true \
-            -e HTTP_PROXY= \
-            -e HTTPS_PROXY= \
-            -e NO_PROXY= \
-            "${extra_env[@]}" \
-            -v "${publish_dir}:/app:ro" \
-            -w /app \
-            mcr.microsoft.com/dotnet/aspnet:9.0 \
-            dotnet "$dll_name" > /dev/null
+        listen_port="5000"
     fi
+    
+    $CONTAINER_RUNTIME run -d \
+        --name "go-nomads-$service_name" \
+        --network "$NETWORK_NAME" \
+        --label "com.docker.compose.project=go-nomads" \
+        --label "com.docker.compose.service=$service_name" \
+        -p "$app_port:$listen_port" \
+        "${env_config[@]}" \
+        -e ASPNETCORE_URLS="http://+:$listen_port" \
+        -e OTEL_EXPORTER_OTLP_ENDPOINT="$OTLP_ENDPOINT" \
+        -e OTEL_SERVICE_NAME="$service_name" \
+        -e HTTP_PROXY= \
+        -e HTTPS_PROXY= \
+        -e NO_PROXY= \
+        "${extra_env[@]}" \
+        -v "${publish_dir}:/app:ro" \
+        -w /app \
+        mcr.microsoft.com/dotnet/aspnet:9.0 \
+        dotnet "$dll_name" > /dev/null
     
     if container_running "go-nomads-$service_name"; then
         echo -e "${GREEN}  应用容器启动成功!${NC}"
+        echo -e "${GREEN}  $service_name 部署成功!${NC}"
+        echo -e "${GREEN}  应用端口: http://localhost:$app_port${NC}"
     else
         echo -e "${RED}  [错误] 应用容器启动失败${NC}"
         echo -e "${YELLOW}  查看日志: $CONTAINER_RUNTIME logs go-nomads-$service_name${NC}"
@@ -302,47 +400,6 @@ deploy_service_local() {
     fi
 
     sleep 2
-
-    # Gateway 不需要 Dapr sidecar（只使用 YARP 反向代理 + JWT 验证）
-    if [[ "$service_name" == "gateway" ]]; then
-        echo -e "${YELLOW}  跳过 Dapr sidecar ($service_name 不需要 Dapr)${NC}"
-        echo -e "${GREEN}  $service_name 部署成功!${NC}"
-        echo -e "${GREEN}  应用端口: http://localhost:$app_port${NC}"
-        sleep 2
-        return 0
-    fi
-
-    # 启动 Dapr sidecar（共享应用容器的网络命名空间）
-    # 使用 --network container:<app-container> 实现真正的 sidecar 模式
-    # 应用和 Dapr 通过 localhost 通信，端口已在应用容器暴露
-    echo -e "${YELLOW}  启动 Dapr sidecar (container sidecar 模式)...${NC}"
-    
-    $CONTAINER_RUNTIME run -d \
-        --name "go-nomads-$service_name-dapr" \
-        --network "container:go-nomads-$service_name" \
-        --label "com.docker.compose.project=go-nomads" \
-        --label "com.docker.compose.service=$service_name-dapr" \
-        daprio/daprd:latest \
-        ./daprd \
-        --app-id "$app_id" \
-        --app-port 8080 \
-        --dapr-http-port "$dapr_http_port" \
-        --dapr-grpc-port 50001 \
-        --log-level info > /dev/null
-    
-    if container_running "go-nomads-$service_name-dapr"; then
-        echo -e "${GREEN}  Dapr sidecar 启动成功!${NC}"
-        echo -e "${GREEN}  $service_name 部署成功!${NC}"
-        echo -e "${GREEN}  应用端口: http://localhost:$app_port${NC}"
-        echo -e "${GREEN}  Dapr HTTP: localhost:$dapr_http_port (通过应用容器暴露)${NC}"
-        echo -e "${GREEN}  Dapr gRPC: localhost:50001 (container sidecar 模式)${NC}"
-        sleep 2
-        return 0
-    else
-        echo -e "${RED}  [错误] Dapr sidecar 启动失败${NC}"
-        echo -e "${YELLOW}  查看日志: $CONTAINER_RUNTIME logs go-nomads-$service_name-dapr${NC}"
-        return 1
-    fi
 }
 
 # 检查前置条件
@@ -366,14 +423,6 @@ check_prerequisites() {
         exit 1
     fi
     echo -e "${GREEN}  Redis 运行正常${NC}"
-
-    # 检查 Consul
-    if ! container_running "go-nomads-consul"; then
-        echo -e "${RED}  [错误] Consul 未运行${NC}"
-        echo -e "${YELLOW}  请先运行基础设施部署脚本: ./deploy-infrastructure-local.sh${NC}"
-        exit 1
-    fi
-    echo -e "${GREEN}  Consul 运行正常${NC}"
     
     # 检查 Nginx
     if ! container_running "go-nomads-nginx"; then
@@ -407,9 +456,7 @@ main() {
         "gateway" \
         "src/Gateway/Gateway" \
         "5080" \
-        "Gateway.dll" \
-        "3500" \
-        "gateway"
+        "Gateway.dll"
     echo ""
     
     # 部署 ProductService
@@ -417,9 +464,7 @@ main() {
         "product-service" \
         "src/Services/ProductService/ProductService" \
         "5002" \
-        "ProductService.dll" \
-        "3501" \
-        "product-service"
+        "ProductService.dll"
     echo ""
     
     # 部署 UserService
@@ -427,9 +472,7 @@ main() {
         "user-service" \
         "src/Services/UserService/UserService" \
         "5001" \
-        "UserService.dll" \
-        "3502" \
-        "user-service"
+        "UserService.dll"
     echo ""
     
     # 部署 DocumentService
@@ -437,9 +480,7 @@ main() {
         "document-service" \
         "src/Services/DocumentService/DocumentService" \
         "5003" \
-        "DocumentService.dll" \
-        "3503" \
-        "document-service"
+        "DocumentService.dll"
     echo ""
     
     # 部署 CityService
@@ -447,9 +488,7 @@ main() {
         "city-service" \
         "src/Services/CityService/CityService" \
         "8002" \
-        "CityService.dll" \
-        "3504" \
-        "city-service"
+        "CityService.dll"
     echo ""
     
     # 部署 EventService
@@ -457,9 +496,7 @@ main() {
         "event-service" \
         "src/Services/EventService/EventService" \
         "8005" \
-        "EventService.dll" \
-        "3505" \
-        "event-service"
+        "EventService.dll"
     echo ""
     
     # 部署 CoworkingService
@@ -467,9 +504,7 @@ main() {
         "coworking-service" \
         "src/Services/CoworkingService/CoworkingService" \
         "8006" \
-        "CoworkingService.dll" \
-        "3506" \
-        "coworking-service"
+        "CoworkingService.dll"
     echo ""
     
     # 部署 AIService
@@ -477,9 +512,7 @@ main() {
         "ai-service" \
         "src/Services/AIService/AIService" \
         "8009" \
-        "AIService.dll" \
-        "3509" \
-        "ai-service"
+        "AIService.dll"
     echo ""
     
     # 部署 CacheService
@@ -487,9 +520,7 @@ main() {
         "cache-service" \
         "src/Services/CacheService/CacheService" \
         "8010" \
-        "CacheService.dll" \
-        "3512" \
-        "cache-service"
+        "CacheService.dll"
     echo ""
     
     # 部署 MessageService
@@ -497,9 +528,7 @@ main() {
         "message-service" \
         "src/Services/MessageService/MessageService/API" \
         "5005" \
-        "MessageService.dll" \
-        "3511" \
-        "message-service"
+        "MessageService.dll"
     echo ""
     
     # 部署 AccommodationService
@@ -507,9 +536,7 @@ main() {
         "accommodation-service" \
         "src/Services/AccommodationService/AccommodationService" \
         "8012" \
-        "AccommodationService.dll" \
-        "3513" \
-        "accommodation-service"
+        "AccommodationService.dll"
     echo ""
     
     # 部署 InnovationService
@@ -517,9 +544,7 @@ main() {
         "innovation-service" \
         "src/Services/InnovationService/InnovationService" \
         "8011" \
-        "InnovationService.dll" \
-        "3514" \
-        "innovation-service"
+        "InnovationService.dll"
     echo ""
     
     # 部署 SearchService
@@ -527,9 +552,7 @@ main() {
         "search-service" \
         "src/Services/SearchService/SearchService" \
         "8015" \
-        "SearchService.dll" \
-        "3517" \
-        "search-service"
+        "SearchService.dll"
     echo ""
     
     # 显示部署摘要
@@ -555,14 +578,6 @@ main() {
     echo -e "  ${GREEN}Innovation Service:  http://localhost:8011${NC}"
     echo -e "  ${GREEN}Search Service:      http://localhost:8015${NC}"
     echo -e "  ${GREEN}Message Swagger:     http://localhost:5005/swagger${NC}"
-    echo ""
-    echo -e "${BLUE}Dapr 配置:${NC}"
-    echo -e "  ${GREEN}模式:             Container Sidecar (共享网络命名空间)${NC}"
-    echo -e "  ${GREEN}gRPC 端口:        50001 (通过 DAPR_GRPC_PORT 环境变量)${NC}"
-    echo -e "  ${GREEN}HTTP 端口:        3500-3511 (各服务独立端口)${NC}"
-    echo ""
-    echo -e "${BLUE}基础设施:${NC}"
-    echo -e "  ${GREEN}Consul UI:        http://localhost:8500${NC}"
     echo ""
     echo -e "${BLUE}常用命令:${NC}"
     echo -e "  查看运行中的容器:  ${YELLOW}$CONTAINER_RUNTIME ps${NC}"

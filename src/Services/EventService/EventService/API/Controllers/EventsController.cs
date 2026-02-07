@@ -1,5 +1,5 @@
+using System.Net.Http.Json;
 using System.Text.Json;
-using Dapr.Client;
 using EventService.Application.DTOs;
 using EventService.Application.Services;
 using GoNomads.Shared.Middleware;
@@ -16,15 +16,15 @@ namespace EventService.API.Controllers;
 [Route("api/v1/events")]
 public class EventsController : ControllerBase
 {
-    private readonly DaprClient _daprClient;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly IEventService _eventService;
     private readonly ILogger<EventsController> _logger;
 
-    public EventsController(IEventService eventService, ILogger<EventsController> logger, DaprClient daprClient)
+    public EventsController(IEventService eventService, ILogger<EventsController> logger, IHttpClientFactory httpClientFactory)
     {
         _eventService = eventService;
         _logger = logger;
-        _daprClient = daprClient;
+        _httpClientFactory = httpClientFactory;
     }
 
     /// <summary>
@@ -752,14 +752,12 @@ public class EventsController : ControllerBase
 
             try
             {
-                // 通过 Dapr 调用 UserService 批量获取用户信息
+                // 通过 UserService 批量获取用户信息
                 var userServiceRequest = new { UserIds = userIds };
-                var userServiceResponse = await _daprClient.InvokeMethodAsync<object, JsonElement>(
-                    HttpMethod.Post,
-                    "user-service",
-                    "api/v1/users/batch",
-                    userServiceRequest
-                );
+                var userClient = _httpClientFactory.CreateClient("user-service");
+                var userResp = await userClient.PostAsJsonAsync("api/v1/users/batch", userServiceRequest);
+                userResp.EnsureSuccessStatusCode();
+                var userServiceResponse = await userResp.Content.ReadFromJsonAsync<JsonElement>();
 
                 // 解析响应
                 if (userServiceResponse.TryGetProperty("success", out var successProp) &&
@@ -1355,13 +1353,8 @@ public class EventsController : ControllerBase
                 }
             };
 
-            // 使用 Dapr 调用 MessageService API 创建通知
-            await _daprClient.InvokeMethodAsync(
-                HttpMethod.Post,
-                "message-service",
-                "api/v1/notifications",
-                notificationPayload
-            );
+            // 使用 HttpClient 调用 MessageService API 创建通知
+            await _httpClientFactory.CreateClient("message-service").PostAsJsonAsync("api/v1/notifications", notificationPayload);
             _logger.LogInformation("✅ 邀请通知已发送给用户 {InviteeId}", invitation.InviteeId);
         }
         catch (Exception ex)
@@ -1398,13 +1391,8 @@ public class EventsController : ControllerBase
                 }
             };
 
-            // 使用 Dapr 调用 MessageService API 创建通知
-            await _daprClient.InvokeMethodAsync(
-                HttpMethod.Post,
-                "message-service",
-                "api/v1/notifications",
-                notificationPayload
-            );
+            // 使用 HttpClient 调用 MessageService API 创建通知
+            await _httpClientFactory.CreateClient("message-service").PostAsJsonAsync("api/v1/notifications", notificationPayload);
             _logger.LogInformation("✅ 邀请响应通知已发送给用户 {InviterId}", invitation.InviterId);
         }
         catch (Exception ex)

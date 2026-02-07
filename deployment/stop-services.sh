@@ -53,5 +53,5 @@ done
 echo ""
 echo -e "${GREEN}所有服务已停止! ✓${NC}"
 echo ""
-echo -e "${BLUE}注意: 基础设施服务 (Redis, Consul, etc.) 仍在运行${NC}"
+echo -e "${BLUE}注意: 基础设施服务 (Redis, etc.) 仍在运行${NC}"
 echo -e "${BLUE}如需停止基础设施，请运行: ./deploy-infrastructure.sh stop${NC}"

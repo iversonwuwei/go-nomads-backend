@@ -1,7 +1,7 @@
+using System.Net.Http.Json;
 using CityService.Application.DTOs;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Dapr.Client;
 
 namespace CityService.Application.Services;
 
@@ -13,20 +13,20 @@ public class ModeratorApplicationService : IModeratorApplicationService
     private readonly IModeratorApplicationRepository _applicationRepo;
     private readonly ICityModeratorRepository _moderatorRepo;
     private readonly ICityRepository _cityRepo;
-    private readonly DaprClient _daprClient;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ModeratorApplicationService> _logger;
 
     public ModeratorApplicationService(
         IModeratorApplicationRepository applicationRepo,
         ICityModeratorRepository moderatorRepo,
         ICityRepository cityRepo,
-        DaprClient daprClient,
+        IHttpClientFactory httpClientFactory,
         ILogger<ModeratorApplicationService> logger)
     {
         _applicationRepo = applicationRepo;
         _moderatorRepo = moderatorRepo;
         _cityRepo = cityRepo;
-        _daprClient = daprClient;
+        _httpClientFactory = httpClientFactory;
         _logger = logger;
     }
 
@@ -258,15 +258,14 @@ public class ModeratorApplicationService : IModeratorApplicationService
     }
 
     /// <summary>
-    ///     通过 Dapr 调用 UserService 获取用户信息
+    ///     通过 UserService 获取用户信息
     /// </summary>
     private async Task<UserInfo?> GetUserInfoAsync(Guid userId)
     {
         try
         {
-            var response = await _daprClient.InvokeMethodAsync<UserInfo>(
-                HttpMethod.Get,
-                "user-service",
+            var client = _httpClientFactory.CreateClient("user-service");
+            var response = await client.GetFromJsonAsync<UserInfo>(
                 $"api/v1/users/{userId}/basic"
             );
             return response;
@@ -317,13 +316,8 @@ public class ModeratorApplicationService : IModeratorApplicationService
                 }
             };
 
-            // 通过 Dapr 调用 MessageService 批量发送通知
-            await _daprClient.InvokeMethodAsync(
-                HttpMethod.Post,
-                "message-service",
-                "api/v1/notifications/batch",
-                batchNotification
-            );
+            // 通过 MessageService 批量发送通知
+            await _httpClientFactory.CreateClient("message-service").PostAsJsonAsync("api/v1/notifications/batch", batchNotification);
 
             _logger.LogInformation("📬 已向 {Count} 位管理员批量发送通知", adminIds.Count);
         }
@@ -358,12 +352,7 @@ public class ModeratorApplicationService : IModeratorApplicationService
                 }
             };
 
-            await _daprClient.InvokeMethodAsync(
-                HttpMethod.Post,
-                "message-service",
-                "api/v1/notifications",
-                notification
-            );
+            await _httpClientFactory.CreateClient("message-service").PostAsJsonAsync("api/v1/notifications", notification);
 
             _logger.LogInformation("📬 已向申请人 {UserId} 发送批准通知", application.UserId);
         }
@@ -398,12 +387,7 @@ public class ModeratorApplicationService : IModeratorApplicationService
                 }
             };
 
-            await _daprClient.InvokeMethodAsync(
-                HttpMethod.Post,
-                "message-service",
-                "api/v1/notifications",
-                notification
-            );
+            await _httpClientFactory.CreateClient("message-service").PostAsJsonAsync("api/v1/notifications", notification);
 
             _logger.LogInformation("📬 已向申请人 {UserId} 发送拒绝通知", application.UserId);
         }
@@ -437,12 +421,7 @@ public class ModeratorApplicationService : IModeratorApplicationService
                 }
             };
 
-            await _daprClient.InvokeMethodAsync(
-                HttpMethod.Post,
-                "message-service",
-                "api/v1/notifications",
-                notification
-            );
+            await _httpClientFactory.CreateClient("message-service").PostAsJsonAsync("api/v1/notifications", notification);
 
             _logger.LogInformation("📬 已向用户 {UserId} 发送版主撤销通知", application.UserId);
         }
@@ -459,11 +438,8 @@ public class ModeratorApplicationService : IModeratorApplicationService
     {
         try
         {
-            var response = await _daprClient.InvokeMethodAsync<List<Guid>>(
-                HttpMethod.Get,
-                "user-service",
-                "api/v1/users/admins"
-            );
+            var client = _httpClientFactory.CreateClient("user-service");
+            var response = await client.GetFromJsonAsync<List<Guid>>("api/v1/users/admins");
             return response ?? new List<Guid>();
         }
         catch (Exception ex)
