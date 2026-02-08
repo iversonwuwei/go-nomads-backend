@@ -1,9 +1,17 @@
 name: go-nomads-infras
 
+# ============================================================
+# 基础设施服务
+# 镜像使用阿里云代理避免 Docker Hub 超时
+#   原始镜像 redis:7-alpine  → registry.cn-hangzhou.aliyuncs.com/library/redis:7-alpine
+#   原始镜像 rabbitmq:...    → registry.cn-hangzhou.aliyuncs.com/library/rabbitmq:...
+#   Elasticsearch 仍使用官方源 (elastic.co 在国内可达)
+# ============================================================
+
 services:
   # Infrastructure Services
   redis:
-    image: redis:7-alpine
+    image: registry.cn-hangzhou.aliyuncs.com/library/redis:7-alpine
     container_name: go-nomads-redis
     ports:
       - "6379:6379"
@@ -20,7 +28,7 @@ services:
       retries: 5
 
   rabbitmq:
-    image: rabbitmq:3-management-alpine
+    image: registry.cn-hangzhou.aliyuncs.com/library/rabbitmq:3-management-alpine
     container_name: go-nomads-rabbitmq
     ports:
       - "5672:5672"    # AMQP protocol port

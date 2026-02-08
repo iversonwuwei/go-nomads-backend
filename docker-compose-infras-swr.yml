@@ -2,20 +2,18 @@ name: go-nomads-infras
 
 # ============================================================
 # 基础设施服务 - 从华为云 SWR 拉取镜像
-# 使用方法: docker compose -f docker-compose-infras-swr.yml up -d
-# 
-# 注意: 部分基础设施镜像可以选择从 SWR 缓存或直接使用公共镜像
-# 如果需要从 SWR 获取，请先运行脚本上传这些镜像
+# 避免生产服务器直连 Docker Hub / elastic.co 超时
+#
+# 首次部署前: 运行 scripts/push-infra-images-to-swr.sh -a 上传镜像
+# 启动: docker compose -f docker-compose-infras-swr.yml up -d
+# 停止: docker compose -f docker-compose-infras-swr.yml down
 # ============================================================
 
 x-swr-registry: &swr-registry "swr.ap-southeast-3.myhuaweicloud.com/go-nomads"
 
 services:
-  # Infrastructure Services
   redis:
-    # 可选: 使用 SWR 缓存的镜像
-    # image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/redis:7-alpine
-    image: redis:7-alpine
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/redis:latest
     container_name: go-nomads-redis
     ports:
       - "6379:6379"
@@ -24,15 +22,19 @@ services:
       - redis_data:/data
     networks:
       - go-nomads-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   rabbitmq:
-    # 可选: 使用 SWR 缓存的镜像
-    # image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/rabbitmq:3-management-alpine
-    image: rabbitmq:3-management-alpine
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/rabbitmq:3-management-alpine
     container_name: go-nomads-rabbitmq
     ports:
-      - "5672:5672"    # AMQP protocol port
-      - "15672:15672"  # Management UI
+      - "5672:5672"
+      - "15672:15672"
     environment:
       - RABBITMQ_DEFAULT_USER=walden
       - RABBITMQ_DEFAULT_PASS=walden
@@ -40,6 +42,7 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - go-nomads-network
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 30s
@@ -47,9 +50,7 @@ services:
       retries: 5
 
   elasticsearch:
-    # 可选: 使用 SWR 缓存的镜像
-    # image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/elasticsearch:8.16.1
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.16.1
+    image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/elasticsearch:8.16.1
     container_name: go-nomads-elasticsearch
     environment:
       - discovery.type=single-node
@@ -62,6 +63,12 @@ services:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
       - go-nomads-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
 networks:
   go-nomads-network:
