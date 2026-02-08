@@ -127,7 +127,7 @@ jobs:
           host: ${{ vars.ALIYUN_SERVER_HOST }}
           username: ${{ vars.ALIYUN_SERVER_USER }}
           key: ${{ secrets.ALIYUN_SERVER_SSH_KEY }}
-          source: "docker-compose-services-swr.yml,docker-compose-infras.yml,deployment/nginx/nginx.conf"
+          source: "docker-compose-services-swr.yml,docker-compose-infras-swr.yml,deployment/nginx/nginx.conf"
           target: ${{ vars.ALIYUN_DEPLOY_PATH }}
           overwrite: true
 
@@ -139,6 +139,15 @@ jobs:
           key: ${{ secrets.ALIYUN_SERVER_SSH_KEY }}
           script: |
             set -e
+            
+            echo "===== 配置 Docker 镜像加速 ====="
+            sudo mkdir -p /etc/docker
+            if [ ! -f /etc/docker/daemon.json ] || ! grep -q registry-mirrors /etc/docker/daemon.json; then
+              echo '{ "registry-mirrors": ["https://registry.cn-hangzhou.aliyuncs.com"] }' | sudo tee /etc/docker/daemon.json
+              sudo systemctl daemon-reload
+              sudo systemctl restart docker
+              sleep 3
+            fi
             
             echo "===== 登录华为云 SWR ====="
             docker login -u "${{ vars.SWR_REGION }}@${{ secrets.SWR_AK }}" -p "${{ secrets.SWR_SK }}" ${{ vars.SWR_LOGIN_SERVER }}
@@ -153,10 +162,10 @@ jobs:
             ENVEOF
             
             echo "===== 确保基础设施运行 ====="
-            docker compose -f docker-compose-infras.yml up -d
+            docker compose -f docker-compose-infras-swr.yml up -d
             sleep 5
             echo "基础设施状态:"
-            docker compose -f docker-compose-infras.yml ps
+            docker compose -f docker-compose-infras-swr.yml ps
             
             echo "===== 拉取最新服务镜像 ====="
             docker compose -f docker-compose-services-swr.yml pull
