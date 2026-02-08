@@ -19,7 +19,6 @@ using Serilog;
 using Shared.Messages;
 using IUserCityContentService = CityService.Application.Services.IUserCityContentService;
 
-const string serviceName = "CityService";
 
 var builder = WebApplication.CreateBuilder(args);
 
