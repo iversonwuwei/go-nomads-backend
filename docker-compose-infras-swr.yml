@@ -23,7 +23,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - gonomads-network
+      - go-nomads-network
 
   rabbitmq:
     # 可选: 使用 SWR 缓存的镜像
@@ -34,12 +34,12 @@ services:
       - "5672:5672"    # AMQP protocol port
       - "15672:15672"  # Management UI
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_DEFAULT_USER=walden
+      - RABBITMQ_DEFAULT_PASS=walden
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
-      - gonomads-network
+      - go-nomads-network
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 30s
@@ -61,10 +61,10 @@ services:
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
-      - gonomads-network
+      - go-nomads-network
 
 networks:
-  gonomads-network:
+  go-nomads-network:
     name: go-nomads-network
     driver: bridge
 
