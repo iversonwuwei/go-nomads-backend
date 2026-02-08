@@ -1,4 +1,3 @@
-using Dapr.Client;
 using SearchService.Domain.Models;
 
 namespace SearchService.Infrastructure.Services;
@@ -20,22 +19,19 @@ public interface ICityServiceClient
 }
 
 /// <summary>
-/// 城市服务客户端实现 (通过Dapr gRPC调用)
+/// 城市服务客户端实现 (通过 HttpClient 调用)
 /// </summary>
 public class CityServiceClient : ICityServiceClient
 {
     private readonly ILogger<CityServiceClient> _logger;
-    private readonly DaprClient _daprClient;
-    private readonly string _cityServiceAppId;
+    private readonly HttpClient _httpClient;
 
     public CityServiceClient(
         ILogger<CityServiceClient> logger,
-        IConfiguration configuration,
-        DaprClient daprClient)
+        HttpClient httpClient)
     {
         _logger = logger;
-        _daprClient = daprClient;
-        _cityServiceAppId = configuration["Dapr:CityServiceAppId"] ?? "city-service";
+        _httpClient = httpClient;
     }
 
     public async Task<List<CitySearchDocument>> GetAllCitiesAsync()
@@ -48,16 +44,12 @@ public class CityServiceClient : ICityServiceClient
             const int pageSize = 100;
             bool hasMore = true;
 
-            _logger.LogInformation("开始通过Dapr从 {AppId} 获取城市数据...", _cityServiceAppId);
+            _logger.LogInformation("开始获取城市数据...");
 
             while (hasMore)
             {
-                var request = _daprClient.CreateInvokeMethodRequest(
-                    HttpMethod.Get,
-                    _cityServiceAppId,
+                var response = await _httpClient.GetAsync(
                     $"api/v1/cities?pageNumber={page}&pageSize={pageSize}");
-
-                var response = await _daprClient.InvokeMethodWithResponseAsync(request);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -96,7 +88,7 @@ public class CityServiceClient : ICityServiceClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "通过Dapr获取城市列表时发生异常");
+            _logger.LogError(ex, "获取城市列表时发生异常");
         }
 
         return result;
@@ -106,14 +98,9 @@ public class CityServiceClient : ICityServiceClient
     {
         try
         {
-            _logger.LogInformation("通过Dapr从 {AppId} 获取城市 {CityId}...", _cityServiceAppId, id);
+            _logger.LogInformation("获取城市 {CityId}...", id);
 
-            var request = _daprClient.CreateInvokeMethodRequest(
-                HttpMethod.Get,
-                _cityServiceAppId,
-                $"api/v1/cities/{id}");
-
-            var response = await _daprClient.InvokeMethodWithResponseAsync(request);
+            var response = await _httpClient.GetAsync($"api/v1/cities/{id}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -134,7 +121,7 @@ public class CityServiceClient : ICityServiceClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "通过Dapr获取城市 {Id} 时发生异常", id);
+            _logger.LogError(ex, "获取城市 {Id} 时发生异常", id);
             return null;
         }
     }

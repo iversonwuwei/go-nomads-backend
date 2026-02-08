@@ -1,19 +1,18 @@
-using Dapr.Client;
+using System.Net.Http.Json;
 
 namespace CacheService.Infrastructure.Integrations;
 
 /// <summary>
-/// CoworkingService 客户端实现 (通过 Dapr Service Invocation)
+/// CoworkingService 客户端实现 (通过 HttpClient)
 /// </summary>
 public class CoworkingServiceClient : ICoworkingServiceClient
 {
-    private readonly DaprClient _daprClient;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<CoworkingServiceClient> _logger;
-    private const string CoworkingServiceAppId = "coworking-service";
 
-    public CoworkingServiceClient(DaprClient daprClient, ILogger<CoworkingServiceClient> logger)
+    public CoworkingServiceClient(HttpClient httpClient, ILogger<CoworkingServiceClient> logger)
     {
-        _daprClient = daprClient;
+        _httpClient = httpClient;
         _logger = logger;
     }
 
@@ -22,11 +21,9 @@ public class CoworkingServiceClient : ICoworkingServiceClient
         try
         {
             _logger.LogInformation("Calling CoworkingService to get score for coworking {CoworkingId}", coworkingId);
-            
+
             // 调用 CoworkingService 获取详情
-            var response = await _daprClient.InvokeMethodAsync<CoworkingDetailResponse>(
-                HttpMethod.Get,
-                CoworkingServiceAppId,
+            var response = await _httpClient.GetFromJsonAsync<CoworkingDetailResponse>(
                 $"api/coworkings/{coworkingId}"
             );
 

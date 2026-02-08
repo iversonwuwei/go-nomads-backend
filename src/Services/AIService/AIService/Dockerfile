@@ -10,6 +10,7 @@ COPY NuGet.Config .
 
 # 复制 .csproj 文件并还原依赖
 COPY ["src/Services/AIService/AIService/AIService.csproj", "src/Services/AIService/AIService/"]
+COPY ["src/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults.csproj", "src/GoNomads.ServiceDefaults/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 
 RUN dotnet restore "src/Services/AIService/AIService/AIService.csproj"
@@ -23,7 +24,7 @@ RUN dotnet build "AIService.csproj" -c Release -o /app/build
 
 # 发布应用程序
 FROM build AS publish
-RUN dotnet publish "AIService.csproj" -c Release -o /app/publish
+RUN dotnet publish "AIService.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 # 最终运行时镜像
 FROM base AS final
@@ -38,10 +39,6 @@ COPY --from=publish /app/publish .
 # 设置环境变量
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV ASPNETCORE_URLS=http://+:8009
-
-# 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8009/health || exit 1
 
 # 启动应用程序
 ENTRYPOINT ["dotnet", "AIService.dll"]

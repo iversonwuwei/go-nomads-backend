@@ -1,10 +1,10 @@
 using System.Diagnostics;
+using System.Net.Http.Json;
 using CityService.Application.Abstractions.Services;
 using CityService.Application.DTOs;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
 using CityService.Domain.ValueObjects;
-using Dapr.Client;
 using GoNomads.Shared.Models;
 using MassTransit;
 using Microsoft.Extensions.Caching.Memory;
@@ -23,7 +23,7 @@ public class CityApplicationService : ICityService
     private readonly ICityRepository _cityRepository;
     private readonly ICountryRepository _countryRepository;
     private readonly ICityRatingRepository _ratingRepository;
-    private readonly DaprClient _daprClient;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly IUserFavoriteCityService _favoriteCityService;
     private readonly ILogger<CityApplicationService> _logger;
     private readonly ICityModeratorRepository _moderatorRepository;
@@ -38,7 +38,7 @@ public class CityApplicationService : ICityService
         IWeatherService weatherService,
         IUserFavoriteCityService favoriteCityService,
         ICityModeratorRepository moderatorRepository,
-        DaprClient daprClient,
+        IHttpClientFactory httpClientFactory,
         IMemoryCache cache,
         IConfiguration configuration,
         IPublishEndpoint publishEndpoint,
@@ -50,7 +50,7 @@ public class CityApplicationService : ICityService
         _weatherService = weatherService;
         _favoriteCityService = favoriteCityService;
         _moderatorRepository = moderatorRepository;
-        _daprClient = daprClient;
+        _httpClientFactory = httpClientFactory;
         _cache = cache;
         _configuration = configuration;
         _publishEndpoint = publishEndpoint;
@@ -1235,12 +1235,10 @@ public class CityApplicationService : ICityService
 
             // 调用 EventService 的批量获取接口
             var cityIdStrings = cityIds.Select(id => id.ToString()).ToList();
-            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchCountResponse>(
-                HttpMethod.Post,
-                "event-service",
-                "api/v1/events/cities/counts",
-                cityIdStrings
-            );
+            var client = _httpClientFactory.CreateClient("event-service");
+            var resp = await client.PostAsJsonAsync("api/v1/events/cities/counts", cityIdStrings);
+            resp.EnsureSuccessStatusCode();
+            var response = await resp.Content.ReadFromJsonAsync<BatchCountResponse>();
 
             if (response?.Counts != null)
             {
@@ -1278,12 +1276,10 @@ public class CityApplicationService : ICityService
 
             // 调用 CoworkingService 的批量获取接口
             var cityIdStrings = cityIds.Select(id => id.ToString()).ToList();
-            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchCountResponse>(
-                HttpMethod.Post,
-                "coworking-service",
-                "api/v1/coworking/cities/counts",
-                cityIdStrings
-            );
+            var client = _httpClientFactory.CreateClient("coworking-service");
+            var resp = await client.PostAsJsonAsync("api/v1/coworking/cities/counts", cityIdStrings);
+            resp.EnsureSuccessStatusCode();
+            var response = await resp.Content.ReadFromJsonAsync<BatchCountResponse>();
 
             if (response?.Counts != null)
             {
@@ -1324,7 +1320,7 @@ public class CityApplicationService : ICityService
     }
 
     /// <summary>
-    /// 通过 CacheService 批量获取城市总评分 (Dapr Service Invocation)
+    /// 通过 CacheService 批量获取城市总评分 (Service Invocation)
     /// </summary>
     private async Task<Dictionary<Guid, decimal>> GetCityScoresFromCacheServiceAsync(List<Guid> cityIds)
     {
@@ -1340,12 +1336,10 @@ public class CityApplicationService : ICityService
             var cityIdStrings = cityIds.Select(id => id.ToString()).ToList();
 
             // 调用 CacheService 的批量获取接口
-            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchScoreResponse>(
-                HttpMethod.Post,
-                "cache-service",
-                "api/v1/cache/scores/city/batch",
-                cityIdStrings
-            );
+            var cacheClient = _httpClientFactory.CreateClient("cache-service");
+            var cacheResp = await cacheClient.PostAsJsonAsync("api/v1/cache/scores/city/batch", cityIdStrings);
+            cacheResp.EnsureSuccessStatusCode();
+            var response = await cacheResp.Content.ReadFromJsonAsync<BatchScoreResponse>();
 
             if (response?.Scores != null)
             {
@@ -1370,7 +1364,7 @@ public class CityApplicationService : ICityService
     }
 
     /// <summary>
-    /// 通过 CacheService 批量获取城市平均费用 (Dapr Service Invocation)
+    /// 通过 CacheService 批量获取城市平均费用 (Service Invocation)
     /// </summary>
     private async Task<Dictionary<Guid, decimal>> GetCityCostsFromCacheServiceAsync(List<Guid> cityIds)
     {
@@ -1386,12 +1380,10 @@ public class CityApplicationService : ICityService
             var cityIdStrings = cityIds.Select(id => id.ToString()).ToList();
 
             // 调用 CacheService 的批量获取接口
-            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchCostResponse>(
-                HttpMethod.Post,
-                "cache-service",
-                "api/v1/cache/costs/city/batch",
-                cityIdStrings
-            );
+            var cacheClient = _httpClientFactory.CreateClient("cache-service");
+            var cacheResp = await cacheClient.PostAsJsonAsync("api/v1/cache/costs/city/batch", cityIdStrings);
+            cacheResp.EnsureSuccessStatusCode();
+            var response = await cacheResp.Content.ReadFromJsonAsync<BatchCostResponse>();
 
             if (response?.Costs != null)
             {
@@ -1593,7 +1585,7 @@ public class CityApplicationService : ICityService
                 _logger.LogInformation("✅ [EnrichModerator] 已设置版主ID - CityId: {CityId}, ModeratorId: {ModeratorId}", 
                     cityDto.Id, cityDto.ModeratorId);
 
-                // 通过缓存或 Dapr 获取用户信息
+                // 通过缓存或 HttpClient 获取用户信息
                 var userInfo = await GetUserInfoWithCacheAsync(firstActiveModerator.UserId);
 
                 if (userInfo != null)
@@ -1788,14 +1780,13 @@ public class CityApplicationService : ICityService
             return cachedUser;
         }
 
-        // 缓存未命中，调用 Dapr（带重试）
+        // 缓存未命中，调用 UserService（带重试）
         const int maxRetries = 2;
         for (var attempt = 0; attempt <= maxRetries; attempt++)
             try
             {
-                var userResponse = await _daprClient.InvokeMethodAsync<ApiResponse<SimpleUserDto>>(
-                    HttpMethod.Get,
-                    "user-service",
+                var userClient = _httpClientFactory.CreateClient("user-service");
+                var userResponse = await userClient.GetFromJsonAsync<ApiResponse<SimpleUserDto>>(
                     $"api/v1/users/{userId}");
 
                 if (userResponse?.Success == true && userResponse.Data != null)
@@ -1910,7 +1901,7 @@ public class CityApplicationService : ICityService
     }
 }
 
-// 临时 DTO - 用于 Dapr 服务间调用
+// 临时 DTO - 用于服务间调用
 internal class SimpleUserDto
 {
     public Guid Id { get; set; }

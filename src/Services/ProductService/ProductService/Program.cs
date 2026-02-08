@@ -1,7 +1,6 @@
 using Prometheus;
 using Scalar.AspNetCore;
 using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
 using Serilog;
 
 const string serviceName = "ProductService";
@@ -20,16 +19,12 @@ builder.Host.UseSerilog();
 // ============================================================
 // OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
 // ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
+builder.AddServiceDefaults();
 
-// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync）
-var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
-});
-builder.Services.AddControllers().AddDapr();
+// Named HttpClient for controllers using IHttpClientFactory
+builder.Services.AddServiceClient("user-service");
+
+builder.Services.AddControllers();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -56,14 +51,10 @@ app.UseHttpMetrics();
 // Map controllers
 app.MapControllers();
 
-// Add health check endpoint
-app.MapGet("/health",
-    () => Results.Ok(new { status = "healthy", service = "ProductService", timestamp = DateTime.UtcNow }));
+// Aspire 默认端点 (健康检查 /health + /alive)
+app.MapDefaultEndpoints();
 
 // Map Prometheus metrics endpoint
 app.MapMetrics();
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 app.Run();

@@ -14,6 +14,7 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY NuGet.Config .
 COPY ["src/Services/ProductService/ProductService/ProductService.csproj", "src/Services/ProductService/ProductService/"]
+COPY ["src/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults.csproj", "src/GoNomads.ServiceDefaults/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 RUN dotnet restore "./src/Services/ProductService/ProductService/ProductService.csproj"
 COPY . .

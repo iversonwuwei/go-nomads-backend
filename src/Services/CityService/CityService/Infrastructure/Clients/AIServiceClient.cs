@@ -1,5 +1,5 @@
+using System.Net.Http.Json;
 using CityService.Application.DTOs;
-using Dapr.Client;
 
 namespace CityService.Infrastructure.Clients;
 
@@ -52,26 +52,19 @@ public class GenerateCityImagesTaskResponse
 
 /// <summary>
 ///     AIService 客户端实现
-///     使用 Dapr Service Invocation 调用 AIService
+///     使用 HttpClient 调用 AIService
 /// </summary>
 public class AIServiceClient : IAIServiceClient
 {
-    private readonly DaprClient _daprClient;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<AIServiceClient> _logger;
-    private readonly string _aiServiceAppId;
 
     public AIServiceClient(
-        DaprClient daprClient,
-        ILogger<AIServiceClient> logger,
-        IConfiguration configuration)
+        HttpClient httpClient,
+        ILogger<AIServiceClient> logger)
     {
-        _daprClient = daprClient;
+        _httpClient = httpClient;
         _logger = logger;
-
-        // 从配置读取 AIService app-id，默认为 "ai-service"
-        _aiServiceAppId = configuration["AIService:AppId"] ?? "ai-service";
-
-        _logger.LogInformation("AIServiceClient 初始化: AppId={AppId}", _aiServiceAppId);
     }
 
     /// <summary>
@@ -87,8 +80,8 @@ public class AIServiceClient : IAIServiceClient
         string bucket = "city-photos")
     {
         _logger.LogInformation(
-            "🖼️ 通过 Dapr 调用 AIService 异步生成城市图片: CityId={CityId}, CityName={CityName}, Country={Country}, UserId={UserId}, AppId={AppId}",
-            cityId, cityName, country, userId, _aiServiceAppId);
+            "🖼️ 通过 HttpClient 调用 AIService 异步生成城市图片: CityId={CityId}, CityName={CityName}, Country={Country}, UserId={UserId}",
+            cityId, cityName, country, userId);
 
         var request = new
         {
@@ -103,12 +96,9 @@ public class AIServiceClient : IAIServiceClient
 
         try
         {
-            // 使用 Dapr Service Invocation 调用 AIService
-            var response = await _daprClient.InvokeMethodAsync<object, ApiResponseWrapper<CreateTaskResponseData>>(
-                HttpMethod.Post,
-                _aiServiceAppId,
-                "api/v1/ai/images/city/async",
-                request);
+            var resp = await _httpClient.PostAsJsonAsync("api/v1/ai/images/city/async", request);
+            resp.EnsureSuccessStatusCode();
+            var response = await resp.Content.ReadFromJsonAsync<ApiResponseWrapper<CreateTaskResponseData>>();
 
             if (response?.Success == true && response.Data != null)
             {
@@ -136,7 +126,7 @@ public class AIServiceClient : IAIServiceClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Dapr 调用 AIService 创建图片生成任务失败: CityId={CityId}", cityId);
+            _logger.LogError(ex, "❌ 调用 AIService 创建图片生成任务失败: CityId={CityId}", cityId);
             return new GenerateCityImagesTaskResponse
             {
                 Success = false,
@@ -154,7 +144,7 @@ public class AIServiceClient : IAIServiceClient
         string bucket = "city-photos")
     {
         _logger.LogInformation(
-            "🖼️ 通过 Dapr 调用 AIService 生成城市图片: CityId={CityId}, CityName={CityName}, Country={Country}",
+            "🖼️ 通过 HttpClient 调用 AIService 生成城市图片: CityId={CityId}, CityName={CityName}, Country={Country}",
             cityId, cityName, country);
 
         var request = new
@@ -169,12 +159,9 @@ public class AIServiceClient : IAIServiceClient
 
         try
         {
-            // 使用 Dapr Service Invocation 调用 AIService
-            var response = await _daprClient.InvokeMethodAsync<object, ApiResponseWrapper<GenerateCityImagesResponse>>(
-                HttpMethod.Post,
-                _aiServiceAppId,
-                "api/v1/ai/images/city",
-                request);
+            var resp = await _httpClient.PostAsJsonAsync("api/v1/ai/images/city", request);
+            resp.EnsureSuccessStatusCode();
+            var response = await resp.Content.ReadFromJsonAsync<ApiResponseWrapper<GenerateCityImagesResponse>>();
 
             if (response?.Success == true && response.Data != null)
             {
@@ -193,7 +180,7 @@ public class AIServiceClient : IAIServiceClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Dapr 调用 AIService 生成城市图片失败: CityId={CityId}", cityId);
+            _logger.LogError(ex, "❌ 调用 AIService 生成城市图片失败: CityId={CityId}", cityId);
             throw;
         }
     }

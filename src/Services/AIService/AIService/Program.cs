@@ -5,7 +5,6 @@ using AIService.Infrastructure.Cache;
 using AIService.Infrastructure.GrpcClients;
 using AIService.Infrastructure.Repositories;
 using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
 using MassTransit;
 using Microsoft.OpenApi.Models;
 using Microsoft.SemanticKernel;
@@ -28,8 +27,7 @@ builder.Host.UseSerilog();
 // ============================================================
 // OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
 // ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
+builder.AddServiceDefaults();
 
 // 注册 Supabase 客户端
 builder.Services.AddSupabase(builder.Configuration);
@@ -42,9 +40,12 @@ builder.Services.AddScoped<IAIConversationRepository, AIConversationRepository>(
 builder.Services.AddScoped<IAIMessageRepository, AIMessageRepository>();
 builder.Services.AddScoped<ITravelPlanRepository, TravelPlanRepository>();
 
-// 注册 gRPC 客户端 (通过 Dapr Service Invocation)
-builder.Services.AddScoped<IUserGrpcClient, UserGrpcClient>();
-builder.Services.AddScoped<ICityGrpcClient, CityGrpcClient>();
+// 注册 gRPC 客户端 (typed HttpClient)
+builder.Services.AddServiceClient<IUserGrpcClient, UserGrpcClient>("user-service");
+builder.Services.AddServiceClient<ICityGrpcClient, CityGrpcClient>("city-service");
+
+// Named HttpClient for controllers using IHttpClientFactory
+builder.Services.AddServiceClient("city-service");
 
 // 配置 Semantic Kernel - 使用 Qwen 模型
 try
@@ -134,28 +135,13 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 
 Log.Information("✅ MassTransit、缓存服务已注册");
 
-// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync，访问控制策略自动生效）
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    // 使用 HTTP 端点（默认端口 3500）
-    var daprHttpPort = builder.Configuration.GetValue("Dapr:HttpPort", 3500);
-    var daprHttpEndpoint = $"http://localhost:{daprHttpPort}";
-
-    daprClientBuilder.UseHttpEndpoint(daprHttpEndpoint);
-
-    // 记录配置
-    var logger = LoggerFactory.Create(loggingBuilder => loggingBuilder.AddConsole()).CreateLogger("DaprSetup");
-    logger.LogInformation("🚀 Dapr Client 配置使用 HTTP: {Endpoint}", daprHttpEndpoint);
-});
-
 // Add services to the container.
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-    })
-    .AddDapr();
+    });
 
 // 配置 CORS
 builder.Services.AddCors(options =>
@@ -199,9 +185,6 @@ builder.Services.AddOpenApi(options =>
 
 var app = builder.Build();
 
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
-
 // Configure the HTTP request pipeline
 app.MapOpenApi();
 
@@ -235,21 +218,8 @@ app.MapControllers();
 // Map SignalR Hub
 app.MapHub<NotificationHub>("/hubs/notifications");
 
-// Add health check endpoint
-app.MapGet("/health", () =>
-{
-    var defaultModel = builder.Configuration["SemanticKernel:DefaultModel"] ?? "qwen-plus";
-    return Results.Ok(new
-    {
-        status = "healthy",
-        service = "AIService",
-        timestamp = DateTime.UtcNow,
-        version = "1.0.0",
-        semantic_kernel = "enabled",
-        ai_model = defaultModel,
-        provider = "Qwen"
-    });
-});
+// Aspire 默认端点 (健康检查 /health + /alive)
+app.MapDefaultEndpoints();
 
 // AI 服务专用健康检查
 app.MapGet("/health/ai", () =>

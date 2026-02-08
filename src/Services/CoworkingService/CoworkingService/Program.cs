@@ -2,7 +2,6 @@ using CoworkingService.Application.Services;
 using CoworkingService.Domain.Repositories;
 using CoworkingService.Infrastructure.Repositories;
 using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
 using MassTransit;
 using Scalar.AspNetCore;
 using Serilog;
@@ -24,8 +23,7 @@ builder.Host.UseSerilog();
 // ============================================================
 // OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
 // ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
+builder.AddServiceDefaults();
 
 // 添加 Supabase 客户端
 builder.Services.AddSupabase(builder.Configuration);
@@ -33,20 +31,10 @@ builder.Services.AddSupabase(builder.Configuration);
 // 添加当前用户服务（统一的用户身份和权限检查）
 builder.Services.AddCurrentUserService();
 
-// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync，访问控制策略自动生效）
-// 在 container sidecar 模式下，CoworkingService 和 Dapr 共享网络命名空间，使用 localhost
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    // 使用 HTTP 端点（默认端口 3500）
-    var daprHttpPort = builder.Configuration.GetValue("Dapr:HttpPort", 3500);
-    var daprHttpEndpoint = $"http://localhost:{daprHttpPort}";
-
-    daprClientBuilder.UseHttpEndpoint(daprHttpEndpoint);
-
-    // 记录配置
-    var logger = LoggerFactory.Create(loggingBuilder => loggingBuilder.AddConsole()).CreateLogger("DaprSetup");
-    logger.LogInformation("🚀 Dapr Client 配置使用 HTTP: {Endpoint}", daprHttpEndpoint);
-});
+// External Services - 外部服务客户端 (typed HttpClient)
+builder.Services.AddServiceClient<CoworkingService.Services.ICacheServiceClient, CoworkingService.Services.CacheServiceClient>("cache-service");
+builder.Services.AddServiceClient<CoworkingService.Services.IUserServiceClient, CoworkingService.Services.UserServiceClient>("user-service");
+builder.Services.AddServiceClient<CoworkingService.Services.ICityServiceClient, CoworkingService.Services.CityServiceClient>("city-service");
 
 // ============================================================
 // DDD 架构依赖注入配置
@@ -62,11 +50,6 @@ builder.Services.AddScoped<ICoworkingReviewRepository, CoworkingReviewRepository
 // Application Layer - 应用服务
 builder.Services.AddScoped<ICoworkingService, CoworkingApplicationService>();
 builder.Services.AddScoped<ICoworkingReviewService, CoworkingReviewService>();
-
-// External Services - 外部服务客户端
-builder.Services.AddScoped<CoworkingService.Services.ICacheServiceClient, CoworkingService.Services.CacheServiceClient>();
-builder.Services.AddScoped<CoworkingService.Services.IUserServiceClient, CoworkingService.Services.UserServiceClient>();
-builder.Services.AddScoped<CoworkingService.Services.ICityServiceClient, CoworkingService.Services.CityServiceClient>();
 
 // Domain Layer 不需要注册（纯 POCO）
 
@@ -101,7 +84,6 @@ builder.Services.AddMassTransit(x =>
 
 // 添加控制器
 builder.Services.AddControllers()
-    .AddDapr()
     .AddJsonOptions(options =>
     {
         // 配置 JSON 序列化为 camelCase（默认行为，但显式配置更清晰）
@@ -144,12 +126,10 @@ app.UseSerilogRequestLogging();
 app.UseRouting();
 app.UseUserContext();
 app.MapControllers();
-app.MapHealthChecks("/health");
+// Aspire 默认端点 (健康检查 /health + /alive)
+app.MapDefaultEndpoints();
 
 Log.Information("CoworkingService 正在启动...");
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 try
 {

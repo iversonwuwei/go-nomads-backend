@@ -118,6 +118,19 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     
     steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 同步部署文件到服务器
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.ALIYUN_SERVER_HOST }}
+          username: ${{ vars.ALIYUN_SERVER_USER }}
+          key: ${{ secrets.ALIYUN_SERVER_SSH_KEY }}
+          source: "docker-compose-services-swr.yml,docker-compose-infras-swr.yml,deployment/nginx/nginx.conf"
+          target: ${{ vars.ALIYUN_DEPLOY_PATH }}
+          overwrite: true
+
       - name: 部署到阿里云服务器
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -132,10 +145,15 @@ jobs:
             cd ${{ vars.ALIYUN_DEPLOY_PATH }}
             
             echo "===== 写入环境变量 ====="
-            echo "ALIYUN_SMS_ACCESS_KEY_ID=${{ secrets.ALIYUN_SMS_ACCESS_KEY_ID }}" > .env
-            echo "ALIYUN_SMS_ACCESS_KEY_SECRET=${{ secrets.ALIYUN_SMS_ACCESS_KEY_SECRET }}" >> .env
+            cat > .env <<'EOF'
+            ALIYUN_SMS_ACCESS_KEY_ID=${{ secrets.ALIYUN_SMS_ACCESS_KEY_ID }}
+            ALIYUN_SMS_ACCESS_KEY_SECRET=${{ secrets.ALIYUN_SMS_ACCESS_KEY_SECRET }}
+            EOF
             
-            echo "===== 拉取最新镜像 ====="
+            echo "===== 确保基础设施运行 ====="
+            docker compose -f docker-compose-infras-swr.yml up -d
+            
+            echo "===== 拉取最新服务镜像 ====="
             docker compose -f docker-compose-services-swr.yml pull
             
             echo "===== 停止旧服务 ====="
@@ -147,8 +165,14 @@ jobs:
             echo "===== 清理旧镜像 ====="
             docker image prune -f
             
+            echo "===== 等待服务启动 ====="
+            sleep 10
+            
             echo "===== 检查服务状态 ====="
             docker compose -f docker-compose-services-swr.yml ps
+            
+            echo "===== 健康检查 ====="
+            curl -sf http://localhost:5080/health || echo "⚠️ Gateway 健康检查未通过 (可能仍在启动)"
             
             echo "✓ 部署完成"
 

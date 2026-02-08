@@ -1,5 +1,4 @@
 using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
 using InnovationService.Infrastructure.Consumers;
 using InnovationService.Repositories;
 using InnovationService.Services;
@@ -25,12 +24,10 @@ builder.Host.UseSerilog();
 // ============================================================
 // OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
 // ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
+builder.AddServiceDefaults();
 
 // Add services to the container
 builder.Services.AddControllers()
-    .AddDapr()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
@@ -55,15 +52,8 @@ builder.Services.AddSupabase(builder.Configuration);
 // 添加当前用户服务（统一的用户身份和权限检查）
 builder.Services.AddCurrentUserService();
 
-// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync）
-var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
-});
-
-// 注册服务客户端
-builder.Services.AddScoped<IUserServiceClient, UserServiceClient>();
+// 注册服务客户端 (typed HttpClient)
+builder.Services.AddServiceClient<IUserServiceClient, UserServiceClient>("user-service");
 
 // 注册 Repository
 builder.Services.AddScoped<IInnovationRepository, InnovationRepository>();
@@ -123,14 +113,9 @@ app.MapScalarApiReference(options =>
         .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
 });
 
-// 健康检查端点
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "innovation-service", timestamp = DateTime.UtcNow }));
+// Aspire 默认端点 (健康检查 /health + /alive)
+app.MapDefaultEndpoints();
 
 app.MapControllers();
-app.UseCloudEvents();
-app.MapSubscribeHandler();
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 app.Run();

@@ -1,4 +1,4 @@
-using Dapr.Client;
+using System.Net.Http.Json;
 
 namespace CityService.Services;
 
@@ -19,22 +19,19 @@ public interface ICacheServiceClient
 }
 
 /// <summary>
-/// CacheService 客户端实现 - 通过 Dapr Service Invocation 调用
+/// CacheService 客户端实现 - 通过 HttpClient 调用
 /// </summary>
 public class CacheServiceClient : ICacheServiceClient
 {
-    private readonly DaprClient _daprClient;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<CacheServiceClient> _logger;
-    private readonly string _cacheServiceAppId;
 
     public CacheServiceClient(
-        DaprClient daprClient,
-        IConfiguration configuration,
+        HttpClient httpClient,
         ILogger<CacheServiceClient> logger)
     {
-        _daprClient = daprClient;
+        _httpClient = httpClient;
         _logger = logger;
-        _cacheServiceAppId = configuration["Dapr:CacheServiceAppId"] ?? "cache-service";
     }
 
     public async Task UpdateCityScoreCacheAsync(string cityId, decimal overallScore, string? statistics = null)
@@ -49,12 +46,8 @@ public class CacheServiceClient : ICacheServiceClient
                 Statistics = statistics
             };
 
-            await _daprClient.InvokeMethodAsync(
-                HttpMethod.Put,
-                _cacheServiceAppId,
-                $"api/v1/cache/scores/city/{cityId}",
-                request
-            );
+            var resp = await _httpClient.PutAsJsonAsync($"api/v1/cache/scores/city/{cityId}", request);
+            resp.EnsureSuccessStatusCode();
 
             _logger.LogInformation("Successfully updated score cache for city {CityId}", cityId);
         }
@@ -77,12 +70,8 @@ public class CacheServiceClient : ICacheServiceClient
                 Statistics = statistics
             };
 
-            await _daprClient.InvokeMethodAsync(
-                HttpMethod.Put,
-                _cacheServiceAppId,
-                $"api/v1/cache/costs/city/{cityId}",
-                request
-            );
+            var resp = await _httpClient.PutAsJsonAsync($"api/v1/cache/costs/city/{cityId}", request);
+            resp.EnsureSuccessStatusCode();
 
             _logger.LogInformation("Successfully updated cost cache for city {CityId}", cityId);
         }

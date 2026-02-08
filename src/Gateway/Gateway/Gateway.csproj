@@ -9,21 +9,30 @@
         <DockerfileContext>..\..\..</DockerfileContext>
     </PropertyGroup>
 
-    <ItemGroup>
-<PackageReference Include="Consul" Version="1.7.14.3" />
+<ItemGroup>
 
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
 
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.9" />
+<PackageReference Include="Microsoft.Extensions.ServiceDiscovery.Yarp" Version="9.2.1" />
+
         <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
         <PackageReference Include="Scalar.AspNetCore" Version="1.2.42" />
         <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.2.1" />
 
-        <PackageReference Include="Yarp.ReverseProxy" Version="2.1.0" />
+<PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
+
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="../../Shared/Shared/Shared.csproj" />
+<ProjectReference Include="../../GoNomads.ServiceDefaults/GoNomads.ServiceDefaults.csproj" />
+</ItemGroup>
+
+<ItemGroup>
+<Content Update="yarp.json">
+    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+</Content>
     </ItemGroup>
 
 </Project>

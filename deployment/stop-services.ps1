@@ -38,10 +38,10 @@ Write-Host "Using container runtime: $CONTAINER_RUNTIME" -ForegroundColor Green
 
 # Service definitions
 $SERVICES = @(
-    @{ Name = "go-nomads-gateway"; DaprName = "go-nomads-gateway-dapr" },
-    @{ Name = "go-nomads-product"; DaprName = "go-nomads-product-dapr" },
-    @{ Name = "go-nomads-user"; DaprName = "go-nomads-user-dapr" },
-    @{ Name = "go-nomads-document"; DaprName = "go-nomads-document-dapr" }
+    @{ Name = "go-nomads-gateway" },
+    @{ Name = "go-nomads-product" },
+    @{ Name = "go-nomads-user" },
+    @{ Name = "go-nomads-document" }
 )
 
 function Write-Header {
@@ -55,27 +55,11 @@ function Write-Header {
 
 function Stop-Service {
     param(
-        [string]$ServiceName,
-        [string]$DaprSidecar
+        [string]$ServiceName
     )
     
     Write-Host "`nStopping service: $ServiceName" -ForegroundColor Yellow
     
-    # Stop Dapr sidecar first
-    try {
-        $running = & $CONTAINER_RUNTIME ps --filter "name=$DaprSidecar" --filter "status=running" --format '{{.Names}}' 2>$null
-        if ($running -eq $DaprSidecar) {
-            Write-Host "  Stopping Dapr sidecar: $DaprSidecar..." -ForegroundColor Gray
-            & $CONTAINER_RUNTIME stop $DaprSidecar 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "    Dapr sidecar stopped" -ForegroundColor Green
-            }
-        }
-    } catch {
-        Write-Host "    Warning: Could not stop Dapr sidecar" -ForegroundColor Yellow
-    }
-    
-    # Stop main service
     try {
         $running = & $CONTAINER_RUNTIME ps --filter "name=$ServiceName" --filter "status=running" --format '{{.Names}}' 2>$null
         if ($running -eq $ServiceName) {
@@ -92,27 +76,11 @@ function Stop-Service {
 
 function Remove-Service {
     param(
-        [string]$ServiceName,
-        [string]$DaprSidecar
+        [string]$ServiceName
     )
     
     Write-Host "`nRemoving service: $ServiceName" -ForegroundColor Yellow
     
-    # Remove Dapr sidecar
-    try {
-        $exists = & $CONTAINER_RUNTIME ps -a --filter "name=$DaprSidecar" --format '{{.Names}}' 2>$null
-        if ($exists -eq $DaprSidecar) {
-            Write-Host "  Removing Dapr sidecar: $DaprSidecar..." -ForegroundColor Gray
-            & $CONTAINER_RUNTIME rm -f $DaprSidecar 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "    Dapr sidecar removed" -ForegroundColor Green
-            }
-        }
-    } catch {
-        Write-Host "    Warning: Could not remove Dapr sidecar" -ForegroundColor Yellow
-    }
-    
-    # Remove main service
     try {
         $exists = & $CONTAINER_RUNTIME ps -a --filter "name=$ServiceName" --format '{{.Names}}' 2>$null
         if ($exists -eq $ServiceName) {
@@ -131,14 +99,14 @@ function Remove-Service {
 if ($Clean) {
     Write-Header "Stopping and Removing All Go-Nomads Services"
     foreach ($service in $SERVICES) {
-        Stop-Service -ServiceName $service.Name -DaprSidecar $service.DaprName
-        Remove-Service -ServiceName $service.Name -DaprSidecar $service.DaprName
+        Stop-Service -ServiceName $service.Name
+        Remove-Service -ServiceName $service.Name
     }
     Write-Host "`nAll services stopped and removed!" -ForegroundColor Green
 } else {
     Write-Header "Stopping All Go-Nomads Services"
     foreach ($service in $SERVICES) {
-        Stop-Service -ServiceName $service.Name -DaprSidecar $service.DaprName
+        Stop-Service -ServiceName $service.Name
     }
     Write-Host "`nAll services stopped!" -ForegroundColor Green
     Write-Host "Use 'stop-services.ps1 -Clean' to also remove containers" -ForegroundColor Cyan

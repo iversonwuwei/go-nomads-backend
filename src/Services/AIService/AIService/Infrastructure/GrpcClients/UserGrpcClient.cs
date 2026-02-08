@@ -1,19 +1,18 @@
-using Dapr.Client;
+using System.Net.Http.Json;
 
 namespace AIService.Infrastructure.GrpcClients;
 
 /// <summary>
-///     用户服务 gRPC 客户端实现 (通过 Dapr Service Invocation)
+///     用户服务 gRPC 客户端实现 (通过 HttpClient)
 /// </summary>
 public class UserGrpcClient : IUserGrpcClient
 {
-    private const string UserServiceName = "user-service";
-    private readonly DaprClient _daprClient;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<UserGrpcClient> _logger;
 
-    public UserGrpcClient(DaprClient daprClient, ILogger<UserGrpcClient> logger)
+    public UserGrpcClient(HttpClient httpClient, ILogger<UserGrpcClient> logger)
     {
-        _daprClient = daprClient;
+        _httpClient = httpClient;
         _logger = logger;
     }
 
@@ -23,10 +22,8 @@ public class UserGrpcClient : IUserGrpcClient
         {
             _logger.LogInformation("获取用户信息，用户ID: {UserId}", userId);
 
-            var response = await _daprClient.InvokeMethodAsync<object, ApiResponse<UserDto>>(
-                UserServiceName,
-                $"api/v1/users/{userId}",
-                new { }
+            var response = await _httpClient.GetFromJsonAsync<ApiResponse<UserDto>>(
+                $"api/v1/users/{userId}"
             );
 
             if (response?.Success == true && response.Data != null)

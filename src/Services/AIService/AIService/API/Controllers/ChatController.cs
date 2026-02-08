@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using AIService.API.Models;
 using AIService.Application.DTOs;
@@ -7,7 +8,6 @@ using AIService.Domain.Entities;
 using AIService.Domain.Repositories;
 using AIService.Infrastructure.Cache;
 using AIService.Infrastructure.GrpcClients;
-using Dapr.Client;
 using GoNomads.Shared.DTOs;
 using GoNomads.Shared.Middleware;
 using MassTransit;
@@ -1661,7 +1661,7 @@ public class ChatController : ControllerBase
         [FromServices] IPublishEndpoint publishEndpoint,
         [FromServices] IRedisCache cache,
         [FromServices] IAIChatService chatService,
-        [FromServices] DaprClient daprClient)
+        [FromServices] IHttpClientFactory httpClientFactory)
     {
         try
         {
@@ -1735,7 +1735,7 @@ public class ChatController : ControllerBase
                             _logger.LogInformation("📊 指南进度: {Progress}% - {Message}", progress, message);
                         });
 
-                    // 保存结果到 CityService（通过 Dapr）
+                    // 保存结果到 CityService（通过 HttpClient）
                     try
                     {
                         var saveRequest = new
@@ -1769,9 +1769,7 @@ public class ChatController : ControllerBase
                             guide.EssentialInfo
                         };
 
-                        await daprClient.InvokeMethodAsync<object, object>(
-                            HttpMethod.Post,
-                            "city-service",
+                        await httpClientFactory.CreateClient("city-service").PostAsJsonAsync(
                             $"api/v1/cities/{request.CityId}/guide",
                             saveRequest);
 
@@ -1957,7 +1955,7 @@ public class ChatController : ControllerBase
         [FromServices] IPublishEndpoint publishEndpoint,
         [FromServices] IRedisCache cache,
         [FromServices] IAIChatService chatService,
-        [FromServices] DaprClient daprClient,
+        [FromServices] IHttpClientFactory httpClientFactory,
         [FromServices] IImageGenerationService imageService)
     {
         try
@@ -2176,7 +2174,7 @@ public class ChatController : ControllerBase
                     // 更新结果中的城市列表
                     nearbyCities.Cities = citiesWithImages;
 
-                    // 保存结果到 CityService（通过 Dapr）
+                    // 保存结果到 CityService（通过 HttpClient）
                     try
                     {
                         var saveRequest = new
@@ -2207,9 +2205,7 @@ public class ChatController : ControllerBase
                             }).ToList()
                         };
 
-                        await daprClient.InvokeMethodAsync<object, object>(
-                            HttpMethod.Post,
-                            "city-service",
+                        await httpClientFactory.CreateClient("city-service").PostAsJsonAsync(
                             $"api/v1/cities/{request.CityId}/nearby",
                             saveRequest);
 

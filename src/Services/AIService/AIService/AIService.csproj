@@ -6,9 +6,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
-    <ItemGroup>
-        <!-- Dapr 集成 -->
-        <PackageReference Include="Dapr.AspNetCore" Version="1.16.0"/>
+<ItemGroup>
         <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.5"/>
 
         <!-- Semantic Kernel 核心包 -->
@@ -32,14 +30,14 @@
         <PackageReference Include="Serilog.Sinks.File" Version="6.0.0"/>
 
         <!-- HTTP 客户端 -->
-        <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.10"/>
+<PackageReference Include="Microsoft.Extensions.Http" Version="9.0.10"/>
 
-        <!-- Consul 服务发现 -->
-        <PackageReference Include="Consul" Version="1.6.10.9"/>
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj"/>
+<ProjectReference Include="..\..\..\GoNomads.ServiceDefaults\GoNomads.ServiceDefaults.csproj"/>
+
     </ItemGroup>
 
 </Project>

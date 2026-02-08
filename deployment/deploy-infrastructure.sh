@@ -120,7 +120,6 @@ import_redis_config() {
         "go-nomads:config:product-service:endpoint" "http://go-nomads-product-service:8080"
         "go-nomads:config:user-service:endpoint" "http://go-nomads-user-service:8080"
         "go-nomads:config:redis:endpoint" "go-nomads-redis:6379"
-        "go-nomads:config:consul:endpoint" "http://go-nomads-consul:8500"
         "go-nomads:config:zipkin:endpoint" "http://go-nomads-zipkin:9411"
         "go-nomads:config:prometheus:endpoint" "http://go-nomads-prometheus:9090"
         "go-nomads:config:grafana:endpoint" "http://go-nomads-grafana:3000"
@@ -146,85 +145,6 @@ import_redis_config() {
     done
     
     echo -e "${GREEN}  Imported $count configuration items${NC}"
-}
-
-# Deploy Consul
-deploy_consul() {
-    show_header "Deploying Consul"
-    
-    remove_container_if_exists "go-nomads-consul"
-    
-    # Create Consul config directory
-    local consul_config_dir="$SCRIPT_DIR/consul"
-    mkdir -p "$consul_config_dir"
-    
-    # Create Consul configuration
-    cat > "$consul_config_dir/consul-config.json" << 'EOF'
-{
-  "datacenter": "dc1",
-  "data_dir": "/consul/data",
-  "log_level": "INFO",
-  "server": true,
-  "ui_config": {
-    "enabled": true
-  },
-  "ports": {
-    "http": 8500,
-    "dns": 8600,
-    "grpc": 8502
-  },
-  "addresses": {
-    "http": "0.0.0.0",
-    "dns": "0.0.0.0",
-    "grpc": "0.0.0.0"
-  },
-  "client_addr": "0.0.0.0",
-  "bootstrap_expect": 1
-}
-EOF
-    
-    echo -e "${YELLOW}  Starting Consul container...${NC}"
-    $CONTAINER_RUNTIME run -d \
-        --name go-nomads-consul \
-        --network "$NETWORK_NAME" \
-        -p 8500:8500 \
-        -p 8502:8502 \
-        -p 8600:8600/udp \
-        -e CONSUL_BIND_INTERFACE=eth0 \
-        hashicorp/consul:latest agent -server -ui -bootstrap-expect=1 -client=0.0.0.0 > /dev/null
-    
-    if container_running "go-nomads-consul"; then
-        echo -e "${GREEN}  Consul deployed successfully!${NC}"
-        wait_for_service "Consul" "http://localhost:8500/v1/status/leader" || true
-        register_consul_services
-    else
-        echo -e "${RED}  [ERROR] Failed to start Consul${NC}"
-        exit 1
-    fi
-}
-
-# Register Services to Consul
-register_consul_services() {
-    echo -e "${YELLOW}  Registering services to Consul...${NC}"
-    
-    sleep 3
-    
-    declare -a services=(
-        "gateway:go-nomads-gateway:8080"
-        "product-service:go-nomads-product-service:8080"
-        "user-service:go-nomads-user-service:8080"
-    )
-    
-    for svc in "${services[@]}"; do
-        IFS=':' read -r name address port <<< "$svc"
-        $CONTAINER_RUNTIME exec go-nomads-consul consul services register \
-            -name="$name" \
-            -address="$address" \
-            -port="$port" \
-            -tag=dapr > /dev/null 2>&1 || true
-    done
-    
-    echo -e "${GREEN}  Registered ${#services[@]} services to Consul${NC}"
 }
 
 # Deploy Zipkin
@@ -273,43 +193,6 @@ scrape_configs:
       - targets: ['localhost:9090']
         labels:
           service: 'prometheus'
-
-  # 完全依赖 Consul 自动服务发现 - 无需手动配置服务列表
-  - job_name: 'consul-services'
-    metrics_path: /metrics
-    consul_sd_configs:
-      - server: 'go-nomads-consul:8500'
-        # 不指定 services，自动发现所有已注册的服务
-    relabel_configs:
-      # 只抓取有 metrics_path 元数据的服务
-      - source_labels: [__meta_consul_service_metadata_metrics_path]
-        action: keep
-        regex: /.+
-      
-      # 使用自定义 metrics 路径（如果有）
-      - source_labels: [__meta_consul_service_metadata_metrics_path]
-        target_label: __metrics_path__
-        regex: (.+)
-        replacement: $1
-      
-      # 服务名称标签
-      - source_labels: [__meta_consul_service]
-        target_label: service
-      
-      # 版本标签
-      - source_labels: [__meta_consul_service_metadata_version]
-        target_label: version
-      
-      # 协议标签
-      - source_labels: [__meta_consul_service_metadata_protocol]
-        target_label: protocol
-      
-      # 实例标签
-      - source_labels: [__address__]
-        target_label: instance
-EOF
-      - replacement: 'application'
-        target_label: service_type
 
   - job_name: 'redis'
     static_configs:
@@ -470,14 +353,6 @@ show_status() {
     $CONTAINER_RUNTIME ps --filter "name=go-nomads" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
     echo ""
     
-    if container_running "go-nomads-consul"; then
-        echo -e "${YELLOW}Consul Services:${NC}"
-        $CONTAINER_RUNTIME exec go-nomads-consul consul catalog services 2>/dev/null | while read -r svc; do
-            echo -e "${CYAN}  - $svc${NC}"
-        done
-        echo ""
-    fi
-    
     if container_running "go-nomads-redis"; then
         echo -e "${YELLOW}Redis Configuration:${NC}"
         local config_count=$($CONTAINER_RUNTIME exec go-nomads-redis redis-cli KEYS "go-nomads:config:*" 2>/dev/null | wc -l)
@@ -487,7 +362,6 @@ show_status() {
     
     echo -e "${YELLOW}Access URLs:${NC}"
     echo -e "${CYAN}  - Nginx:          http://localhost${NC}"
-    echo -e "${CYAN}  - Consul UI:      http://localhost:8500${NC}"
     echo -e "${CYAN}  - Prometheus:     http://localhost:9090${NC}"
     echo -e "${CYAN}  - Grafana:        http://localhost:3000 (admin/admin)${NC}"
     echo -e "${CYAN}  - Zipkin:         http://localhost:9411${NC}"
@@ -506,7 +380,6 @@ stop_infrastructure() {
         "go-nomads-grafana"
         "go-nomads-prometheus"
         "go-nomads-zipkin"
-        "go-nomads-consul"
         "go-nomads-rabbitmq"
         "go-nomads-redis"
         "go-nomads-postgres"
@@ -532,7 +405,6 @@ clean_infrastructure() {
         "go-nomads-grafana"
         "go-nomads-prometheus"
         "go-nomads-zipkin"
-        "go-nomads-consul"
         "go-nomads-rabbitmq"
         "go-nomads-redis"
         "go-nomads-postgres"
@@ -547,7 +419,7 @@ clean_infrastructure() {
     $CONTAINER_RUNTIME network rm "$NETWORK_NAME" > /dev/null 2>&1 || true
     
     echo -e "${YELLOW}  Removing configuration directories...${NC}"
-    rm -rf "$SCRIPT_DIR/consul" "$SCRIPT_DIR/prometheus"
+    rm -rf "$SCRIPT_DIR/prometheus"
     
     echo ""
     echo -e "${GREEN}All infrastructure resources cleaned!${NC}"
@@ -571,7 +443,6 @@ show_help() {
     echo ""
     echo -e "${YELLOW}Infrastructure Components:${NC}"
     echo -e "${WHITE}  - Redis (Configuration & State Store)${NC}"
-    echo -e "${WHITE}  - Consul (Service Registry)${NC}"
     echo -e "${WHITE}  - Zipkin (Distributed Tracing)${NC}"
     echo -e "${WHITE}  - Prometheus (Metrics Collection)${NC}"
     echo -e "${WHITE}  - Grafana (Metrics Visualization)${NC}"
@@ -591,7 +462,6 @@ case "$ACTION" in
         initialize_network
         deploy_redis
         deploy_rabbitmq
-        deploy_consul
         deploy_zipkin
         deploy_prometheus
         deploy_grafana

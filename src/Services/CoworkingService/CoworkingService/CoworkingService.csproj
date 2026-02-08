@@ -6,8 +6,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
-    <ItemGroup>
-        <PackageReference Include="Dapr.AspNetCore" Version="1.16.0"/>
+<ItemGroup>
         <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.5"/>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.10"/>
         <PackageReference Include="Scalar.AspNetCore" Version="1.2.42"/>
@@ -16,6 +15,8 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj"/>
+<ProjectReference Include="..\..\..\GoNomads.ServiceDefaults\GoNomads.ServiceDefaults.csproj"/>
+
     </ItemGroup>
 
 </Project>

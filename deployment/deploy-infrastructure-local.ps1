@@ -88,262 +88,6 @@ function Start-Redis {
     Write-Host "Redis running at: redis://localhost:6379" -ForegroundColor Green
 }
 
-function Start-Consul {
-    Write-Header "Deploying Consul"
-    Remove-Container "go-nomads-consul"
-    
-    $consulDir = Join-Path $SCRIPT_DIR "consul"
-    New-Item -ItemType Directory -Path $consulDir -Force | Out-Null
-    
-    # Create Consul config file using PowerShell hashtable
-    $consulConfig = @{
-        datacenter = "dc1"
-        server = $true
-        bootstrap_expect = 1
-        data_dir = "/consul/data"
-        ui_config = @{ enabled = $true }
-        log_level = "INFO"
-        ports = @{
-            http = 7500
-            grpc = 7502
-            dns = 7600
-        }
-        addresses = @{
-            http = "0.0.0.0"
-            grpc = "0.0.0.0"
-            dns = "0.0.0.0"
-        }
-    }
-    $consulConfigContent = $consulConfig | ConvertTo-Json -Depth 5 -Compress
-    
-    $consulConfigPath = Join-Path $consulDir "consul-local.json"
-    [System.IO.File]::WriteAllText($consulConfigPath, $consulConfigContent)
-    
-    # For Docker on Windows, use the absolute path without conversion
-    & $RUNTIME run -d `
-        --name go-nomads-consul `
-        --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads-infras" `
-        --label "com.docker.compose.service=consul" `
-        -p 7500:7500 `
-        -p 7502:7502 `
-        -p 7600:7600/udp `
-        -v "${consulConfigPath}:/consul/config/consul.json:ro" `
-        hashicorp/consul:latest agent -config-file /consul/config/consul.json | Out-Null
-    
-    Write-Host "Consul UI available at: http://localhost:7500" -ForegroundColor Green
-}
-
-function Start-Jaeger {
-    Write-Header "Deploying Jaeger (Distributed Tracing)"
-    Remove-Container "go-nomads-jaeger"
-    
-    & $RUNTIME run -d `
-        --name go-nomads-jaeger `
-        --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads-infras" `
-        --label "com.docker.compose.service=jaeger" `
-        -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 `
-        -e COLLECTOR_OTLP_ENABLED=true `
-        -e SPAN_STORAGE_TYPE=memory `
-        -e MEMORY_MAX_TRACES=100000 `
-        -p 16686:16686 `
-        -p 4317:4317 `
-        -p 4318:4318 `
-        -p 9411:9411 `
-        -p 6831:6831/udp `
-        jaegertracing/all-in-one:latest | Out-Null
-    
-    Write-Host "Jaeger UI available at: http://localhost:16686" -ForegroundColor Green
-    Write-Host "Jaeger OTLP (gRPC): localhost:4317" -ForegroundColor Green
-    Write-Host "Jaeger OTLP (HTTP): localhost:4318" -ForegroundColor Green
-}
-
-function Start-Prometheus {
-    Write-Header "Deploying Prometheus"
-    Remove-Container "go-nomads-prometheus"
-    
-    $promDir = Join-Path $SCRIPT_DIR "prometheus"
-    New-Item -ItemType Directory -Path $promDir -Force | Out-Null
-    
-    # Create Prometheus config file with OpenTelemetry compatible settings
-    $promConfigLines = @(
-        'global:',
-        '  scrape_interval: 15s',
-        '  evaluation_interval: 15s',
-        '  external_labels:',
-        '    cluster: ''go-nomads''',
-        '    env: ''development''',
-        '',
-        'scrape_configs:',
-        '  - job_name: ''prometheus''',
-        '    static_configs:',
-        '      - targets: [''localhost:9090'']',
-        '',
-        '  # Gateway',
-        '  - job_name: ''gateway''',
-        '    metrics_path: /metrics',
-        '    static_configs:',
-        '      - targets: [''host.docker.internal:5000'']',
-        '        labels:',
-        '          service: ''gateway''',
-        '',
-        '  # User Service',
-        '  - job_name: ''user-service''',
-        '    metrics_path: /metrics',
-        '    static_configs:',
-        '      - targets: [''host.docker.internal:5001'']',
-        '        labels:',
-        '          service: ''user-service''',
-        '',
-        '  # City Service',
-        '  - job_name: ''city-service''',
-        '    metrics_path: /metrics',
-        '    static_configs:',
-        '      - targets: [''host.docker.internal:8002'']',
-        '        labels:',
-        '          service: ''city-service''',
-        '',
-        '  # Accommodation Service',
-        '  - job_name: ''accommodation-service''',
-        '    metrics_path: /metrics',
-        '    static_configs:',
-        '      - targets: [''host.docker.internal:8003'']',
-        '        labels:',
-        '          service: ''accommodation-service''',
-        '',
-        '  # Coworking Service',
-        '  - job_name: ''coworking-service''',
-        '    metrics_path: /metrics',
-        '    static_configs:',
-        '      - targets: [''host.docker.internal:8004'']',
-        '        labels:',
-        '          service: ''coworking-service''',
-        '',
-        '  # Event Service',
-        '  - job_name: ''event-service''',
-        '    metrics_path: /metrics',
-        '    static_configs:',
-        '      - targets: [''host.docker.internal:8005'']',
-        '        labels:',
-        '          service: ''event-service''',
-        '',
-        '  # AI Service',
-        '  - job_name: ''ai-service''',
-        '    metrics_path: /metrics',
-        '    static_configs:',
-        '      - targets: [''host.docker.internal:8006'']',
-        '        labels:',
-        '          service: ''ai-service''',
-        '',
-        '  # Message Service',
-        '  - job_name: ''message-service''',
-        '    metrics_path: /metrics',
-        '    static_configs:',
-        '      - targets: [''host.docker.internal:8007'']',
-        '        labels:',
-        '          service: ''message-service''',
-        '',
-        '  # Search Service',
-        '  - job_name: ''search-service''',
-        '    metrics_path: /metrics',
-        '    static_configs:',
-        '      - targets: [''host.docker.internal:8008'']',
-        '        labels:',
-        '          service: ''search-service''',
-        '',
-        '  # Jaeger',
-        '  - job_name: ''jaeger''',
-        '    static_configs:',
-        '      - targets: [''go-nomads-jaeger:14269'']',
-        '        labels:',
-        '          service: ''jaeger''',
-        '',
-        '  # Consul service discovery (optional)',
-        '  # - job_name: ''consul-services''',
-        '  #   metrics_path: /metrics',
-        '  #   consul_sd_configs:',
-        '  #     - server: ''go-nomads-consul:7500'''
-    )
-    $promConfigContent = $promConfigLines -join "`n"
-    
-    $promConfigPath = Join-Path $promDir "prometheus-local.yml"
-    [System.IO.File]::WriteAllText($promConfigPath, $promConfigContent)
-    $promConfigPath = $promConfigPath -replace '\\', '/'
-    
-    & $RUNTIME run -d `
-        --name go-nomads-prometheus `
-        --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads-infras" `
-        --label "com.docker.compose.service=prometheus" `
-        --add-host host.docker.internal:host-gateway `
-        -p 9090:9090 `
-        -v "${promConfigPath}:/etc/prometheus/prometheus.yml:ro" `
-        prom/prometheus:v2.49.1 `
-        --config.file=/etc/prometheus/prometheus.yml `
-        --storage.tsdb.path=/prometheus `
-        --web.enable-lifecycle | Out-Null
-    
-    Write-Host "Prometheus UI available at: http://localhost:9090" -ForegroundColor Green
-}
-
-function Start-Grafana {
-    Write-Header "Deploying Grafana"
-    Remove-Container "go-nomads-grafana"
-    
-    $grafanaDir = Join-Path $SCRIPT_DIR "grafana"
-    $grafanaProvisioningPath = Join-Path $grafanaDir "provisioning"
-    $grafanaDatasourcesPath = Join-Path $grafanaProvisioningPath "datasources"
-    
-    # Create directories
-    New-Item -ItemType Directory -Path $grafanaDatasourcesPath -Force | Out-Null
-    
-    # Create datasources config for Prometheus and Jaeger
-    $datasourcesConfig = @"
-apiVersion: 1
-datasources:
-  - name: Prometheus
-    type: prometheus
-    access: proxy
-    url: http://go-nomads-prometheus:9090
-    isDefault: true
-    editable: false
-
-  - name: Jaeger
-    type: jaeger
-    access: proxy
-    url: http://go-nomads-jaeger:16686
-    editable: false
-    jsonData:
-      tracesToLogsV2:
-        datasourceUid: ''
-      tracesToMetrics:
-        datasourceUid: Prometheus
-        tags:
-          - key: service.name
-            value: service
-"@
-    
-    $datasourcesFilePath = Join-Path $grafanaDatasourcesPath "datasources.yml"
-    [System.IO.File]::WriteAllText($datasourcesFilePath, $datasourcesConfig)
-    
-    $grafanaProvisioningPath = $grafanaProvisioningPath -replace '\\', '/'
-    
-    & $RUNTIME run -d `
-        --name go-nomads-grafana `
-        --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads-infras" `
-        --label "com.docker.compose.service=grafana" `
-        --add-host host.docker.internal:host-gateway `
-        -p 3000:3000 `
-        -e GF_SECURITY_ADMIN_PASSWORD=admin `
-        -e GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource `
-        -v "${grafanaProvisioningPath}:/etc/grafana/provisioning:ro" `
-        grafana/grafana:10.3.1 | Out-Null
-    
-    Write-Host "Grafana UI available at: http://localhost:3000 (admin/admin)" -ForegroundColor Green
-}
-
 function Start-Elasticsearch {
     Write-Header "Deploying Elasticsearch"
     Remove-Container "go-nomads-elasticsearch"
@@ -416,10 +160,6 @@ function Start-Infrastructure {
     New-Network
     Start-Redis
     Start-RabbitMQ
-    Start-Consul
-    Start-Jaeger
-    Start-Prometheus
-    Start-Grafana
     Start-Elasticsearch
     Start-Nginx
     
@@ -434,10 +174,6 @@ function Stop-Infrastructure {
     $containers = @(
         "go-nomads-nginx",
         "go-nomads-elasticsearch",
-        "go-nomads-grafana",
-        "go-nomads-prometheus",
-        "go-nomads-jaeger",
-        "go-nomads-consul",
         "go-nomads-rabbitmq",
         "go-nomads-redis"
     )
@@ -465,10 +201,6 @@ function Remove-Infrastructure {
     $containers = @(
         "go-nomads-nginx",
         "go-nomads-elasticsearch",
-        "go-nomads-grafana",
-        "go-nomads-prometheus",
-        "go-nomads-jaeger",
-        "go-nomads-consul",
         "go-nomads-rabbitmq",
         "go-nomads-redis"
     )
@@ -480,22 +212,6 @@ function Remove-Infrastructure {
     if (Test-NetworkExists) {
         Write-Host "Removing network $NETWORK_NAME..." -ForegroundColor Yellow
         & $RUNTIME network rm $NETWORK_NAME 2>&1 | Out-Null
-    }
-    
-    $consulDir = Join-Path $SCRIPT_DIR "consul"
-    $promDir = Join-Path $SCRIPT_DIR "prometheus"
-    $grafanaDir = Join-Path $SCRIPT_DIR "grafana"
-    
-    if (Test-Path $consulDir) {
-        Remove-Item -Path $consulDir -Recurse -Force
-    }
-    
-    if (Test-Path $promDir) {
-        Remove-Item -Path $promDir -Recurse -Force
-    }
-    
-    if (Test-Path $grafanaDir) {
-        Remove-Item -Path $grafanaDir -Recurse -Force
     }
     
     Write-Host "Clean complete." -ForegroundColor Green
@@ -511,12 +227,11 @@ function Show-Status {
     Write-Host "Access URLs:" -ForegroundColor Cyan
     Write-Host "  Nginx:          http://localhost"
     Write-Host "  Redis:          redis://localhost:6379"
-    Write-Host "  Consul:         http://localhost:7500"
-    Write-Host "  Jaeger UI:      http://localhost:16686" -ForegroundColor Green
-    Write-Host "  Jaeger OTLP:    http://localhost:4317 (gRPC), http://localhost:4318 (HTTP)"
-    Write-Host "  Prometheus:     http://localhost:9090"
-    Write-Host "  Grafana:        http://localhost:3000 (admin/admin)"
+    Write-Host "  RabbitMQ:       amqp://localhost:5672"
+    Write-Host "  RabbitMQ UI:    http://localhost:15672"
     Write-Host "  Elasticsearch:  http://localhost:9200"
+    Write-Host ""
+    Write-Host "  Observability (Aspire Dashboard): 通过 dotnet run --project src/GoNomads.AppHost 启动" -ForegroundColor Yellow
 }
 
 function Show-Help {

@@ -13,6 +13,7 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY NuGet.Config .
 COPY ["src/Services/DocumentService/DocumentService/DocumentService.csproj", "src/Services/DocumentService/DocumentService/"]
+COPY ["src/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults.csproj", "src/GoNomads.ServiceDefaults/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 RUN dotnet restore "./src/Services/DocumentService/DocumentService/DocumentService.csproj"
 COPY . .

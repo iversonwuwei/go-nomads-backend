@@ -1,0 +1,415 @@
+{
+  "ReverseProxy": {
+    "Routes": {
+      "city-user-favorites-route": {
+        "ClusterId": "city-service-cluster",
+        "Match": { "Path": "/api/v1/user-favorite-cities/{**catch-all}" },
+        "Order": 1
+      },
+      "city-user-content-route": {
+        "ClusterId": "city-service-cluster",
+        "Match": { "Path": "/api/v1/user-content/pros-cons/{**catch-all}" },
+        "Order": 2
+      },
+      "city-user-content-detail-route": {
+        "ClusterId": "city-service-cluster",
+        "Match": { "Path": "/api/v1/cities/{cityId}/user-content/{**catch-all}" },
+        "Order": 3
+      },
+      "city-cities-route": {
+        "ClusterId": "city-service-cluster",
+        "Match": { "Path": "/api/v1/cities/{**catch-all}" },
+        "Order": 4
+      },
+      "city-countries-route": {
+        "ClusterId": "city-service-cluster",
+        "Match": { "Path": "/api/v1/countries/{**catch-all}" },
+        "Order": 5
+      },
+      "city-provinces-route": {
+        "ClusterId": "city-service-cluster",
+        "Match": { "Path": "/api/v1/provinces/{**catch-all}" },
+        "Order": 6
+      },
+
+      "user-auth-route": {
+        "ClusterId": "user-service-cluster",
+        "Match": { "Path": "/api/v1/auth/{**catch-all}" },
+        "Order": 10
+      },
+      "user-users-route": {
+        "ClusterId": "user-service-cluster",
+        "Match": { "Path": "/api/v1/users/{**catch-all}" },
+        "Order": 11
+      },
+      "user-travel-history-route": {
+        "ClusterId": "user-service-cluster",
+        "Match": { "Path": "/api/v1/travel-history/{**catch-all}" },
+        "Order": 12
+      },
+      "user-visited-places-route": {
+        "ClusterId": "user-service-cluster",
+        "Match": { "Path": "/api/v1/visited-places/{**catch-all}" },
+        "Order": 13
+      },
+      "user-membership-route": {
+        "ClusterId": "user-service-cluster",
+        "Match": { "Path": "/api/v1/membership/{**catch-all}" },
+        "Order": 14
+      },
+      "user-payments-route": {
+        "ClusterId": "user-service-cluster",
+        "Match": { "Path": "/api/v1/payments/{**catch-all}" },
+        "Order": 15
+      },
+      "user-roles-route": {
+        "ClusterId": "user-service-cluster",
+        "Match": { "Path": "/api/v1/roles/{**catch-all}" },
+        "Order": 16
+      },
+      "user-skills-route": {
+        "ClusterId": "user-service-cluster",
+        "Match": { "Path": "/api/v1/skills/{**catch-all}" },
+        "Order": 17
+      },
+      "user-interests-route": {
+        "ClusterId": "user-service-cluster",
+        "Match": { "Path": "/api/v1/interests/{**catch-all}" },
+        "Order": 18
+      },
+
+      "event-types-route": {
+        "ClusterId": "event-service-cluster",
+        "Match": { "Path": "/api/v1/event-types/{**catch-all}" },
+        "Order": 20
+      },
+      "event-events-route": {
+        "ClusterId": "event-service-cluster",
+        "Match": { "Path": "/api/v1/events/{**catch-all}" },
+        "Order": 21
+      },
+      "event-meetup-hub-route": {
+        "ClusterId": "event-service-cluster",
+        "Match": { "Path": "/hubs/meetup/{**catch-all}" },
+        "Order": 22
+      },
+
+      "ai-route": {
+        "ClusterId": "ai-service-cluster",
+        "Match": { "Path": "/api/v1/ai/{**catch-all}" },
+        "Order": 30
+      },
+
+      "coworking-route": {
+        "ClusterId": "coworking-service-cluster",
+        "Match": { "Path": "/api/v1/coworking/{**catch-all}" },
+        "Order": 40
+      },
+
+      "search-route": {
+        "ClusterId": "search-service-cluster",
+        "Match": { "Path": "/api/v1/search/{**catch-all}" },
+        "Order": 50
+      },
+      "search-index-route": {
+        "ClusterId": "search-service-cluster",
+        "Match": { "Path": "/api/v1/index/{**catch-all}" },
+        "Order": 51
+      },
+
+      "accommodation-route": {
+        "ClusterId": "accommodation-service-cluster",
+        "Match": { "Path": "/api/v1/hotels/{**catch-all}" },
+        "Order": 60
+      },
+
+      "product-route": {
+        "ClusterId": "product-service-cluster",
+        "Match": { "Path": "/api/v1/products/{**catch-all}" },
+        "Order": 70
+      },
+
+      "message-im-route": {
+        "ClusterId": "message-service-cluster",
+        "Match": { "Path": "/api/v1/im/{**catch-all}" },
+        "Order": 80
+      },
+      "message-notifications-route": {
+        "ClusterId": "message-service-cluster",
+        "Match": { "Path": "/api/v1/notifications/{**catch-all}" },
+        "Order": 81
+      },
+      "message-chats-route": {
+        "ClusterId": "message-service-cluster",
+        "Match": { "Path": "/api/v1/chats/{**catch-all}" },
+        "Order": 82
+      },
+      "message-chat-hub-route": {
+        "ClusterId": "message-service-cluster",
+        "Match": { "Path": "/hubs/chat/{**catch-all}" },
+        "Order": 83
+      },
+      "message-notifications-hub-route": {
+        "ClusterId": "message-service-cluster",
+        "Match": { "Path": "/hubs/notifications/{**catch-all}" },
+        "Order": 84
+      },
+      "message-ai-progress-hub-route": {
+        "ClusterId": "message-service-cluster",
+        "Match": { "Path": "/hubs/ai-progress/{**catch-all}" },
+        "Order": 85
+      },
+
+      "innovation-v0-route": {
+        "ClusterId": "innovation-service-cluster",
+        "Match": { "Path": "/api/innovations/{**catch-all}" },
+        "Order": 90
+      },
+      "innovation-v1-route": {
+        "ClusterId": "innovation-service-cluster",
+        "Match": { "Path": "/api/v1/innovations/{**catch-all}" },
+        "Order": 91
+      },
+
+      "cache-route": {
+        "ClusterId": "cache-service-cluster",
+        "Match": { "Path": "/api/v1/cache/{**catch-all}" },
+        "Order": 100
+      }
+    },
+
+    "Clusters": {
+      "user-service-cluster": {
+        "LoadBalancingPolicy": "RoundRobin",
+        "Destinations": {
+          "user-service": { "Address": "http://user-service:8080" }
+        },
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:30",
+            "Timeout": "00:00:10",
+            "Policy": "ConsecutiveFailures",
+            "Path": "/health"
+          }
+        },
+        "HttpClient": {
+          "RequestHeaderEncoding": "utf-8"
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:10:00"
+        }
+      },
+      "city-service-cluster": {
+        "LoadBalancingPolicy": "RoundRobin",
+        "Destinations": {
+          "city-service": { "Address": "http://city-service:8002" }
+        },
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:30",
+            "Timeout": "00:00:10",
+            "Policy": "ConsecutiveFailures",
+            "Path": "/health"
+          }
+        },
+        "HttpClient": {
+          "RequestHeaderEncoding": "utf-8"
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:10:00"
+        }
+      },
+      "coworking-service-cluster": {
+        "LoadBalancingPolicy": "RoundRobin",
+        "Destinations": {
+          "coworking-service": { "Address": "http://coworking-service:8006" }
+        },
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:30",
+            "Timeout": "00:00:10",
+            "Policy": "ConsecutiveFailures",
+            "Path": "/health"
+          }
+        },
+        "HttpClient": {
+          "RequestHeaderEncoding": "utf-8"
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:10:00"
+        }
+      },
+      "event-service-cluster": {
+        "LoadBalancingPolicy": "RoundRobin",
+        "Destinations": {
+          "event-service": { "Address": "http://event-service:8005" }
+        },
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:30",
+            "Timeout": "00:00:10",
+            "Policy": "ConsecutiveFailures",
+            "Path": "/health"
+          }
+        },
+        "HttpClient": {
+          "RequestHeaderEncoding": "utf-8"
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:10:00"
+        }
+      },
+      "ai-service-cluster": {
+        "LoadBalancingPolicy": "RoundRobin",
+        "Destinations": {
+          "ai-service": { "Address": "http://ai-service:8080" }
+        },
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:30",
+            "Timeout": "00:00:10",
+            "Policy": "ConsecutiveFailures",
+            "Path": "/health"
+          }
+        },
+        "HttpClient": {
+          "RequestHeaderEncoding": "utf-8"
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:10:00"
+        }
+      },
+      "cache-service-cluster": {
+        "LoadBalancingPolicy": "RoundRobin",
+        "Destinations": {
+          "cache-service": { "Address": "http://cache-service:8010" }
+        },
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:30",
+            "Timeout": "00:00:10",
+            "Policy": "ConsecutiveFailures",
+            "Path": "/health"
+          }
+        },
+        "HttpClient": {
+          "RequestHeaderEncoding": "utf-8"
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:10:00"
+        }
+      },
+      "message-service-cluster": {
+        "LoadBalancingPolicy": "RoundRobin",
+        "Destinations": {
+          "message-service": { "Address": "http://message-service:8080" }
+        },
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:30",
+            "Timeout": "00:00:10",
+            "Policy": "ConsecutiveFailures",
+            "Path": "/health"
+          }
+        },
+        "HttpClient": {
+          "RequestHeaderEncoding": "utf-8"
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:10:00"
+        }
+      },
+      "innovation-service-cluster": {
+        "LoadBalancingPolicy": "RoundRobin",
+        "Destinations": {
+          "innovation-service": { "Address": "http://innovation-service:8011" }
+        },
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:30",
+            "Timeout": "00:00:10",
+            "Policy": "ConsecutiveFailures",
+            "Path": "/health"
+          }
+        },
+        "HttpClient": {
+          "RequestHeaderEncoding": "utf-8"
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:10:00"
+        }
+      },
+      "search-service-cluster": {
+        "LoadBalancingPolicy": "RoundRobin",
+        "Destinations": {
+          "search-service": { "Address": "http://search-service:8080" }
+        },
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:30",
+            "Timeout": "00:00:10",
+            "Policy": "ConsecutiveFailures",
+            "Path": "/health"
+          }
+        },
+        "HttpClient": {
+          "RequestHeaderEncoding": "utf-8"
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:10:00"
+        }
+      },
+      "accommodation-service-cluster": {
+        "LoadBalancingPolicy": "RoundRobin",
+        "Destinations": {
+          "accommodation-service": { "Address": "http://accommodation-service:8080" }
+        },
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:30",
+            "Timeout": "00:00:10",
+            "Policy": "ConsecutiveFailures",
+            "Path": "/health"
+          }
+        },
+        "HttpClient": {
+          "RequestHeaderEncoding": "utf-8"
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:10:00"
+        }
+      },
+      "product-service-cluster": {
+        "LoadBalancingPolicy": "RoundRobin",
+        "Destinations": {
+          "product-service": { "Address": "http://product-service:8080" }
+        },
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:30",
+            "Timeout": "00:00:10",
+            "Policy": "ConsecutiveFailures",
+            "Path": "/health"
+          }
+        },
+        "HttpClient": {
+          "RequestHeaderEncoding": "utf-8"
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:10:00"
+        }
+      }
+    }
+  }
+}

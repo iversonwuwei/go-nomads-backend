@@ -6,7 +6,6 @@ using EventService.Infrastructure.Consumers;
 using EventService.Infrastructure.GrpcClients;
 using EventService.Infrastructure.Repositories;
 using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
 using MassTransit;
 using Microsoft.OpenApi.Models;
 using Prometheus;
@@ -30,8 +29,7 @@ builder.Host.UseSerilog();
 // ============================================================
 // OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
 // ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
+builder.AddServiceDefaults();
 
 // 添加 Supabase 客户端
 builder.Services.AddSupabase(builder.Configuration);
@@ -46,9 +44,13 @@ builder.Services.AddScoped<IEventFollowerRepository, EventFollowerRepository>();
 builder.Services.AddScoped<IEventTypeRepository, EventTypeRepository>();
 builder.Services.AddScoped<IEventInvitationRepository, EventInvitationRepository>();
 
-// 注册 gRPC 客户端 (通过 Dapr Service Invocation)
-builder.Services.AddScoped<ICityGrpcClient, CityGrpcClient>();
-builder.Services.AddScoped<IUserGrpcClient, UserGrpcClient>();
+// 注册 gRPC 客户端 (typed HttpClient)
+builder.Services.AddServiceClient<ICityGrpcClient, CityGrpcClient>("city-service");
+builder.Services.AddServiceClient<IUserGrpcClient, UserGrpcClient>("user-service");
+
+// Named HttpClient for controllers using IHttpClientFactory
+builder.Services.AddServiceClient("user-service");
+builder.Services.AddServiceClient("message-service");
 
 // 注册应用服务 (Application Layer)
 builder.Services.AddScoped<IEventService, EventApplicationService>();
@@ -89,23 +91,8 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
-// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync，访问控制策略自动生效）
-// 在 container sidecar 模式下，EventService 和 Dapr 共享网络命名空间，使用 localhost
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    // 使用 HTTP 端点（默认端口 3500）
-    var daprHttpPort = builder.Configuration.GetValue("Dapr:HttpPort", 3500);
-    var daprHttpEndpoint = $"http://localhost:{daprHttpPort}";
-
-    daprClientBuilder.UseHttpEndpoint(daprHttpEndpoint);
-
-    // 记录配置
-    var logger = LoggerFactory.Create(loggingBuilder => loggingBuilder.AddConsole()).CreateLogger("DaprSetup");
-    logger.LogInformation("🚀 Dapr Client 配置使用 HTTP: {Endpoint}", daprHttpEndpoint);
-});
-
 // Add services to the container.
-builder.Services.AddControllers().AddDapr();
+builder.Services.AddControllers();
 
 // 添加 SignalR
 builder.Services.AddSignalR(options =>
@@ -187,16 +174,12 @@ app.MapControllers();
 // 映射 SignalR Hub
 app.MapHub<MeetupHub>("/hubs/meetup");
 
-// Add health check endpoint
-app.MapGet("/health",
-    () => Results.Ok(new { status = "healthy", service = "EventService", timestamp = DateTime.UtcNow }));
+// Aspire 默认端点 (健康检查 /health + /alive)
+app.MapDefaultEndpoints();
 
 // Map Prometheus metrics endpoint
 app.MapMetrics();
 
 Log.Information("Event Service starting on port 8005...");
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 app.Run();

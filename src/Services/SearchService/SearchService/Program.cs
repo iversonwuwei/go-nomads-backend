@@ -1,5 +1,4 @@
 using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
 using Scalar.AspNetCore;
 using SearchService.Application.Interfaces;
 using SearchService.Application.Services;
@@ -26,8 +25,7 @@ builder.Host.UseSerilog();
 // ============================================================
 // OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
 // ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
+builder.AddServiceDefaults();
 
 // ============================================================
 // 配置绑定
@@ -40,20 +38,11 @@ builder.Services.Configure<IndexMaintenanceSettings>(
     builder.Configuration.GetSection("IndexMaintenance"));
 
 // ============================================================
-// 添加 Dapr 客户端 - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync）
-// ============================================================
-var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
-});
-
-// ============================================================
 // 依赖注入 - Infrastructure 层
 // ============================================================
 builder.Services.AddSingleton<IElasticsearchService, ElasticsearchService>();
-builder.Services.AddScoped<ICityServiceClient, CityServiceClient>();
-builder.Services.AddScoped<ICoworkingServiceClient, CoworkingServiceClient>();
+builder.Services.AddServiceClient<ICityServiceClient, CityServiceClient>("city-service");
+builder.Services.AddServiceClient<ICoworkingServiceClient, CoworkingServiceClient>("coworking-service");
 builder.Services.AddScoped<IIndexSyncService, IndexSyncService>();
 builder.Services.AddHostedService<IndexVerificationHostedService>();
 
@@ -66,7 +55,6 @@ builder.Services.AddScoped<ISearchService, SearchApplicationService>();
 // 添加控制器
 // ============================================================
 builder.Services.AddControllers()
-    .AddDapr()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
@@ -107,12 +95,10 @@ app.UseCors("AllowAll");
 app.UseSerilogRequestLogging();
 app.UseRouting();
 app.MapControllers();
-app.MapHealthChecks("/health");
+// Aspire 默认端点 (健康检查 /health + /alive)
+app.MapDefaultEndpoints();
 
 Log.Information("SearchService 正在启动...");
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 // 启动时初始化索引
 using (var scope = app.Services.CreateScope())

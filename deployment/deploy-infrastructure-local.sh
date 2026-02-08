@@ -66,223 +66,6 @@ start_redis() {
     echo "Redis running at redis://localhost:6379"
 }
 
-start_consul() {
-    header "Deploying Consul"
-    remove_container go-nomads-consul
-    local consul_dir="${SCRIPT_DIR}/consul"
-    mkdir -p "${consul_dir}"
-    cat > "${consul_dir}/consul-local.json" <<'EOF'
-{
-  "datacenter": "dc1",
-  "server": true,
-  "bootstrap_expect": 1,
-  "data_dir": "/consul/data",
-  "ui_config": { "enabled": true },
-  "log_level": "INFO",
-  "ports": {
-    "http": 7500,
-    "grpc": 7502,
-    "dns": 7600
-  },
-  "addresses": {
-    "http": "0.0.0.0",
-    "grpc": "0.0.0.0",
-    "dns": "0.0.0.0"
-  }
-}
-EOF
-    docker run -d \
-        --name go-nomads-consul \
-        --network "${NETWORK_NAME}" \
-        --label "com.docker.compose.project=go-nomads-infras" \
-        --label "com.docker.compose.service=consul" \
-        -p 7500:7500 \
-        -p 7502:7502 \
-        -p 7600:7600/udp \
-        -v "${consul_dir}/consul-local.json:/consul/config/consul.json:ro" \
-        hashicorp/consul:latest agent -config-file=/consul/config/consul.json >/dev/null
-    echo "Consul UI available at http://localhost:7500"
-}
-
-start_jaeger() {
-    header "Deploying Jaeger"
-    remove_container go-nomads-jaeger
-    docker run -d \
-        --name go-nomads-jaeger \
-        --network "${NETWORK_NAME}" \
-        --label "com.docker.compose.project=go-nomads-infras" \
-        --label "com.docker.compose.service=jaeger" \
-        -e COLLECTOR_OTLP_ENABLED=true \
-        -p 16686:16686 \
-        -p 4317:4317 \
-        -p 4318:4318 \
-        -p 9411:9411 \
-        jaegertracing/all-in-one:latest \
-        --memory.max-traces=100000 >/dev/null
-    echo "Jaeger UI available at http://localhost:16686"
-    echo "OTLP gRPC: localhost:4317, OTLP HTTP: localhost:4318"
-}
-
-start_prometheus() {
-    header "Deploying Prometheus"
-    remove_container go-nomads-prometheus
-    local prom_dir="${SCRIPT_DIR}/prometheus"
-    mkdir -p "${prom_dir}"
-    cat > "${prom_dir}/prometheus-local.yml" <<'EOF'
-global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
-  external_labels:
-    cluster: 'go-nomads'
-    env: 'development'
-
-scrape_configs:
-  - job_name: 'prometheus'
-    static_configs:
-      - targets: ['localhost:9090']
-
-  # Gateway
-  - job_name: 'gateway'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['host.docker.internal:5000']
-        labels:
-          service: 'gateway'
-
-  # User Service
-  - job_name: 'user-service'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['host.docker.internal:5001']
-        labels:
-          service: 'user-service'
-
-  # City Service
-  - job_name: 'city-service'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['host.docker.internal:8002']
-        labels:
-          service: 'city-service'
-
-  # Accommodation Service
-  - job_name: 'accommodation-service'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['host.docker.internal:8003']
-        labels:
-          service: 'accommodation-service'
-
-  # Coworking Service
-  - job_name: 'coworking-service'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['host.docker.internal:8004']
-        labels:
-          service: 'coworking-service'
-
-  # Event Service
-  - job_name: 'event-service'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['host.docker.internal:8005']
-        labels:
-          service: 'event-service'
-
-  # AI Service
-  - job_name: 'ai-service'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['host.docker.internal:8006']
-        labels:
-          service: 'ai-service'
-
-  # Message Service
-  - job_name: 'message-service'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['host.docker.internal:8007']
-        labels:
-          service: 'message-service'
-
-  # Search Service
-  - job_name: 'search-service'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['host.docker.internal:8008']
-        labels:
-          service: 'search-service'
-
-  # Jaeger
-  - job_name: 'jaeger'
-    static_configs:
-      - targets: ['go-nomads-jaeger:14269']
-        labels:
-          service: 'jaeger'
-EOF
-    docker run -d \
-        --name go-nomads-prometheus \
-        --network "${NETWORK_NAME}" \
-        --label "com.docker.compose.project=go-nomads-infras" \
-        --label "com.docker.compose.service=prometheus" \
-        --add-host host.docker.internal:host-gateway \
-        -p 9090:9090 \
-        -v "${prom_dir}/prometheus-local.yml:/etc/prometheus/prometheus.yml:ro" \
-        prom/prometheus:v2.49.1 \
-        --config.file=/etc/prometheus/prometheus.yml \
-        --storage.tsdb.path=/prometheus \
-        --web.enable-lifecycle >/dev/null
-    echo "Prometheus UI available at http://localhost:9090"
-}
-
-start_grafana() {
-    header "Deploying Grafana"
-    remove_container go-nomads-grafana
-    local grafana_dir="${SCRIPT_DIR}/grafana"
-    local datasources_dir="${grafana_dir}/provisioning/datasources"
-    mkdir -p "${datasources_dir}"
-    
-    # Create datasources config
-    cat > "${datasources_dir}/datasources.yml" <<'EOF'
-apiVersion: 1
-datasources:
-  - name: Prometheus
-    type: prometheus
-    access: proxy
-    url: http://go-nomads-prometheus:9090
-    isDefault: true
-    editable: false
-
-  - name: Jaeger
-    type: jaeger
-    access: proxy
-    url: http://go-nomads-jaeger:16686
-    editable: false
-    jsonData:
-      tracesToLogsV2:
-        datasourceUid: ''
-      tracesToMetrics:
-        datasourceUid: Prometheus
-        tags:
-          - key: service.name
-            value: service
-EOF
-    
-    docker run -d \
-        --name go-nomads-grafana \
-        --network "${NETWORK_NAME}" \
-        --label "com.docker.compose.project=go-nomads-infras" \
-        --label "com.docker.compose.service=grafana" \
-        --add-host host.docker.internal:host-gateway \
-        -p 3000:3000 \
-        -e GF_SECURITY_ADMIN_PASSWORD=admin \
-        -e GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource \
-        -v "${grafana_dir}/provisioning:/etc/grafana/provisioning:ro" \
-        grafana/grafana:10.3.1 >/dev/null
-    echo "Grafana UI available at http://localhost:3000 (admin/admin)"
-    echo "Datasources: Prometheus, Jaeger auto-provisioned"
-}
-
 start_elasticsearch() {
     header "Deploying Elasticsearch"
     remove_container go-nomads-elasticsearch
@@ -339,18 +122,32 @@ start_nginx() {
     echo "Nginx running at http://localhost"
 }
 
+start_aspire_dashboard() {
+    header "Deploying Aspire Dashboard"
+    remove_container go-nomads-aspire-dashboard
+    docker run -d \
+        --name go-nomads-aspire-dashboard \
+        --network "${NETWORK_NAME}" \
+        --label "com.docker.compose.project=go-nomads-infras" \
+        --label "com.docker.compose.service=aspire-dashboard" \
+        -p 18888:18888 \
+        -p 4317:18889 \
+        -e DASHBOARD__FRONTEND__AUTHMODE=Unsecured \
+        -e DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true \
+        mcr.microsoft.com/dotnet/aspire-dashboard:9.0 >/dev/null
+    echo "Aspire Dashboard running at http://localhost:18888"
+    echo "OTLP gRPC endpoint: http://localhost:4317 (container: http://go-nomads-aspire-dashboard:18889)"
+}
+
 start_all() {
     header "Go-Nomads Local Infrastructure"
     require_docker
     create_network
     start_redis
     start_rabbitmq
-    start_consul
-    start_jaeger
-    start_prometheus
-    start_grafana
     start_elasticsearch
     start_nginx
+    start_aspire_dashboard
     status_all
     echo "Infrastructure ready."
 }
@@ -359,12 +156,9 @@ stop_all() {
     header "Stopping local infrastructure"
     require_docker
     local containers=(
+        go-nomads-aspire-dashboard
         go-nomads-nginx
         go-nomads-elasticsearch
-        go-nomads-grafana
-        go-nomads-prometheus
-        go-nomads-jaeger
-        go-nomads-consul
         go-nomads-rabbitmq
         go-nomads-redis
     )
@@ -381,12 +175,9 @@ clean_all() {
     require_docker
     stop_all
     local containers=(
+        go-nomads-aspire-dashboard
         go-nomads-nginx
         go-nomads-elasticsearch
-        go-nomads-grafana
-        go-nomads-prometheus
-        go-nomads-jaeger
-        go-nomads-consul
         go-nomads-rabbitmq
         go-nomads-redis
     )
@@ -397,7 +188,6 @@ clean_all() {
         echo "Removing network ${NETWORK_NAME}..."
         docker network rm "${NETWORK_NAME}" >/dev/null
     fi
-    rm -rf "${SCRIPT_DIR}/consul" "${SCRIPT_DIR}/prometheus" "${SCRIPT_DIR}/grafana"
     echo "Clean complete."
 }
 
@@ -407,14 +197,13 @@ status_all() {
     docker ps --filter "name=go-nomads" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
     echo
     echo "Access URLs:"
-    echo "  Nginx:          http://localhost"
-    echo "  Redis:          redis://localhost:6379"
-    echo "  Consul:         http://localhost:7500"
-    echo "  Jaeger UI:      http://localhost:16686"
-    echo "  Jaeger OTLP:    localhost:4317 (gRPC), localhost:4318 (HTTP)"
-    echo "  Prometheus:     http://localhost:9090"
-    echo "  Grafana:        http://localhost:3000 (admin/admin)"
-    echo "  Elasticsearch:  http://localhost:9200"
+    echo "  Nginx:            http://localhost"
+    echo "  Redis:            redis://localhost:6379"
+    echo "  RabbitMQ:         amqp://localhost:5672"
+    echo "  RabbitMQ UI:      http://localhost:15672"
+    echo "  Elasticsearch:    http://localhost:9200"
+    echo "  Aspire Dashboard: http://localhost:18888"
+    echo "  OTLP Endpoint:    http://localhost:4317"
 }
 
 show_help() {

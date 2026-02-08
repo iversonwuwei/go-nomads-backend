@@ -2,7 +2,7 @@ using CityService.Application.DTOs;
 using CityService.Application.Services;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Dapr.Client;
+using System.Net.Http.Json;
 using GoNomads.Shared.Models;
 using GoNomads.Shared.Middleware;
 using GoNomads.Shared.Services;
@@ -23,7 +23,7 @@ public class CityRatingsController : ControllerBase
     private readonly ICityRatingRepository _ratingRepository;
     private readonly ICityRepository _cityRepository;
     private readonly ICurrentUserService _currentUser;
-    private readonly DaprClient _daprClient;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<CityRatingsController> _logger;
     private readonly RatingCategorySeeder _ratingSeeder;
@@ -33,7 +33,7 @@ public class CityRatingsController : ControllerBase
         ICityRatingRepository ratingRepository,
         ICityRepository cityRepository,
         ICurrentUserService currentUser,
-        DaprClient daprClient,
+        IHttpClientFactory httpClientFactory,
         IPublishEndpoint publishEndpoint,
         ILogger<CityRatingsController> logger,
         RatingCategorySeeder ratingSeeder)
@@ -42,7 +42,7 @@ public class CityRatingsController : ControllerBase
         _ratingRepository = ratingRepository;
         _cityRepository = cityRepository;
         _currentUser = currentUser;
-        _daprClient = daprClient;
+        _httpClientFactory = httpClientFactory;
         _publishEndpoint = publishEndpoint;
         _logger = logger;
         _ratingSeeder = ratingSeeder;
@@ -652,19 +652,15 @@ public class CityRatingsController : ControllerBase
             // 4. 计算评价人数（去重后的用户数）
             var reviewCount = allCityRatings.Select(r => r.UserId).Distinct().Count();
 
-            // 5. 通过 Dapr 调用 CacheService 保存评分
+            // 5. 通过 CacheService 保存评分
             var requestBody = new
             {
                 overallScore = overallScore,
                 statistics = System.Text.Json.JsonSerializer.Serialize(statistics)
             };
 
-            await _daprClient.InvokeMethodAsync(
-                HttpMethod.Put,
-                "cache-service",
-                $"api/v1/cache/scores/city/{cityId}",
-                requestBody
-            );
+            var cacheClient = _httpClientFactory.CreateClient("cache-service");
+            (await cacheClient.PutAsJsonAsync($"api/v1/cache/scores/city/{cityId}", requestBody)).EnsureSuccessStatusCode();
 
             _logger.LogInformation("✅ 城市评分已更新到缓存: CityId={CityId}, OverallScore={OverallScore}",
                 cityId, overallScore);
@@ -721,9 +717,8 @@ public class CityRatingsController : ControllerBase
         try
         {
             // 检查缓存是否存在
-            var cacheCheckResponse = await _daprClient.InvokeMethodAsync<ScoreCacheCheckResponse>(
-                HttpMethod.Get,
-                "cache-service",
+            var cacheClient = _httpClientFactory.CreateClient("cache-service");
+            var cacheCheckResponse = await cacheClient.GetFromJsonAsync<ScoreCacheCheckResponse>(
                 $"api/v1/cache/scores/city/{cityId}"
             );
 
@@ -742,12 +737,7 @@ public class CityRatingsController : ControllerBase
                     statistics = System.Text.Json.JsonSerializer.Serialize(statistics)
                 };
 
-                await _daprClient.InvokeMethodAsync(
-                    HttpMethod.Put,
-                    "cache-service",
-                    $"api/v1/cache/scores/city/{cityId}",
-                    requestBody
-                );
+                (await cacheClient.PutAsJsonAsync($"api/v1/cache/scores/city/{cityId}", requestBody)).EnsureSuccessStatusCode();
 
                 _logger.LogInformation("✅ 城市评分缓存初始化完成: CityId={CityId}, OverallScore={OverallScore}",
                     cityId, overallScore);
