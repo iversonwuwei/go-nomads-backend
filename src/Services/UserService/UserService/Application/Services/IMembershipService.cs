@@ -30,12 +30,12 @@ public interface IMembershipService
     /// <summary>
     ///     记录 AI 使用次数
     /// </summary>
-    Task<bool> RecordAiUsageAsync(string userId);
+    Task<bool> RecordAiUsageAsync(string userId, bool isAdmin = false);
 
     /// <summary>
     ///     检查用户 AI 使用配额
     /// </summary>
-    Task<AiUsageCheckResponse> CheckAiUsageAsync(string userId);
+    Task<AiUsageCheckResponse> CheckAiUsageAsync(string userId, bool isAdmin = false);
 
     /// <summary>
     ///     获取即将过期的会员列表（用于发送提醒）

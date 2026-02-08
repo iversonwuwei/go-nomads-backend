@@ -80,8 +80,15 @@ public class MembershipService : IMembershipService
         return MembershipResponse.FromEntity(membership);
     }
 
-    public async Task<bool> RecordAiUsageAsync(string userId)
+    public async Task<bool> RecordAiUsageAsync(string userId, bool isAdmin = false)
     {
+        // Admin 用户无限制，直接返回成功
+        if (isAdmin)
+        {
+            _logger.LogInformation("🤖 Admin 用户 {UserId} 使用 AI，跳过配额检查", userId);
+            return true;
+        }
+
         var membership = await _membershipRepository.GetByUserIdAsync(userId);
         if (membership == null)
         {
@@ -101,8 +108,25 @@ public class MembershipService : IMembershipService
     /// <summary>
     /// 检查用户是否可以使用 AI 服务
     /// </summary>
-    public async Task<AiUsageCheckResponse> CheckAiUsageAsync(string userId)
+    public async Task<AiUsageCheckResponse> CheckAiUsageAsync(string userId, bool isAdmin = false)
     {
+        // Admin 用户直接返回无限制配额
+        if (isAdmin)
+        {
+            _logger.LogInformation("🤖 Admin 用户 {UserId} 检查 AI 配额，返回无限制", userId);
+            return new AiUsageCheckResponse
+            {
+                CanUse = true,
+                Level = 999,
+                LevelName = "Admin",
+                Limit = -1,
+                Used = 0,
+                Remaining = -1,
+                IsUnlimited = true,
+                ResetDate = null
+            };
+        }
+
         var membership = await _membershipRepository.GetByUserIdAsync(userId);
         if (membership == null)
         {
