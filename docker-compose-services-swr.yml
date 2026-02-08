@@ -26,8 +26,8 @@ x-infra-env: &infra-env
   REDIS_PORT: &redis-port "6379"
   # RabbitMQ
   RABBITMQ_HOST: &rabbitmq-host "go-nomads-rabbitmq"
-  RABBITMQ_USER: &rabbitmq-user "guest"
-  RABBITMQ_PASS: &rabbitmq-pass "guest"
+  RABBITMQ_USER: &rabbitmq-user "walden"
+  RABBITMQ_PASS: &rabbitmq-pass "walden"
   # Elasticsearch
   ELASTICSEARCH_URL: &elasticsearch-url "http://go-nomads-elasticsearch:9200"
 
@@ -358,4 +358,4 @@ services:
 networks:
   go-nomads-network:
     name: go-nomads-network
-    driver: bridge
+    external: true

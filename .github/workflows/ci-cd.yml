@@ -127,7 +127,7 @@ jobs:
           host: ${{ vars.ALIYUN_SERVER_HOST }}
           username: ${{ vars.ALIYUN_SERVER_USER }}
           key: ${{ secrets.ALIYUN_SERVER_SSH_KEY }}
-          source: "docker-compose-services-swr.yml,docker-compose-infras-swr.yml,deployment/nginx/nginx.conf"
+          source: "docker-compose-services-swr.yml,docker-compose-infras.yml,deployment/nginx/nginx.conf"
           target: ${{ vars.ALIYUN_DEPLOY_PATH }}
           overwrite: true
 
@@ -138,6 +138,8 @@ jobs:
           username: ${{ vars.ALIYUN_SERVER_USER }}
           key: ${{ secrets.ALIYUN_SERVER_SSH_KEY }}
           script: |
+            set -e
+            
             echo "===== 登录华为云 SWR ====="
             docker login -u "${{ vars.SWR_REGION }}@${{ secrets.SWR_AK }}" -p "${{ secrets.SWR_SK }}" ${{ vars.SWR_LOGIN_SERVER }}
             
@@ -145,13 +147,16 @@ jobs:
             cd ${{ vars.ALIYUN_DEPLOY_PATH }}
             
             echo "===== 写入环境变量 ====="
-            cat > .env <<'EOF'
+            cat > .env <<'ENVEOF'
             ALIYUN_SMS_ACCESS_KEY_ID=${{ secrets.ALIYUN_SMS_ACCESS_KEY_ID }}
             ALIYUN_SMS_ACCESS_KEY_SECRET=${{ secrets.ALIYUN_SMS_ACCESS_KEY_SECRET }}
-            EOF
+            ENVEOF
             
             echo "===== 确保基础设施运行 ====="
-            docker compose -f docker-compose-infras-swr.yml up -d
+            docker compose -f docker-compose-infras.yml up -d
+            sleep 5
+            echo "基础设施状态:"
+            docker compose -f docker-compose-infras.yml ps
             
             echo "===== 拉取最新服务镜像 ====="
             docker compose -f docker-compose-services-swr.yml pull
@@ -160,19 +165,39 @@ jobs:
             docker compose -f docker-compose-services-swr.yml down --remove-orphans || true
             
             echo "===== 启动新服务 ====="
-            docker compose --env-file .env -f docker-compose-services-swr.yml up -d
+            docker compose --env-file .env -f docker-compose-services-swr.yml up -d 2>&1
             
             echo "===== 清理旧镜像 ====="
             docker image prune -f
             
-            echo "===== 等待服务启动 ====="
-            sleep 10
+            echo "===== 等待服务启动 (30s) ====="
+            sleep 30
             
             echo "===== 检查服务状态 ====="
-            docker compose -f docker-compose-services-swr.yml ps
+            docker compose -f docker-compose-services-swr.yml ps -a
+            
+            echo "===== 检查异常退出的容器 ====="
+            docker compose -f docker-compose-services-swr.yml ps -a | grep -v "running\|Up" | grep -v "NAME" || echo "所有容器运行正常"
+            
+            echo "===== 最近容器日志 (如有异常) ====="
+            for svc in gateway user-service city-service; do
+              STATUS=$(docker inspect --format='{{.State.Status}}' go-nomads-$svc 2>/dev/null || echo "not_found")
+              if [ "$STATUS" != "running" ]; then
+                echo "--- $svc ($STATUS) ---"
+                docker logs --tail 20 go-nomads-$svc 2>&1 || true
+              fi
+            done
             
             echo "===== 健康检查 ====="
-            curl -sf http://localhost:5080/health || echo "⚠️ Gateway 健康检查未通过 (可能仍在启动)"
+            for i in 1 2 3; do
+              if curl -sf http://localhost:5080/health; then
+                echo ""
+                echo "✅ Gateway 健康检查通过"
+                break
+              fi
+              echo "⏳ 第 $i 次检查未通过, 等待 10s..."
+              sleep 10
+            done
             
             echo "✓ 部署完成"
 
