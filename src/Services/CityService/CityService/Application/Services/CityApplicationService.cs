@@ -1846,6 +1846,8 @@ public class CityApplicationService : ICityService
 
             if (result != null)
             {
+                // 失效城市列表缓存，确保所有 Pod 返回最新图片
+                InvalidateCityListCache();
                 _logger.LogInformation("✅ 城市图片更新成功: CityId={CityId}", cityId);
                 return true;
             }

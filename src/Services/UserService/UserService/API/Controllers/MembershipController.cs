@@ -130,8 +130,9 @@ public class MembershipController : ControllerBase
         if (string.IsNullOrEmpty(userId))
             return Unauthorized(new { message = "用户未登录" });
 
-        _logger.LogInformation("🤖 记录 AI 使用: UserId={UserId}", userId);
-        var result = await _membershipService.RecordAiUsageAsync(userId);
+        var isAdmin = _currentUser.IsAdmin();
+        _logger.LogInformation("🤖 记录 AI 使用: UserId={UserId}, IsAdmin={IsAdmin}", userId, isAdmin);
+        var result = await _membershipService.RecordAiUsageAsync(userId, isAdmin);
         return Ok(new { success = result });
     }
 
@@ -145,8 +146,9 @@ public class MembershipController : ControllerBase
         if (string.IsNullOrEmpty(userId))
             return Unauthorized(new { message = "用户未登录" });
 
-        _logger.LogInformation("🤖 检查 AI 配额: UserId={UserId}", userId);
-        var result = await _membershipService.CheckAiUsageAsync(userId);
+        var isAdmin = _currentUser.IsAdmin();
+        _logger.LogInformation("🤖 检查 AI 配额: UserId={UserId}, IsAdmin={IsAdmin}", userId, isAdmin);
+        var result = await _membershipService.CheckAiUsageAsync(userId, isAdmin);
         return Ok(result);
     }
 
