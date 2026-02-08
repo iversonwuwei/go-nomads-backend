@@ -12,6 +12,7 @@ COPY ["src/Services/MessageService/MessageService/API/MessageService.csproj", "s
 COPY ["src/Services/MessageService/MessageService/Application/MessageService.Application.csproj", "src/Services/MessageService/MessageService/Application/"]
 COPY ["src/Services/MessageService/MessageService/Infrastructure/MessageService.Infrastructure.csproj", "src/Services/MessageService/MessageService/Infrastructure/"]
 COPY ["src/Services/MessageService/MessageService/Domain/MessageService.Domain.csproj", "src/Services/MessageService/MessageService/Domain/"]
+COPY ["src/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults.csproj", "src/GoNomads.ServiceDefaults/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 
 # 还原依赖

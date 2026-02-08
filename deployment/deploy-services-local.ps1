@@ -15,6 +15,22 @@ $RABBITMQ_USER = "walden"
 $RABBITMQ_PASS = "walden"
 $ELASTICSEARCH_URL = "http://go-nomads-elasticsearch:9200"
 
+# ============================================================
+# 从 .env 文件加载环境变量
+# ============================================================
+$ENV_FILE = Join-Path $ROOT_DIR ".env"
+if (Test-Path $ENV_FILE) {
+    Write-Host "  加载 .env 文件: $ENV_FILE" -ForegroundColor Green
+    Get-Content $ENV_FILE | ForEach-Object {
+        if ($_ -match '^\s*([^#][^=]+?)\s*=\s*(.*)$') {
+            [System.Environment]::SetEnvironmentVariable($Matches[1].Trim(), $Matches[2].Trim(), 'Process')
+        }
+    }
+} else {
+    Write-Host "  [警告] 未找到 .env 文件: $ENV_FILE" -ForegroundColor Yellow
+    Write-Host "  阿里云短信等功能可能无法正常工作" -ForegroundColor Yellow
+}
+
 # 服务发现辅助函数
 function SvcUrl([string]$name) { return "http://go-nomads-${name}:8080" }
 
@@ -229,13 +245,15 @@ foreach ($svc in $services) {
         )
     }
 
-    # --- User Service: Redis + RabbitMQ + 服务发现 ---
+    # --- User Service: Redis + RabbitMQ + AliyunSms + 服务发现 ---
     if ($svc.Name -eq "user-service") {
         $extraEnvArgs = @(
             "-e", "ConnectionStrings__redis=${REDIS_HOST}:${REDIS_PORT}",
             "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
             "-e", "RabbitMQ__Username=$RABBITMQ_USER",
             "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "AliyunSms__AccessKeyId=$env:ALIYUN_SMS_ACCESS_KEY_ID",
+            "-e", "AliyunSms__AccessKeySecret=$env:ALIYUN_SMS_ACCESS_KEY_SECRET",
             "-e", "services__city-service__http__0=$(SvcUrl 'city-service')",
             "-e", "services__product-service__http__0=$(SvcUrl 'product-service')",
             "-e", "services__event-service__http__0=$(SvcUrl 'event-service')"

@@ -102,6 +102,20 @@ ELASTICSEARCH_URL="http://go-nomads-elasticsearch:9200"
 # Aspire Dashboard OTLP 端点（容器内部地址）
 OTLP_ENDPOINT="http://go-nomads-aspire-dashboard:18889"
 
+# ============================================================
+# 从 .env 文件加载环境变量
+# ============================================================
+ENV_FILE="$ROOT_DIR/.env"
+if [ -f "$ENV_FILE" ]; then
+    echo -e "${GREEN}  加载 .env 文件: $ENV_FILE${NC}"
+    set -a
+    source "$ENV_FILE"
+    set +a
+else
+    echo -e "${YELLOW}  [警告] 未找到 .env 文件: $ENV_FILE${NC}"
+    echo -e "${YELLOW}  阿里云短信等功能可能无法正常工作${NC}"
+fi
+
 # 服务发现辅助函数: 生成 Docker 容器内部 URL
 svc_url() {
     echo "http://go-nomads-$1:8080"
@@ -219,13 +233,15 @@ deploy_service_local() {
         )
     fi
 
-    # --- User Service: Redis + RabbitMQ + 服务发现 ---
+    # --- User Service: Redis + RabbitMQ + AliyunSms + 服务发现 ---
     if [[ "$service_name" == "user-service" ]]; then
         extra_env+=(
             "-e" "ConnectionStrings__redis=${REDIS_HOST}:${REDIS_PORT}"
             "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
             "-e" "RabbitMQ__Username=$RABBITMQ_USER"
             "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "AliyunSms__AccessKeyId=${ALIYUN_SMS_ACCESS_KEY_ID}"
+            "-e" "AliyunSms__AccessKeySecret=${ALIYUN_SMS_ACCESS_KEY_SECRET}"
             "-e" "services__city-service__http__0=$(svc_url city-service)"
             "-e" "services__product-service__http__0=$(svc_url product-service)"
             "-e" "services__event-service__http__0=$(svc_url event-service)"

@@ -6,6 +6,7 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 COPY NuGet.Config .
 COPY ["src/Services/CacheService/CacheService/CacheService.csproj", "src/Services/CacheService/CacheService/"]
+COPY ["src/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults.csproj", "src/GoNomads.ServiceDefaults/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 RUN dotnet restore "src/Services/CacheService/CacheService/CacheService.csproj"
 COPY . .

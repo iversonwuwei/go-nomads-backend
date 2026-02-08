@@ -14,6 +14,7 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY NuGet.Config .
 COPY ["src/Gateway/Gateway/Gateway.csproj", "src/Gateway/Gateway/"]
+COPY ["src/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults.csproj", "src/GoNomads.ServiceDefaults/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 RUN dotnet restore "src/Gateway/Gateway/Gateway.csproj"
 COPY . .
