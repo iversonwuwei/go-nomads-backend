@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
 using GoNomads.Shared.Security;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using UserService.Application.DTOs;
 using UserService.Domain.Entities;
@@ -18,12 +19,14 @@ public class AuthApplicationService : IAuthService
 {
     private readonly JwtTokenService _jwtTokenService;
     private readonly ILogger<AuthApplicationService> _logger;
+    private readonly IConfiguration _configuration;
     private readonly IRoleRepository _roleRepository;
     private readonly IUserRepository _userRepository;
     private readonly IAliyunSmsService _smsService;
     private readonly AliyunSmsSettings _smsSettings;
     private readonly IWeChatOAuthService _weChatOAuthService;
     private readonly IGoogleOAuthService _googleOAuthService;
+    private readonly ITwitterOAuthService _twitterOAuthService;
 
     /// <summary>
     ///     验证码缓存 (手机号 -> (验证码, 过期时间))
@@ -39,6 +42,8 @@ public class AuthApplicationService : IAuthService
         IOptions<AliyunSmsSettings> smsSettings,
         IWeChatOAuthService weChatOAuthService,
         IGoogleOAuthService googleOAuthService,
+        ITwitterOAuthService twitterOAuthService,
+        IConfiguration configuration,
         ILogger<AuthApplicationService> logger)
     {
         _userRepository = userRepository;
@@ -48,6 +53,8 @@ public class AuthApplicationService : IAuthService
         _smsSettings = smsSettings.Value;
         _weChatOAuthService = weChatOAuthService;
         _googleOAuthService = googleOAuthService;
+        _twitterOAuthService = twitterOAuthService;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -516,6 +523,31 @@ public class AuthApplicationService : IAuthService
 
                 _logger.LogInformation("✅ Google 用户信息验证成功: sub={Sub}, name={Name}, email={Email}",
                     openId, nickname, googleUserInfo.Email);
+            }
+            else if (provider == "twitter")
+            {
+                // Twitter 登录：Flutter 端将 authorization code 放在 Code 字段，code_verifier 放在 AccessToken 字段
+                var twitterAuthCode = request.Code;
+                var codeVerifier = request.AccessToken;
+                if (string.IsNullOrEmpty(twitterAuthCode) || string.IsNullOrEmpty(codeVerifier))
+                {
+                    throw new InvalidOperationException("Twitter 登录需要提供授权码和 code_verifier");
+                }
+
+                var redirectUri = _configuration["Twitter:RedirectUri"] ?? "gonomads://twitter-callback";
+                var twitterUserInfo = await _twitterOAuthService.AuthenticateAsync(
+                    twitterAuthCode, codeVerifier, redirectUri, cancellationToken);
+                if (twitterUserInfo == null)
+                {
+                    throw new InvalidOperationException("Twitter 认证失败");
+                }
+
+                openId = twitterUserInfo.Id;
+                nickname = twitterUserInfo.Name ?? twitterUserInfo.Username;
+                avatarUrl = twitterUserInfo.ProfileImageUrl;
+
+                _logger.LogInformation("✅ Twitter 用户信息获取成功: id={Id}, name={Name}, username={Username}",
+                    openId, nickname, twitterUserInfo.Username);
             }
             else
             {
