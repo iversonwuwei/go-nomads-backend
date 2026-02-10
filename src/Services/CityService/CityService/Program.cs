@@ -71,6 +71,7 @@ builder.Services.AddServiceClient<IUserServiceClient, UserServiceClient>("user-s
 builder.Services.AddServiceClient<ICacheServiceClient, CacheServiceClient>("cache-service");
 
 // Named HttpClient for controllers using IHttpClientFactory
+builder.Services.AddServiceClient("user-service");
 builder.Services.AddServiceClient("cache-service");
 builder.Services.AddServiceClient("coworking-service");
 builder.Services.AddServiceClient("event-service");
