@@ -62,6 +62,9 @@ builder.Services.AddHttpClient<IWeChatOAuthService, WeChatOAuthService>();
 // 配置 Google OAuth 服务
 builder.Services.AddHttpClient<IGoogleOAuthService, GoogleOAuthService>();
 
+// 配置 Twitter OAuth 服务
+builder.Services.AddHttpClient<ITwitterOAuthService, TwitterOAuthService>();
+
 // Register Domain Repositories (Infrastructure Layer)
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
