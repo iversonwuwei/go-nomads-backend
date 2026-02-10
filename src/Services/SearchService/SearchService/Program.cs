@@ -8,8 +8,6 @@ using SearchService.Infrastructure.Services;
 using Serilog;
 using System.Text.Json.Serialization;
 
-const string serviceName = "SearchService";
-
 var builder = WebApplication.CreateBuilder(args);
 
 // 配置 Serilog
@@ -36,6 +34,8 @@ builder.Services.Configure<IndexSettings>(
     builder.Configuration.GetSection("IndexSettings"));
 builder.Services.Configure<IndexMaintenanceSettings>(
     builder.Configuration.GetSection("IndexMaintenance"));
+builder.Services.Configure<StartupSyncSettings>(
+    builder.Configuration.GetSection("StartupSync"));
 
 // ============================================================
 // 依赖注入 - Infrastructure 层
@@ -44,6 +44,7 @@ builder.Services.AddSingleton<IElasticsearchService, ElasticsearchService>();
 builder.Services.AddServiceClient<ICityServiceClient, CityServiceClient>("city-service");
 builder.Services.AddServiceClient<ICoworkingServiceClient, CoworkingServiceClient>("coworking-service");
 builder.Services.AddScoped<IIndexSyncService, IndexSyncService>();
+builder.Services.AddHostedService<ElasticsearchStartupSyncHostedService>();
 builder.Services.AddHostedService<IndexVerificationHostedService>();
 
 // ============================================================
