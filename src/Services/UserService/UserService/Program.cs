@@ -59,6 +59,9 @@ builder.Services.AddSingleton<IAliyunSmsService, AliyunSmsService>();
 // 配置微信 OAuth 服务
 builder.Services.AddHttpClient<IWeChatOAuthService, WeChatOAuthService>();
 
+// 配置 Google OAuth 服务
+builder.Services.AddHttpClient<IGoogleOAuthService, GoogleOAuthService>();
+
 // Register Domain Repositories (Infrastructure Layer)
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();

@@ -23,6 +23,7 @@ public class AuthApplicationService : IAuthService
     private readonly IAliyunSmsService _smsService;
     private readonly AliyunSmsSettings _smsSettings;
     private readonly IWeChatOAuthService _weChatOAuthService;
+    private readonly IGoogleOAuthService _googleOAuthService;
 
     /// <summary>
     ///     验证码缓存 (手机号 -> (验证码, 过期时间))
@@ -37,6 +38,7 @@ public class AuthApplicationService : IAuthService
         IAliyunSmsService smsService,
         IOptions<AliyunSmsSettings> smsSettings,
         IWeChatOAuthService weChatOAuthService,
+        IGoogleOAuthService googleOAuthService,
         ILogger<AuthApplicationService> logger)
     {
         _userRepository = userRepository;
@@ -45,6 +47,7 @@ public class AuthApplicationService : IAuthService
         _smsService = smsService;
         _smsSettings = smsSettings.Value;
         _weChatOAuthService = weChatOAuthService;
+        _googleOAuthService = googleOAuthService;
         _logger = logger;
     }
 
@@ -491,6 +494,28 @@ public class AuthApplicationService : IAuthService
                 {
                     throw new InvalidOperationException("微信登录需要提供 code 或 openId");
                 }
+            }
+            else if (provider == "google")
+            {
+                // Google 登录：验证 ID Token（Flutter 端将 idToken 放在 Code 字段中）
+                var googleIdToken = request.Code;
+                if (string.IsNullOrEmpty(googleIdToken))
+                {
+                    throw new InvalidOperationException("Google 登录需要提供 ID Token");
+                }
+
+                var googleUserInfo = await _googleOAuthService.VerifyIdTokenAsync(googleIdToken, cancellationToken);
+                if (googleUserInfo == null)
+                {
+                    throw new InvalidOperationException("Google ID Token 验证失败");
+                }
+
+                openId = googleUserInfo.Sub;
+                nickname = googleUserInfo.Name;
+                avatarUrl = googleUserInfo.Picture;
+
+                _logger.LogInformation("✅ Google 用户信息验证成功: sub={Sub}, name={Name}, email={Email}",
+                    openId, nickname, googleUserInfo.Email);
             }
             else
             {
