@@ -34,6 +34,11 @@ public class UserStatsDto
     public int MeetupsJoined { get; set; }
     
     /// <summary>
+    ///     用户正在进行的 Meetup 数量：已加入 + 已创建（去重，仅 upcoming/ongoing）
+    /// </summary>
+    public int ActiveMeetups { get; set; }
+    
+    /// <summary>
     ///     完成的旅行数量
     /// </summary>
     public int TripsCompleted { get; set; }

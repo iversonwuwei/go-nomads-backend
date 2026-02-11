@@ -63,12 +63,14 @@ public class UserStatsController : ControllerBase
             // 3. 并行获取其他服务的数据
             var meetupsCreatedTask = GetMeetupsCreatedCountAsync(userContext.UserId, cancellationToken);
             var meetupsJoinedTask = GetMeetupsJoinedCountAsync(userContext.UserId, cancellationToken);
+            var activeMeetupsTask = GetActiveMeetupsCountAsync(userContext.UserId, cancellationToken);
             var favoriteCitiesTask = GetFavoriteCitiesCountAsync(userContext.UserId, cancellationToken);
 
-            await Task.WhenAll(meetupsCreatedTask, meetupsJoinedTask, favoriteCitiesTask);
+            await Task.WhenAll(meetupsCreatedTask, meetupsJoinedTask, activeMeetupsTask, favoriteCitiesTask);
 
             var meetupsCreated = await meetupsCreatedTask;
             var meetupsJoined = await meetupsJoinedTask;
+            var activeMeetups = await activeMeetupsTask;
             var favoriteCitiesCount = await favoriteCitiesTask;
 
             // 使用 travel_history 的统计数据覆盖 user_stats 的数据
@@ -76,7 +78,7 @@ public class UserStatsController : ControllerBase
             {
                 Success = true,
                 Message = "User stats retrieved successfully",
-                Data = MapToDto(stats, meetupsCreated, meetupsJoined, favoriteCitiesCount, travelStats)
+                Data = MapToDto(stats, meetupsCreated, meetupsJoined, activeMeetups, favoriteCitiesCount, travelStats)
             });
         }
         catch (Exception ex)
@@ -126,6 +128,26 @@ public class UserStatsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "⚠️ 获取用户参加的 Meetups 数量失败，返回0");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    ///     从 EventService 获取用户正在进行的 Meetup 数量（已加入+已创建，去重，仅 upcoming/ongoing）
+    /// </summary>
+    private async Task<int> GetActiveMeetupsCountAsync(string userId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient("event-service");
+            var response = await client.GetFromJsonAsync<int>(
+                $"api/v1/events/user/{userId}/active/count", cancellationToken);
+            _logger.LogInformation("✅ 获取用户正在进行的 Meetups 数量: {Count}", response);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 获取用户正在进行的 Meetups 数量失败，返回0");
             return 0;
         }
     }
@@ -288,6 +310,7 @@ public class UserStatsController : ControllerBase
         Domain.Entities.UserStats stats, 
         int meetupsCreated = 0, 
         int meetupsJoined = 0,
+        int activeMeetups = 0,
         int favoriteCitiesCount = 0,
         TravelHistoryStats? travelStats = null)
     {
@@ -302,6 +325,7 @@ public class UserStatsController : ControllerBase
             TripsCompleted = travelStats?.ConfirmedTrips ?? stats.TripsCompleted,
             MeetupsCreated = meetupsCreated,
             MeetupsJoined = meetupsJoined,
+            ActiveMeetups = activeMeetups,
             FavoriteCitiesCount = favoriteCitiesCount,
             CreatedAt = stats.CreatedAt,
             UpdatedAt = stats.UpdatedAt

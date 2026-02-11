@@ -91,6 +91,11 @@ public interface IEventService
     Task<int> GetUserJoinedEventsCountAsync(Guid userId);
 
     /// <summary>
+    ///     获取用户正在进行的 Meetup 数量：已加入 + 已创建（去重，仅 upcoming/ongoing）
+    /// </summary>
+    Task<int> GetUserActiveMeetupsCountAsync(Guid userId);
+
+    /// <summary>
     ///     获取用户参加的 Event
     /// </summary>
     Task<List<EventResponse>> GetUserJoinedEventsAsync(Guid userId);

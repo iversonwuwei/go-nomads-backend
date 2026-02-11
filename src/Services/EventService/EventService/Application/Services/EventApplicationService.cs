@@ -430,6 +430,38 @@ public class EventApplicationService : IEventService
         return events.Count;
     }
 
+    /// <summary>
+    ///     获取用户正在进行的 Meetup 数量：已加入 + 已创建（去重，仅 upcoming/ongoing）
+    /// </summary>
+    public async Task<int> GetUserActiveMeetupsCountAsync(Guid userId)
+    {
+        // 1. 获取用户未取消的参与记录
+        var participants = await _participantRepository.GetByUserIdWithStatusAsync(userId);
+        var activeParticipants = participants
+            .Where(p => p.Status != "cancelled")
+            .ToList();
+        var joinedEventIds = activeParticipants.Select(p => p.EventId).ToHashSet();
+
+        // 2. 获取用户创建的活动
+        var createdEvents = await _eventRepository.GetByOrganizerIdAsync(userId);
+        var createdEventIds = createdEvents.Select(e => e.Id).ToHashSet();
+
+        // 3. 合并所有活动 ID（去重）
+        var allEventIds = joinedEventIds.Union(createdEventIds).ToList();
+
+        if (!allEventIds.Any()) return 0;
+
+        // 4. 只计算 upcoming + ongoing 的活动数量
+        var (events, _) = await _eventRepository.GetByIdsAsync(
+            allEventIds,
+            status: "upcoming,ongoing",
+            page: 1,
+            pageSize: 1000);
+
+        _logger.LogInformation("✅ 获取用户 {UserId} 正在进行的 Meetup 数量（加入+创建）: {Count}", userId, events.Count);
+        return events.Count;
+    }
+
     public async Task<List<EventResponse>> GetUserJoinedEventsAsync(Guid userId)
     {
         var participants = await _participantRepository.GetByUserIdAsync(userId);

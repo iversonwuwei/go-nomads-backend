@@ -942,6 +942,31 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
+    ///     获取指定用户正在进行的 Meetup 数量（已加入 + 已创建，去重，仅 upcoming/ongoing，供其他服务调用）
+    /// </summary>
+    [HttpGet("user/{userId}/active/count")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<int>> GetUserActiveMeetupsCount(string userId)
+    {
+        try
+        {
+            if (!Guid.TryParse(userId, out var userGuid))
+            {
+                return BadRequest(0);
+            }
+
+            var count = await _eventService.GetUserActiveMeetupsCountAsync(userGuid);
+            _logger.LogInformation("✅ 获取用户 {UserId} 正在进行的 Meetup 数量: {Count}", userId, count);
+            return Ok(count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取用户正在进行的 Meetup 数量失败: UserId={UserId}", userId);
+            return Ok(0);
+        }
+    }
+
+    /// <summary>
     ///     获取当前用户参加的 Event 列表
     /// </summary>
     [HttpGet("me/joined")]
