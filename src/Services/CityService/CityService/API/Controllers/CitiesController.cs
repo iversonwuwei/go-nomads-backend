@@ -584,6 +584,45 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
+    ///     Get city moderator summary (lightweight)
+    /// </summary>
+    [HttpGet("{id:guid}/moderator-summary")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<CityModeratorSummaryDto>>> GetCityModeratorSummary(Guid id)
+    {
+        try
+        {
+            var userId = _currentUser.TryGetUserId();
+            var userRole = _currentUser.GetUserRole();
+            var summary = await _cityService.GetCityModeratorSummaryAsync(id, userId, userRole);
+            if (summary == null)
+                return NotFound(new ApiResponse<CityModeratorSummaryDto>
+                {
+                    Success = false,
+                    Message = $"City with ID {id} not found",
+                    Errors = new List<string> { "City not found" }
+                });
+
+            return Ok(new ApiResponse<CityModeratorSummaryDto>
+            {
+                Success = true,
+                Message = "City moderator summary retrieved successfully",
+                Data = summary
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting city moderator summary {CityId}", id);
+            return StatusCode(500, new ApiResponse<CityModeratorSummaryDto>
+            {
+                Success = false,
+                Message = "An error occurred while retrieving city moderator summary",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
     ///     Get city statistics
     /// </summary>
     [HttpGet("{id:guid}/statistics")]

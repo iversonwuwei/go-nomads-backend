@@ -29,6 +29,7 @@ public interface ICityService
     Task<Dictionary<Guid, CityCountsDto>> GetCityCountsBatchAsync(IEnumerable<Guid> cityIds);
 
     Task<CityDto?> GetCityByIdAsync(Guid id, Guid? userId = null, string? userRole = null);
+    Task<CityModeratorSummaryDto?> GetCityModeratorSummaryAsync(Guid id, Guid? userId = null, string? userRole = null);
     Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null, string? userRole = null);
     Task<CityDto> CreateCityAsync(CreateCityDto createCityDto, Guid userId);
     Task<CityDto?> UpdateCityAsync(Guid id, UpdateCityDto updateCityDto, Guid userId);
