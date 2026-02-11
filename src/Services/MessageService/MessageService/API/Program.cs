@@ -118,6 +118,9 @@ builder.Services.AddMassTransit(x =>
     // 注册城市评论更新消息消费者
     x.AddConsumer<CityReviewUpdatedMessageConsumer>();
 
+    // 注册城市版主变更消息消费者
+    x.AddConsumer<CityModeratorUpdatedMessageConsumer>();
+
     x.UsingRabbitMq((context, cfg) =>
     {
         var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
@@ -220,6 +223,14 @@ builder.Services.AddMassTransit(x =>
         cfg.ReceiveEndpoint("city-review-updated-queue", e =>
         {
             e.ConfigureConsumer<CityReviewUpdatedMessageConsumer>(context);
+            e.PrefetchCount = 16;
+            e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
+        });
+
+        // 配置城市版主变更消息队列
+        cfg.ReceiveEndpoint("city-moderator-updated-queue", e =>
+        {
+            e.ConfigureConsumer<CityModeratorUpdatedMessageConsumer>(context);
             e.PrefetchCount = 16;
             e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
         });

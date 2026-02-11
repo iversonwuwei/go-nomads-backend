@@ -134,6 +134,18 @@ public class ModeratorDto
 }
 
 /// <summary>
+///     城市版主摘要 DTO
+/// </summary>
+public class CityModeratorSummaryDto
+{
+    public Guid CityId { get; set; }
+    public Guid? ModeratorId { get; set; }
+    public ModeratorDto? Moderator { get; set; }
+    public bool IsCurrentUserModerator { get; set; }
+    public bool IsCurrentUserAdmin { get; set; }
+}
+
+/// <summary>
 ///     版主旅行统计 DTO
 /// </summary>
 public class ModeratorTravelStatsDto

@@ -2,6 +2,8 @@ using System.Net.Http.Json;
 using CityService.Application.DTOs;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
+using MassTransit;
+using Shared.Messages;
 
 namespace CityService.Application.Services;
 
@@ -14,6 +16,8 @@ public class ModeratorApplicationService : IModeratorApplicationService
     private readonly ICityModeratorRepository _moderatorRepo;
     private readonly ICityRepository _cityRepo;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IPublishEndpoint _publishEndpoint;
+    private readonly ICityService _cityService;
     private readonly ILogger<ModeratorApplicationService> _logger;
 
     public ModeratorApplicationService(
@@ -21,12 +25,16 @@ public class ModeratorApplicationService : IModeratorApplicationService
         ICityModeratorRepository moderatorRepo,
         ICityRepository cityRepo,
         IHttpClientFactory httpClientFactory,
+        IPublishEndpoint publishEndpoint,
+        ICityService cityService,
         ILogger<ModeratorApplicationService> logger)
     {
         _applicationRepo = applicationRepo;
         _moderatorRepo = moderatorRepo;
         _cityRepo = cityRepo;
         _httpClientFactory = httpClientFactory;
+        _publishEndpoint = publishEndpoint;
+        _cityService = cityService;
         _logger = logger;
     }
 
@@ -116,6 +124,12 @@ public class ModeratorApplicationService : IModeratorApplicationService
 
             await _moderatorRepo.AddAsync(moderator);
             _logger.LogInformation("✅ 已为用户 {UserId} 创建版主记录", application.UserId);
+
+            // 失效城市列表缓存 + 同步到 Elasticsearch
+            _cityService.InvalidateCityListCache();
+            await PublishCityUpdatedMessageAsync(application.CityId, ["moderator"]);
+            // 通过 SignalR 广播版主变更
+            await PublishCityModeratorUpdatedMessageAsync(application.CityId, "approved", application.UserId.ToString());
 
             // 通知申请人：批准
             await NotifyApplicantApprovedAsync(application);
@@ -215,7 +229,13 @@ public class ModeratorApplicationService : IModeratorApplicationService
         
         await _applicationRepo.UpdateAsync(application);
 
-        // 5. 通知用户
+        // 5. 失效城市列表缓存 + 同步到 Elasticsearch
+        _cityService.InvalidateCityListCache();
+        await PublishCityUpdatedMessageAsync(application.CityId, ["moderator"]);
+        // 通过 SignalR 广播版主变更
+        await PublishCityModeratorUpdatedMessageAsync(application.CityId, "revoked", application.UserId.ToString());
+
+        // 6. 通知用户
         await NotifyModeratorRevokedAsync(application);
 
         _logger.LogInformation("✅ 版主资格已撤销: UserId={UserId}, CityId={CityId}", 
@@ -460,5 +480,69 @@ public class ModeratorApplicationService : IModeratorApplicationService
         public string Name { get; set; } = string.Empty;
         public string Avatar { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// 发布城市更新事件到 MassTransit，用于同步到 Elasticsearch
+    /// </summary>
+    private async Task PublishCityUpdatedMessageAsync(Guid cityId, List<string> updatedFields)
+    {
+        try
+        {
+            var city = await _cityRepo.GetByIdAsync(cityId);
+            if (city == null)
+            {
+                _logger.LogWarning("⚠️ 发布城市更新事件时找不到城市: CityId={CityId}", cityId);
+                return;
+            }
+
+            var message = new CityUpdatedMessage
+            {
+                CityId = cityId.ToString(),
+                Name = city.Name,
+                NameEn = city.NameEn,
+                Country = city.Country,
+                CountryCode = null,
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedFields = updatedFields
+            };
+
+            await _publishEndpoint.Publish(message);
+            _logger.LogInformation("📤 已发布城市更新事件: CityId={CityId}, UpdatedFields=[{Fields}]",
+                cityId, string.Join(", ", updatedFields));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 发布城市更新事件失败: CityId={CityId}", cityId);
+        }
+    }
+
+    /// <summary>
+    /// 发布城市版主变更消息到 MassTransit，用于通过 SignalR 广播给客户端
+    /// </summary>
+    private async Task PublishCityModeratorUpdatedMessageAsync(Guid cityId, string changeType, string? userId = null)
+    {
+        try
+        {
+            var city = await _cityRepo.GetByIdAsync(cityId);
+
+            var message = new CityModeratorUpdatedMessage
+            {
+                CityId = cityId.ToString(),
+                CityName = city?.Name,
+                CityNameEn = city?.NameEn,
+                ChangeType = changeType,
+                UserId = userId,
+                UpdatedAt = DateTime.UtcNow,
+            };
+
+            await _publishEndpoint.Publish(message);
+            _logger.LogInformation("📤 已发布城市版主变更事件: CityId={CityId}, ChangeType={ChangeType}",
+                cityId, changeType);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 发布城市版主变更事件失败: CityId={CityId}", cityId);
+        }
     }
 }

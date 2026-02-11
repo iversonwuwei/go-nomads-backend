@@ -56,4 +56,11 @@ public interface ISignalRNotifier
     /// <param name="cityId">城市ID</param>
     /// <param name="reviewData">评论数据 (包含 changeType, reviewCount 等)</param>
     Task BroadcastCityReviewUpdatedAsync(string cityId, object reviewData);
+
+    /// <summary>
+    ///     发送城市版主变更通知（广播给所有客户端）
+    /// </summary>
+    /// <param name="cityId">城市ID</param>
+    /// <param name="moderatorData">版主变更数据 (包含 changeType, userId 等)</param>
+    Task BroadcastCityModeratorUpdatedAsync(string cityId, object moderatorData);
 }

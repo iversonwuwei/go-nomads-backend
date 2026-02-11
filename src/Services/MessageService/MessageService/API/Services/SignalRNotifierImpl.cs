@@ -264,4 +264,26 @@ public class SignalRNotifierImpl : ISignalRNotifier
             throw;
         }
     }
+
+    public async Task BroadcastCityModeratorUpdatedAsync(string cityId, object moderatorData)
+    {
+        try
+        {
+            // 广播城市版主变更到所有订阅该城市的用户
+            await _notificationHub.Clients
+                .Group($"city-{cityId}")
+                .SendAsync("CityModeratorUpdated", moderatorData);
+
+            // 同时广播给所有用户（城市列表页面需要同步）
+            await _notificationHub.Clients.All
+                .SendAsync("CityModeratorUpdated", moderatorData);
+
+            _logger.LogInformation("广播城市版主变更: CityId={CityId}", cityId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "广播城市版主变更失败: CityId={CityId}", cityId);
+            throw;
+        }
+    }
 }

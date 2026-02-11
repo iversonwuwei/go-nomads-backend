@@ -96,6 +96,62 @@ public class CityApplicationService : ICityService
     }
 
     /// <summary>
+    /// 发布城市更新事件到 MassTransit，用于同步到 Elasticsearch
+    /// </summary>
+    private async Task PublishCityUpdatedMessageAsync(City city, List<string> updatedFields)
+    {
+        try
+        {
+            var message = new CityUpdatedMessage
+            {
+                CityId = city.Id.ToString(),
+                Name = city.Name,
+                NameEn = city.NameEn,
+                Country = city.Country,
+                CountryCode = null,
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedFields = updatedFields
+            };
+
+            await _publishEndpoint.Publish(message);
+            _logger.LogInformation("📤 已发布城市更新事件: CityId={CityId}, UpdatedFields=[{Fields}]",
+                city.Id, string.Join(", ", updatedFields));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 发布城市更新事件失败: CityId={CityId}", city.Id);
+            // 不抛出异常，主流程已成功，事件发布失败不影响主流程
+        }
+    }
+
+    /// <summary>
+    /// 发布城市版主变更消息到 MassTransit，用于通过 SignalR 广播给客户端
+    /// </summary>
+    private async Task PublishCityModeratorUpdatedMessageAsync(City city, string changeType, string? userId = null)
+    {
+        try
+        {
+            var message = new CityModeratorUpdatedMessage
+            {
+                CityId = city.Id.ToString(),
+                CityName = city.Name,
+                CityNameEn = city.NameEn,
+                ChangeType = changeType,
+                UserId = userId,
+                UpdatedAt = DateTime.UtcNow,
+            };
+
+            await _publishEndpoint.Publish(message);
+            _logger.LogInformation("📤 已发布城市版主变更事件: CityId={CityId}, ChangeType={ChangeType}",
+                city.Id, changeType);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 发布城市版主变更事件失败: CityId={CityId}", city.Id);
+        }
+    }
+
+    /// <summary>
     /// 获取城市列表（轻量级版本，不包含天气数据）
     /// 用于城市列表页面，提升加载性能
     /// </summary>
@@ -585,6 +641,67 @@ public class CityApplicationService : ICityService
         return cityDto;
     }
 
+    public async Task<CityModeratorSummaryDto?> GetCityModeratorSummaryAsync(Guid id, Guid? userId = null, string? userRole = null)
+    {
+        var city = await _cityRepository.GetByIdAsync(id);
+        if (city == null) return null;
+
+        var summary = new CityModeratorSummaryDto
+        {
+            CityId = id,
+            IsCurrentUserAdmin = userRole?.ToLower() == "admin"
+        };
+
+        try
+        {
+            var moderators = await _moderatorRepository.GetByCityIdAsync(id);
+            var firstActiveModerator = moderators.FirstOrDefault(m => m.IsActive);
+
+            if (firstActiveModerator != null)
+            {
+                summary.ModeratorId = firstActiveModerator.UserId;
+                summary.IsCurrentUserModerator = userId.HasValue && firstActiveModerator.UserId == userId.Value;
+
+                var userInfo = await GetUserInfoWithCacheAsync(firstActiveModerator.UserId);
+                if (userInfo != null)
+                {
+                    summary.Moderator = new ModeratorDto
+                    {
+                        Id = userInfo.Id,
+                        Name = userInfo.Name,
+                        Email = userInfo.Email,
+                        Avatar = userInfo.Avatar,
+                        Stats = userInfo.Stats != null ? new ModeratorTravelStatsDto
+                        {
+                            CountriesVisited = userInfo.Stats.CountriesVisited,
+                            CitiesVisited = userInfo.Stats.CitiesVisited,
+                            TotalDays = userInfo.Stats.TotalDays,
+                            TotalTrips = userInfo.Stats.TotalTrips
+                        } : null,
+                        LatestTravelHistory = userInfo.LatestTravelHistory != null ? new ModeratorTravelHistoryDto
+                        {
+                            CityName = userInfo.LatestTravelHistory.CityName,
+                            CountryName = userInfo.LatestTravelHistory.CountryName,
+                            StartDate = userInfo.LatestTravelHistory.StartDate,
+                            EndDate = userInfo.LatestTravelHistory.EndDate,
+                            Status = userInfo.LatestTravelHistory.Status
+                        } : null
+                    };
+                }
+            }
+            else
+            {
+                summary.IsCurrentUserModerator = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "获取城市版主摘要失败: CityId={CityId}", id);
+        }
+
+        return summary;
+    }
+
     public async Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null,
         string? userRole = null)
     {
@@ -693,32 +810,8 @@ public class CityApplicationService : ICityService
         var updatedCity = await _cityRepository.UpdateAsync(id, existingCity);
         if (updatedCity == null) return null;
 
-        // 如果更新了 name 或 country，发布 CityUpdatedMessage 事件
-        if (updatedFields.Contains("name") || updatedFields.Contains("country"))
-        {
-            try
-            {
-                var message = new CityUpdatedMessage
-                {
-                    CityId = id.ToString(),
-                    Name = updatedCity.Name,
-                    NameEn = updatedCity.NameEn,
-                    Country = updatedCity.Country,
-                    CountryCode = null, // City 实体暂无 CountryCode 字段
-                    UpdatedAt = DateTime.UtcNow,
-                    UpdatedFields = updatedFields
-                };
-
-                await _publishEndpoint.Publish(message);
-                _logger.LogInformation("📤 已发布城市更新事件: CityId={CityId}, UpdatedFields=[{Fields}]",
-                    id, string.Join(", ", updatedFields));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "⚠️ 发布城市更新事件失败: CityId={CityId}", id);
-                // 不抛出异常，城市更新已成功，事件发布失败不影响主流程
-            }
-        }
+        // 发布城市更新事件到 Elasticsearch（任何字段变更都同步）
+        await PublishCityUpdatedMessageAsync(updatedCity, updatedFields);
 
         // 清除城市列表缓存
         InvalidateCityListCache();
@@ -1042,6 +1135,10 @@ public class CityApplicationService : ICityService
                     await _moderatorRepository.UpdateAsync(existingModerator);
                     // 失效城市列表缓存
                     InvalidateCityListCache();
+                    // 发布城市更新事件，同步到 Elasticsearch
+                    await PublishCityUpdatedMessageAsync(city, ["moderator"]);
+                    // 通过 SignalR 广播版主变更
+                    await PublishCityModeratorUpdatedMessageAsync(city, "assigned", dto.UserId.ToString());
                     _logger.LogInformation("重新激活版主 - CityId: {CityId}, UserId: {UserId}", dto.CityId, dto.UserId);
                 }
                 else
@@ -1072,6 +1169,10 @@ public class CityApplicationService : ICityService
 
             // 失效城市列表缓存，确保下次获取列表时能看到新版主
             InvalidateCityListCache();
+            // 发布城市更新事件，同步到 Elasticsearch
+            await PublishCityUpdatedMessageAsync(city, ["moderator"]);
+            // 通过 SignalR 广播版主变更
+            await PublishCityModeratorUpdatedMessageAsync(city, "assigned", dto.UserId.ToString());
             _logger.LogInformation("城市 {CityId} 的版主已设置为 {UserId}", dto.CityId, dto.UserId);
             return true;
         }
