@@ -101,7 +101,7 @@ jobs:
           SHORT_TAG="${TAG:0:8}"
           
           echo "构建镜像: ${IMAGE}:${SHORT_TAG}"
-          docker build -f ${{ matrix.dockerfile }} -t ${IMAGE}:${SHORT_TAG} -t ${IMAGE}:latest .
+          docker build --provenance=false -f ${{ matrix.dockerfile }} -t ${IMAGE}:${SHORT_TAG} -t ${IMAGE}:latest .
           
           echo "推送镜像..."
           docker push ${IMAGE}:${SHORT_TAG}
