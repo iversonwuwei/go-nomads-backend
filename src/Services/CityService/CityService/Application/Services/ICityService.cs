@@ -18,9 +18,14 @@ public interface ICityService
 
     /// <summary>
     /// 获取城市列表（基础版本，不包含聚合数据如 MeetupCount, CoworkingCount 等）
-    /// 用于快速首屏加载
+    /// 用于快速首屏加载，支持可选 region 筛选
     /// </summary>
-    Task<IEnumerable<CityListItemDto>> GetCityListBasicAsync(int pageNumber, int pageSize, string? search = null, Guid? userId = null, string? userRole = null);
+    Task<IEnumerable<CityListItemDto>> GetCityListBasicAsync(int pageNumber, int pageSize, string? search = null, string? region = null, Guid? userId = null, string? userRole = null);
+
+    /// <summary>
+    /// 获取所有可用的区域标签（用于前端 Tab 展示）
+    /// </summary>
+    Task<IEnumerable<CityRegionTabDto>> GetRegionTabsAsync();
 
     /// <summary>
     /// 批量获取城市聚合数据（MeetupCount, CoworkingCount, ReviewCount, AverageCost）

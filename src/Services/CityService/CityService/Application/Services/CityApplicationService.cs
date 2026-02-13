@@ -275,11 +275,12 @@ public class CityApplicationService : ICityService
     /// <summary>
     /// 获取城市列表（基础版本，不包含聚合数据）
     /// 用于快速首屏加载，聚合数据（MeetupCount, CoworkingCount等）后续异步加载
+    /// 支持可选 region 筛选
     /// </summary>
-    public async Task<IEnumerable<CityListItemDto>> GetCityListBasicAsync(int pageNumber, int pageSize, string? search = null, Guid? userId = null, string? userRole = null)
+    public async Task<IEnumerable<CityListItemDto>> GetCityListBasicAsync(int pageNumber, int pageSize, string? search = null, string? region = null, Guid? userId = null, string? userRole = null)
     {
-        _logger.LogInformation("🚀 [GetCityListBasic] 开始获取基础城市列表: page={Page}, size={Size}, search={Search}",
-            pageNumber, pageSize, search);
+        _logger.LogInformation("🚀 [GetCityListBasic] 开始获取基础城市列表: page={Page}, size={Size}, search={Search}, region={Region}",
+            pageNumber, pageSize, search, region);
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         // 从数据库获取基础数据
@@ -290,10 +291,30 @@ public class CityApplicationService : ICityService
             var criteria = new Domain.ValueObjects.CitySearchCriteria
             {
                 Name = search,
+                Region = region,
                 PageNumber = pageNumber,
                 PageSize = pageSize
             };
             cities = await _cityRepository.SearchAsync(criteria);
+        }
+        else if (!string.IsNullOrWhiteSpace(region))
+        {
+            // 按大洲（continent）筛选：同时通过 country_id 和 country name 匹配
+            var countryIdsTask = _countryRepository.GetCountryIdsByContinentAsync(region);
+            var countryNamesTask = _countryRepository.GetCountryNamesByContinentAsync(region);
+            await Task.WhenAll(countryIdsTask, countryNamesTask);
+
+            var countryIdList = countryIdsTask.Result.ToList();
+            var countryNameList = countryNamesTask.Result.ToList();
+
+            if (countryIdList.Count > 0 || countryNameList.Count > 0)
+            {
+                cities = await _cityRepository.GetByContinentAsync(countryIdList, countryNameList, pageNumber, pageSize);
+            }
+            else
+            {
+                cities = Enumerable.Empty<Domain.Entities.City>();
+            }
         }
         else
         {
@@ -352,6 +373,103 @@ public class CityApplicationService : ICityService
             cityListItems.Count, stopwatch.ElapsedMilliseconds);
 
         return cityListItems;
+    }
+
+    /// <summary>
+    /// 获取所有可用的区域标签（基于国家表的 continent 字段，用于前端 Tab 展示）
+    /// 返回按 displayOrder 排序的大洲列表，包含每个大洲的城市数量
+    /// </summary>
+    public async Task<IEnumerable<CityRegionTabDto>> GetRegionTabsAsync()
+    {
+        _logger.LogInformation("🌍 [GetRegionTabs] 开始获取区域标签（基于 continent）");
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        try
+        {
+            // 预定义的大洲排序和显示名称
+            var continentConfig = new Dictionary<string, (int Order, string Label)>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Asia", (1, "Asia") },
+                { "Europe", (2, "Europe") },
+                { "North America", (3, "North America") },
+                { "South America", (4, "South America") },
+                { "Africa", (5, "Africa") },
+                { "Oceania", (6, "Oceania") },
+            };
+
+            // 只需 2 次查询：获取所有国家 + 所有城市，内存中计算
+            var countriesTask = _countryRepository.GetAllActiveCountriesAsync();
+            var citiesTask = _cityRepository.GetAllActiveCityBriefAsync();
+            await Task.WhenAll(countriesTask, citiesTask);
+
+            var countries = (await countriesTask).ToList();
+            var cities = (await citiesTask).ToList();
+
+            // 构建 country -> continent 映射
+            var countryIdToContinent = new Dictionary<Guid, string>();
+            var countryNameToContinent = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var country in countries)
+            {
+                if (string.IsNullOrWhiteSpace(country.Continent)) continue;
+                countryIdToContinent[country.Id] = country.Continent;
+                if (!string.IsNullOrWhiteSpace(country.Name))
+                    countryNameToContinent[country.Name] = country.Continent;
+            }
+
+            // 按大洲统计城市数（去重）
+            var continentCityIds = new Dictionary<string, HashSet<Guid>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var city in cities)
+            {
+                string? continent = null;
+
+                // 优先通过 country_id 匹配
+                if (city.CountryId.HasValue && city.CountryId != Guid.Empty
+                    && countryIdToContinent.TryGetValue(city.CountryId.Value, out var c1))
+                {
+                    continent = c1;
+                }
+                // 其次通过 country name 匹配
+                else if (!string.IsNullOrWhiteSpace(city.Country)
+                    && countryNameToContinent.TryGetValue(city.Country, out var c2))
+                {
+                    continent = c2;
+                }
+
+                if (continent != null)
+                {
+                    if (!continentCityIds.ContainsKey(continent))
+                        continentCityIds[continent] = new HashSet<Guid>();
+                    continentCityIds[continent].Add(city.Id);
+                }
+            }
+
+            var tabs = continentCityIds.Select(kvp =>
+            {
+                var order = 99;
+                var label = kvp.Key;
+                if (continentConfig.TryGetValue(kvp.Key, out var cfg))
+                {
+                    order = cfg.Item1;
+                    label = cfg.Item2;
+                }
+                return new CityRegionTabDto
+                {
+                    Key = kvp.Key,
+                    Label = label,
+                    CityCount = kvp.Value.Count,
+                    DisplayOrder = order,
+                };
+            }).OrderBy(t => t.DisplayOrder).ToList();
+
+            stopwatch.Stop();
+            _logger.LogInformation("✅ [GetRegionTabs] 获取到 {Count} 个区域标签（continent），耗时 {Ms}ms", tabs.Count, stopwatch.ElapsedMilliseconds);
+            return tabs;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [GetRegionTabs] 获取区域标签失败");
+            return Enumerable.Empty<CityRegionTabDto>();
+        }
     }
 
     /// <summary>

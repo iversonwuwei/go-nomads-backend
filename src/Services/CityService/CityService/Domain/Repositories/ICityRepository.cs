@@ -56,6 +56,47 @@ public interface ICityRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 获取所有活跃城市的简要信息（仅 id, country_id, country）
+    /// 用于内存中批量统计，避免多次数据库查询
+    /// </summary>
+    Task<IEnumerable<City>> GetAllActiveCityBriefAsync();
+
+    /// <summary>
+    /// 获取所有不同的区域（大洲）列表
+    /// </summary>
+    Task<IEnumerable<string>> GetDistinctRegionsAsync();
+
+    /// <summary>
+    /// 根据区域获取城市列表（分页）
+    /// </summary>
+    Task<IEnumerable<City>> GetByRegionAsync(string region, int pageNumber, int pageSize);
+
+    /// <summary>
+    /// 获取某区域的城市总数
+    /// </summary>
+    Task<int> GetCountByRegionAsync(string region);
+
+    /// <summary>
+    /// 根据多个国家ID获取城市列表（分页）
+    /// </summary>
+    Task<IEnumerable<City>> GetByCountryIdsAsync(IEnumerable<Guid> countryIds, int pageNumber, int pageSize);
+
+    /// <summary>
+    /// 根据多个国家ID获取城市总数
+    /// </summary>
+    Task<int> GetCountByCountryIdsAsync(IEnumerable<Guid> countryIds);
+
+    /// <summary>
+    /// 根据大洲筛选城市（同时支持 country_id 和 country name 匹配）
+    /// </summary>
+    Task<IEnumerable<City>> GetByContinentAsync(IEnumerable<Guid> countryIds, IEnumerable<string> countryNames, int pageNumber, int pageSize);
+
+    /// <summary>
+    /// 根据大洲统计城市总数（同时支持 country_id 和 country name 匹配）
+    /// </summary>
+    Task<int> GetCountByContinentAsync(IEnumerable<Guid> countryIds, IEnumerable<string> countryNames);
+
+    /// <summary>
     /// 查找最近的城市（基于经纬度）
     /// </summary>
     /// <param name="latitude">纬度</param>
