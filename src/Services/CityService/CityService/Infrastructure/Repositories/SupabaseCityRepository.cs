@@ -738,4 +738,259 @@ public partial class SupabaseCityRepository
     {
         return degrees * Math.PI / 180;
     }
+
+    /// <summary>
+    /// 获取所有不同的区域（大洲）列表
+    /// </summary>
+    public async Task<IEnumerable<string>> GetDistinctRegionsAsync()
+    {
+        try
+        {
+            var response = await SupabaseClient
+                .From<City>()
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Filter("is_deleted", Constants.Operator.Equals, "false")
+                .Select("region")
+                .Get();
+
+            var regions = response.Models
+                .Where(c => !string.IsNullOrWhiteSpace(c.Region))
+                .Select(c => c.Region!)
+                .Distinct()
+                .OrderBy(r => r)
+                .ToList();
+
+            Logger.LogInformation("🌍 [GetDistinctRegionsAsync] 获取到 {Count} 个区域", regions.Count);
+            return regions;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ [GetDistinctRegionsAsync] 获取区域列表失败");
+            return Enumerable.Empty<string>();
+        }
+    }
+
+    /// <summary>
+    /// 根据区域获取城市列表（分页）
+    /// </summary>
+    public async Task<IEnumerable<City>> GetByRegionAsync(string region, int pageNumber, int pageSize)
+    {
+        var offset = (pageNumber - 1) * pageSize;
+
+        var response = await SupabaseClient
+            .From<City>()
+            .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.Equals, "false")
+            .Filter("region", Constants.Operator.ILike, $"%{region}%")
+            .Order(x => x.OverallScore!, Constants.Ordering.Descending)
+            .Range(offset, offset + pageSize - 1)
+            .Get();
+
+        return response.Models;
+    }
+
+    /// <summary>
+    /// 获取某区域的城市总数
+    /// </summary>
+    public async Task<int> GetCountByRegionAsync(string region)
+    {
+        try
+        {
+            var response = await SupabaseClient
+                .From<City>()
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Filter("is_deleted", Constants.Operator.Equals, "false")
+                .Filter("region", Constants.Operator.ILike, $"%{region}%")
+                .Select("id")
+                .Get();
+
+            return response.Models.Count;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ [GetCountByRegionAsync] 获取区域城市数量失败: {Region}", region);
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 根据多个国家ID获取城市列表（分页）
+    /// </summary>
+    public async Task<IEnumerable<City>> GetByCountryIdsAsync(IEnumerable<Guid> countryIds, int pageNumber, int pageSize)
+    {
+        var idList = countryIds.ToList();
+        if (idList.Count == 0) return Enumerable.Empty<City>();
+
+        var offset = (pageNumber - 1) * pageSize;
+
+        // Supabase Postgrest 的 In 操作需要将 Guid 转为字符串列表
+        var idStrings = idList.Select(id => id.ToString()).ToList();
+
+        var response = await SupabaseClient
+            .From<City>()
+            .Filter("is_active", Constants.Operator.Equals, "true")
+            .Filter("is_deleted", Constants.Operator.Equals, "false")
+            .Filter("country_id", Constants.Operator.In, idStrings)
+            .Order(x => x.OverallScore!, Constants.Ordering.Descending)
+            .Range(offset, offset + pageSize - 1)
+            .Get();
+
+        return response.Models;
+    }
+
+    /// <summary>
+    /// 根据多个国家ID获取城市总数
+    /// </summary>
+    public async Task<int> GetCountByCountryIdsAsync(IEnumerable<Guid> countryIds)
+    {
+        try
+        {
+            var idList = countryIds.ToList();
+            if (idList.Count == 0) return 0;
+
+            var idStrings = idList.Select(id => id.ToString()).ToList();
+
+            var response = await SupabaseClient
+                .From<City>()
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Filter("is_deleted", Constants.Operator.Equals, "false")
+                .Filter("country_id", Constants.Operator.In, idStrings)
+                .Select("id")
+                .Get();
+
+            return response.Models.Count;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ [GetCountByCountryIdsAsync] 获取国家城市数量失败");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 根据大洲筛选城市（同时支持 country_id 和 country name 匹配）
+    /// </summary>
+    public async Task<IEnumerable<City>> GetByContinentAsync(IEnumerable<Guid> countryIds, IEnumerable<string> countryNames, int pageNumber, int pageSize)
+    {
+        var idList = countryIds.ToList();
+        var nameList = countryNames.ToList();
+        if (idList.Count == 0 && nameList.Count == 0) return Enumerable.Empty<City>();
+
+        var offset = (pageNumber - 1) * pageSize;
+
+        // Supabase Postgrest 不支持 OR 条件，所以分两次查询后合并
+        var allCities = new List<City>();
+
+        if (idList.Count > 0)
+        {
+            var idStrings = idList.Select(id => id.ToString()).ToList();
+            var byIdResponse = await SupabaseClient
+                .From<City>()
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Filter("is_deleted", Constants.Operator.Equals, "false")
+                .Filter("country_id", Constants.Operator.In, idStrings)
+                .Order(x => x.OverallScore!, Constants.Ordering.Descending)
+                .Get();
+            allCities.AddRange(byIdResponse.Models);
+        }
+
+        if (nameList.Count > 0)
+        {
+            var byNameResponse = await SupabaseClient
+                .From<City>()
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Filter("is_deleted", Constants.Operator.Equals, "false")
+                .Filter("country", Constants.Operator.In, nameList)
+                .Order(x => x.OverallScore!, Constants.Ordering.Descending)
+                .Get();
+            
+            // 合并去重（按ID）
+            var existingIds = new HashSet<Guid>(allCities.Select(c => c.Id));
+            foreach (var city in byNameResponse.Models)
+            {
+                if (!existingIds.Contains(city.Id))
+                {
+                    allCities.Add(city);
+                }
+            }
+        }
+
+        // 排序后分页
+        return allCities
+            .OrderByDescending(c => c.OverallScore ?? 0)
+            .Skip(offset)
+            .Take(pageSize)
+            .ToList();
+    }
+
+    /// <summary>
+    /// 获取所有活跃城市的简要信息（仅 id, country_id, country）
+    /// 用于内存中批量统计，避免多次数据库查询
+    /// </summary>
+    public async Task<IEnumerable<City>> GetAllActiveCityBriefAsync()
+    {
+        try
+        {
+            var response = await SupabaseClient
+                .From<City>()
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Filter("is_deleted", Constants.Operator.Equals, "false")
+                .Select("id,country_id,country")
+                .Get();
+
+            return response.Models;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ [GetAllActiveCityBriefAsync] 获取城市简要信息失败");
+            return Enumerable.Empty<City>();
+        }
+    }
+
+    /// <summary>
+    /// 根据大洲统计城市总数（同时支持 country_id 和 country name 匹配）
+    /// </summary>
+    public async Task<int> GetCountByContinentAsync(IEnumerable<Guid> countryIds, IEnumerable<string> countryNames)
+    {
+        try
+        {
+            var idList = countryIds.ToList();
+            var nameList = countryNames.ToList();
+            if (idList.Count == 0 && nameList.Count == 0) return 0;
+
+            var allIds = new HashSet<Guid>();
+
+            if (idList.Count > 0)
+            {
+                var idStrings = idList.Select(id => id.ToString()).ToList();
+                var byIdResponse = await SupabaseClient
+                    .From<City>()
+                    .Filter("is_active", Constants.Operator.Equals, "true")
+                    .Filter("is_deleted", Constants.Operator.Equals, "false")
+                    .Filter("country_id", Constants.Operator.In, idStrings)
+                    .Select("id")
+                    .Get();
+                foreach (var c in byIdResponse.Models) allIds.Add(c.Id);
+            }
+
+            if (nameList.Count > 0)
+            {
+                var byNameResponse = await SupabaseClient
+                    .From<City>()
+                    .Filter("is_active", Constants.Operator.Equals, "true")
+                    .Filter("is_deleted", Constants.Operator.Equals, "false")
+                    .Filter("country", Constants.Operator.In, nameList)
+                    .Select("id")
+                    .Get();
+                foreach (var c in byNameResponse.Models) allIds.Add(c.Id);
+            }
+
+            return allIds.Count;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ [GetCountByContinentAsync] 获取大洲城市数量失败");
+            return 0;
+        }
+    }
 }

@@ -571,3 +571,33 @@ public class GeneratedImageInfo
 }
 
 #endregion
+
+#region City Region Tab DTOs
+
+/// <summary>
+/// 城市区域标签 DTO - 用于前端 Tab 展示
+/// </summary>
+public class CityRegionTabDto
+{
+    /// <summary>
+    /// 区域标识（如 Asia, Europe 等）
+    /// </summary>
+    public string Key { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 显示名称
+    /// </summary>
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 该区域的城市数量
+    /// </summary>
+    public int CityCount { get; set; }
+
+    /// <summary>
+    /// 排序序号
+    /// </summary>
+    public int DisplayOrder { get; set; }
+}
+
+#endregion

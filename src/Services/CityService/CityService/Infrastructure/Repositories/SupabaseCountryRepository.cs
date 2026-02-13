@@ -130,4 +130,96 @@ public class SupabaseCountryRepository : ICountryRepository
             return false;
         }
     }
+
+    public async Task<IEnumerable<Country>> GetAllActiveCountriesAsync()
+    {
+        return await GetAllCountriesAsync();
+    }
+
+    public async Task<IEnumerable<string>> GetDistinctContinentsAsync()
+    {
+        try
+        {
+            var response = await _supabaseClient
+                .From<Country>()
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Select("continent")
+                .Get();
+
+            var continents = response.Models
+                .Where(c => !string.IsNullOrWhiteSpace(c.Continent))
+                .Select(c => c.Continent!)
+                .Distinct()
+                .OrderBy(c => c)
+                .ToList();
+
+            _logger.LogInformation("\uD83C\uDF0D [GetDistinctContinentsAsync] 获取到 {Count} 个大洲", continents.Count);
+            return continents;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "\u274C [GetDistinctContinentsAsync] 获取大洲列表失败");
+            return Enumerable.Empty<string>();
+        }
+    }
+
+    public async Task<IEnumerable<Guid>> GetCountryIdsByContinentAsync(string continent)
+    {
+        try
+        {
+            var response = await _supabaseClient
+                .From<Country>()
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Filter("continent", Constants.Operator.Equals, continent)
+                .Select("id")
+                .Get();
+
+            return response.Models.Select(c => c.Id).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "\u274C [GetCountryIdsByContinentAsync] 获取大洲国家ID失败: {Continent}", continent);
+            return Enumerable.Empty<Guid>();
+        }
+    }
+
+    public async Task<IEnumerable<string>> GetCountryNamesByContinentAsync(string continent)
+    {
+        try
+        {
+            var response = await _supabaseClient
+                .From<Country>()
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Filter("continent", Constants.Operator.Equals, continent)
+                .Select("name")
+                .Get();
+
+            return response.Models.Select(c => c.Name).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "\u274C [GetCountryNamesByContinentAsync] 获取大洲国家名称失败: {Continent}", continent);
+            return Enumerable.Empty<string>();
+        }
+    }
+
+    public async Task<int> GetCityCountByContinentAsync(string continent, ICityRepository cityRepository)
+    {
+        try
+        {
+            var countryIdsTask = GetCountryIdsByContinentAsync(continent);
+            var countryNamesTask = GetCountryNamesByContinentAsync(continent);
+            await Task.WhenAll(countryIdsTask, countryNamesTask);
+
+            var countryIdList = countryIdsTask.Result.ToList();
+            var countryNameList = countryNamesTask.Result.ToList();
+
+            return await cityRepository.GetCountByContinentAsync(countryIdList, countryNameList);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "\u274C [GetCityCountByContinentAsync] 获取大洲城市数量失败: {Continent}", continent);
+            return 0;
+        }
+    }
 }

@@ -184,7 +184,8 @@ public class CitiesController : ControllerBase
     public async Task<ActionResult<ApiResponse<PaginatedResponse<CityListItemDto>>>> GetCityListBasic(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
-        [FromQuery] string? search = null)
+        [FromQuery] string? search = null,
+        [FromQuery] string? region = null)
     {
         try
         {
@@ -192,7 +193,7 @@ public class CitiesController : ControllerBase
             var userRole = _currentUser.GetUserRole();
 
             // 并行执行数据查询和计数查询以提升性能
-            var citiesTask = _cityService.GetCityListBasicAsync(pageNumber, pageSize, search, userId, userRole);
+            var citiesTask = _cityService.GetCityListBasicAsync(pageNumber, pageSize, search, region, userId, userRole);
             var countTask = _cityService.GetTotalCountAsync();
             await Task.WhenAll(citiesTask, countTask);
             var cities = await citiesTask;
@@ -228,11 +229,42 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
+    ///     Get available region tabs for city filtering
+    ///     Returns distinct regions with city counts, controlled by backend
+    /// </summary>
+    [HttpGet("region-tabs")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<List<CityRegionTabDto>>>> GetRegionTabs()
+    {
+        try
+        {
+            var tabs = await _cityService.GetRegionTabsAsync();
+            return Ok(new ApiResponse<List<CityRegionTabDto>>
+            {
+                Success = true,
+                Message = "Region tabs retrieved successfully",
+                Data = tabs.ToList()
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting region tabs");
+            return StatusCode(500, new ApiResponse<List<CityRegionTabDto>>
+            {
+                Success = false,
+                Message = "An error occurred while retrieving region tabs",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
     ///     Get city counts batch (MeetupCount, CoworkingCount, ReviewCount, AverageCost)
     ///     For async loading of aggregated data
     /// </summary>
     [HttpPost("counts")]
     [AllowAnonymous]
+
     public async Task<ActionResult<ApiResponse<Dictionary<Guid, CityCountsDto>>>> GetCityCountsBatch([FromBody] CityBatchRequest request)
     {
         if (request.CityIds == null || request.CityIds.Count == 0)
