@@ -100,7 +100,8 @@ public class UserPreferencesController : ControllerBase
                 request.ProfilePublic,
                 request.Currency,
                 request.TemperatureUnit,
-                request.Language
+                request.Language,
+                request.PrivacyPolicyAccepted
             );
 
             // 保存更新
@@ -134,6 +135,51 @@ public class UserPreferencesController : ControllerBase
     {
         // 复用 PUT 的逻辑，因为我们的 Update 方法已经支持部分更新
         return await UpdateCurrentUserPreferences(request, cancellationToken);
+    }
+
+    /// <summary>
+    ///     接受隐私政策
+    /// </summary>
+    [HttpPost("me/accept-privacy-policy")]
+    public async Task<ActionResult<ApiResponse<UserPreferencesDto>>> AcceptPrivacyPolicy(
+        CancellationToken cancellationToken = default)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+        {
+            return Unauthorized(new ApiResponse<UserPreferencesDto>
+            {
+                Success = false,
+                Message = "未认证用户"
+            });
+        }
+
+        _logger.LogInformation("📋 用户接受隐私政策: {UserId}", userContext.UserId);
+
+        try
+        {
+            var preferences = await _userPreferencesRepository.GetOrCreateAsync(userContext.UserId, cancellationToken);
+
+            preferences.AcceptPrivacyPolicy();
+
+            var updatedPreferences = await _userPreferencesRepository.UpdateAsync(preferences, cancellationToken);
+
+            return Ok(new ApiResponse<UserPreferencesDto>
+            {
+                Success = true,
+                Message = "Privacy policy accepted successfully",
+                Data = MapToDto(updatedPreferences)
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 接受隐私政策失败: {UserId}", userContext.UserId);
+            return StatusCode(500, new ApiResponse<UserPreferencesDto>
+            {
+                Success = false,
+                Message = "接受隐私政策失败"
+            });
+        }
     }
 
     /// <summary>
@@ -183,6 +229,8 @@ public class UserPreferencesController : ControllerBase
             Currency = preferences.Currency,
             TemperatureUnit = preferences.TemperatureUnit,
             Language = preferences.Language,
+            PrivacyPolicyAccepted = preferences.PrivacyPolicyAccepted,
+            PrivacyPolicyAcceptedAt = preferences.PrivacyPolicyAcceptedAt,
             CreatedAt = preferences.CreatedAt,
             UpdatedAt = preferences.UpdatedAt
         };

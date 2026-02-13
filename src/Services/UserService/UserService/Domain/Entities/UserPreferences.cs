@@ -65,6 +65,18 @@ public class UserPreferences : BaseModel
     [Column("language")]
     public string Language { get; set; } = "en";
 
+    /// <summary>
+    ///     用户是否已同意隐私政策
+    /// </summary>
+    [Column("privacy_policy_accepted")]
+    public bool PrivacyPolicyAccepted { get; set; } = false;
+
+    /// <summary>
+    ///     用户同意隐私政策的时间
+    /// </summary>
+    [Column("privacy_policy_accepted_at")]
+    public DateTime? PrivacyPolicyAcceptedAt { get; set; }
+
     [Column("created_at")]
     public DateTime CreatedAt { get; set; }
 
@@ -92,6 +104,8 @@ public class UserPreferences : BaseModel
             Currency = "USD",
             TemperatureUnit = "Celsius",
             Language = "en",
+            PrivacyPolicyAccepted = false,
+            PrivacyPolicyAcceptedAt = null,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -111,7 +125,8 @@ public class UserPreferences : BaseModel
         bool? profilePublic = null,
         string? currency = null,
         string? temperatureUnit = null,
-        string? language = null)
+        string? language = null,
+        bool? privacyPolicyAccepted = null)
     {
         if (notificationsEnabled.HasValue)
             NotificationsEnabled = notificationsEnabled.Value;
@@ -134,6 +149,23 @@ public class UserPreferences : BaseModel
         if (!string.IsNullOrWhiteSpace(language))
             Language = language;
 
+        if (privacyPolicyAccepted.HasValue)
+        {
+            PrivacyPolicyAccepted = privacyPolicyAccepted.Value;
+            if (privacyPolicyAccepted.Value)
+                PrivacyPolicyAcceptedAt = DateTime.UtcNow;
+        }
+
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    ///     接受隐私政策
+    /// </summary>
+    public void AcceptPrivacyPolicy()
+    {
+        PrivacyPolicyAccepted = true;
+        PrivacyPolicyAcceptedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }
 

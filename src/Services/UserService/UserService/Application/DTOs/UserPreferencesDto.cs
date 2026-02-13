@@ -14,6 +14,8 @@ public class UserPreferencesDto
     public string Currency { get; set; } = "USD";
     public string TemperatureUnit { get; set; } = "Celsius";
     public string Language { get; set; } = "en";
+    public bool PrivacyPolicyAccepted { get; set; } = false;
+    public DateTime? PrivacyPolicyAcceptedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -30,4 +32,5 @@ public class UpdateUserPreferencesRequest
     public string? Currency { get; set; }
     public string? TemperatureUnit { get; set; }
     public string? Language { get; set; }
+    public bool? PrivacyPolicyAccepted { get; set; }
 }
