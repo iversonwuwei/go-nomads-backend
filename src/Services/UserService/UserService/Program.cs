@@ -76,6 +76,7 @@ builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
 builder.Services.AddScoped<ITravelHistoryRepository, TravelHistoryRepository>();
 builder.Services.AddScoped<IVisitedPlaceRepository, VisitedPlaceRepository>();
+builder.Services.AddScoped<ILegalDocumentRepository, LegalDocumentRepository>();
 
 // Register Application Services
 builder.Services.AddScoped<IUserService, UserApplicationService>();
