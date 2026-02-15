@@ -77,6 +77,13 @@
         "Match": { "Path": "/api/v1/interests/{**catch-all}" },
         "Order": 18
       },
+      "user-reports-route": {
+        "ClusterId": "user-service-cluster",
+        "Match": {
+          "Path": "/api/v1/reports/{**catch-all}"
+        },
+        "Order": 19
+      },
 
       "event-types-route": {
         "ClusterId": "event-service-cluster",

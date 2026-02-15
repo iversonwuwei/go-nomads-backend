@@ -77,6 +77,7 @@ builder.Services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepo
 builder.Services.AddScoped<ITravelHistoryRepository, TravelHistoryRepository>();
 builder.Services.AddScoped<IVisitedPlaceRepository, VisitedPlaceRepository>();
 builder.Services.AddScoped<ILegalDocumentRepository, LegalDocumentRepository>();
+builder.Services.AddScoped<IReportRepository, ReportRepository>();
 
 // Register Application Services
 builder.Services.AddScoped<IUserService, UserApplicationService>();
@@ -87,9 +88,11 @@ builder.Services.AddScoped<IMembershipService, MembershipService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<ITravelHistoryService, TravelHistoryService>();
 builder.Services.AddScoped<IVisitedPlaceService, VisitedPlaceService>();
+builder.Services.AddScoped<IReportService, ReportApplicationService>();
 
 // Register Service Clients (for inter-service communication)
 builder.Services.AddServiceClient<ICityServiceClient, CityServiceClient>("city-service");
+builder.Services.AddServiceClient<IMessageServiceClient, MessageServiceClient>("message-service");
 
 // Named HttpClient for controllers using IHttpClientFactory
 builder.Services.AddServiceClient("city-service");
