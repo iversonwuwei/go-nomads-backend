@@ -48,9 +48,9 @@ builder.Services.AddSingleton<JwtTokenService>();
 builder.Services.Configure<PayPalSettings>(builder.Configuration.GetSection(PayPalSettings.SectionName));
 builder.Services.AddHttpClient<IPayPalService, PayPalService>();
 
-// 配置支付宝
-builder.Services.Configure<AlipaySettings>(builder.Configuration.GetSection("Alipay"));
-builder.Services.AddSingleton<IAlipayService, AlipayService>();
+// 配置抖音
+builder.Services.Configure<DouyinSettings>(builder.Configuration.GetSection(DouyinSettings.SectionName));
+builder.Services.AddHttpClient<IDouyinService, DouyinService>();
 
 // 配置阿里云短信
 builder.Services.Configure<AliyunSmsSettings>(builder.Configuration.GetSection(AliyunSmsSettings.SectionName));

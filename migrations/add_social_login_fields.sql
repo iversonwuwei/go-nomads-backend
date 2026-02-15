@@ -11,5 +11,5 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS social_open_id VARCHAR(255);
 CREATE INDEX IF NOT EXISTS idx_users_social_login ON users (social_provider, social_open_id) WHERE social_provider IS NOT NULL;
 
 -- 添加注释
-COMMENT ON COLUMN users.social_provider IS '社交登录提供商（wechat, qq, alipay, apple, google）';
+COMMENT ON COLUMN users.social_provider IS '社交登录提供商（wechat, qq, douyin, apple, google）';
 COMMENT ON COLUMN users.social_open_id IS '社交登录平台用户唯一标识（OpenID）';

@@ -18,19 +18,16 @@ public class PaymentController : ControllerBase
     private readonly ILogger<PaymentController> _logger;
     private readonly IPaymentService _paymentService;
     private readonly IPayPalService _payPalService;
-    private readonly IAlipayService _alipayService;
     private readonly PayPalSettings _payPalSettings;
 
     public PaymentController(
         IPaymentService paymentService,
         IPayPalService payPalService,
-        IAlipayService alipayService,
         IOptions<PayPalSettings> payPalSettings,
         ILogger<PaymentController> logger)
     {
         _paymentService = paymentService;
         _payPalService = payPalService;
-        _alipayService = alipayService;
         _payPalSettings = payPalSettings.Value;
         _logger = logger;
     }
@@ -528,89 +525,6 @@ public class PaymentController : ControllerBase
     }
 
     /// <summary>
-    ///     创建支付宝订单
-    /// </summary>
-    /// <remarks>
-    ///     创建支付宝订单，返回签名后的订单信息字符串
-    /// </remarks>
-    [HttpPost("orders/alipay")]
-    public async Task<ActionResult<ApiResponse<AlipayOrderDto>>> CreateAlipayOrder(
-        [FromBody] CreateAlipayOrderRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
-        if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
-        {
-            return Unauthorized(new ApiResponse<AlipayOrderDto>
-            {
-                Success = false,
-                Message = "未认证用户"
-            });
-        }
-
-        _logger.LogInformation("📝 创建支付宝订单: UserId={UserId}, Type={Type}",
-            userContext.UserId, request.OrderType);
-
-        try
-        {
-            // 生成订单号
-            var outTradeNo = $"GN{DateTime.UtcNow:yyyyMMddHHmmss}{Guid.NewGuid().ToString("N")[..8].ToUpper()}";
-
-            // 根据订单类型确定金额和商品名
-            var (amount, subject) = request.OrderType switch
-            {
-                "membership_upgrade" => request.MembershipLevel switch
-                {
-                    1 => (29.00m, "Go Nomads 探索者会员"),
-                    2 => (99.00m, "Go Nomads 旅行家会员"),
-                    3 => (299.00m, "Go Nomads 数字游民会员"),
-                    _ => (29.00m, "Go Nomads 会员")
-                },
-                _ => (0m, "Go Nomads 订单")
-            };
-
-            if (amount <= 0)
-            {
-                return BadRequest(new ApiResponse<AlipayOrderDto>
-                {
-                    Success = false,
-                    Message = "无效的订单类型或等级"
-                });
-            }
-
-            // 使用支付宝服务生成签名后的订单字符串
-            var orderString = _alipayService.CreateAppPayOrderString(
-                outTradeNo,
-                amount,
-                subject,
-                $"用户 {userContext.UserId} 购买 {subject}"
-            );
-
-            var order = new AlipayOrderDto
-            {
-                OrderId = outTradeNo,
-                OrderString = orderString
-            };
-
-            return Ok(new ApiResponse<AlipayOrderDto>
-            {
-                Success = true,
-                Message = "支付宝订单创建成功",
-                Data = order
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ 创建支付宝订单失败");
-            return StatusCode(500, new ApiResponse<AlipayOrderDto>
-            {
-                Success = false,
-                Message = "创建支付宝订单失败"
-            });
-        }
-    }
-
-    /// <summary>
     ///     微信支付回调
     /// </summary>
     [HttpPost("webhooks/wechat")]
@@ -638,31 +552,4 @@ public class PaymentController : ControllerBase
         }
     }
 
-    /// <summary>
-    ///     支付宝支付回调
-    /// </summary>
-    [HttpPost("webhooks/alipay")]
-    public async Task<IActionResult> AlipayWebhook(CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("📨 收到支付宝 Webhook");
-
-        try
-        {
-            var form = await Request.ReadFormAsync(cancellationToken);
-
-            // TODO: 验证支付宝签名
-            // TODO: 解析通知内容并更新订单状态
-
-            _logger.LogInformation("支付宝通知: TradeNo={TradeNo}, TradeStatus={TradeStatus}",
-                form["trade_no"], form["trade_status"]);
-
-            // 返回支付宝要求的格式
-            return Content("success");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ 处理支付宝 Webhook 失败");
-            return Content("fail");
-        }
-    }
 }

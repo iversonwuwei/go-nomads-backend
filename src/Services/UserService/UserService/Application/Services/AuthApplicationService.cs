@@ -459,7 +459,7 @@ public class AuthApplicationService : IAuthService
 
     /// <summary>
     ///     社交登录（用户不存在时自动创建）
-    ///     支持微信、QQ、支付宝等平台
+    ///     支持微信、抖音等平台
     /// </summary>
     public async Task<AuthResponseDto> SocialLoginAsync(
         SocialLoginRequest request,

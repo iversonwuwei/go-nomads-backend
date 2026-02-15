@@ -72,7 +72,7 @@ public class PhoneLoginRequest
 public class SocialLoginRequest
 {
     /// <summary>
-    ///     社交平台（wechat, qq, alipay, apple, google）
+    ///     社交平台（wechat, douyin, apple, google）
     /// </summary>
     [Required(ErrorMessage = "社交平台不能为空")]
     public string Provider { get; set; } = string.Empty;
