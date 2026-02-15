@@ -46,7 +46,7 @@ public class User : BaseModel
     [Column("role_id")] public string RoleId { get; set; } = string.Empty;
 
     /// <summary>
-    ///     社交登录提供商（wechat, qq, alipay, apple, google）
+    ///     社交登录提供商（wechat, douyin, apple, google）
     /// </summary>
     [Column("social_provider")] public string? SocialProvider { get; set; }
 

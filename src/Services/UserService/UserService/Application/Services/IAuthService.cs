@@ -46,7 +46,7 @@ public interface IAuthService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     社交登录（微信/QQ/支付宝等）
+    ///     社交登录（微信/抖音等）
     ///     用户不存在时自动创建
     /// </summary>
     Task<AuthResponseDto> SocialLoginAsync(SocialLoginRequest request,
