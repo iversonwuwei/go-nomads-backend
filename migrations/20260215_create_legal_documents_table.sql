@@ -35,22 +35,4 @@ CREATE INDEX idx_legal_documents_current
     ON legal_documents (document_type, language, is_current)
     WHERE is_current = true;
 
--- RLS 策略：所有人可读（公开文档）
-ALTER TABLE legal_documents ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "legal_documents_select_policy"
-    ON legal_documents FOR SELECT
-    USING (true);
-
--- 仅管理员可写（通过迁移脚本管理内容）
-CREATE POLICY "legal_documents_insert_policy"
-    ON legal_documents FOR INSERT
-    WITH CHECK (false);
-
-CREATE POLICY "legal_documents_update_policy"
-    ON legal_documents FOR UPDATE
-    USING (false);
-
-CREATE POLICY "legal_documents_delete_policy"
-    ON legal_documents FOR DELETE
-    USING (false);
+-- 注意：此表不启用 RLS，通过后端服务层控制访问权限

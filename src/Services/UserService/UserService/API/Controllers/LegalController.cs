@@ -1,4 +1,3 @@
-using System.Text.Json;
 using GoNomads.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using UserService.Application.DTOs;
@@ -13,12 +12,6 @@ namespace UserService.API.Controllers;
 [Route("api/v1/users/legal")]
 public class LegalController : ControllerBase
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
-
     private readonly ILegalDocumentRepository _legalDocumentRepository;
     private readonly ILogger<LegalController> _logger;
 
@@ -87,22 +80,18 @@ public class LegalController : ControllerBase
             Title = doc.Title,
             EffectiveDate = doc.EffectiveDate,
             IsCurrent = doc.IsCurrent,
-            Sections = DeserializeJson<List<LegalSectionDto>>(doc.Sections) ?? new(),
-            Summary = DeserializeJson<List<LegalSummaryDto>>(doc.Summary) ?? new()
+            Sections = doc.Sections.Select(s => new LegalSectionDto
+            {
+                Title = s.Title,
+                Content = s.Content
+            }).ToList(),
+            Summary = doc.Summary.Select(s => new LegalSummaryDto
+            {
+                Icon = s.Icon,
+                Title = s.Title,
+                Content = s.Content
+            }).ToList()
         };
-    }
-
-    private static T? DeserializeJson<T>(string? json)
-    {
-        if (string.IsNullOrEmpty(json)) return default;
-        try
-        {
-            return JsonSerializer.Deserialize<T>(json, JsonOptions);
-        }
-        catch
-        {
-            return default;
-        }
     }
 
     #endregion

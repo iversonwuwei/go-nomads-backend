@@ -1,3 +1,4 @@
+using Newtonsoft.Json;
 using Postgrest.Attributes;
 using Postgrest.Models;
 
@@ -54,17 +55,44 @@ public class LegalDocument : BaseModel
     ///     章节内容 JSONB — [{ "title": "...", "content": "..." }, ...]
     /// </summary>
     [Column("sections")]
-    public string Sections { get; set; } = "[]";
+    public List<LegalSectionItem> Sections { get; set; } = new();
 
     /// <summary>
     ///     摘要内容 JSONB — [{ "icon": "...", "title": "...", "content": "..." }, ...]
     /// </summary>
     [Column("summary")]
-    public string Summary { get; set; } = "[]";
+    public List<LegalSummaryItem> Summary { get; set; } = new();
 
     [Column("created_at")]
     public DateTime CreatedAt { get; set; }
 
     [Column("updated_at")]
     public DateTime UpdatedAt { get; set; }
+}
+
+/// <summary>
+///     章节内容项
+/// </summary>
+public class LegalSectionItem
+{
+    [JsonProperty("title")]
+    public string Title { get; set; } = string.Empty;
+
+    [JsonProperty("content")]
+    public string Content { get; set; } = string.Empty;
+}
+
+/// <summary>
+///     摘要内容项
+/// </summary>
+public class LegalSummaryItem
+{
+    [JsonProperty("icon")]
+    public string Icon { get; set; } = string.Empty;
+
+    [JsonProperty("title")]
+    public string Title { get; set; } = string.Empty;
+
+    [JsonProperty("content")]
+    public string Content { get; set; } = string.Empty;
 }

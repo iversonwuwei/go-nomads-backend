@@ -29,13 +29,15 @@ public class LegalDocumentRepository : ILegalDocumentRepository
                 .Where(d => d.DocumentType == documentType)
                 .Where(d => d.Language == language)
                 .Where(d => d.IsCurrent == true)
-                .Single(cancellationToken);
+                .Get(cancellationToken);
 
-            return response;
+            var result = response.Models.FirstOrDefault();
+            _logger.LogInformation("📄 查询结果: 共 {Count} 条, result={HasResult}", response.Models.Count, result != null);
+            return result;
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "⚠️ 未找到当前生效法律文档: type={Type}, lang={Lang}", documentType, language);
+            _logger.LogError(ex, "❌ 查询法律文档异常: type={Type}, lang={Lang}", documentType, language);
             return null;
         }
     }
@@ -51,13 +53,15 @@ public class LegalDocumentRepository : ILegalDocumentRepository
                 .Where(d => d.DocumentType == documentType)
                 .Where(d => d.Language == language)
                 .Where(d => d.Version == version)
-                .Single(cancellationToken);
+                .Get(cancellationToken);
 
-            return response;
+            var result = response.Models.FirstOrDefault();
+            _logger.LogInformation("📄 查询结果: 共 {Count} 条, result={HasResult}", response.Models.Count, result != null);
+            return result;
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "⚠️ 未找到指定版本法律文档: type={Type}, lang={Lang}, ver={Ver}", documentType, language, version);
+            _logger.LogError(ex, "❌ 查询法律文档异常: type={Type}, lang={Lang}, ver={Ver}", documentType, language, version);
             return null;
         }
     }
