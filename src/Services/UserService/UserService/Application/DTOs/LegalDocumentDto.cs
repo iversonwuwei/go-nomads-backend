@@ -24,6 +24,11 @@ public class LegalDocumentDto
     ///     摘要列表 — 解析后的 JSON 数组（用于首启弹窗）
     /// </summary>
     public List<LegalSummaryDto> Summary { get; set; } = new();
+
+    /// <summary>
+    ///     第三方SDK信息收集清单
+    /// </summary>
+    public List<LegalSdkDto> SdkList { get; set; } = new();
 }
 
 public class LegalSectionDto
@@ -37,4 +42,13 @@ public class LegalSummaryDto
     public string Icon { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
+}
+
+public class LegalSdkDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string Company { get; set; } = string.Empty;
+    public string Purpose { get; set; } = string.Empty;
+    public List<string> DataCollected { get; set; } = new();
+    public string PrivacyUrl { get; set; } = string.Empty;
 }

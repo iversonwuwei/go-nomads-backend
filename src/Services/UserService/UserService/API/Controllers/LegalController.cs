@@ -90,6 +90,14 @@ public class LegalController : ControllerBase
                 Icon = s.Icon,
                 Title = s.Title,
                 Content = s.Content
+            }).ToList(),
+            SdkList = doc.SdkList.Select(s => new LegalSdkDto
+            {
+                Name = s.Name,
+                Company = s.Company,
+                Purpose = s.Purpose,
+                DataCollected = s.DataCollected,
+                PrivacyUrl = s.PrivacyUrl
             }).ToList()
         };
     }
