@@ -63,6 +63,12 @@ public class LegalDocument : BaseModel
     [Column("summary")]
     public List<LegalSummaryItem> Summary { get; set; } = new();
 
+    /// <summary>
+    ///     第三方SDK信息收集清单 JSONB
+    /// </summary>
+    [Column("sdk_list")]
+    public List<LegalSdkItem> SdkList { get; set; } = new();
+
     [Column("created_at")]
     public DateTime CreatedAt { get; set; }
 
@@ -95,4 +101,25 @@ public class LegalSummaryItem
 
     [JsonProperty("content")]
     public string Content { get; set; } = string.Empty;
+}
+
+/// <summary>
+///     第三方SDK信息收集清单项
+/// </summary>
+public class LegalSdkItem
+{
+    [JsonProperty("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonProperty("company")]
+    public string Company { get; set; } = string.Empty;
+
+    [JsonProperty("purpose")]
+    public string Purpose { get; set; } = string.Empty;
+
+    [JsonProperty("dataCollected")]
+    public List<string> DataCollected { get; set; } = new();
+
+    [JsonProperty("privacyUrl")]
+    public string PrivacyUrl { get; set; } = string.Empty;
 }
