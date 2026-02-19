@@ -12,8 +12,6 @@ using Prometheus;
 using Scalar.AspNetCore;
 using Serilog;
 
-const string serviceName = "AIService";
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure Serilog

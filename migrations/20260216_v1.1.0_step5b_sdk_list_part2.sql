@@ -8,14 +8,14 @@ SET sdk_list = sdk_list || '[
     "name": "Google Sign-In SDK",
     "company": "Google LLC",
     "purpose": "Google账号登录",
-    "dataCollected": ["Google账号信息","设备标识符"],
+    "dataCollected": ["经用户授权后获取Google账号信息（邮箱、昵称、头像）"],
     "privacyUrl": "https://policies.google.com/privacy"
   },
   {
-    "name": "Google Location Services",
+    "name": "Google定位服务",
     "company": "Google LLC",
-    "purpose": "海外定位服务",
-    "dataCollected": ["精确/粗略位置信息","设备标识符","IP地址"],
+    "purpose": "海外定位服务（通过系统Google Play Services提供）",
+    "dataCollected": ["精确/粗略位置信息","IP地址"],
     "privacyUrl": "https://policies.google.com/privacy"
   },
   {
@@ -28,7 +28,7 @@ SET sdk_list = sdk_list || '[
   {
     "name": "Flutter本地通知插件",
     "company": "开源社区",
-    "purpose": "本地消息通知推送",
+    "purpose": "本地消息通知",
     "dataCollected": ["通知权限状态"],
     "privacyUrl": ""
   }
