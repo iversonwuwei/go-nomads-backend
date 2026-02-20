@@ -27,7 +27,7 @@ public class AuthApplicationService : IAuthService
     private readonly IWeChatOAuthService _weChatOAuthService;
     private readonly IGoogleOAuthService _googleOAuthService;
     private readonly ITwitterOAuthService _twitterOAuthService;
-    private readonly IDouyinService _douyinService;
+    private readonly IQQService _qqService;
 
     /// <summary>
     ///     验证码缓存 (手机号 -> (验证码, 过期时间))
@@ -44,7 +44,7 @@ public class AuthApplicationService : IAuthService
         IWeChatOAuthService weChatOAuthService,
         IGoogleOAuthService googleOAuthService,
         ITwitterOAuthService twitterOAuthService,
-        IDouyinService douyinService,
+        IQQService qqService,
         IConfiguration configuration,
         ILogger<AuthApplicationService> logger)
     {
@@ -56,7 +56,7 @@ public class AuthApplicationService : IAuthService
         _weChatOAuthService = weChatOAuthService;
         _googleOAuthService = googleOAuthService;
         _twitterOAuthService = twitterOAuthService;
-        _douyinService = douyinService;
+        _qqService = qqService;
         _configuration = configuration;
         _logger = logger;
     }
@@ -552,30 +552,30 @@ public class AuthApplicationService : IAuthService
                 _logger.LogInformation("✅ Twitter 用户信息获取成功: id={Id}, name={Name}, username={Username}",
                     openId, nickname, twitterUserInfo.Username);
             }
-            else if (provider == "douyin")
+            else if (provider == "qq")
             {
-                // 抖音登录：用 code 换取 access_token + open_id，再获取用户信息
+                // QQ 登录：用 code 换取 access_token + openid，再获取用户信息
                 if (!string.IsNullOrEmpty(request.Code))
                 {
-                    // 1. 用授权码换取 access_token 和 open_id
-                    var tokenResult = await _douyinService.ExchangeCodeForTokenAsync(request.Code, cancellationToken);
+                    // 1. 用授权码换取 access_token 和 openid
+                    var tokenResult = await _qqService.ExchangeCodeForTokenAsync(request.Code, cancellationToken);
                     if (!tokenResult.Success)
                     {
-                        throw new InvalidOperationException($"抖音授权码换取 token 失败: {tokenResult.ErrorMessage}");
+                        throw new InvalidOperationException($"QQ 授权码换取 token 失败: {tokenResult.ErrorMessage}");
                     }
 
                     openId = tokenResult.OpenId;
 
-                    // 2. 用 access_token + open_id 获取用户信息
-                    var douyinUserInfo = await _douyinService.GetUserInfoAsync(
+                    // 2. 用 access_token + openid 获取用户信息
+                    var qqUserInfo = await _qqService.GetUserInfoAsync(
                         tokenResult.AccessToken, tokenResult.OpenId, cancellationToken);
-                    if (douyinUserInfo != null)
+                    if (qqUserInfo != null)
                     {
-                        nickname = douyinUserInfo.Nickname;
-                        avatarUrl = douyinUserInfo.AvatarUrl;
+                        nickname = qqUserInfo.Nickname;
+                        avatarUrl = qqUserInfo.AvatarUrl;
                     }
 
-                    _logger.LogInformation("✅ 抖音用户信息获取成功: openId={OpenId}, nickname={Nickname}",
+                    _logger.LogInformation("✅ QQ 用户信息获取成功: openId={OpenId}, nickname={Nickname}",
                         openId, nickname);
                 }
                 else if (!string.IsNullOrEmpty(request.OpenId))
@@ -585,7 +585,7 @@ public class AuthApplicationService : IAuthService
                 }
                 else
                 {
-                    throw new InvalidOperationException("抖音登录需要提供 code 或 openId");
+                    throw new InvalidOperationException("QQ 登录需要提供 code 或 openId");
                 }
             }
             else
