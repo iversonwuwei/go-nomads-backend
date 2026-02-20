@@ -88,7 +88,7 @@ public interface IUserRepository
     /// <summary>
     ///     根据社交登录信息获取用户
     /// </summary>
-    /// <param name="provider">社交平台（wechat, douyin 等）</param>
+    /// <param name="provider">社交平台（wechat, qq 等）</param>
     /// <param name="openId">社交平台用户唯一标识</param>
     Task<User?> GetBySocialLoginAsync(string provider, string openId, CancellationToken cancellationToken = default);
 }

@@ -48,9 +48,9 @@ builder.Services.AddSingleton<JwtTokenService>();
 builder.Services.Configure<PayPalSettings>(builder.Configuration.GetSection(PayPalSettings.SectionName));
 builder.Services.AddHttpClient<IPayPalService, PayPalService>();
 
-// 配置抖音
-builder.Services.Configure<DouyinSettings>(builder.Configuration.GetSection(DouyinSettings.SectionName));
-builder.Services.AddHttpClient<IDouyinService, DouyinService>();
+// 配置 QQ 互联
+builder.Services.Configure<QQSettings>(builder.Configuration.GetSection(QQSettings.SectionName));
+builder.Services.AddHttpClient<IQQService, QQService>();
 
 // 配置阿里云短信
 builder.Services.Configure<AliyunSmsSettings>(builder.Configuration.GetSection(AliyunSmsSettings.SectionName));
