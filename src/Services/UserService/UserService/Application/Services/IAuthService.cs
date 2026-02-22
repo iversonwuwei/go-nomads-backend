@@ -34,6 +34,23 @@ public interface IAuthService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     设置密码（用于未设置密码的用户，如手机号/社交登录用户）
+    /// </summary>
+    Task SetPasswordAsync(string userId, string newPassword,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     检查用户是否已设置密码
+    /// </summary>
+    Task<bool> HasPasswordAsync(string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     检查邮箱是否可用（未被其他用户占用）
+    /// </summary>
+    Task<bool> CheckEmailAvailabilityAsync(string email, string currentUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     发送短信验证码
     /// </summary>
     Task<SendSmsCodeResponse> SendSmsCodeAsync(SendSmsCodeRequest request,
@@ -51,4 +68,72 @@ public interface IAuthService
     /// </summary>
     Task<AuthResponseDto> SocialLoginAsync(SocialLoginRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     发送找回密码验证码（支持邮箱和手机号）
+    /// </summary>
+    Task<SendResetCodeResponse> SendResetPasswordCodeAsync(SendResetCodeRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     验证验证码并重置密码
+    /// </summary>
+    Task ResetPasswordWithCodeAsync(ResetPasswordRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+///     发送找回密码验证码请求
+/// </summary>
+public class SendResetCodeRequest
+{
+    /// <summary>
+    ///     邮箱或手机号
+    /// </summary>
+    public string EmailOrPhone { get; set; } = string.Empty;
+}
+
+/// <summary>
+///     发送找回密码验证码响应
+/// </summary>
+public class SendResetCodeResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     找回方式（email / sms）
+    /// </summary>
+    public string RecoveryMethod { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     脱敏后的目标（如 wa***n@gmail.com 或 138****1234）
+    /// </summary>
+    public string MaskedTarget { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     验证码有效期（秒）
+    /// </summary>
+    public int ExpiresInSeconds { get; set; }
+}
+
+/// <summary>
+///     重置密码请求
+/// </summary>
+public class ResetPasswordRequest
+{
+    /// <summary>
+    ///     邮箱或手机号（与发送验证码时一致）
+    /// </summary>
+    public string EmailOrPhone { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     验证码
+    /// </summary>
+    public string Code { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     新密码
+    /// </summary>
+    public string NewPassword { get; set; } = string.Empty;
 }

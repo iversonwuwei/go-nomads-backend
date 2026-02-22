@@ -24,13 +24,15 @@ public class AuthApplicationService : IAuthService
     private readonly IUserRepository _userRepository;
     private readonly IAliyunSmsService _smsService;
     private readonly AliyunSmsSettings _smsSettings;
+    private readonly IEmailService _emailService;
+    private readonly AliyunEmailSettings _emailSettings;
     private readonly IWeChatOAuthService _weChatOAuthService;
     private readonly IGoogleOAuthService _googleOAuthService;
     private readonly ITwitterOAuthService _twitterOAuthService;
     private readonly IQQService _qqService;
 
     /// <summary>
-    ///     验证码缓存 (手机号 -> (验证码, 过期时间))
+    ///     验证码缓存 (手机号/邮箱 -> (验证码, 过期时间))
     ///     生产环境建议使用 Redis
     /// </summary>
     private static readonly ConcurrentDictionary<string, (string Code, DateTime ExpiresAt)> _verificationCodes = new();
@@ -41,6 +43,8 @@ public class AuthApplicationService : IAuthService
         JwtTokenService jwtTokenService,
         IAliyunSmsService smsService,
         IOptions<AliyunSmsSettings> smsSettings,
+        IEmailService emailService,
+        IOptions<AliyunEmailSettings> emailSettings,
         IWeChatOAuthService weChatOAuthService,
         IGoogleOAuthService googleOAuthService,
         ITwitterOAuthService twitterOAuthService,
@@ -53,6 +57,8 @@ public class AuthApplicationService : IAuthService
         _jwtTokenService = jwtTokenService;
         _smsService = smsService;
         _smsSettings = smsSettings.Value;
+        _emailService = emailService;
+        _emailSettings = emailSettings.Value;
         _weChatOAuthService = weChatOAuthService;
         _googleOAuthService = googleOAuthService;
         _twitterOAuthService = twitterOAuthService;
@@ -273,6 +279,73 @@ public class AuthApplicationService : IAuthService
     }
 
     /// <summary>
+    ///     设置密码（用于未设置密码的用户）
+    /// </summary>
+    public async Task SetPasswordAsync(
+        string userId,
+        string newPassword,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔐 用户设置密码: {UserId}", userId);
+
+        try
+        {
+            var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+            if (user == null)
+            {
+                _logger.LogWarning("⚠️ 用户不存在: {UserId}", userId);
+                throw new KeyNotFoundException($"用户不存在: {userId}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.PasswordHash))
+                throw new InvalidOperationException("用户已设置密码，请使用修改密码功能");
+
+            user.SetPassword(newPassword);
+            await _userRepository.UpdateAsync(user, cancellationToken);
+
+            _logger.LogInformation("✅ 用户 {UserId} 密码设置成功", userId);
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
+        }
+        catch (KeyNotFoundException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 用户 {UserId} 设置密码失败", userId);
+            throw new Exception("设置密码失败,请稍后重试");
+        }
+    }
+
+    /// <summary>
+    ///     检查用户是否已设置密码
+    /// </summary>
+    public async Task<bool> HasPasswordAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+        if (user == null)
+            throw new KeyNotFoundException($"用户不存在: {userId}");
+
+        return !string.IsNullOrWhiteSpace(user.PasswordHash);
+    }
+
+    /// <summary>
+    ///     检查邮箱是否可用（未被其他用户占用）
+    /// </summary>
+    public async Task<bool> CheckEmailAvailabilityAsync(
+        string email,
+        string currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var existingUser = await _userRepository.GetByEmailAsync(email, cancellationToken);
+        // 邮箱未被使用，或者被当前用户自己使用
+        return existingUser == null || existingUser.Id == currentUserId;
+    }
+
+    /// <summary>
     ///     发送短信验证码
     /// </summary>
     public async Task<SendSmsCodeResponse> SendSmsCodeAsync(
@@ -458,6 +531,30 @@ public class AuthApplicationService : IAuthService
         if (string.IsNullOrEmpty(phoneNumber) || phoneNumber.Length < 7)
             return "***";
         return phoneNumber[..3] + "****" + phoneNumber[^4..];
+    }
+
+    /// <summary>
+    ///     脱敏邮箱
+    /// </summary>
+    private static string MaskEmail(string email)
+    {
+        if (string.IsNullOrEmpty(email) || !email.Contains('@'))
+            return "***";
+        var parts = email.Split('@');
+        var name = parts[0];
+        var domain = parts[1];
+        if (name.Length <= 2)
+            return name[..1] + "***@" + domain;
+        return name[..2] + "***@" + domain;
+    }
+
+    /// <summary>
+    ///     脱敏输入（自动判断邮箱或手机号）
+    /// </summary>
+    private static string MaskInput(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return "***";
+        return input.Contains('@') ? MaskEmail(input) : MaskPhoneNumber(input);
     }
 
     /// <summary>
@@ -659,6 +756,220 @@ public class AuthApplicationService : IAuthService
             throw new Exception("社交登录失败,请稍后重试");
         }
     }
+
+    #region 找回密码
+
+    /// <summary>
+    ///     发送找回密码验证码（支持邮箱和手机号）
+    /// </summary>
+    public async Task<SendResetCodeResponse> SendResetPasswordCodeAsync(
+        SendResetCodeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var input = request.EmailOrPhone?.Trim() ?? string.Empty;
+        _logger.LogInformation("🔑 找回密码请求: {Input}", MaskInput(input));
+
+        try
+        {
+            var isEmail = input.Contains('@');
+            User? user;
+
+            if (isEmail)
+            {
+                // 临时邮箱不允许找回（手机/社交注册用户的占位邮箱）
+                if (input.EndsWith("@phone.gonomads.app", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new SendResetCodeResponse
+                    {
+                        Success = false,
+                        Message = "该邮箱不支持找回密码，请使用手机号找回"
+                    };
+                }
+
+                user = await _userRepository.GetByEmailAsync(input, cancellationToken);
+                if (user == null)
+                {
+                    // 安全考虑：不明确告知邮箱是否存在
+                    return new SendResetCodeResponse
+                    {
+                        Success = true,
+                        Message = "如果该邮箱已注册，验证码将发送到对应邮箱",
+                        RecoveryMethod = "email",
+                        MaskedTarget = MaskEmail(input),
+                        ExpiresInSeconds = _emailSettings.CodeExpirationMinutes * 60
+                    };
+                }
+
+                // 检查用户是否有密码（社交登录用户可能没有密码）
+                if (string.IsNullOrWhiteSpace(user.PasswordHash))
+                {
+                    return new SendResetCodeResponse
+                    {
+                        Success = false,
+                        Message = "该账号未设置密码，请通过社交账号登录后设置密码"
+                    };
+                }
+
+                // 生成并发送邮箱验证码
+                var emailCode = _emailService.GenerateVerificationCode(_emailSettings.CodeLength);
+                var emailResult = await _emailService.SendVerificationCodeAsync(input, emailCode, cancellationToken);
+
+                if (!emailResult.Success)
+                {
+                    _logger.LogWarning("⚠️ 邮箱验证码发送失败: {Email}, {Message}", MaskEmail(input), emailResult.Message);
+                    return new SendResetCodeResponse
+                    {
+                        Success = false,
+                        Message = "验证码发送失败，请稍后重试"
+                    };
+                }
+
+                // 存储验证码
+                var emailExpiresAt = DateTime.UtcNow.AddMinutes(_emailSettings.CodeExpirationMinutes);
+                _verificationCodes[input.ToLowerInvariant()] = (emailCode, emailExpiresAt);
+                CleanupExpiredCodes();
+
+                _logger.LogInformation("✅ 邮箱找回验证码已发送: {Email}", MaskEmail(input));
+                return new SendResetCodeResponse
+                {
+                    Success = true,
+                    Message = "验证码已发送到您的邮箱",
+                    RecoveryMethod = "email",
+                    MaskedTarget = MaskEmail(input),
+                    ExpiresInSeconds = _emailSettings.CodeExpirationMinutes * 60
+                };
+            }
+            else
+            {
+                // 手机号找回
+                var normalizedPhone = NormalizePhoneNumber(input);
+                user = await _userRepository.GetByPhoneAsync(normalizedPhone, cancellationToken);
+
+                if (user == null)
+                {
+                    // 安全考虑：不明确告知手机号是否存在
+                    return new SendResetCodeResponse
+                    {
+                        Success = true,
+                        Message = "如果该手机号已注册，验证码将发送到对应手机",
+                        RecoveryMethod = "sms",
+                        MaskedTarget = MaskPhoneNumber(normalizedPhone),
+                        ExpiresInSeconds = _smsSettings.CodeExpirationMinutes * 60
+                    };
+                }
+
+                // 检查用户是否有密码
+                if (string.IsNullOrWhiteSpace(user.PasswordHash))
+                {
+                    return new SendResetCodeResponse
+                    {
+                        Success = false,
+                        Message = "该账号未设置密码，请通过验证码登录后设置密码"
+                    };
+                }
+
+                // 发送短信验证码
+                var smsCode = _smsService.GenerateVerificationCode(_smsSettings.CodeLength);
+                var smsResult = await _smsService.SendVerificationCodeAsync(
+                    normalizedPhone, smsCode, cancellationToken);
+
+                if (!smsResult.Success)
+                {
+                    _logger.LogWarning("⚠️ 短信验证码发送失败: {Phone}, {Message}",
+                        MaskPhoneNumber(normalizedPhone), smsResult.Message);
+                    return new SendResetCodeResponse
+                    {
+                        Success = false,
+                        Message = "验证码发送失败，请稍后重试"
+                    };
+                }
+
+                // 存储验证码
+                var smsExpiresAt = DateTime.UtcNow.AddMinutes(_smsSettings.CodeExpirationMinutes);
+                _verificationCodes[normalizedPhone] = (smsCode, smsExpiresAt);
+                CleanupExpiredCodes();
+
+                _logger.LogInformation("✅ 短信找回验证码已发送: {Phone}", MaskPhoneNumber(normalizedPhone));
+                return new SendResetCodeResponse
+                {
+                    Success = true,
+                    Message = "验证码已发送到您的手机",
+                    RecoveryMethod = "sms",
+                    MaskedTarget = MaskPhoneNumber(normalizedPhone),
+                    ExpiresInSeconds = _smsSettings.CodeExpirationMinutes * 60
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 找回密码验证码发送异常: {Input}", MaskInput(input));
+            return new SendResetCodeResponse
+            {
+                Success = false,
+                Message = "发送验证码失败，请稍后重试"
+            };
+        }
+    }
+
+    /// <summary>
+    ///     验证验证码并重置密码
+    /// </summary>
+    public async Task ResetPasswordWithCodeAsync(
+        ResetPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var input = request.EmailOrPhone?.Trim() ?? string.Empty;
+        _logger.LogInformation("🔐 重置密码请求: {Input}", MaskInput(input));
+
+        try
+        {
+            var isEmail = input.Contains('@');
+            string codeKey;
+            User? user;
+
+            if (isEmail)
+            {
+                codeKey = input.ToLowerInvariant();
+                user = await _userRepository.GetByEmailAsync(input, cancellationToken);
+            }
+            else
+            {
+                codeKey = NormalizePhoneNumber(input);
+                user = await _userRepository.GetByPhoneAsync(codeKey, cancellationToken);
+            }
+
+            if (user == null)
+            {
+                throw new InvalidOperationException("用户不存在");
+            }
+
+            // 验证验证码
+            if (!ValidateCode(codeKey, request.Code))
+            {
+                throw new InvalidOperationException("验证码错误或已过期");
+            }
+
+            // 移除已使用的验证码
+            _verificationCodes.TryRemove(codeKey, out _);
+
+            // 重置密码
+            user.SetPassword(request.NewPassword);
+            await _userRepository.UpdateAsync(user, cancellationToken);
+
+            _logger.LogInformation("✅ 密码重置成功: {UserId}", user.Id);
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 重置密码失败: {Input}", MaskInput(input));
+            throw new Exception("重置密码失败，请稍后重试");
+        }
+    }
+
+    #endregion
 
     #region 私有辅助方法
 

@@ -56,6 +56,10 @@ builder.Services.AddHttpClient<IQQService, QQService>();
 builder.Services.Configure<AliyunSmsSettings>(builder.Configuration.GetSection(AliyunSmsSettings.SectionName));
 builder.Services.AddSingleton<IAliyunSmsService, AliyunSmsService>();
 
+// 配置阿里云邮件（DirectMail SMTP）
+builder.Services.Configure<AliyunEmailSettings>(builder.Configuration.GetSection(AliyunEmailSettings.SectionName));
+builder.Services.AddSingleton<IEmailService, AliyunEmailService>();
+
 // 配置微信 OAuth 服务
 builder.Services.AddHttpClient<IWeChatOAuthService, WeChatOAuthService>();
 
