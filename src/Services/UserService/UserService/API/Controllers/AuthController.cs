@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using GoNomads.Shared.Middleware;
 using GoNomads.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using UserService.Application.DTOs;
 using UserService.Application.Services;
@@ -307,6 +308,166 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    ///     设置密码（用于未设置密码的用户，如手机号/社交登录用户）
+    /// </summary>
+    [HttpPost("set-password")]
+    public async Task<ActionResult<ApiResponse<object>>> SetPassword(
+        [FromBody] SetPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true)
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "未认证用户"
+            });
+
+        _logger.LogInformation("🔐 用户设置密码: {UserId}", userContext.UserId);
+
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        try
+        {
+            await _authService.SetPasswordAsync(
+                userContext.UserId!,
+                request.NewPassword,
+                cancellationToken);
+
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "密码设置成功"
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 用户 {UserId} 设置密码时发生错误", userContext.UserId);
+            return StatusCode(500, new ApiResponse<object>
+            {
+                Success = false,
+                Message = "设置密码失败,请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     检查当前用户是否已设置密码
+    /// </summary>
+    [HttpGet("has-password")]
+    public async Task<ActionResult<ApiResponse<HasPasswordResponse>>> HasPassword(
+        CancellationToken cancellationToken = default)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true)
+            return Unauthorized(new ApiResponse<HasPasswordResponse>
+            {
+                Success = false,
+                Message = "未认证用户"
+            });
+
+        try
+        {
+            var hasPassword = await _authService.HasPasswordAsync(userContext.UserId!, cancellationToken);
+
+            return Ok(new ApiResponse<HasPasswordResponse>
+            {
+                Success = true,
+                Message = "查询成功",
+                Data = new HasPasswordResponse { HasPassword = hasPassword }
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<HasPasswordResponse>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 查询用户密码状态失败: {UserId}", userContext.UserId);
+            return StatusCode(500, new ApiResponse<HasPasswordResponse>
+            {
+                Success = false,
+                Message = "查询失败,请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     检查邮箱是否可用
+    /// </summary>
+    [HttpGet("check-email")]
+    public async Task<ActionResult<ApiResponse<CheckEmailResponse>>> CheckEmail(
+        [FromQuery] string email,
+        CancellationToken cancellationToken = default)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true)
+            return Unauthorized(new ApiResponse<CheckEmailResponse>
+            {
+                Success = false,
+                Message = "未认证用户"
+            });
+
+        if (string.IsNullOrWhiteSpace(email))
+            return BadRequest(new ApiResponse<CheckEmailResponse>
+            {
+                Success = false,
+                Message = "邮箱不能为空"
+            });
+
+        try
+        {
+            var available = await _authService.CheckEmailAvailabilityAsync(
+                email, userContext.UserId!, cancellationToken);
+
+            return Ok(new ApiResponse<CheckEmailResponse>
+            {
+                Success = true,
+                Message = available ? "邮箱可用" : "邮箱已被占用",
+                Data = new CheckEmailResponse { Available = available }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 检查邮箱可用性失败: {Email}", email);
+            return StatusCode(500, new ApiResponse<CheckEmailResponse>
+            {
+                Success = false,
+                Message = "检查失败,请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
     ///     发送短信验证码
     /// </summary>
     [HttpPost("sms/send-code")]
@@ -463,6 +624,114 @@ public class AuthController : ControllerBase
             });
         }
     }
+
+    /// <summary>
+    ///     发送找回密码验证码（支持邮箱和手机号，无需登录）
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("forgot-password/send-code")]
+    public async Task<ActionResult<ApiResponse<SendResetCodeResponse>>> ForgotPasswordSendCode(
+        [FromBody] SendResetCodeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔑 找回密码-发送验证码");
+
+        if (string.IsNullOrWhiteSpace(request.EmailOrPhone))
+        {
+            return BadRequest(new ApiResponse<SendResetCodeResponse>
+            {
+                Success = false,
+                Message = "请输入邮箱或手机号"
+            });
+        }
+
+        try
+        {
+            var result = await _authService.SendResetPasswordCodeAsync(request, cancellationToken);
+
+            if (!result.Success)
+            {
+                return BadRequest(new ApiResponse<SendResetCodeResponse>
+                {
+                    Success = false,
+                    Message = result.Message,
+                    Data = result
+                });
+            }
+
+            return Ok(new ApiResponse<SendResetCodeResponse>
+            {
+                Success = true,
+                Message = result.Message,
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 找回密码发送验证码异常");
+            return StatusCode(500, new ApiResponse<SendResetCodeResponse>
+            {
+                Success = false,
+                Message = "发送验证码失败，请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     验证验证码并重置密码（无需登录）
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("forgot-password/reset")]
+    public async Task<ActionResult<ApiResponse<object>>> ForgotPasswordReset(
+        [FromBody] ForgotPasswordResetRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔐 找回密码-重置密码");
+
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        try
+        {
+            await _authService.ResetPasswordWithCodeAsync(new ResetPasswordRequest
+            {
+                EmailOrPhone = request.EmailOrPhone,
+                Code = request.Code,
+                NewPassword = request.NewPassword
+            }, cancellationToken);
+
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "密码重置成功，请使用新密码登录"
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 重置密码异常");
+            return StatusCode(500, new ApiResponse<object>
+            {
+                Success = false,
+                Message = "重置密码失败，请稍后重试"
+            });
+        }
+    }
 }
 
 /// <summary>
@@ -474,5 +743,47 @@ public class ChangePasswordRequest
 
     [Required(ErrorMessage = "新密码不能为空")]
     [MinLength(6, ErrorMessage = "新密码至少需要6个字符")]
+    public string NewPassword { get; set; } = string.Empty;
+}
+
+/// <summary>
+///     设置密码请求 DTO（用于未设置密码的用户）
+/// </summary>
+public class SetPasswordRequest
+{
+    [Required(ErrorMessage = "新密码不能为空")]
+    [MinLength(6, ErrorMessage = "密码至少需要6个字符")]
+    public string NewPassword { get; set; } = string.Empty;
+}
+
+/// <summary>
+///     是否已设置密码响应 DTO
+/// </summary>
+public class HasPasswordResponse
+{
+    public bool HasPassword { get; set; }
+}
+
+/// <summary>
+///     检查邮箱可用性响应 DTO
+/// </summary>
+public class CheckEmailResponse
+{
+    public bool Available { get; set; }
+}
+
+/// <summary>
+///     找回密码-重置密码请求 DTO
+/// </summary>
+public class ForgotPasswordResetRequest
+{
+    [Required(ErrorMessage = "请输入邮箱或手机号")]
+    public string EmailOrPhone { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "请输入验证码")]
+    public string Code { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "请输入新密码")]
+    [MinLength(6, ErrorMessage = "密码至少需要6个字符")]
     public string NewPassword { get; set; } = string.Empty;
 }

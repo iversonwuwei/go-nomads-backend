@@ -19,6 +19,10 @@ public class RouteAuthorizationConfig
         "/api/v1/auth/sms/send",
         "/api/v1/auth/sms/login",
 
+        // Forgot password endpoints (no auth required)
+        "/api/v1/auth/forgot-password/send-code",
+        "/api/v1/auth/forgot-password/reset",
+
         // Legacy routes (for backward compatibility - remove after migration)
         "/api/users/login",
         "/api/users/register",

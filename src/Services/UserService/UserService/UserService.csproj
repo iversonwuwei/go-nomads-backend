@@ -11,6 +11,7 @@
 
     <ItemGroup>
 <PackageReference Include="AlibabaCloud.SDK.Dysmsapi20170525" Version="3.0.0" />
+<PackageReference Include="MailKit" Version="4.15.0" />
 
 
         <PackageReference Include="MassTransit" Version="8.2.0" />
