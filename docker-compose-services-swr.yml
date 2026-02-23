@@ -103,6 +103,7 @@ services:
       services__city-service__http__0:    *svc-city
       services__product-service__http__0: *svc-product
       services__event-service__http__0:   *svc-event
+      services__message-service__http__0: *svc-message
     networks:
       - go-nomads-network
     restart: unless-stopped

@@ -44,10 +44,19 @@ var elasticsearch = builder.AddElasticsearch("elasticsearch")
 // 微服务
 // =============================================================================
 
+// --- Message Service (SignalR Hubs, 最大消息消费者) ---
+// 注意: 提前定义，因为 UserService 需要引用 MessageService 发送通知
+var messageService = builder.AddProject<Projects.MessageService>("message-service")
+    .WithReference(redis)
+    .WithReference(rabbitmq)
+    .WaitFor(redis)
+    .WaitFor(rabbitmq);
+
 // --- User Service ---
 var userService = builder.AddProject<Projects.UserService>("user-service")
     .WithReference(redis)
     .WithReference(rabbitmq)
+    .WithReference(messageService)
     .WaitFor(redis)
     .WaitFor(rabbitmq)
     .WithEnvironment("AliyunSms__AccessKeyId", aliyunSmsKeyId)
@@ -121,13 +130,6 @@ var searchService = builder.AddProject<Projects.SearchService>("search-service")
 var cacheService = builder.AddProject<Projects.CacheService>("cache-service")
     .WithReference(redis)
     .WaitFor(redis);
-
-// --- Message Service (SignalR Hubs, 最大消息消费者) ---
-var messageService = builder.AddProject<Projects.MessageService>("message-service")
-    .WithReference(redis)
-    .WithReference(rabbitmq)
-    .WaitFor(redis)
-    .WaitFor(rabbitmq);
 
 // =============================================================================
 // API Gateway (YARP)

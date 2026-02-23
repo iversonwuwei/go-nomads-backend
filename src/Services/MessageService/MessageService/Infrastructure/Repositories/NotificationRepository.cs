@@ -346,9 +346,31 @@ public class NotificationRepository : INotificationRepository
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "⚠️ 获取管理员用户ID失败，返回空列表");
-            // 如果 RPC 函数不存在，返回空列表
-            return new List<string>();
+            _logger.LogError(ex, "❌ 获取管理员用户ID失败（可能是 RPC 函数权限问题）");
+            throw;
+        }
+    }
+
+    public async Task<List<string>> GetCityModeratorUserIdsAsync(string cityId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // 使用 RPC 函数获取城市版主用户ID列表
+            var response = await _supabaseClient
+                .Rpc<List<string>>("get_city_moderator_user_ids", new Dictionary<string, object>
+                {
+                    { "p_city_id", cityId }
+                });
+
+            _logger.LogInformation("✅ 获取城市版主用户ID: CityId={CityId}, Count={Count}",
+                cityId, response?.Count ?? 0);
+
+            return response ?? new List<string>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取城市版主用户ID失败（可能是 RPC 函数权限问题）: CityId={CityId}", cityId);
+            throw;
         }
     }
 }

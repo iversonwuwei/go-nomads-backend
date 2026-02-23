@@ -15,12 +15,15 @@ public class ReportController : ControllerBase
 {
     private readonly ILogger<ReportController> _logger;
     private readonly IReportService _reportService;
+    private readonly IUserService _userService;
 
     public ReportController(
         IReportService reportService,
+        IUserService userService,
         ILogger<ReportController> logger)
     {
         _reportService = reportService;
+        _userService = userService;
         _logger = logger;
     }
 
@@ -45,9 +48,21 @@ public class ReportController : ControllerBase
 
         try
         {
+            // 通过 UserId 获取用户名，用于通知消息中展示举报人
+            string? reporterName = null;
+            try
+            {
+                var user = await _userService.GetUserByIdAsync(userContext.UserId!, cancellationToken);
+                reporterName = user?.Name;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ 获取举报人用户名失败，将使用 null");
+            }
+
             var report = await _reportService.CreateReportAsync(
                 userContext.UserId!,
-                null,
+                reporterName,
                 dto,
                 cancellationToken);
 
