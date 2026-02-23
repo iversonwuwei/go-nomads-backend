@@ -36,7 +36,7 @@ public class Report : BaseModel
     public string? ReporterName { get; set; }
 
     /// <summary>
-    ///     举报内容类型: user / message / meetup / innovationProject / chatRoom
+    ///     举报内容类型: user / message / meetup / innovationProject / chatRoom / city
     /// </summary>
     [Required]
     [Column("content_type")]

@@ -40,6 +40,11 @@ public interface INotificationService
     Task<List<NotificationDto>> SendToAdminsAsync(SendToAdminsDto dto, CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     发送通知给指定城市的版主
+    /// </summary>
+    Task<List<NotificationDto>> SendToCityModeratorsAsync(SendToCityModeratorsDto dto, CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     标记通知为已读
     /// </summary>
     Task<bool> MarkAsReadAsync(string notificationId, CancellationToken cancellationToken = default);

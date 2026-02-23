@@ -43,6 +43,23 @@ public class SendToAdminsDto
 }
 
 /// <summary>
+///     发送通知给城市版主请求 DTO
+/// </summary>
+public class SendToCityModeratorsDto
+{
+    /// <summary>
+    ///     城市 ID
+    /// </summary>
+    public string CityId { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string? RelatedId { get; set; }
+    public Dictionary<string, object>? Metadata { get; set; }
+}
+
+/// <summary>
 ///     批量创建通知请求 DTO
 /// </summary>
 public class CreateBatchNotificationDto

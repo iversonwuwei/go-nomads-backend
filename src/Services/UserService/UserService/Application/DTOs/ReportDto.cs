@@ -6,7 +6,7 @@ namespace UserService.Application.DTOs;
 public class CreateReportDto
 {
     /// <summary>
-    ///     举报内容类型: user / message / meetup / innovationProject / chatRoom
+    ///     举报内容类型: user / message / meetup / innovationProject / chatRoom / city
     /// </summary>
     public string ContentType { get; set; } = string.Empty;
 

@@ -245,6 +245,7 @@ deploy_service_local() {
             "-e" "services__city-service__http__0=$(svc_url city-service)"
             "-e" "services__product-service__http__0=$(svc_url product-service)"
             "-e" "services__event-service__http__0=$(svc_url event-service)"
+            "-e" "services__message-service__http__0=$(svc_url message-service)"
         )
     fi
 

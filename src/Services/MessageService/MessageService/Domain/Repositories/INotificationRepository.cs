@@ -67,4 +67,9 @@ public interface INotificationRepository
     ///     获取所有管理员用户ID
     /// </summary>
     Task<List<string>> GetAdminUserIdsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     获取指定城市的版主用户ID列表
+    /// </summary>
+    Task<List<string>> GetCityModeratorUserIdsAsync(string cityId, CancellationToken cancellationToken = default);
 }

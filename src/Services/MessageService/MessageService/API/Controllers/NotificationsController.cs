@@ -239,6 +239,50 @@ public class NotificationsController : ControllerBase
     }
 
     /// <summary>
+    ///     发送通知给指定城市的版主
+    /// </summary>
+    [HttpPost("city-moderators")]
+    public async Task<ActionResult<ApiResponse<List<NotificationDto>>>> SendToCityModerators(
+        [FromBody] SendToCityModeratorsDto request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📢 发送通知给城市版主: CityId={CityId}, Type={Type}, Title={Title}",
+            request.CityId, request.Type, request.Title);
+
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<List<NotificationDto>>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        try
+        {
+            var notifications = await _notificationService.SendToCityModeratorsAsync(request, cancellationToken);
+
+            return Ok(new ApiResponse<List<NotificationDto>>
+            {
+                Success = true,
+                Message = $"成功发送通知给 {notifications.Count} 位城市版主",
+                Data = notifications
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 发送通知给城市版主失败: CityId={CityId}", request.CityId);
+            return StatusCode(500, new ApiResponse<List<NotificationDto>>
+            {
+                Success = false,
+                Message = "发送通知失败"
+            });
+        }
+    }
+
+    /// <summary>
     ///     标记通知为已读
     /// </summary>
     [HttpPut("{id}/read")]

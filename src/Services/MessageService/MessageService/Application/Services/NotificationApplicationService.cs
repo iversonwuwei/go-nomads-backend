@@ -224,6 +224,72 @@ public class NotificationApplicationService : INotificationService
         return created.Select(MapToDto).ToList();
     }
 
+    public async Task<List<NotificationDto>> SendToCityModeratorsAsync(
+        SendToCityModeratorsDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📢 发送通知给城市版主: CityId={CityId}, Type={Type}", dto.CityId, dto.Type);
+
+        // 获取城市版主用户ID
+        var moderatorUserIds = await _repository.GetCityModeratorUserIdsAsync(dto.CityId, cancellationToken);
+
+        if (moderatorUserIds == null || moderatorUserIds.Count == 0)
+        {
+            _logger.LogWarning("⚠️ 城市 {CityId} 没有找到版主", dto.CityId);
+            return new List<NotificationDto>();
+        }
+
+        // 为每个版主创建通知
+        var notifications = moderatorUserIds.Select(userId => new Notification
+        {
+            UserId = userId,
+            Title = dto.Title,
+            Message = dto.Message,
+            Type = dto.Type,
+            RelatedId = dto.RelatedId,
+            Metadata = dto.Metadata != null ? JsonSerializer.Serialize(dto.Metadata) : null
+        }).ToList();
+
+        var created = await _repository.CreateBatchAsync(notifications, cancellationToken);
+
+        _logger.LogInformation("✅ 发送通知给 {Count} 位城市版主: CityId={CityId}", created.Count, dto.CityId);
+
+        // 通过 SignalR 实时推送通知给每个版主
+        if (_signalRNotifier != null)
+        {
+            foreach (var notification in created)
+            {
+                try
+                {
+                    var message = new NotificationMessage
+                    {
+                        UserId = notification.UserId,
+                        Type = notification.Type,
+                        Title = notification.Title,
+                        Content = notification.Message,
+                        Data = new Dictionary<string, object>
+                        {
+                            { "notificationId", notification.Id.ToString() },
+                            { "relatedId", notification.RelatedId ?? "" },
+                            { "isRead", notification.IsRead },
+                            { "cityId", dto.CityId }
+                        },
+                        CreatedAt = notification.CreatedAt
+                    };
+                    await _signalRNotifier.SendNotificationAsync(notification.UserId, message);
+                    _logger.LogInformation("📡 SignalR 推送通知给城市版主: {UserId}", notification.UserId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ SignalR 推送通知失败: {UserId}", notification.UserId);
+                    // 不抛出异常，通知已保存到数据库
+                }
+            }
+        }
+
+        return created.Select(MapToDto).ToList();
+    }
+
     public async Task<bool> MarkAsReadAsync(string notificationId, CancellationToken cancellationToken = default)
     {
         if (!Guid.TryParse(notificationId, out var id)) return false;

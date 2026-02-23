@@ -46,18 +46,20 @@ public class ReportApplicationService : IReportService
         var created = await _reportRepository.CreateAsync(report, cancellationToken);
         _logger.LogInformation("✅ 举报记录已保存: {Id}", created.Id);
 
-        // 2. 异步通知管理员（不阻塞主流程）
+        // 2. 异步通知相关人员（管理员 + 城市举报额外通知版主，不阻塞主流程）
+        // 注意: 使用 CancellationToken.None，因为 HTTP 请求结束后原始 token 会被取消，
+        // 导致通知任务还未执行就被中止
         _ = Task.Run(async () =>
         {
             try
             {
-                await NotifyAdminsAsync(created);
+                await NotifyReportAsync(created);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "⚠️ 通知管理员失败，但举报记录已保存: {ReportId}", created.Id);
+                _logger.LogError(ex, "⚠️ 通知失败，但举报记录已保存: {ReportId}", created.Id);
             }
-        }, cancellationToken);
+        }, CancellationToken.None);
 
         return MapToDto(created);
     }
@@ -87,32 +89,58 @@ public class ReportApplicationService : IReportService
     #region 私有方法
 
     /// <summary>
-    ///     通知管理员有新的举报
+    ///     通知相关人员有新的举报
+    ///     所有举报类型都会通知管理员；城市举报额外通知城市版主
     /// </summary>
-    private async Task NotifyAdminsAsync(Report report)
+    private async Task NotifyReportAsync(Report report)
     {
         var contentTypeLabel = GetContentTypeLabel(report.ContentType);
         var title = $"⚠️ 用户举报: {contentTypeLabel}";
         var message = BuildReportMessage(report, contentTypeLabel);
+        var metadata = new Dictionary<string, object>
+        {
+            ["reportId"] = report.Id,
+            ["reportContentType"] = report.ContentType,
+            ["targetId"] = report.TargetId,
+            ["targetName"] = report.TargetName ?? "",
+            ["reasonId"] = report.ReasonId,
+            ["reasonLabel"] = report.ReasonLabel,
+            ["reporterId"] = report.ReporterId,
+            ["reporterName"] = report.ReporterName ?? ""
+        };
 
+        // 1. 所有举报都通知管理员
         await _messageServiceClient.SendNotificationToAdminsAsync(
             title,
             message,
             "user_report",
             report.TargetId,
-            new Dictionary<string, object>
-            {
-                ["reportId"] = report.Id,
-                ["reportContentType"] = report.ContentType,
-                ["targetId"] = report.TargetId,
-                ["targetName"] = report.TargetName ?? "",
-                ["reasonId"] = report.ReasonId,
-                ["reasonLabel"] = report.ReasonLabel,
-                ["reporterId"] = report.ReporterId,
-                ["reporterName"] = report.ReporterName ?? ""
-            });
+            metadata);
 
         _logger.LogInformation("✅ 已通知管理员: ReportId={ReportId}", report.Id);
+
+        // 2. 城市举报额外通知城市版主
+        if (report.ContentType == "city")
+        {
+            try
+            {
+                var moderatorTitle = $"⚠️ 城市举报通知: {report.TargetName ?? report.TargetId}";
+                await _messageServiceClient.SendNotificationToCityModeratorsAsync(
+                    report.TargetId,
+                    moderatorTitle,
+                    message,
+                    "city_report",
+                    report.TargetId,
+                    metadata);
+
+                _logger.LogInformation("✅ 已通知城市版主: ReportId={ReportId}, CityId={CityId}",
+                    report.Id, report.TargetId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ 通知城市版主失败，但管理员已通知: ReportId={ReportId}", report.Id);
+            }
+        }
     }
 
     private static string GetContentTypeLabel(string contentType)
@@ -124,6 +152,7 @@ public class ReportApplicationService : IReportService
             "meetup" => "聚会活动",
             "innovationProject" => "创意项目",
             "chatRoom" => "聊天室",
+            "city" => "城市",
             _ => contentType
         };
     }
