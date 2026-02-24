@@ -789,10 +789,28 @@ public class AuthApplicationService : IAuthService
             }
             else if (provider == "qq")
             {
-                // QQ 登录：用 code 换取 access_token + openid，再获取用户信息
-                if (!string.IsNullOrEmpty(request.Code))
+                // QQ 登录：支持两种模式
+                // 1. SDK 模式（推荐）：Flutter 端使用 QQ SDK (tencent_kit) 直接获取 accessToken + openId
+                // 2. Code 模式：用授权码 code 换取 access_token + openid
+                if (!string.IsNullOrEmpty(request.AccessToken) && !string.IsNullOrEmpty(request.OpenId))
                 {
-                    // 1. 用授权码换取 access_token 和 openid
+                    // SDK 模式：直接使用 accessToken + openId 获取用户信息
+                    openId = request.OpenId;
+
+                    var qqUserInfo = await _qqService.GetUserInfoAsync(
+                        request.AccessToken, request.OpenId, cancellationToken);
+                    if (qqUserInfo != null)
+                    {
+                        nickname = qqUserInfo.Nickname;
+                        avatarUrl = qqUserInfo.AvatarUrl;
+                    }
+
+                    _logger.LogInformation("✅ QQ SDK 登录成功: openId={OpenId}, nickname={Nickname}",
+                        openId, nickname);
+                }
+                else if (!string.IsNullOrEmpty(request.Code))
+                {
+                    // Code 模式：用授权码换取 access_token 和 openid
                     var tokenResult = await _qqService.ExchangeCodeForTokenAsync(request.Code, cancellationToken);
                     if (!tokenResult.Success)
                     {
@@ -801,7 +819,6 @@ public class AuthApplicationService : IAuthService
 
                     openId = tokenResult.OpenId;
 
-                    // 2. 用 access_token + openid 获取用户信息
                     var qqUserInfo = await _qqService.GetUserInfoAsync(
                         tokenResult.AccessToken, tokenResult.OpenId, cancellationToken);
                     if (qqUserInfo != null)
@@ -810,17 +827,17 @@ public class AuthApplicationService : IAuthService
                         avatarUrl = qqUserInfo.AvatarUrl;
                     }
 
-                    _logger.LogInformation("✅ QQ 用户信息获取成功: openId={OpenId}, nickname={Nickname}",
+                    _logger.LogInformation("✅ QQ Code 登录成功: openId={OpenId}, nickname={Nickname}",
                         openId, nickname);
                 }
                 else if (!string.IsNullOrEmpty(request.OpenId))
                 {
-                    // 兼容直接提供 OpenId 的方式
+                    // 兼容直接提供 OpenId 的方式（无法获取用户信息）
                     openId = request.OpenId;
                 }
                 else
                 {
-                    throw new InvalidOperationException("QQ 登录需要提供 code 或 openId");
+                    throw new InvalidOperationException("QQ 登录需要提供 accessToken+openId 或 code");
                 }
             }
             else
