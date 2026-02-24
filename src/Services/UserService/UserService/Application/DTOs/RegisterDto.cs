@@ -20,4 +20,8 @@ public class RegisterDto
     public string Password { get; set; } = string.Empty;
 
     [Phone(ErrorMessage = "手机号格式不正确")] public string? Phone { get; set; }
+
+    [Required(ErrorMessage = "邮箱验证码不能为空")]
+    [StringLength(6, MinimumLength = 6, ErrorMessage = "验证码必须为6位")]
+    public string VerificationCode { get; set; } = string.Empty;
 }

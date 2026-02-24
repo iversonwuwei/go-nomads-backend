@@ -13,6 +13,7 @@ public class RouteAuthorizationConfig
         // Authentication endpoints (v1 API)
         "/api/v1/auth/login",
         "/api/v1/auth/register",
+        "/api/v1/auth/register/send-code",
         "/api/v1/auth/refresh",
         "/api/v1/auth/logout",
         "/api/v1/auth/social-login",

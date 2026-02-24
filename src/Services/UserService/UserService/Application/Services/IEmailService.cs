@@ -6,13 +6,25 @@ namespace UserService.Application.Services;
 public interface IEmailService
 {
     /// <summary>
-    ///     发送验证码邮件
+    ///     发送验证码邮件（密码重置）
     /// </summary>
     /// <param name="toEmail">收件人邮箱</param>
     /// <param name="code">验证码</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>发送结果</returns>
     Task<EmailResult> SendVerificationCodeAsync(
+        string toEmail,
+        string code,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     发送注册验证码邮件
+    /// </summary>
+    /// <param name="toEmail">收件人邮箱</param>
+    /// <param name="code">验证码</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>发送结果</returns>
+    Task<EmailResult> SendRegistrationCodeAsync(
         string toEmail,
         string code,
         CancellationToken cancellationToken = default);
