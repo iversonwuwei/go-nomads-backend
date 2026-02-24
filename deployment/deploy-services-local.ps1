@@ -15,6 +15,9 @@ $RABBITMQ_USER = "walden"
 $RABBITMQ_PASS = "walden"
 $ELASTICSEARCH_URL = "http://go-nomads-elasticsearch:9200"
 
+# Aspire Dashboard OTLP 端点（容器内部地址）
+$OTLP_ENDPOINT = "http://go-nomads-aspire-dashboard:18889"
+
 # ============================================================
 # 从 .env 文件加载环境变量
 # ============================================================
@@ -256,7 +259,8 @@ foreach ($svc in $services) {
             "-e", "AliyunSms__AccessKeySecret=$env:ALIYUN_SMS_ACCESS_KEY_SECRET",
             "-e", "services__city-service__http__0=$(SvcUrl 'city-service')",
             "-e", "services__product-service__http__0=$(SvcUrl 'product-service')",
-            "-e", "services__event-service__http__0=$(SvcUrl 'event-service')"
+            "-e", "services__event-service__http__0=$(SvcUrl 'event-service')",
+            "-e", "services__message-service__http__0=$(SvcUrl 'message-service')"
         )
     }
 
@@ -395,6 +399,8 @@ foreach ($svc in $services) {
         "-p", "$($svc.Port):$listenPort",
         "-e", "ASPNETCORE_URLS=http://+:$listenPort",
         "-e", "ASPNETCORE_ENVIRONMENT=$aspnetEnv",
+        "-e", "OTEL_EXPORTER_OTLP_ENDPOINT=$OTLP_ENDPOINT",
+        "-e", "OTEL_SERVICE_NAME=$($svc.Name)",
         "-e", "HTTP_PROXY=",
         "-e", "HTTPS_PROXY=",
         "-e", "NO_PROXY="

@@ -366,6 +366,24 @@ public class AuthApplicationService : IAuthService
 
             if (!result.Success)
             {
+                // 测试模式：发送失败时仍存储验证码，允许使用 123456 通过验证
+                if (_smsSettings.AllowTestCode)
+                {
+                    _logger.LogWarning("⚠️ 验证码发送失败，但测试模式已启用，跳过: {Phone}",
+                        MaskPhoneNumber(request.PhoneNumber));
+                    var testExpiresAt = DateTime.UtcNow.AddMinutes(_smsSettings.CodeExpirationMinutes);
+                    var testNormalizedPhone = NormalizePhoneNumber(request.PhoneNumber);
+                    _verificationCodes[testNormalizedPhone] = (code, testExpiresAt);
+                    CleanupExpiredCodes();
+
+                    return new SendSmsCodeResponse
+                    {
+                        Success = true,
+                        Message = "[测试模式] 验证码已生成，请使用 123456 验证",
+                        ExpiresInSeconds = _smsSettings.CodeExpirationMinutes * 60
+                    };
+                }
+
                 _logger.LogWarning("⚠️ 验证码发送失败: {Phone}, {Message}",
                     MaskPhoneNumber(request.PhoneNumber), result.Message);
 
@@ -789,14 +807,11 @@ public class AuthApplicationService : IAuthService
                 user = await _userRepository.GetByEmailAsync(input, cancellationToken);
                 if (user == null)
                 {
-                    // 安全考虑：不明确告知邮箱是否存在
+                    _logger.LogWarning("⚠️ 找回密码失败: 邮箱未注册 {Email}", MaskEmail(input));
                     return new SendResetCodeResponse
                     {
-                        Success = true,
-                        Message = "如果该邮箱已注册，验证码将发送到对应邮箱",
-                        RecoveryMethod = "email",
-                        MaskedTarget = MaskEmail(input),
-                        ExpiresInSeconds = _emailSettings.CodeExpirationMinutes * 60
+                        Success = false,
+                        Message = "该邮箱尚未注册，请检查输入或使用该邮箱注册新账号"
                     };
                 }
 
@@ -816,6 +831,24 @@ public class AuthApplicationService : IAuthService
 
                 if (!emailResult.Success)
                 {
+                    // 测试模式：发送失败时仍存储验证码，允许使用 123456 通过验证
+                    if (_emailSettings.AllowTestCode)
+                    {
+                        _logger.LogWarning("⚠️ 邮箱验证码发送失败，但测试模式已启用，跳过: {Email}", MaskEmail(input));
+                        var testExpiresAt = DateTime.UtcNow.AddMinutes(_emailSettings.CodeExpirationMinutes);
+                        _verificationCodes[input.ToLowerInvariant()] = (emailCode, testExpiresAt);
+                        CleanupExpiredCodes();
+
+                        return new SendResetCodeResponse
+                        {
+                            Success = true,
+                            Message = "[测试模式] 验证码已生成，请使用 123456 验证",
+                            RecoveryMethod = "email",
+                            MaskedTarget = MaskEmail(input),
+                            ExpiresInSeconds = _emailSettings.CodeExpirationMinutes * 60
+                        };
+                    }
+
                     _logger.LogWarning("⚠️ 邮箱验证码发送失败: {Email}, {Message}", MaskEmail(input), emailResult.Message);
                     return new SendResetCodeResponse
                     {
@@ -847,14 +880,11 @@ public class AuthApplicationService : IAuthService
 
                 if (user == null)
                 {
-                    // 安全考虑：不明确告知手机号是否存在
+                    _logger.LogWarning("⚠️ 找回密码失败: 手机号未注册 {Phone}", MaskPhoneNumber(normalizedPhone));
                     return new SendResetCodeResponse
                     {
-                        Success = true,
-                        Message = "如果该手机号已注册，验证码将发送到对应手机",
-                        RecoveryMethod = "sms",
-                        MaskedTarget = MaskPhoneNumber(normalizedPhone),
-                        ExpiresInSeconds = _smsSettings.CodeExpirationMinutes * 60
+                        Success = false,
+                        Message = "该手机号尚未注册，请检查输入或使用该手机号注册新账号"
                     };
                 }
 
@@ -875,6 +905,25 @@ public class AuthApplicationService : IAuthService
 
                 if (!smsResult.Success)
                 {
+                    // 测试模式：发送失败时仍存储验证码，允许使用 123456 通过验证
+                    if (_smsSettings.AllowTestCode)
+                    {
+                        _logger.LogWarning("⚠️ 短信验证码发送失败，但测试模式已启用，跳过: {Phone}",
+                            MaskPhoneNumber(normalizedPhone));
+                        var testExpiresAt = DateTime.UtcNow.AddMinutes(_smsSettings.CodeExpirationMinutes);
+                        _verificationCodes[normalizedPhone] = (smsCode, testExpiresAt);
+                        CleanupExpiredCodes();
+
+                        return new SendResetCodeResponse
+                        {
+                            Success = true,
+                            Message = "[测试模式] 验证码已生成，请使用 123456 验证",
+                            RecoveryMethod = "sms",
+                            MaskedTarget = MaskPhoneNumber(normalizedPhone),
+                            ExpiresInSeconds = _smsSettings.CodeExpirationMinutes * 60
+                        };
+                    }
+
                     _logger.LogWarning("⚠️ 短信验证码发送失败: {Phone}, {Message}",
                         MaskPhoneNumber(normalizedPhone), smsResult.Message);
                     return new SendResetCodeResponse
