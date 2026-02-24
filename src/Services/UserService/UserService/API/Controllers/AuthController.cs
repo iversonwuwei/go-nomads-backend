@@ -30,6 +30,58 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    ///     发送注册邮箱验证码
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("register/send-code")]
+    public async Task<ActionResult<ApiResponse<SendRegistrationCodeResponse>>> RegisterSendCode(
+        [FromBody] SendRegistrationCodeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📧 注册-发送邮箱验证码");
+
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return BadRequest(new ApiResponse<SendRegistrationCodeResponse>
+            {
+                Success = false,
+                Message = "请输入邮箱地址"
+            });
+        }
+
+        try
+        {
+            var result = await _authService.SendRegistrationCodeAsync(request, cancellationToken);
+
+            if (!result.Success)
+            {
+                return BadRequest(new ApiResponse<SendRegistrationCodeResponse>
+                {
+                    Success = false,
+                    Message = result.Message,
+                    Data = result
+                });
+            }
+
+            return Ok(new ApiResponse<SendRegistrationCodeResponse>
+            {
+                Success = true,
+                Message = result.Message,
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 注册发送验证码异常");
+            return StatusCode(500, new ApiResponse<SendRegistrationCodeResponse>
+            {
+                Success = false,
+                Message = "发送验证码失败，请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
     ///     用户注册
     /// </summary>
     [HttpPost("register")]

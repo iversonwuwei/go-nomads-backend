@@ -27,27 +27,61 @@ public class AliyunEmailService : IEmailService
     }
 
     /// <summary>
-    ///     发送验证码邮件
+    ///     发送验证码邮件（密码重置）
     /// </summary>
     public async Task<EmailResult> SendVerificationCodeAsync(
         string toEmail,
         string code,
         CancellationToken cancellationToken = default)
     {
+        return await SendEmailAsync(
+            toEmail,
+            $"【行途 Go Nomads】密码重置验证码: {code}",
+            BuildVerificationEmailHtml(code, "密码重置验证码", "您正在重置账户密码，请使用以下验证码完成操作"),
+            $"您的密码重置验证码是: {code}，有效期 {_settings.CodeExpirationMinutes} 分钟。如非本人操作，请忽略此邮件。",
+            cancellationToken);
+    }
+
+    /// <summary>
+    ///     发送注册验证码邮件
+    /// </summary>
+    public async Task<EmailResult> SendRegistrationCodeAsync(
+        string toEmail,
+        string code,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendEmailAsync(
+            toEmail,
+            $"【行途 Go Nomads】注册验证码: {code}",
+            BuildVerificationEmailHtml(code, "注册验证码", "您正在注册行途 Go Nomads 账号，请使用以下验证码完成注册"),
+            $"您的注册验证码是: {code}，有效期 {_settings.CodeExpirationMinutes} 分钟。如非本人操作，请忽略此邮件。",
+            cancellationToken);
+    }
+
+    /// <summary>
+    ///     通用邮件发送方法
+    /// </summary>
+    private async Task<EmailResult> SendEmailAsync(
+        string toEmail,
+        string subject,
+        string htmlBody,
+        string textBody,
+        CancellationToken cancellationToken = default)
+    {
         try
         {
-            _logger.LogInformation("📧 准备发送验证码到: {Email}", MaskEmail(toEmail));
+            _logger.LogInformation("📧 准备发送邮件到: {Email}", MaskEmail(toEmail));
 
             var message = new MimeMessage();
             message.From.Add(new MailboxAddress(_settings.SenderName, _settings.SenderAddress));
             message.To.Add(new MailboxAddress("", toEmail));
-            message.Subject = $"【行途 Go Nomads】密码重置验证码: {code}";
+            message.Subject = subject;
 
             // 构建 HTML 邮件内容
             var bodyBuilder = new BodyBuilder
             {
-                HtmlBody = BuildVerificationEmailHtml(code),
-                TextBody = $"您的密码重置验证码是: {code}，有效期 {_settings.CodeExpirationMinutes} 分钟。如非本人操作，请忽略此邮件。"
+                HtmlBody = htmlBody,
+                TextBody = textBody
             };
             message.Body = bodyBuilder.ToMessageBody();
 
@@ -103,7 +137,7 @@ public class AliyunEmailService : IEmailService
     /// <summary>
     ///     构建验证码邮件 HTML 内容
     /// </summary>
-    private string BuildVerificationEmailHtml(string code)
+    private string BuildVerificationEmailHtml(string code, string title = "密码重置验证码", string description = "您正在重置账户密码，请使用以下验证码完成操作")
     {
         return $$"""
             <!DOCTYPE html>
@@ -125,8 +159,8 @@ public class AliyunEmailService : IEmailService
             <body>
                 <div class="container">
                     <div class="logo">🌍 行途 Go Nomads</div>
-                    <div class="title">密码重置验证码</div>
-                    <div class="desc">您正在重置账户密码，请使用以下验证码完成操作</div>
+                    <div class="title">{{title}}</div>
+                    <div class="desc">{{description}}</div>
                     <div class="code-box">
                         <div class="code">{{code}}</div>
                     </div>

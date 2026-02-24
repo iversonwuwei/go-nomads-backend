@@ -70,6 +70,12 @@ public interface IAuthService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     发送注册邮箱验证码
+    /// </summary>
+    Task<SendRegistrationCodeResponse> SendRegistrationCodeAsync(SendRegistrationCodeRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     发送找回密码验证码（支持邮箱和手机号）
     /// </summary>
     Task<SendResetCodeResponse> SendResetPasswordCodeAsync(SendResetCodeRequest request,
@@ -136,4 +142,29 @@ public class ResetPasswordRequest
     ///     新密码
     /// </summary>
     public string NewPassword { get; set; } = string.Empty;
+}
+
+/// <summary>
+///     发送注册邮箱验证码请求
+/// </summary>
+public class SendRegistrationCodeRequest
+{
+    /// <summary>
+    ///     邮箱地址
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+}
+
+/// <summary>
+///     发送注册邮箱验证码响应
+/// </summary>
+public class SendRegistrationCodeResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     验证码有效期（秒）
+    /// </summary>
+    public int ExpiresInSeconds { get; set; }
 }

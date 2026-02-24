@@ -77,6 +77,14 @@ public class AuthApplicationService : IAuthService
 
         try
         {
+            // 验证邮箱验证码
+            var codeKey = $"register:{request.Email.ToLowerInvariant()}";
+            if (!ValidateCode(codeKey, request.VerificationCode))
+            {
+                _logger.LogWarning("⚠️ 邮箱验证码无效: {Email}", request.Email);
+                throw new InvalidOperationException("邮箱验证码无效或已过期，请重新获取");
+            }
+
             // 检查邮箱是否已存在
             var existingUser = await _userRepository.GetByEmailAsync(request.Email, cancellationToken);
             if (existingUser != null)
@@ -121,6 +129,118 @@ public class AuthApplicationService : IAuthService
         {
             _logger.LogError(ex, "❌ 用户注册失败: {Email}, 错误: {Error}", request.Email, ex.Message);
             throw new Exception($"注册失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    ///     发送注册邮箱验证码
+    /// </summary>
+    public async Task<SendRegistrationCodeResponse> SendRegistrationCodeAsync(
+        SendRegistrationCodeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📧 发送注册验证码到: {Email}", request.Email);
+
+        try
+        {
+            // 验证邮箱格式
+            if (string.IsNullOrWhiteSpace(request.Email) ||
+                !request.Email.Contains('@'))
+            {
+                return new SendRegistrationCodeResponse
+                {
+                    Success = false,
+                    Message = "请输入有效的邮箱地址"
+                };
+            }
+
+            var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+
+            // 检查邮箱是否已被注册
+            var existingUser = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+            if (existingUser != null)
+            {
+                _logger.LogWarning("⚠️ 邮箱已被注册，无法发送注册验证码: {Email}", normalizedEmail);
+                return new SendRegistrationCodeResponse
+                {
+                    Success = false,
+                    Message = "该邮箱已被注册，请直接登录或使用其他邮箱"
+                };
+            }
+
+            // 生成并存储验证码
+            var code = _emailService.GenerateVerificationCode();
+            var codeKey = $"register:{normalizedEmail}";
+            var expiresAt = DateTime.UtcNow.AddMinutes(_emailSettings.CodeExpirationMinutes > 0
+                ? _emailSettings.CodeExpirationMinutes : 5);
+            _verificationCodes[codeKey] = (code, expiresAt);
+
+            _logger.LogInformation("📧 注册验证码已生成: {Email}, 过期: {ExpiresAt}", normalizedEmail, expiresAt);
+
+            // 尝试发送邮件
+            try
+            {
+                var emailResult = await _emailService.SendRegistrationCodeAsync(normalizedEmail, code, cancellationToken);
+                if (!emailResult.Success)
+                {
+                    // 发送失败但在测试模式下仍返回成功
+                    if (_emailSettings.AllowTestCode)
+                    {
+                        _logger.LogWarning("⚠️ 邮件发送失败但测试模式已启用，验证码已存储: {Email}（测试模式下可使用 123456）", normalizedEmail);
+                        return new SendRegistrationCodeResponse
+                        {
+                            Success = true,
+                            Message = "测试模式：验证码已生成（可使用 123456），邮件发送失败",
+                            ExpiresInSeconds = _emailSettings.CodeExpirationMinutes * 60
+                        };
+                    }
+
+                    _logger.LogError("❌ 注册验证码邮件发送失败: {Email}", normalizedEmail);
+                    _verificationCodes.TryRemove(codeKey, out _);
+                    return new SendRegistrationCodeResponse
+                    {
+                        Success = false,
+                        Message = "验证码发送失败，请稍后重试"
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                if (_emailSettings.AllowTestCode)
+                {
+                    _logger.LogWarning(ex, "⚠️ 邮件发送异常但测试模式已启用: {Email}（测试模式下可使用 123456）", normalizedEmail);
+                    return new SendRegistrationCodeResponse
+                    {
+                        Success = true,
+                        Message = "测试模式：验证码已生成（可使用 123456），邮件发送异常",
+                        ExpiresInSeconds = _emailSettings.CodeExpirationMinutes * 60
+                    };
+                }
+
+                _logger.LogError(ex, "❌ 发送注册验证码邮件异常: {Email}", normalizedEmail);
+                _verificationCodes.TryRemove(codeKey, out _);
+                return new SendRegistrationCodeResponse
+                {
+                    Success = false,
+                    Message = "验证码发送失败，请稍后重试"
+                };
+            }
+
+            return new SendRegistrationCodeResponse
+            {
+                Success = true,
+                Message = "验证码已发送到邮箱，请查收",
+                ExpiresInSeconds = _emailSettings.CodeExpirationMinutes * 60
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 发送注册验证码异常: {Email}", request.Email);
+            return new SendRegistrationCodeResponse
+            {
+                Success = false,
+                Message = "发送验证码失败，请稍后重试"
+            };
         }
     }
 
@@ -493,23 +613,23 @@ public class AuthApplicationService : IAuthService
     /// <summary>
     ///     验证验证码
     /// </summary>
-    private bool ValidateCode(string phoneNumber, string code)
+    private bool ValidateCode(string key, string code)
     {
         // 测试验证码：123456 仅在配置允许时有效（用于开发测试）
-        if (_smsSettings.AllowTestCode && code == "123456")
+        if ((_smsSettings.AllowTestCode || _emailSettings.AllowTestCode) && code == "123456")
         {
-            _logger.LogWarning("⚠️ 使用测试验证码登录: {Phone}（测试模式已启用）", MaskPhoneNumber(phoneNumber));
+            _logger.LogWarning("⚠️ 使用测试验证码: {Key}（测试模式已启用）", key);
             return true;
         }
 
-        if (!_verificationCodes.TryGetValue(phoneNumber, out var stored))
+        if (!_verificationCodes.TryGetValue(key, out var stored))
         {
             return false;
         }
 
         if (DateTime.UtcNow > stored.ExpiresAt)
         {
-            _verificationCodes.TryRemove(phoneNumber, out _);
+            _verificationCodes.TryRemove(key, out _);
             return false;
         }
 
