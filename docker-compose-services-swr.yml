@@ -102,20 +102,17 @@ services:
       # 微信支付 - 通过 .env 文件注入
       WeChatPay__ApiV3Key: "${WECHAT_PAY_API_V3_KEY}"
       WeChatPay__CertificateSerialNumber: "${WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER}"
-      WeChatPay__PrivateKey: "file:/app/certs/wechat_pay_private_key.pem"
+      WeChatPay__PrivateKey: "file:/app/certs/wechat/apiclient_key.pem"
       # 服务发现
       services__city-service__http__0:    *svc-city
       services__product-service__http__0: *svc-product
       services__event-service__http__0:   *svc-event
       services__message-service__http__0: *svc-message
     volumes:
-      - ./certs/wechat_pay_private_key.pem:/app/certs/wechat_pay_private_key.pem:ro
+      - /root/docker-compose/deployment/wechat/cert:/app/certs/wechat:ro
     networks:
       - go-nomads-network
     restart: unless-stopped
-
-  # ============================================================
-  # City Service
   # ============================================================
   city-service:
     image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/city-service:latest
