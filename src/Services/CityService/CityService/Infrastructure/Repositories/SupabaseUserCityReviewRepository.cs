@@ -139,9 +139,33 @@ public class SupabaseUserCityReviewRepository : SupabaseRepositoryBase<UserCityR
     {
         try
         {
+            // 🚀 优化：使用 RPC 函数在数据库端计算平均值，避免全表加载
+            try
+            {
+                var rpcResult = await SupabaseClient.Rpc("get_city_review_avg_rating",
+                    new Dictionary<string, object> { { "p_city_id", cityId } });
+                if (rpcResult?.Content != null)
+                {
+                    var content = rpcResult.Content.Trim('"');
+                    if (string.IsNullOrEmpty(content) || content == "null")
+                        return null;
+                    if (decimal.TryParse(content, System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out var avgRating))
+                    {
+                        return avgRating;
+                    }
+                }
+            }
+            catch (Exception rpcEx)
+            {
+                Logger.LogWarning(rpcEx, "⚠️ [GetAverageRatingAsync] RPC 失败，回退到内存计算");
+            }
+
+            // 回退：内存计算
             var response = await SupabaseClient
                 .From<UserCityReview>()
                 .Where(x => x.CityId == cityId)
+                .Select("rating")
                 .Get();
 
             var reviews = response.Models;

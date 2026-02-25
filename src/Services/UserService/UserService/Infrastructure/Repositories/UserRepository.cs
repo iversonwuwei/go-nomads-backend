@@ -484,4 +484,30 @@ public class UserRepository : IUserRepository
             return "***";
         return openId[..4] + "****" + openId[^4..];
     }
+
+    public async Task<List<User>> GetByIdsAsync(List<string> ids, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 批量查询用户: Count={Count}", ids.Count);
+
+        if (ids == null || ids.Count == 0) return new List<User>();
+
+        try
+        {
+            var distinctIds = ids.Distinct().ToList();
+            var idList = new List<object>(distinctIds);
+
+            var response = await _supabaseClient
+                .From<User>()
+                .Filter("id", Postgrest.Constants.Operator.In, idList)
+                .Get(cancellationToken);
+
+            _logger.LogInformation("✅ 批量查询到 {Count}/{Total} 个用户", response.Models.Count, distinctIds.Count);
+            return response.Models;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 批量查询用户失败");
+            return new List<User>();
+        }
+    }
 }

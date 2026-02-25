@@ -107,8 +107,8 @@ public class InnovationsController : ControllerBase
                 });
             }
 
-            // 增加浏览次数
-            await _repository.IncrementViewCountAsync(id);
+            // 异步增加浏览次数（fire-and-forget，不阻塞响应）
+            _ = _repository.IncrementViewCountAsync(id);
 
             return Ok(new ApiResponse<InnovationResponse>
             {
@@ -417,6 +417,7 @@ public class InnovationsController : ControllerBase
     {
         try
         {
+            limit = Math.Clamp(limit, 1, 50);
             _logger.LogInformation("⭐ 获取精选创新项目: Limit={Limit}", limit);
 
             var result = await _repository.GetFeaturedAsync(limit);
@@ -447,6 +448,7 @@ public class InnovationsController : ControllerBase
     {
         try
         {
+            limit = Math.Clamp(limit, 1, 50);
             _logger.LogInformation("🔥 获取热门创新项目: Limit={Limit}", limit);
 
             var result = await _repository.GetPopularAsync(limit);

@@ -143,13 +143,23 @@ public class SkillService : ISkillService
                 .Where(us => us.UserId == userId)
                 .Get(cancellationToken);
 
+            if (userSkillsResponse.Models.Count == 0)
+                return new List<UserSkillDto>();
+
+            // 批量获取所有相关技能详情（消除 N+1 查询）
+            var skillIds = userSkillsResponse.Models.Select(us => us.SkillId).Distinct().ToList();
+            var skillsResponse = await _supabaseClient
+                .From<Skill>()
+                .Filter("id", Postgrest.Constants.Operator.In, skillIds)
+                .Get(cancellationToken);
+
+            var skillsDict = skillsResponse.Models.ToDictionary(s => s.Id, s => s);
+
             var results = new List<UserSkillDto>();
 
-            // 为每个用户技能获取对应的技能详情
             foreach (var userSkill in userSkillsResponse.Models)
             {
-                var skill = await GetSkillByIdAsync(userSkill.SkillId, cancellationToken);
-                if (skill != null)
+                if (skillsDict.TryGetValue(userSkill.SkillId, out var skill))
                     results.Add(new UserSkillDto
                     {
                         Id = userSkill.Id,
