@@ -18,16 +18,19 @@ public class PaymentController : ControllerBase
     private readonly ILogger<PaymentController> _logger;
     private readonly IPaymentService _paymentService;
     private readonly IPayPalService _payPalService;
+    private readonly IWeChatPayService _weChatPayService;
     private readonly PayPalSettings _payPalSettings;
 
     public PaymentController(
         IPaymentService paymentService,
         IPayPalService payPalService,
+        IWeChatPayService weChatPayService,
         IOptions<PayPalSettings> payPalSettings,
         ILogger<PaymentController> logger)
     {
         _paymentService = paymentService;
         _payPalService = payPalService;
+        _weChatPayService = weChatPayService;
         _payPalSettings = payPalSettings.Value;
         _logger = logger;
     }
@@ -489,28 +492,22 @@ public class PaymentController : ControllerBase
 
         try
         {
-            // TODO: 实现真正的微信支付订单创建
-            // 需要配置微信商户号、API密钥等
-            // 调用微信统一下单接口获取 prepay_id
-
-            // 模拟返回 (实际需要对接微信支付 API)
-            var mockOrder = new WeChatPayOrderDto
-            {
-                OrderId = Guid.NewGuid().ToString(),
-                AppId = "wx_your_app_id",  // 微信开放平台 AppId
-                PartnerId = "your_mch_id", // 商户号
-                PrepayId = $"wx_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}",
-                Package = "Sign=WXPay",
-                NonceStr = Guid.NewGuid().ToString("N"),
-                Timestamp = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                Sign = "mock_sign_value" // 实际需要使用商户私钥签名
-            };
+            var wechatOrder = await _paymentService.CreateWeChatPayOrderAsync(
+                userContext.UserId, request, cancellationToken);
 
             return Ok(new ApiResponse<WeChatPayOrderDto>
             {
                 Success = true,
                 Message = "微信支付订单创建成功",
-                Data = mockOrder
+                Data = wechatOrder
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ApiResponse<WeChatPayOrderDto>
+            {
+                Success = false,
+                Message = ex.Message
             });
         }
         catch (Exception ex)
@@ -519,13 +516,57 @@ public class PaymentController : ControllerBase
             return StatusCode(500, new ApiResponse<WeChatPayOrderDto>
             {
                 Success = false,
-                Message = "创建微信支付订单失败"
+                Message = "创建微信支付订单失败: " + ex.Message
             });
         }
     }
 
     /// <summary>
-    ///     微信支付回调
+    ///     确认微信支付结果（App 端在 SDK 回调后调用）
+    /// </summary>
+    [HttpPost("orders/{orderId}/wechat-confirm")]
+    public async Task<ActionResult<ApiResponse<PaymentResultDto>>> ConfirmWeChatPayment(
+        string orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+        {
+            return Unauthorized(new ApiResponse<PaymentResultDto>
+            {
+                Success = false,
+                Message = "未认证用户"
+            });
+        }
+
+        _logger.LogInformation("🔍 确认微信支付: UserId={UserId}, OrderId={OrderId}",
+            userContext.UserId, orderId);
+
+        try
+        {
+            var result = await _paymentService.ConfirmWeChatPaymentAsync(
+                userContext.UserId, orderId, cancellationToken);
+
+            return Ok(new ApiResponse<PaymentResultDto>
+            {
+                Success = result.Success,
+                Message = result.Message ?? (result.Success ? "支付成功" : "支付未完成"),
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 确认微信支付失败");
+            return StatusCode(500, new ApiResponse<PaymentResultDto>
+            {
+                Success = false,
+                Message = "确认微信支付失败"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     微信支付回调（微信服务器异步通知）
     /// </summary>
     [HttpPost("webhooks/wechat")]
     public async Task<IActionResult> WeChatPayWebhook(CancellationToken cancellationToken = default)
@@ -534,13 +575,33 @@ public class PaymentController : ControllerBase
 
         try
         {
+            // 读取请求头和请求体
+            var timestamp = Request.Headers["Wechatpay-Timestamp"].FirstOrDefault() ?? "";
+            var nonce = Request.Headers["Wechatpay-Nonce"].FirstOrDefault() ?? "";
+            var signature = Request.Headers["Wechatpay-Signature"].FirstOrDefault() ?? "";
+            var serialNumber = Request.Headers["Wechatpay-Serial"].FirstOrDefault() ?? "";
+
             using var reader = new StreamReader(Request.Body);
             var body = await reader.ReadToEndAsync(cancellationToken);
 
-            // TODO: 验证微信支付签名
-            // TODO: 解析通知内容并更新订单状态
+            _logger.LogInformation("微信支付通知: Serial={Serial}", serialNumber);
 
-            _logger.LogInformation("微信支付通知: {Body}", body);
+            // 验证并解密通知
+            var result = await _weChatPayService.VerifyAndDecryptNotificationAsync(
+                timestamp, nonce, signature, serialNumber, body, cancellationToken);
+
+            if (!result.IsValid)
+            {
+                _logger.LogWarning("⚠️ 微信支付通知验证失败: {Error}", result.ErrorMessage);
+                return StatusCode(403, new { code = "FAIL", message = result.ErrorMessage ?? "签名验证失败" });
+            }
+
+            if (result.TradeState == "SUCCESS" && !string.IsNullOrEmpty(result.OutTradeNo))
+            {
+                // 处理支付成功通知
+                await _paymentService.HandleWeChatPayNotificationAsync(
+                    result.OutTradeNo, result.TransactionId!, result.SuccessTime, cancellationToken);
+            }
 
             // 返回微信要求的格式
             return Ok(new { code = "SUCCESS", message = "成功" });

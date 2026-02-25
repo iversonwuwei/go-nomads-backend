@@ -48,6 +48,10 @@ builder.Services.AddSingleton<JwtTokenService>();
 builder.Services.Configure<PayPalSettings>(builder.Configuration.GetSection(PayPalSettings.SectionName));
 builder.Services.AddHttpClient<IPayPalService, PayPalService>();
 
+// 配置微信支付
+builder.Services.Configure<WeChatPaySettings>(builder.Configuration.GetSection(WeChatPaySettings.SectionName));
+builder.Services.AddSingleton<IWeChatPayService, WeChatPayAppService>();
+
 // 配置 QQ 互联
 builder.Services.Configure<QQSettings>(builder.Configuration.GetSection(QQSettings.SectionName));
 builder.Services.AddHttpClient<IQQService, QQService>();

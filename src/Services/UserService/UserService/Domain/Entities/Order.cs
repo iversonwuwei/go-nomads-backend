@@ -85,6 +85,15 @@ public class Order : BaseModel
     [Column("paypal_payer_email")]
     public string? PayPalPayerEmail { get; set; }
 
+    [Column("payment_method")]
+    public string PaymentMethod { get; set; } = "paypal";
+
+    [Column("wechat_prepay_id")]
+    public string? WeChatPrepayId { get; set; }
+
+    [Column("wechat_transaction_id")]
+    public string? WeChatTransactionId { get; set; }
+
     [Column("error_message")]
     public string? ErrorMessage { get; set; }
 
@@ -179,6 +188,22 @@ public class Order : BaseModel
     public void SetPayPalOrderId(string paypalOrderId)
     {
         PayPalOrderId = paypalOrderId;
+        PaymentMethod = "paypal";
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetWeChatPrepayId(string prepayId)
+    {
+        WeChatPrepayId = prepayId;
+        PaymentMethod = "wechat";
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void MarkAsCompletedByWeChat(string wechatTransactionId)
+    {
+        Status = "completed";
+        WeChatTransactionId = wechatTransactionId;
+        CompletedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }
 
