@@ -28,8 +28,11 @@ public class WeChatPaySettings
     public string CertificateSerialNumber { get; set; } = string.Empty;
 
     /// <summary>
-    ///     商户 API 证书私钥 (PEM 格式内容)
-    ///     可以直接放 PEM 内容，或者填写文件路径（以 file: 开头）
+    ///     商户 API 证书私钥
+    ///     支持三种格式：
+    ///     1. Base64 编码的 PEM 内容（推荐，用于 Docker 环境变量注入）
+    ///     2. 直接 PEM 内容（以 -----BEGIN 开头）
+    ///     3. 文件路径（以 file: 开头）
     /// </summary>
     public string PrivateKey { get; set; } = string.Empty;
 
@@ -39,17 +42,34 @@ public class WeChatPaySettings
     public string NotifyUrl { get; set; } = string.Empty;
 
     /// <summary>
-    ///     获取私钥内容（支持直接 PEM 内容或 file: 开头的文件路径）
+    ///     获取私钥 PEM 内容（自动识别 Base64 编码 / 直接 PEM / 文件路径）
     /// </summary>
     public string GetPrivateKeyContent()
     {
         if (string.IsNullOrEmpty(PrivateKey))
             return string.Empty;
 
+        // 文件路径：以 file: 开头
         if (PrivateKey.StartsWith("file:"))
         {
             var filePath = PrivateKey[5..].Trim();
             return File.ReadAllText(filePath);
+        }
+
+        // 直接 PEM 内容
+        if (PrivateKey.StartsWith("-----BEGIN"))
+            return PrivateKey;
+
+        // Base64 编码的 PEM 内容（Docker 环境变量注入场景）
+        try
+        {
+            var decoded = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(PrivateKey));
+            if (decoded.StartsWith("-----BEGIN"))
+                return decoded;
+        }
+        catch (FormatException)
+        {
+            // 不是合法 Base64，原样返回
         }
 
         return PrivateKey;
