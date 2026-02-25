@@ -24,7 +24,22 @@ public class WeChatPayAppService : IWeChatPayService
         _settings = settings.Value;
         _logger = logger;
 
+        // 校验关键配置
+        if (string.IsNullOrWhiteSpace(_settings.MchId))
+            _logger.LogError("❌ 微信支付配置缺失: MchId 为空");
+        if (string.IsNullOrWhiteSpace(_settings.ApiV3Key))
+            _logger.LogError("❌ 微信支付配置缺失: ApiV3Key 为空（请确认 GitHub Secret WECHAT_PAY_API_V3_KEY 已设置）");
+        if (string.IsNullOrWhiteSpace(_settings.CertificateSerialNumber))
+            _logger.LogError("❌ 微信支付配置缺失: CertificateSerialNumber 为空（请确认 GitHub Secret WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER 已设置）");
+
         var privateKeyPem = _settings.GetPrivateKeyContent();
+        if (string.IsNullOrWhiteSpace(privateKeyPem))
+            _logger.LogError("❌ 微信支付配置缺失: PrivateKey 为空（请确认 GitHub Secret WECHAT_PAY_PRIVATE_KEY 已设置）");
+        else if (!privateKeyPem.Contains("-----BEGIN"))
+            _logger.LogError("❌ 微信支付 PrivateKey 格式异常: 不是有效的 PEM 格式（前20字符: {Prefix}）",
+                privateKeyPem[..Math.Min(20, privateKeyPem.Length)]);
+        else
+            _logger.LogInformation("✅ 微信支付 PrivateKey 加载成功 (长度={Length})", privateKeyPem.Length);
 
         var certManager = new InMemoryCertificateManager();
         var options = new WechatTenpayClientOptions
@@ -38,8 +53,9 @@ public class WeChatPayAppService : IWeChatPayService
 
         _client = new WechatTenpayClient(options);
 
-        _logger.LogInformation("✅ 微信支付服务初始化: MchId={MchId}, AppId={AppId}",
-            _settings.MchId, _settings.AppId);
+        _logger.LogInformation("✅ 微信支付服务初始化: MchId={MchId}, AppId={AppId}, CertSerial={CertSerial}",
+            _settings.MchId, _settings.AppId,
+            string.IsNullOrEmpty(_settings.CertificateSerialNumber) ? "(空)" : _settings.CertificateSerialNumber[..8] + "...");
     }
 
     /// <inheritdoc />
