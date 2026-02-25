@@ -99,6 +99,10 @@ services:
       # 阿里云短信 - 通过 .env 文件注入
       AliyunSms__AccessKeyId: "${ALIYUN_SMS_ACCESS_KEY_ID}"
       AliyunSms__AccessKeySecret: "${ALIYUN_SMS_ACCESS_KEY_SECRET}"
+      # 微信支付 - 通过 .env 文件注入
+      WeChatPay__ApiV3Key: "${WECHAT_PAY_API_V3_KEY}"
+      WeChatPay__CertificateSerialNumber: "${WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER}"
+      WeChatPay__PrivateKey: "${WECHAT_PAY_PRIVATE_KEY}"
       # 服务发现
       services__city-service__http__0:    *svc-city
       services__product-service__http__0: *svc-product

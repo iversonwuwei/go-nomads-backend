@@ -36,4 +36,19 @@ public interface IPaymentService
     ///     处理 PayPal Webhook
     /// </summary>
     Task HandleWebhookAsync(string eventType, string resourceId, string rawBody, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     创建微信支付订单
+    /// </summary>
+    Task<WeChatPayOrderDto> CreateWeChatPayOrderAsync(string userId, CreateWeChatPayOrderRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     确认微信支付结果（主动查询微信 API）
+    /// </summary>
+    Task<PaymentResultDto> ConfirmWeChatPaymentAsync(string userId, string orderId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     处理微信支付回调通知
+    /// </summary>
+    Task HandleWeChatPayNotificationAsync(string outTradeNo, string transactionId, DateTimeOffset? successTime, CancellationToken cancellationToken = default);
 }

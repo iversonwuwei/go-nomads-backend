@@ -61,6 +61,9 @@ public class PaymentTransaction : BaseModel
     [Column("paypal_capture_id")]
     public string? PayPalCaptureId { get; set; }
 
+    [Column("wechat_transaction_id")]
+    public string? WeChatTransactionId { get; set; }
+
     [Column("payment_method")]
     public string PaymentMethod { get; set; } = "paypal";
 
@@ -112,6 +115,15 @@ public class PaymentTransaction : BaseModel
         Status = "completed";
         PayPalTransactionId = transactionId;
         PayPalCaptureId = captureId;
+        RawResponse = rawResponse;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void MarkAsCompletedByWeChat(string wechatTransactionId, string? rawResponse = null)
+    {
+        Status = "completed";
+        WeChatTransactionId = wechatTransactionId;
+        PaymentMethod = "wechat";
         RawResponse = rawResponse;
         UpdatedAt = DateTime.UtcNow;
     }

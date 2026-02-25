@@ -15,11 +15,13 @@ public class PaymentService : IPaymentService
     private readonly IOrderRepository _orderRepository;
     private readonly IPaymentTransactionRepository _transactionRepository;
     private readonly IPayPalService _payPalService;
+    private readonly IWeChatPayService _weChatPayService;
 
     public PaymentService(
         IOrderRepository orderRepository,
         IPaymentTransactionRepository transactionRepository,
         IPayPalService payPalService,
+        IWeChatPayService weChatPayService,
         IMembershipRepository membershipRepository,
         IMembershipPlanRepository membershipPlanRepository,
         ILogger<PaymentService> logger)
@@ -27,6 +29,7 @@ public class PaymentService : IPaymentService
         _orderRepository = orderRepository;
         _transactionRepository = transactionRepository;
         _payPalService = payPalService;
+        _weChatPayService = weChatPayService;
         _membershipRepository = membershipRepository;
         _membershipPlanRepository = membershipPlanRepository;
         _logger = logger;
@@ -41,52 +44,8 @@ public class PaymentService : IPaymentService
             userId, request.OrderType, request.MembershipLevel);
 
         // 计算订单金额
-        decimal amount;
-        string description;
-
-        switch (request.OrderType.ToLower())
-        {
-            case "membership_upgrade":
-            case "membership_renew":
-                if (!request.MembershipLevel.HasValue)
-                {
-                    throw new ArgumentException("会员升级/续费必须指定会员等级");
-                }
-
-                // 从数据库获取会员计划价格
-                var plan = await _membershipPlanRepository.GetByLevelAsync(request.MembershipLevel.Value, cancellationToken);
-                if (plan == null)
-                {
-                    throw new ArgumentException($"未找到会员等级 {request.MembershipLevel} 的计划");
-                }
-
-                // 根据订阅时长计算价格
-                var durationDays = request.DurationDays ?? 365;
-                if (durationDays >= 365)
-                {
-                    amount = plan.PriceYearly;
-                    description = $"Go Nomads {plan.Name} 年度会员";
-                }
-                else if (durationDays >= 30)
-                {
-                    amount = plan.PriceMonthly * (durationDays / 30);
-                    description = $"Go Nomads {plan.Name} {durationDays / 30}个月会员";
-                }
-                else
-                {
-                    throw new ArgumentException("订阅时长不能少于 30 天");
-                }
-
-                break;
-
-            case "moderator_deposit":
-                amount = request.DepositAmount ?? 50m;
-                description = "Go Nomads 版主保证金";
-                break;
-
-            default:
-                throw new ArgumentException($"不支持的订单类型: {request.OrderType}");
-        }
+        var (amount, currency, description) = await CalculateOrderAmountAsync(
+            request.OrderType, request.MembershipLevel, request.DurationDays, request.DepositAmount, cancellationToken);
 
         // 创建订单
         var order = new Order
@@ -94,8 +53,9 @@ public class PaymentService : IPaymentService
             UserId = userId,
             OrderType = request.OrderType.ToLower(),
             Amount = amount,
-            TotalAmount = amount, // 设置总金额（与 amount 相同，未来可扩展加入税费等）
-            Currency = "USD",
+            TotalAmount = amount,
+            Currency = currency,
+            PaymentMethod = "paypal",
             MembershipLevel = request.MembershipLevel,
             DurationDays = request.DurationDays ?? 365
         };
@@ -105,7 +65,7 @@ public class PaymentService : IPaymentService
         // 创建 PayPal 订单
         var paypalOrder = await _payPalService.CreateOrderAsync(
             amount,
-            "USD",
+            currency,
             description,
             order.OrderNumber,
             cancellationToken);
@@ -345,6 +305,211 @@ public class PaymentService : IPaymentService
     }
 
     #region 私有方法
+
+    /// <summary>
+    ///     根据订单请求计算金额（支持 PayPal 和微信支付）
+    /// </summary>
+    private async Task<(decimal amount, string currency, string description)> CalculateOrderAmountAsync(
+        string orderType, int? membershipLevel, int? durationDays, decimal? depositAmount,
+        CancellationToken cancellationToken)
+    {
+        switch (orderType.ToLower())
+        {
+            case "membership_upgrade":
+            case "membership_renew":
+                if (!membershipLevel.HasValue)
+                    throw new ArgumentException("会员升级/续费必须指定会员等级");
+
+                var plan = await _membershipPlanRepository.GetByLevelAsync(membershipLevel.Value, cancellationToken);
+                if (plan == null)
+                    throw new ArgumentException($"未找到会员等级 {membershipLevel} 的计划");
+
+                // 测试模式：会员统一 1 元人民币
+                return (1m, "CNY", $"Go Nomads {plan.Name} 会员（测试价）");
+
+            case "moderator_deposit":
+                return (depositAmount ?? 50m, "CNY", "Go Nomads 版主保证金");
+
+            default:
+                throw new ArgumentException($"不支持的订单类型: {orderType}");
+        }
+    }
+
+    public async Task<WeChatPayOrderDto> CreateWeChatPayOrderAsync(
+        string userId,
+        CreateWeChatPayOrderRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📝 创建微信支付订单: UserId={UserId}, Type={Type}, Level={Level}",
+            userId, request.OrderType, request.MembershipLevel);
+
+        // 计算订单金额
+        var (amount, currency, description) = await CalculateOrderAmountAsync(
+            request.OrderType, request.MembershipLevel, request.DurationDays, request.DepositAmount, cancellationToken);
+
+        // 创建订单实体
+        var order = new Order
+        {
+            UserId = userId,
+            OrderType = request.OrderType.ToLower(),
+            Amount = amount,
+            TotalAmount = amount,
+            Currency = currency,
+            PaymentMethod = "wechat",
+            MembershipLevel = request.MembershipLevel,
+            DurationDays = request.DurationDays ?? 365
+        };
+
+        order = await _orderRepository.CreateAsync(order, cancellationToken);
+
+        // 微信支付金额单位为分
+        var totalInCents = (int)(amount * 100);
+
+        // 调用微信支付统一下单 API
+        var prepayResult = await _weChatPayService.CreateAppOrderAsync(
+            order.OrderNumber, description, totalInCents, cancellationToken);
+
+        // 更新订单的预支付 ID
+        order.SetWeChatPrepayId(prepayResult.PrepayId);
+        await _orderRepository.UpdateAsync(order, cancellationToken);
+
+        // 生成 APP 调起支付的签名参数
+        var appParams = _weChatPayService.GenerateAppPayParams(prepayResult.PrepayId);
+
+        _logger.LogInformation("✅ 微信支付订单创建成功: OrderNumber={OrderNumber}, PrepayId={PrepayId}",
+            order.OrderNumber, prepayResult.PrepayId);
+
+        return new WeChatPayOrderDto
+        {
+            OrderId = order.Id,
+            AppId = appParams.AppId,
+            PartnerId = appParams.PartnerId,
+            PrepayId = appParams.PrepayId,
+            Package = appParams.Package,
+            NonceStr = appParams.NonceStr,
+            Timestamp = appParams.Timestamp,
+            Sign = appParams.Sign
+        };
+    }
+
+    public async Task<PaymentResultDto> ConfirmWeChatPaymentAsync(
+        string userId,
+        string orderId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🔍 确认微信支付结果: UserId={UserId}, OrderId={OrderId}", userId, orderId);
+
+        var order = await _orderRepository.GetByIdAsync(orderId, cancellationToken);
+        if (order == null || order.UserId != userId)
+        {
+            return new PaymentResultDto { Success = false, Message = "订单不存在" };
+        }
+
+        // 已完成的订单直接返回
+        if (order.IsCompleted)
+        {
+            return new PaymentResultDto
+            {
+                Success = true,
+                OrderId = order.Id,
+                OrderNumber = order.OrderNumber,
+                Status = order.Status,
+                Message = "订单已完成"
+            };
+        }
+
+        // 查询微信支付状态
+        var queryResult = await _weChatPayService.QueryOrderAsync(order.OrderNumber, cancellationToken);
+
+        if (queryResult.Success && queryResult.TradeState == "SUCCESS")
+        {
+            // 支付成功，更新订单状态
+            order.MarkAsCompletedByWeChat(queryResult.TransactionId!);
+            await _orderRepository.UpdateAsync(order, cancellationToken);
+
+            // 创建交易记录
+            var transaction = PaymentTransaction.CreatePayment(order.Id, order.Amount, order.Currency);
+            transaction.PaymentMethod = "wechat";
+            transaction.MarkAsCompletedByWeChat(queryResult.TransactionId!, queryResult.RawResponse);
+            await _transactionRepository.CreateAsync(transaction, cancellationToken);
+
+            // 处理业务逻辑
+            var membership = await ProcessOrderCompletionAsync(order, cancellationToken);
+
+            _logger.LogInformation("✅ 微信支付确认成功: OrderNumber={OrderNumber}", order.OrderNumber);
+
+            return new PaymentResultDto
+            {
+                Success = true,
+                OrderId = order.Id,
+                OrderNumber = order.OrderNumber,
+                Status = order.Status,
+                Message = "支付成功",
+                Membership = membership != null ? MapToMembershipDto(membership) : null
+            };
+        }
+        else if (queryResult.TradeState is "NOTPAY" or "USERPAYING")
+        {
+            return new PaymentResultDto
+            {
+                Success = false,
+                OrderId = order.Id,
+                OrderNumber = order.OrderNumber,
+                Status = "pending",
+                Message = "支付处理中，请稍后查询"
+            };
+        }
+        else
+        {
+            _logger.LogWarning("⚠️ 微信支付未成功: TradeState={State}", queryResult.TradeState);
+            return new PaymentResultDto
+            {
+                Success = false,
+                OrderId = order.Id,
+                OrderNumber = order.OrderNumber,
+                Status = queryResult.TradeState,
+                Message = queryResult.ErrorMessage ?? $"支付状态: {queryResult.TradeState}"
+            };
+        }
+    }
+
+    public async Task HandleWeChatPayNotificationAsync(
+        string outTradeNo,
+        string transactionId,
+        DateTimeOffset? successTime,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📨 处理微信支付通知: OutTradeNo={OutTradeNo}, TransactionId={TransactionId}",
+            outTradeNo, transactionId);
+
+        var order = await _orderRepository.GetByOrderNumberAsync(outTradeNo, cancellationToken);
+        if (order == null)
+        {
+            _logger.LogWarning("⚠️ 微信支付通知: 未找到订单 {OutTradeNo}", outTradeNo);
+            return;
+        }
+
+        if (order.IsCompleted)
+        {
+            _logger.LogInformation("ℹ️ 订单已完成，跳过: {OrderNumber}", order.OrderNumber);
+            return;
+        }
+
+        // 更新订单状态
+        order.MarkAsCompletedByWeChat(transactionId);
+        await _orderRepository.UpdateAsync(order, cancellationToken);
+
+        // 创建交易记录
+        var transaction = PaymentTransaction.CreatePayment(order.Id, order.Amount, order.Currency);
+        transaction.PaymentMethod = "wechat";
+        transaction.MarkAsCompletedByWeChat(transactionId);
+        await _transactionRepository.CreateAsync(transaction, cancellationToken);
+
+        // 处理业务逻辑
+        await ProcessOrderCompletionAsync(order, cancellationToken);
+
+        _logger.LogInformation("✅ 微信支付通知处理完成: OrderNumber={OrderNumber}", order.OrderNumber);
+    }
 
     private async Task<Membership?> ProcessOrderCompletionAsync(Order order, CancellationToken cancellationToken)
     {
