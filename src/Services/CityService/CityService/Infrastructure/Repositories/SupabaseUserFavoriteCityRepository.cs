@@ -166,6 +166,22 @@ public class SupabaseUserFavoriteCityRepository : IUserFavoriteCityRepository
     {
         try
         {
+            // 🚀 优化：使用 RPC 函数在数据库端计数，避免传输所有行
+            try
+            {
+                var rpcResult = await _supabaseClient.Rpc("get_city_favorite_count",
+                    new Dictionary<string, object> { { "p_city_id", cityId } });
+                if (rpcResult?.Content != null && int.TryParse(rpcResult.Content.Trim('"'), out var count))
+                {
+                    return count;
+                }
+            }
+            catch (Exception rpcEx)
+            {
+                _logger.LogWarning(rpcEx, "⚠️ [GetCityFavoriteCountAsync] RPC 失败，回退到 Select count");
+            }
+
+            // 回退：Select("id") 仅加载 ID
             var response = await _supabaseClient
                 .From<UserFavoriteCityModel>()
                 .Select("id")
@@ -185,6 +201,21 @@ public class SupabaseUserFavoriteCityRepository : IUserFavoriteCityRepository
     {
         try
         {
+            // 🚀 优化：使用 RPC 函数在数据库端计数
+            try
+            {
+                var rpcResult = await _supabaseClient.Rpc("get_user_favorite_cities_count",
+                    new Dictionary<string, object> { { "p_user_id", userId.ToString() } });
+                if (rpcResult?.Content != null && int.TryParse(rpcResult.Content.Trim('"'), out var count))
+                {
+                    return count;
+                }
+            }
+            catch (Exception rpcEx)
+            {
+                _logger.LogWarning(rpcEx, "⚠️ [GetUserFavoriteCitiesCountAsync] RPC 失败，回退到 Select count");
+            }
+
             var response = await _supabaseClient
                 .From<UserFavoriteCityModel>()
                 .Select("id")

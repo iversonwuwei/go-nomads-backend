@@ -49,6 +49,7 @@ public class CityModeratorRepository : ICityModeratorRepository
 
     /// <summary>
     ///     批量获取多个城市的版主（优化 N+1 查询）
+    ///     🚀 优化：使用单次 IN 查询替代逐个城市查询
     /// </summary>
     public async Task<List<CityModerator>> GetByCityIdsAsync(List<Guid> cityIds, bool activeOnly = true)
     {
@@ -59,9 +60,8 @@ public class CityModeratorRepository : ICityModeratorRepository
 
         try
         {
-            // 由于 Supabase 的限制，使用简化方法：分批查询
-            // 对于大量数据，分批处理
-            const int batchSize = 50; // 每批最多 50 个
+            // 分批处理（Supabase URL 长度限制）
+            const int batchSize = 50;
             var allModerators = new List<CityModerator>();
 
             var batches = cityIds
@@ -72,11 +72,20 @@ public class CityModeratorRepository : ICityModeratorRepository
 
             foreach (var batch in batches)
             {
-                // 对每个批次逐个查询（这里还是需要优化，但比之前好）
-                var batchTasks = batch.Select(cityId => GetByCityIdAsync(cityId, activeOnly));
-                var batchResults = await Task.WhenAll(batchTasks);
+                // 🚀 单次 IN 查询获取整批城市的版主
+                var idStrings = batch.Select(id => id.ToString()).ToList();
+                var query = _supabaseClient
+                    .From<CityModerator>()
+                    .Filter("city_id", Constants.Operator.In, idStrings);
 
-                foreach (var result in batchResults) allModerators.AddRange(result);
+                if (activeOnly)
+                    query = query.Where(m => m.IsActive == true);
+
+                var response = await query
+                    .Order(m => m.CreatedAt, Constants.Ordering.Descending)
+                    .Get();
+
+                allModerators.AddRange(response.Models);
             }
 
             _logger.LogInformation("✅ 批量查询完成: 找到 {Count} 个版主", allModerators.Count);

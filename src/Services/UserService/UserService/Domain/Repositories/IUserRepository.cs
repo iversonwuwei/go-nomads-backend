@@ -91,4 +91,9 @@ public interface IUserRepository
     /// <param name="provider">社交平台（wechat, qq 等）</param>
     /// <param name="openId">社交平台用户唯一标识</param>
     Task<User?> GetBySocialLoginAsync(string provider, string openId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     根据多个 ID 批量获取用户（单次 IN 查询）
+    /// </summary>
+    Task<List<User>> GetByIdsAsync(List<string> ids, CancellationToken cancellationToken = default);
 }

@@ -63,6 +63,11 @@ public class InnovationRepository : IInnovationRepository
     private readonly ILogger<InnovationRepository> _logger;
     private readonly IUserServiceClient _userServiceClient;
 
+    /// <summary>
+    ///     列表查询所需的列（避免 Select("*") 拉取大文本字段如 description/problem/solution 等）
+    /// </summary>
+    private const string ListSelectColumns = "id,title,elevator_pitch,product_type,key_features,category,stage,image_url,creator_id,creator_name,creator_avatar,team_size,like_count,view_count,comment_count,is_featured,is_public,is_deleted,created_at";
+
     public InnovationRepository(
         Client supabase, 
         ILogger<InnovationRepository> logger, 
@@ -83,7 +88,7 @@ public class InnovationRepository : IInnovationRepository
             Postgrest.Table<Innovation> BuildBaseQuery()
             {
                 var q = _supabase.From<Innovation>()
-                    .Select("*")
+                    .Select(ListSelectColumns)
                     .Filter("is_public", Postgrest.Constants.Operator.Is, "true")
                     .Filter("is_deleted", Postgrest.Constants.Operator.Equals, "false");
 
@@ -133,14 +138,12 @@ public class InnovationRepository : IInnovationRepository
                 CreatedAt = i.CreatedAt
             }).ToList();
 
-            // 获取创建者信息（仅对冗余字段为空的项目补充查询）
-            await EnrichCreatorInfoAsync(items);
-
-            // 填充当前用户的点赞状态
-            if (currentUserId.HasValue && items.Count > 0)
-            {
-                await EnrichLikeStatusAsync(items, currentUserId.Value);
-            }
+            // 并行执行 Enrich 操作（创建者信息 + 点赞状态）
+            var enrichCreatorTask = EnrichCreatorInfoAsync(items);
+            var enrichLikeTask = (currentUserId.HasValue && items.Count > 0)
+                ? EnrichLikeStatusAsync(items, currentUserId.Value)
+                : Task.CompletedTask;
+            await Task.WhenAll(enrichCreatorTask, enrichLikeTask);
 
             return new PagedResponse<InnovationListItem>
             {
@@ -209,9 +212,20 @@ public class InnovationRepository : IInnovationRepository
                 UpdatedAt = result.UpdatedAt
             };
 
-            // 获取团队成员
-            var teamMembers = await GetTeamMembersAsync(id);
-            
+            // 并行执行：获取团队成员 + 查询点赞状态（两者无依赖关系）
+            var teamTask = GetTeamMembersAsync(id);
+            var likeTask = currentUserId.HasValue
+                ? _supabase.From<InnovationLike>()
+                    .Select("id")
+                    .Filter("innovation_id", Postgrest.Constants.Operator.Equals, id.ToString())
+                    .Filter("user_id", Postgrest.Constants.Operator.Equals, currentUserId.Value.ToString())
+                    .Get()
+                : Task.FromResult<Postgrest.Responses.ModeledResponse<InnovationLike>>(null!);
+
+            await Task.WhenAll(teamTask, likeTask);
+
+            var teamMembers = await teamTask;
+
             // 批量获取需要补充信息的用户 ID（避免 N+1 查询）
             var userIdsToFetch = teamMembers
                 .Where(m => string.IsNullOrEmpty(m.Name) && m.UserId.HasValue)
@@ -273,16 +287,11 @@ public class InnovationRepository : IInnovationRepository
             
             response.Team = teamResponses;
 
-            // 检查当前用户是否点赞
+            // 使用并行获取的点赞结果
             if (currentUserId.HasValue)
             {
-                var likeResult = await _supabase.From<InnovationLike>()
-                    .Select("id")
-                    .Filter("innovation_id", Postgrest.Constants.Operator.Equals, id.ToString())
-                    .Filter("user_id", Postgrest.Constants.Operator.Equals, currentUserId.Value.ToString())
-                    .Get();
-
-                response.IsLiked = likeResult.Models.Any();
+                var likeResult = await likeTask;
+                response.IsLiked = likeResult?.Models?.Any() == true;
                 
                 // 检查当前用户是否可以编辑（创建者可以编辑）
                 response.CanEdit = response.CreatorId == currentUserId.Value;
@@ -492,7 +501,7 @@ public class InnovationRepository : IInnovationRepository
             var offset = (page - 1) * pageSize;
 
             var result = await _supabase.From<Innovation>()
-                .Select("*")
+                .Select(ListSelectColumns)
                 .Filter("creator_id", Postgrest.Constants.Operator.Equals, userId.ToString())
                 .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
                 .Order("created_at", Postgrest.Constants.Ordering.Descending)
@@ -530,7 +539,7 @@ public class InnovationRepository : IInnovationRepository
         try
         {
             var result = await _supabase.From<Innovation>()
-                .Select("*")
+                .Select(ListSelectColumns)
                 .Filter("is_featured", Postgrest.Constants.Operator.Equals, "true")
                 .Filter("is_public", Postgrest.Constants.Operator.Equals, "true")
                 .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
@@ -573,7 +582,7 @@ public class InnovationRepository : IInnovationRepository
         try
         {
             var result = await _supabase.From<Innovation>()
-                .Select("*")
+                .Select(ListSelectColumns)
                 .Filter("is_public", Postgrest.Constants.Operator.Equals, "true")
                 .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
                 .Order("like_count", Postgrest.Constants.Ordering.Descending)

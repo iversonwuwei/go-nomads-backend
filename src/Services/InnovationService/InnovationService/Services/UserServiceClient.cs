@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using GoNomads.Shared.Models;
 
@@ -30,6 +31,10 @@ public class UserServiceClient : IUserServiceClient
     private readonly HttpClient _httpClient;
     private readonly ILogger<UserServiceClient> _logger;
 
+    // 用户信息内存缓存（用户名/头像极少变化，缓存 10 分钟）
+    private static readonly ConcurrentDictionary<string, (UserInfoDto Info, DateTime CachedAt)> _userInfoCache = new();
+    private static readonly TimeSpan _cacheDuration = TimeSpan.FromMinutes(10);
+
     public UserServiceClient(
         HttpClient httpClient,
         ILogger<UserServiceClient> logger)
@@ -39,10 +44,17 @@ public class UserServiceClient : IUserServiceClient
     }
 
     /// <summary>
-    ///     获取单个用户信息
+    ///     获取单个用户信息（带内存缓存）
     /// </summary>
     public async Task<UserInfoDto?> GetUserInfoAsync(string userId, CancellationToken cancellationToken = default)
     {
+        // 检查缓存
+        if (_userInfoCache.TryGetValue(userId, out var cached) &&
+            DateTime.UtcNow - cached.CachedAt < _cacheDuration)
+        {
+            return cached.Info;
+        }
+
         try
         {
             _logger.LogInformation("📞 调用 UserService - GET /api/v1/users/{UserId}", userId);
@@ -54,6 +66,8 @@ public class UserServiceClient : IUserServiceClient
             if (response?.Success == true && response.Data != null)
             {
                 _logger.LogInformation("✅ 成功获取用户信息: {Name}", response.Data.Name);
+                // 写入缓存
+                _userInfoCache[userId] = (response.Data, DateTime.UtcNow);
                 return response.Data;
             }
 
@@ -68,7 +82,7 @@ public class UserServiceClient : IUserServiceClient
     }
 
     /// <summary>
-    ///     批量获取用户信息 (并发调用)
+    ///     批量获取用户信息 (并发调用，带缓存)
     /// </summary>
     public async Task<Dictionary<Guid, UserInfoDto>> GetUsersInfoBatchAsync(
         IEnumerable<Guid> userIds,
@@ -79,12 +93,35 @@ public class UserServiceClient : IUserServiceClient
 
         if (userIdList.Count == 0) return result;
 
+        // 分离缓存命中和缓存未命中的 ID
+        var uncachedIds = new List<Guid>();
+        foreach (var userId in userIdList)
+        {
+            var key = userId.ToString();
+            if (_userInfoCache.TryGetValue(key, out var cached) &&
+                DateTime.UtcNow - cached.CachedAt < _cacheDuration)
+            {
+                result[userId] = cached.Info;
+            }
+            else
+            {
+                uncachedIds.Add(userId);
+            }
+        }
+
+        if (uncachedIds.Count == 0)
+        {
+            _logger.LogInformation("✅ 全部 {Count} 个用户信息命中缓存", userIdList.Count);
+            return result;
+        }
+
         try
         {
-            _logger.LogInformation("📞 批量调用 UserService - 用户数量: {Count}", userIdList.Count);
+            _logger.LogInformation("📞 批量调用 UserService - 缓存命中: {CachedCount}, 需查询: {UncachedCount}",
+                result.Count, uncachedIds.Count);
 
-            // 并发调用多个用户信息
-            var tasks = userIdList.Select(async userId =>
+            // 并发调用未命中缓存的用户
+            var tasks = uncachedIds.Select(async userId =>
             {
                 var userInfo = await GetUserInfoAsync(userId.ToString(), cancellationToken);
                 return (userId, userInfo);

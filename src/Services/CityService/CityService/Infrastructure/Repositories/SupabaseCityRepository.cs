@@ -15,6 +15,15 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
 {
     private readonly IConfiguration _configuration;
 
+    /// <summary>
+    ///     列表查询的列投影 — 排除 description、location、landscape_image_urls 等大字段
+    /// </summary>
+    private const string ListSelectColumns =
+        "id,name,name_en,country,country_id,province_id,region," +
+        "latitude,longitude,image_url,portrait_image_url," +
+        "overall_score,internet_quality_score,safety_score,cost_score,community_score,weather_score," +
+        "tags,is_active,created_at";
+
     public SupabaseCityRepository(Client supabaseClient, ILogger<SupabaseCityRepository> logger, IConfiguration configuration)
         : base(supabaseClient, logger)
     {
@@ -27,6 +36,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
 
         var response = await SupabaseClient
             .From<City>()
+            .Select(ListSelectColumns)
             .Filter("is_active", Constants.Operator.Equals, "true")
             .Filter("is_deleted", Constants.Operator.Equals, "false")
             .Order(x => x.OverallScore!, Constants.Ordering.Descending)
@@ -442,10 +452,26 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
 
     public async Task<int> GetTotalCountAsync()
     {
+        try
+        {
+            // 使用 RPC 函数在数据库端计数，避免全表加载到内存
+            var result = await SupabaseClient.Rpc("get_city_total_count", null);
+            if (result?.Content != null && int.TryParse(result.Content.Trim('"'), out var count))
+            {
+                return count;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "⚠️ [GetTotalCountAsync] RPC 调用失败，回退到 Select count");
+        }
+
+        // 回退方案：仅查 id 列计数
         var response = await SupabaseClient
             .From<City>()
             .Filter("is_active", Constants.Operator.Equals, "true")
             .Filter("is_deleted", Constants.Operator.Equals, "false")
+            .Select("id")
             .Get();
 
         return response.Models.Count;
@@ -455,6 +481,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
     {
         var response = await SupabaseClient
             .From<City>()
+            .Select(ListSelectColumns)
             .Filter("is_active", Constants.Operator.Equals, "true")
             .Filter("is_deleted", Constants.Operator.Equals, "false")
             .Order(x => x.OverallScore!, Constants.Ordering.Descending)
@@ -470,6 +497,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
         // 热门城市按照评分、社区活跃度排序
         var response = await SupabaseClient
             .From<City>()
+            .Select(ListSelectColumns)
             .Filter("is_active", Constants.Operator.Equals, "true")
             .Filter("is_deleted", Constants.Operator.Equals, "false")
             .Order(x => x.OverallScore!, Constants.Ordering.Descending)
@@ -485,6 +513,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
     {
         var response = await SupabaseClient
             .From<City>()
+            .Select(ListSelectColumns)
             .Filter("is_active", Constants.Operator.Equals, "true")
             .Filter("is_deleted", Constants.Operator.Equals, "false")
             .Filter("country", Constants.Operator.ILike, $"%{countryName}%")
@@ -498,6 +527,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
     {
         var response = await SupabaseClient
             .From<City>()
+            .Select(ListSelectColumns)
             .Filter("is_active", Constants.Operator.Equals, "true")
             .Filter("is_deleted", Constants.Operator.Equals, "false")
             .Filter("country_id", Constants.Operator.Equals, countryId.ToString())
@@ -609,6 +639,7 @@ public partial class SupabaseCityRepository
 {
     /// <summary>
     ///     按城市名称搜索（支持中英文、模糊匹配）
+    ///     🚀 优化：使用 ILIKE 在数据库端过滤，利用 trgm 索引，替代全表加载到内存
     /// </summary>
     public async Task<IEnumerable<City>> SearchByNameAsync(
         string name,
@@ -620,31 +651,56 @@ public partial class SupabaseCityRepository
 
         try
         {
-            var query = SupabaseClient
-                .From<City>()
-                .Filter("is_active", Constants.Operator.Equals, "true");
-
-            // 如果指定了国家代码，添加国家过滤
-            if (!string.IsNullOrWhiteSpace(countryCode))
+            // 优先使用 RPC 函数（支持 name + name_en 双字段搜索）
+            try
             {
-                query = query.Filter("country_code", Constants.Operator.Equals, countryCode.ToUpperInvariant());
+                var rpcResult = await SupabaseClient.Rpc("search_cities_by_name",
+                    new Dictionary<string, object>
+                    {
+                        { "p_name", name },
+                        { "p_country_code", countryCode ?? (object)DBNull.Value }
+                    });
+
+                if (rpcResult?.Content != null)
+                {
+                    var cities = System.Text.Json.JsonSerializer.Deserialize<List<City>>(rpcResult.Content,
+                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (cities != null)
+                    {
+                        Logger.LogInformation(
+                            "🔍 [SearchByNameAsync] RPC 搜索城市: Name={Name}, Found={Count}",
+                            name, cities.Count);
+                        return cities;
+                    }
+                }
+            }
+            catch (Exception rpcEx)
+            {
+                Logger.LogWarning(rpcEx, "⚠️ [SearchByNameAsync] RPC 调用失败，回退到 ILIKE 查询");
             }
 
-            var response = await query.Get();
+            // 回退方案：使用 ILIKE 在 name 字段搜索
+            var query = SupabaseClient
+                .From<City>()
+                .Filter("is_active", Constants.Operator.Equals, "true")
+                .Filter("is_deleted", Constants.Operator.Equals, "false")
+                .Filter("name", Constants.Operator.ILike, $"%{name}%");
 
-            // 在内存中进行名称模糊匹配（支持中英文）
-            var cities = response.Models.Where(c =>
-                (!string.IsNullOrWhiteSpace(c.Name) &&
-                 c.Name.Contains(name, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrWhiteSpace(c.NameEn) &&
-                 c.NameEn.Contains(name, StringComparison.OrdinalIgnoreCase))
-            ).ToList();
+            if (!string.IsNullOrWhiteSpace(countryCode))
+            {
+                query = query.Filter("country", Constants.Operator.Equals, countryCode.ToUpperInvariant());
+            }
+
+            var response = await query
+                .Order(x => x.OverallScore!, Constants.Ordering.Descending)
+                .Limit(50)
+                .Get();
 
             Logger.LogInformation(
-                "🔍 [SearchByNameAsync] 搜索城市: Name={Name}, CountryCode={CountryCode}, Found={Count}",
-                name, countryCode, cities.Count);
+                "🔍 [SearchByNameAsync] ILIKE 搜索城市: Name={Name}, CountryCode={CountryCode}, Found={Count}",
+                name, countryCode, response.Models.Count);
 
-            return cities;
+            return response.Models;
         }
         catch (Exception ex)
         {
@@ -655,6 +711,7 @@ public partial class SupabaseCityRepository
 
     /// <summary>
     ///     查找最近的城市（基于经纬度）
+    ///     🚀 优化：使用 PostGIS RPC 函数 + GIST 索引，替代全表加载 + C# Haversine 计算
     /// </summary>
     public async Task<City?> FindNearestCityAsync(
         double latitude,
@@ -664,19 +721,60 @@ public partial class SupabaseCityRepository
     {
         try
         {
-            // 获取所有活跃城市
+            // 优先使用 PostGIS RPC 函数（利用 GIST 索引）
+            try
+            {
+                var rpcResult = await SupabaseClient.Rpc("find_nearest_city",
+                    new Dictionary<string, object>
+                    {
+                        { "p_lat", latitude },
+                        { "p_lng", longitude },
+                        { "p_max_distance_km", maxDistanceKm }
+                    });
+
+                if (rpcResult?.Content != null)
+                {
+                    var resultArray = System.Text.Json.JsonDocument.Parse(rpcResult.Content).RootElement;
+                    if (resultArray.ValueKind == System.Text.Json.JsonValueKind.Array && resultArray.GetArrayLength() > 0)
+                    {
+                        var first = resultArray[0];
+                        var cityId = Guid.Parse(first.GetProperty("city_id").GetString()!);
+                        var distanceKm = first.GetProperty("distance_km").GetDouble();
+
+                        // 用 ID 获取完整城市对象
+                        var city = await GetByIdAsync(cityId);
+                        if (city != null)
+                        {
+                            Logger.LogInformation(
+                                "📍 [FindNearestCityAsync] PostGIS 找到最近城市: CityId={CityId}, CityName={CityName}, Distance={Distance}km",
+                                city.Id, city.Name, distanceKm);
+                            return city;
+                        }
+                    }
+                }
+                
+                Logger.LogInformation(
+                    "📍 [FindNearestCityAsync] PostGIS 未找到 {MaxDistance}km 范围内的城市",
+                    maxDistanceKm);
+                return null;
+            }
+            catch (Exception rpcEx)
+            {
+                Logger.LogWarning(rpcEx, "⚠️ [FindNearestCityAsync] RPC 调用失败，回退到内存计算");
+            }
+
+            // 回退方案：内存计算（仅在 RPC 不可用时）
             var response = await SupabaseClient
                 .From<City>()
                 .Filter("is_active", Constants.Operator.Equals, "true")
+                .Select("id,name,latitude,longitude")
                 .Get();
 
-            // 在内存中计算距离并找出最近的城市
             City? nearestCity = null;
             var minDistance = double.MaxValue;
 
             foreach (var city in response.Models)
             {
-                // 跳过没有坐标的城市
                 if (!city.Latitude.HasValue || !city.Longitude.HasValue)
                     continue;
 
@@ -693,8 +791,10 @@ public partial class SupabaseCityRepository
 
             if (nearestCity != null)
             {
+                // 需要获取完整城市数据
+                nearestCity = await GetByIdAsync(nearestCity.Id) ?? nearestCity;
                 Logger.LogInformation(
-                    "📍 [FindNearestCityAsync] 找到最近城市: CityId={CityId}, CityName={CityName}, Distance={Distance}km",
+                    "📍 [FindNearestCityAsync] 内存计算找到最近城市: CityId={CityId}, CityName={CityName}, Distance={Distance}km",
                     nearestCity.Id, nearestCity.Name, minDistance);
             }
             else
@@ -779,6 +879,7 @@ public partial class SupabaseCityRepository
 
         var response = await SupabaseClient
             .From<City>()
+            .Select(ListSelectColumns)
             .Filter("is_active", Constants.Operator.Equals, "true")
             .Filter("is_deleted", Constants.Operator.Equals, "false")
             .Filter("region", Constants.Operator.ILike, $"%{region}%")
@@ -828,6 +929,7 @@ public partial class SupabaseCityRepository
 
         var response = await SupabaseClient
             .From<City>()
+            .Select(ListSelectColumns)
             .Filter("is_active", Constants.Operator.Equals, "true")
             .Filter("is_deleted", Constants.Operator.Equals, "false")
             .Filter("country_id", Constants.Operator.In, idStrings)

@@ -145,13 +145,23 @@ public class InterestService : IInterestService
                 .Where(ui => ui.UserId == userId)
                 .Get(cancellationToken);
 
+            if (userInterestsResponse.Models.Count == 0)
+                return new List<UserInterestDto>();
+
+            // 批量获取所有相关兴趣详情（消除 N+1 查询）
+            var interestIds = userInterestsResponse.Models.Select(ui => ui.InterestId).Distinct().ToList();
+            var interestsResponse = await _supabaseClient
+                .From<Interest>()
+                .Filter("id", Postgrest.Constants.Operator.In, interestIds)
+                .Get(cancellationToken);
+
+            var interestsDict = interestsResponse.Models.ToDictionary(i => i.Id, i => i);
+
             var results = new List<UserInterestDto>();
 
-            // 为每个用户兴趣获取对应的兴趣详情
             foreach (var userInterest in userInterestsResponse.Models)
             {
-                var interest = await GetInterestByIdAsync(userInterest.InterestId, cancellationToken);
-                if (interest != null)
+                if (interestsDict.TryGetValue(userInterest.InterestId, out var interest))
                     results.Add(new UserInterestDto
                     {
                         Id = userInterest.Id,

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using MassTransit;
 using Shared.Messages;
 using UserService.Application.DTOs;
@@ -19,6 +20,10 @@ public class UserApplicationService : IUserService
     private readonly ISkillService _skillService;
     private readonly ITravelHistoryService _travelHistoryService;
     private readonly IUserRepository _userRepository;
+
+    // 角色缓存（角色数据几乎不变，缓存 10 分钟）
+    private static readonly ConcurrentDictionary<string, (string RoleName, DateTime CachedAt)> _roleCache = new();
+    private static readonly TimeSpan _roleCacheDuration = TimeSpan.FromMinutes(10);
 
     public UserApplicationService(
         IUserRepository userRepository,
@@ -81,24 +86,32 @@ public class UserApplicationService : IUserService
 
         var userDto = await MapToDtoAsync(user, cancellationToken);
 
-        // 加载用户的技能和兴趣
+        // 并行加载所有附加数据（技能、兴趣、旅行数据）
+        var skillsTask = _skillService.GetUserSkillsAsync(id, cancellationToken);
+        var interestsTask = _interestService.GetUserInterestsAsync(id, cancellationToken);
+        var latestTravelTask = _travelHistoryService.GetLatestTravelHistoryAsync(id, cancellationToken);
+        var confirmedTravelTask = _travelHistoryService.GetConfirmedTravelHistoryAsync(id, cancellationToken);
+        var travelStatsTask = _travelHistoryService.GetUserTravelStatsAsync(id, cancellationToken);
+
+        await Task.WhenAll(skillsTask, interestsTask, latestTravelTask, confirmedTravelTask, travelStatsTask);
+
+        // 技能和兴趣
         try
         {
-            userDto.Skills = await _skillService.GetUserSkillsAsync(id, cancellationToken);
-            userDto.Interests = await _interestService.GetUserInterestsAsync(id, cancellationToken);
+            userDto.Skills = await skillsTask;
+            userDto.Interests = await interestsTask;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "⚠️ 加载用户技能/兴趣失败: UserId={UserId}", id);
-            // 即使加载失败也返回用户基本信息
             userDto.Skills = new List<UserSkillDto>();
             userDto.Interests = new List<UserInterestDto>();
         }
 
-        // 加载用户最新旅行历史
+        // 最新旅行历史
         try
         {
-            userDto.LatestTravelHistory = await _travelHistoryService.GetLatestTravelHistoryAsync(id, cancellationToken);
+            userDto.LatestTravelHistory = await latestTravelTask;
             _logger.LogInformation("📍 用户最新旅行历史: UserId={UserId}, HasData={HasData}, City={City}",
                 id,
                 userDto.LatestTravelHistory != null,
@@ -110,10 +123,10 @@ public class UserApplicationService : IUserService
             userDto.LatestTravelHistory = null;
         }
 
-        // 加载用户旅行历史列表（最多 10 条已确认的记录）
+        // 旅行历史列表
         try
         {
-            userDto.TravelHistory = await _travelHistoryService.GetConfirmedTravelHistoryAsync(id, cancellationToken);
+            userDto.TravelHistory = await confirmedTravelTask;
             _logger.LogInformation("📜 用户旅行历史列表: UserId={UserId}, Count={Count}",
                 id, userDto.TravelHistory?.Count ?? 0);
         }
@@ -123,10 +136,10 @@ public class UserApplicationService : IUserService
             userDto.TravelHistory = new List<DTOs.TravelHistoryDto>();
         }
 
-        // 加载用户旅行统计数据（从 travel_history 表计算）
+        // 旅行统计
         try
         {
-            var travelStats = await _travelHistoryService.GetUserTravelStatsAsync(id, cancellationToken);
+            var travelStats = await travelStatsTask;
             userDto.Stats = new UserTravelStatsDto
             {
                 CountriesVisited = travelStats.CountriesVisited,
@@ -158,14 +171,12 @@ public class UserApplicationService : IUserService
 
         if (ids == null || ids.Count == 0) return new List<UserDto>();
 
-        var users = new List<UserDto>();
+        // 单次 IN 查询获取所有用户
+        var userEntities = await _userRepository.GetByIdsAsync(ids.Distinct().ToList(), cancellationToken);
 
-        // 批量获取用户
-        foreach (var id in ids.Distinct())
-        {
-            var user = await _userRepository.GetByIdAsync(id, cancellationToken);
-            if (user != null) users.Add(await MapToDtoAsync(user, cancellationToken));
-        }
+        // 并行映射为 DTO
+        var mapTasks = userEntities.Select(u => MapToDtoAsync(u, cancellationToken));
+        var users = (await Task.WhenAll(mapTasks)).ToList();
 
         _logger.LogInformation("✅ 成功获取 {Count}/{Total} 个用户", users.Count, ids.Count);
         return users;
@@ -488,9 +499,8 @@ public class UserApplicationService : IUserService
 
     private async Task<UserDto> MapToDtoAsync(User user, CancellationToken cancellationToken = default)
     {
-        // 获取用户角色名称
-        var role = await _roleRepository.GetByIdAsync(user.RoleId, cancellationToken);
-        var roleName = role?.Name ?? "user"; // 默认为 user
+        // 获取用户角色名称（使用内存缓存）
+        var roleName = await GetCachedRoleNameAsync(user.RoleId, cancellationToken);
 
         var userDto = new UserDto
         {
@@ -551,9 +561,24 @@ public class UserApplicationService : IUserService
         };
     }
 
-    #endregion
+    /// <summary>
+    ///     获取缓存的角色名称（角色数据几乎不变，避免每次都查库）
+    /// </summary>
+    private async Task<string> GetCachedRoleNameAsync(string roleId, CancellationToken cancellationToken)
+    {
+        if (_roleCache.TryGetValue(roleId, out var cached) &&
+            DateTime.UtcNow - cached.CachedAt < _roleCacheDuration)
+        {
+            return cached.RoleName;
+        }
 
-    #region 版主候选人相关方法
+        var role = await _roleRepository.GetByIdAsync(roleId, cancellationToken);
+        var roleName = role?.Name ?? "user";
+        _roleCache[roleId] = (roleName, DateTime.UtcNow);
+        return roleName;
+    }
+
+    #endregion
 
     public async Task<(List<ModeratorCandidateDto> Users, int Total)> GetModeratorCandidatesAsync(
         string? searchTerm = null,
@@ -573,6 +598,4 @@ public class UserApplicationService : IUserService
         _logger.LogInformation("✅ 获取到 {Count}/{Total} 个版主候选人", dtos.Count, total);
         return (dtos, total);
     }
-
-    #endregion
 }
