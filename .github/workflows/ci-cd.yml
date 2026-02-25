@@ -54,6 +54,7 @@ jobs:
     
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
         include:
           - service: gateway
@@ -103,10 +104,29 @@ jobs:
           echo "构建镜像: ${IMAGE}:${SHORT_TAG}"
           docker build --provenance=false -f ${{ matrix.dockerfile }} -t ${IMAGE}:${SHORT_TAG} -t ${IMAGE}:latest .
           
-          echo "推送镜像..."
-          docker push ${IMAGE}:${SHORT_TAG}
-          docker push ${IMAGE}:latest
-          echo "✓ ${{ matrix.service }} 推送成功"
+          # 带重试的推送（应对 SWR 429 速率限制）
+          push_with_retry() {
+            local image_tag=$1
+            local max_retries=3
+            for i in $(seq 1 $max_retries); do
+              echo "推送 ${image_tag} (第 ${i} 次尝试)..."
+              if docker push "${image_tag}"; then
+                echo "✓ ${image_tag} 推送成功"
+                return 0
+              fi
+              if [ $i -lt $max_retries ]; then
+                local wait=$((i * 15))
+                echo "⏳ 推送失败，等待 ${wait}s 后重试..."
+                sleep $wait
+              fi
+            done
+            echo "✗ ${image_tag} 推送失败（已重试 ${max_retries} 次）"
+            return 1
+          }
+          
+          push_with_retry "${IMAGE}:${SHORT_TAG}"
+          push_with_retry "${IMAGE}:latest"
+          echo "✓ ${{ matrix.service }} 全部推送完成"
 
   # ============================================================
   # 阶段 3: 部署到阿里云服务器
