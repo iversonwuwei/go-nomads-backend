@@ -49,21 +49,27 @@ public class WeChatPaySettings
         if (string.IsNullOrEmpty(PrivateKey))
             return string.Empty;
 
+        var key = PrivateKey.Trim();
+
         // 文件路径：以 file: 开头
-        if (PrivateKey.StartsWith("file:"))
+        if (key.StartsWith("file:"))
         {
-            var filePath = PrivateKey[5..].Trim();
+            var filePath = key[5..].Trim();
             return File.ReadAllText(filePath);
         }
 
         // 直接 PEM 内容
-        if (PrivateKey.StartsWith("-----BEGIN"))
-            return PrivateKey;
+        if (key.StartsWith("-----BEGIN"))
+            return key;
 
         // Base64 编码的 PEM 内容（Docker 环境变量注入场景）
         try
         {
-            var decoded = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(PrivateKey));
+            var sanitizedBase64 = new string(key.Where(c =>
+                    char.IsLetterOrDigit(c) || c == '+' || c == '/' || c == '=')
+                .ToArray());
+
+            var decoded = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(sanitizedBase64));
             if (decoded.StartsWith("-----BEGIN"))
                 return decoded;
         }
@@ -72,6 +78,6 @@ public class WeChatPaySettings
             // 不是合法 Base64，原样返回
         }
 
-        return PrivateKey;
+        return key;
     }
 }
