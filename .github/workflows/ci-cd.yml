@@ -181,8 +181,13 @@ jobs:
             ALIYUN_SMS_ACCESS_KEY_SECRET=${{ secrets.ALIYUN_SMS_ACCESS_KEY_SECRET }}
             WECHAT_PAY_API_V3_KEY=${{ secrets.WECHAT_PAY_API_V3_KEY }}
             WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER=${{ secrets.WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER }}
-            WECHAT_PAY_PRIVATE_KEY=${{ secrets.WECHAT_PAY_PRIVATE_KEY }}
             ENVEOF
+            
+            echo "===== 写入微信支付私钥文件 ====="
+            mkdir -p certs
+            echo "${{ secrets.WECHAT_PAY_PRIVATE_KEY }}" | base64 -d > certs/wechat_pay_private_key.pem
+            chmod 600 certs/wechat_pay_private_key.pem
+            echo "✓ 私钥文件已写入 ($(wc -c < certs/wechat_pay_private_key.pem) bytes)"
             
             echo "===== 确保基础设施运行 ====="
             docker compose -f docker-compose-infras-swr.yml up -d
