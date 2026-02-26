@@ -556,11 +556,11 @@ public class PaymentController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ 确认微信支付失败");
+            _logger.LogError(ex, "❌ 确认微信支付失败: {Error}", ex.Message);
             return StatusCode(500, new ApiResponse<PaymentResultDto>
             {
                 Success = false,
-                Message = "确认微信支付失败"
+                Message = $"确认微信支付失败: {ex.Message}"
             });
         }
     }

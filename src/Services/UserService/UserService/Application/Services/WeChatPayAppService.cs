@@ -127,24 +127,26 @@ public class WeChatPayAppService : IWeChatPayService
     {
         _logger.LogInformation("🔍 查询微信支付订单: OutTradeNo={OutTradeNo}", outTradeNo);
 
-        var request = new GetPayTransactionByOutTradeNumberRequest
+        try
         {
-            MerchantId = _settings.MchId,
-            OutTradeNumber = outTradeNo
-        };
-
-        var response = await _client.ExecuteGetPayTransactionByOutTradeNumberAsync(request, cancellationToken);
-
-        if (!response.IsSuccessful())
-        {
-            _logger.LogWarning("⚠️ 查询微信支付订单失败: Code={Code}, Message={Message}",
-                response.ErrorCode, response.ErrorMessage);
-            return new WeChatPayQueryResult
+            var request = new GetPayTransactionByOutTradeNumberRequest
             {
-                Success = false,
-                ErrorMessage = $"[{response.ErrorCode}] {response.ErrorMessage}"
+                MerchantId = _settings.MchId,
+                OutTradeNumber = outTradeNo
             };
-        }
+
+            var response = await _client.ExecuteGetPayTransactionByOutTradeNumberAsync(request, cancellationToken);
+
+            if (!response.IsSuccessful())
+            {
+                _logger.LogWarning("⚠️ 查询微信支付订单失败: Code={Code}, Message={Message}",
+                    response.ErrorCode, response.ErrorMessage);
+                return new WeChatPayQueryResult
+                {
+                    Success = false,
+                    ErrorMessage = $"[{response.ErrorCode}] {response.ErrorMessage}"
+                };
+            }
 
         var isSuccess = response.TradeState == "SUCCESS";
 
@@ -168,6 +170,17 @@ public class WeChatPayAppService : IWeChatPayService
                 response.SuccessTime
             })
         };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 查询微信支付订单异常: OutTradeNo={OutTradeNo}, Error={Error}",
+                outTradeNo, ex.Message);
+            return new WeChatPayQueryResult
+            {
+                Success = false,
+                ErrorMessage = $"查询订单异常: {ex.Message}"
+            };
+        }
     }
 
     /// <inheritdoc />
