@@ -1,6 +1,7 @@
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
 using CityService.Domain.ValueObjects;
+using Npgsql;
 using Postgrest;
 using Postgrest.Interfaces;
 using Shared.Repositories;
@@ -14,6 +15,7 @@ namespace CityService.Infrastructure.Repositories;
 public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICityRepository
 {
     private readonly IConfiguration _configuration;
+    private readonly string? _connectionString;
 
     /// <summary>
     ///     列表查询的列投影 — 排除 description、location、landscape_image_urls 等大字段
@@ -28,6 +30,7 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
         : base(supabaseClient, logger)
     {
         _configuration = configuration;
+        _connectionString = configuration.GetConnectionString("SupabaseDb");
     }
 
     public async Task<IEnumerable<City>> GetAllAsync(int pageNumber, int pageSize)
@@ -50,6 +53,14 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
     {
         try
         {
+            // 🚀 优化：使用 Npgsql 直接查询，一次性获取所有字段（含 landscape_image_urls）
+            // 避免 Postgrest ORM 对 text[] 类型支持不完善导致的双 HTTP 调用
+            if (!string.IsNullOrEmpty(_connectionString))
+            {
+                return await GetByIdWithNpgsqlAsync(id);
+            }
+
+            // 降级：使用原始 ORM 方式
             var response = await SupabaseClient
                 .From<City>()
                 .Where(x => x.Id == id)
@@ -58,23 +69,126 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
 
             if (response != null)
             {
-                // Postgrest ORM 对 List<string> 数组类型支持不完善，需要手动获取
                 await EnrichCityWithImageUrlsAsync(response);
-                
-                // 调试日志
-                Logger.LogInformation(
-                    "🔍 [GetByIdAsync] 从数据库读取城市: Id={Id}, Name={Name}, LandscapeImageUrls={LandscapeImageUrls}, Count={Count}",
-                    response.Id, response.Name, 
-                    response.LandscapeImageUrls != null ? string.Join(", ", response.LandscapeImageUrls) : "null",
-                    response.LandscapeImageUrls?.Count ?? 0);
             }
 
             return response;
         }
-        catch
+        catch (Exception ex)
         {
-            return null;
+            Logger.LogError(ex, "❌ [GetByIdAsync] 查询城市失败，降级到 ORM: CityId={CityId}", id);
+
+            // Npgsql 失败时降级到 ORM 方式，确保接口不返回 404
+            try
+            {
+                var response = await SupabaseClient
+                    .From<City>()
+                    .Where(x => x.Id == id)
+                    .Filter("is_deleted", Constants.Operator.Equals, "false")
+                    .Single();
+
+                if (response != null)
+                {
+                    await EnrichCityWithImageUrlsAsync(response);
+                }
+
+                return response;
+            }
+            catch (Exception fallbackEx)
+            {
+                Logger.LogError(fallbackEx, "❌ [GetByIdAsync] ORM 降级也失败: CityId={CityId}", id);
+                return null;
+            }
         }
+    }
+
+    /// <summary>
+    /// 使用 Npgsql 直接查询城市详情（性能优化：单次查询替代 ORM + REST 双调用）
+    /// 注意：只查 cities 表自身列，不关联 user_city_expenses（cost 由 CacheService 提供）
+    /// </summary>
+    private async Task<City?> GetByIdWithNpgsqlAsync(Guid id)
+    {
+        const string sql = @"
+            SELECT id, name, name_en, country, country_id, province_id, region,
+                   description, location, latitude, longitude, population,
+                   climate, timezone, currency,
+                   image_url, portrait_image_url, landscape_image_urls,
+                   overall_score,
+                   internet_quality_score, safety_score, cost_score,
+                   community_score, weather_score,
+                   tags, is_active, created_at, updated_at,
+                   created_by_id, updated_by_id, is_deleted,
+                   deleted_at, deleted_by, moderator_id
+            FROM cities
+            WHERE id = @id AND is_deleted = false
+            LIMIT 1";
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = new NpgsqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("id", id);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync()) return null;
+
+        var city = new City
+        {
+            Id = reader.GetGuid(reader.GetOrdinal("id")),
+            Name = reader.GetString(reader.GetOrdinal("name")),
+            NameEn = reader.IsDBNull(reader.GetOrdinal("name_en")) ? null : reader.GetString(reader.GetOrdinal("name_en")),
+            Country = reader.GetString(reader.GetOrdinal("country")),
+            CountryId = reader.IsDBNull(reader.GetOrdinal("country_id")) ? null : reader.GetGuid(reader.GetOrdinal("country_id")),
+            ProvinceId = reader.IsDBNull(reader.GetOrdinal("province_id")) ? null : reader.GetGuid(reader.GetOrdinal("province_id")),
+            Region = reader.IsDBNull(reader.GetOrdinal("region")) ? null : reader.GetString(reader.GetOrdinal("region")),
+            Description = reader.IsDBNull(reader.GetOrdinal("description")) ? null : reader.GetString(reader.GetOrdinal("description")),
+            Location = reader.IsDBNull(reader.GetOrdinal("location")) ? null : reader.GetString(reader.GetOrdinal("location")),
+            Latitude = reader.IsDBNull(reader.GetOrdinal("latitude")) ? null : reader.GetDouble(reader.GetOrdinal("latitude")),
+            Longitude = reader.IsDBNull(reader.GetOrdinal("longitude")) ? null : reader.GetDouble(reader.GetOrdinal("longitude")),
+            Population = reader.IsDBNull(reader.GetOrdinal("population")) ? null : reader.GetInt32(reader.GetOrdinal("population")),
+            Climate = reader.IsDBNull(reader.GetOrdinal("climate")) ? null : reader.GetString(reader.GetOrdinal("climate")),
+            TimeZone = reader.IsDBNull(reader.GetOrdinal("timezone")) ? null : reader.GetString(reader.GetOrdinal("timezone")),
+            Currency = reader.IsDBNull(reader.GetOrdinal("currency")) ? null : reader.GetString(reader.GetOrdinal("currency")),
+            ImageUrl = reader.IsDBNull(reader.GetOrdinal("image_url")) ? null : reader.GetString(reader.GetOrdinal("image_url")),
+            PortraitImageUrl = reader.IsDBNull(reader.GetOrdinal("portrait_image_url")) ? null : reader.GetString(reader.GetOrdinal("portrait_image_url")),
+            OverallScore = reader.IsDBNull(reader.GetOrdinal("overall_score")) ? null : reader.GetDecimal(reader.GetOrdinal("overall_score")),
+            InternetQualityScore = reader.IsDBNull(reader.GetOrdinal("internet_quality_score")) ? null : reader.GetDecimal(reader.GetOrdinal("internet_quality_score")),
+            SafetyScore = reader.IsDBNull(reader.GetOrdinal("safety_score")) ? null : reader.GetDecimal(reader.GetOrdinal("safety_score")),
+            CostScore = reader.IsDBNull(reader.GetOrdinal("cost_score")) ? null : reader.GetDecimal(reader.GetOrdinal("cost_score")),
+            CommunityScore = reader.IsDBNull(reader.GetOrdinal("community_score")) ? null : reader.GetDecimal(reader.GetOrdinal("community_score")),
+            WeatherScore = reader.IsDBNull(reader.GetOrdinal("weather_score")) ? null : reader.GetDecimal(reader.GetOrdinal("weather_score")),
+            IsActive = reader.GetBoolean(reader.GetOrdinal("is_active")),
+            CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
+            UpdatedAt = reader.IsDBNull(reader.GetOrdinal("updated_at")) ? null : reader.GetDateTime(reader.GetOrdinal("updated_at")),
+            CreatedById = reader.IsDBNull(reader.GetOrdinal("created_by_id")) ? null : reader.GetGuid(reader.GetOrdinal("created_by_id")),
+            UpdatedById = reader.IsDBNull(reader.GetOrdinal("updated_by_id")) ? null : reader.GetGuid(reader.GetOrdinal("updated_by_id")),
+            IsDeleted = reader.GetBoolean(reader.GetOrdinal("is_deleted")),
+            DeletedAt = reader.IsDBNull(reader.GetOrdinal("deleted_at")) ? null : reader.GetDateTime(reader.GetOrdinal("deleted_at")),
+            DeletedBy = reader.IsDBNull(reader.GetOrdinal("deleted_by")) ? null : reader.GetGuid(reader.GetOrdinal("deleted_by")),
+            ModeratorId = reader.IsDBNull(reader.GetOrdinal("moderator_id")) ? null : reader.GetGuid(reader.GetOrdinal("moderator_id"))
+        };
+
+        // 直接从 Npgsql 读取 text[] 数组 — 无需额外 HTTP 调用
+        var landscapeOrdinal = reader.GetOrdinal("landscape_image_urls");
+        if (!reader.IsDBNull(landscapeOrdinal))
+        {
+            var landscapeUrls = reader.GetFieldValue<string[]>(landscapeOrdinal);
+            city.LandscapeImageUrls = landscapeUrls?.ToList();
+        }
+
+        // 读取 tags 数组
+        var tagsOrdinal = reader.GetOrdinal("tags");
+        if (!reader.IsDBNull(tagsOrdinal))
+        {
+            var tags = reader.GetFieldValue<string[]>(tagsOrdinal);
+            city.Tags = tags?.ToList() ?? new List<string>();
+        }
+
+        Logger.LogDebug(
+            "🚀 [GetByIdWithNpgsql] 单次查询获取城市: Id={Id}, Name={Name}, LandscapeCount={Count}",
+            city.Id, city.Name, city.LandscapeImageUrls?.Count ?? 0);
+
+        return city;
     }
     
     /// <summary>
@@ -133,21 +247,19 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
 
     public async Task<IEnumerable<City>> SearchAsync(CitySearchCriteria criteria)
     {
+        // 🚀 优化：当有搜索词时，使用 Npgsql 直接执行多字段搜索（name + name_en + country）
+        if (!string.IsNullOrWhiteSpace(criteria.Name) && !string.IsNullOrEmpty(_connectionString))
+        {
+            return await SearchWithNpgsqlAsync(criteria);
+        }
+
         var offset = (criteria.PageNumber - 1) * criteria.PageSize;
 
-        // 🚀 优化：在数据库级别进行过滤，而不是加载所有数据到内存
         var query = SupabaseClient
             .From<City>()
+            .Select(ListSelectColumns)
             .Filter("is_active", Constants.Operator.Equals, "true")
             .Filter("is_deleted", Constants.Operator.Equals, "false");
-
-        // 使用数据库级别的 ILIKE 搜索（支持中英文）
-        if (!string.IsNullOrWhiteSpace(criteria.Name))
-        {
-            // 简化搜索：先只搜索 name 字段，避免 PostgREST OR 语法问题
-            // 后续可以通过数据库视图或函数实现多字段搜索
-            query = query.Filter("name", Constants.Operator.ILike, $"%{criteria.Name}%");
-        }
 
         // 国家过滤
         if (!string.IsNullOrWhiteSpace(criteria.Country))
@@ -199,6 +311,107 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
             criteria.Name, cities.Count());
 
         return cities.ToList();
+    }
+
+    /// <summary>
+    /// 使用 Npgsql 执行多字段模糊搜索（name + name_en + country），利用 pg_trgm 索引
+    /// </summary>
+    private async Task<IEnumerable<City>> SearchWithNpgsqlAsync(CitySearchCriteria criteria)
+    {
+        var offset = (criteria.PageNumber - 1) * criteria.PageSize;
+        var query = criteria.Name!.Trim();
+
+        // 使用列投影（与 ORM 查询一致）避免返回 description 等大字段
+        // 注意：不通过子查询关联 user_city_expenses，cost 过滤使用 overall_score 替代
+        const string sql = @"
+            SELECT id, name, name_en, country, country_id, province_id, region,
+                   latitude, longitude, image_url, portrait_image_url,
+                   overall_score, internet_quality_score, safety_score,
+                   cost_score, community_score, weather_score,
+                   tags, is_active, created_at
+            FROM cities
+            WHERE is_active = true
+              AND is_deleted = false
+              AND (
+                name ILIKE @pattern
+                OR name_en ILIKE @pattern
+                OR country ILIKE @pattern
+              )
+              AND (@country IS NULL OR country ILIKE @countryPattern)
+              AND (@region IS NULL OR region = @region)
+              AND (@minScore IS NULL OR overall_score >= @minScore)
+            ORDER BY
+              GREATEST(
+                similarity(name, @query),
+                similarity(COALESCE(name_en, ''), @query)
+              ) DESC,
+              overall_score DESC NULLS LAST
+            LIMIT @pageSize OFFSET @offset";
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = new NpgsqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("pattern", $"%{query}%");
+        cmd.Parameters.AddWithValue("query", query);
+        cmd.Parameters.AddWithValue("country", (object?)criteria.Country ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("countryPattern", criteria.Country != null ? $"%{criteria.Country}%" : (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("region", (object?)criteria.Region ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("minScore", criteria.MinScore.HasValue ? (object)criteria.MinScore.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("pageSize", criteria.PageSize);
+        cmd.Parameters.AddWithValue("offset", offset);
+
+        var cities = new List<City>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            var city = new City
+            {
+                Id = reader.GetGuid(reader.GetOrdinal("id")),
+                Name = reader.GetString(reader.GetOrdinal("name")),
+                NameEn = reader.IsDBNull(reader.GetOrdinal("name_en")) ? null : reader.GetString(reader.GetOrdinal("name_en")),
+                Country = reader.GetString(reader.GetOrdinal("country")),
+                CountryId = reader.IsDBNull(reader.GetOrdinal("country_id")) ? null : reader.GetGuid(reader.GetOrdinal("country_id")),
+                ProvinceId = reader.IsDBNull(reader.GetOrdinal("province_id")) ? null : reader.GetGuid(reader.GetOrdinal("province_id")),
+                Region = reader.IsDBNull(reader.GetOrdinal("region")) ? null : reader.GetString(reader.GetOrdinal("region")),
+                Latitude = reader.IsDBNull(reader.GetOrdinal("latitude")) ? null : reader.GetDouble(reader.GetOrdinal("latitude")),
+                Longitude = reader.IsDBNull(reader.GetOrdinal("longitude")) ? null : reader.GetDouble(reader.GetOrdinal("longitude")),
+                ImageUrl = reader.IsDBNull(reader.GetOrdinal("image_url")) ? null : reader.GetString(reader.GetOrdinal("image_url")),
+                PortraitImageUrl = reader.IsDBNull(reader.GetOrdinal("portrait_image_url")) ? null : reader.GetString(reader.GetOrdinal("portrait_image_url")),
+                OverallScore = reader.IsDBNull(reader.GetOrdinal("overall_score")) ? null : reader.GetDecimal(reader.GetOrdinal("overall_score")),
+                InternetQualityScore = reader.IsDBNull(reader.GetOrdinal("internet_quality_score")) ? null : reader.GetDecimal(reader.GetOrdinal("internet_quality_score")),
+                SafetyScore = reader.IsDBNull(reader.GetOrdinal("safety_score")) ? null : reader.GetDecimal(reader.GetOrdinal("safety_score")),
+                CostScore = reader.IsDBNull(reader.GetOrdinal("cost_score")) ? null : reader.GetDecimal(reader.GetOrdinal("cost_score")),
+                CommunityScore = reader.IsDBNull(reader.GetOrdinal("community_score")) ? null : reader.GetDecimal(reader.GetOrdinal("community_score")),
+                WeatherScore = reader.IsDBNull(reader.GetOrdinal("weather_score")) ? null : reader.GetDecimal(reader.GetOrdinal("weather_score")),
+                IsActive = reader.GetBoolean(reader.GetOrdinal("is_active")),
+                CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at"))
+            };
+
+            // 读取 tags 数组
+            var tagsOrdinal = reader.GetOrdinal("tags");
+            if (!reader.IsDBNull(tagsOrdinal))
+            {
+                var tags = reader.GetFieldValue<string[]>(tagsOrdinal);
+                city.Tags = tags?.ToList() ?? new List<string>();
+            }
+
+            cities.Add(city);
+        }
+
+        // 标签过滤在内存中进行
+        IEnumerable<City> result = cities;
+        if (criteria.Tags is { Count: > 0 })
+        {
+            result = cities.Where(c => c.Tags != null && criteria.Tags.All(tag => c.Tags.Contains(tag)));
+        }
+
+        Logger.LogInformation(
+            "🔍 [SearchWithNpgsql] 多字段搜索完成: query={Query}, 结果数={Count}",
+            query, cities.Count);
+
+        return result.ToList();
     }
 
     public async Task<City> CreateAsync(City city)

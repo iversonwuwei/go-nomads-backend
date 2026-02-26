@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 
 namespace CityService.Application.DTOs;
 
@@ -113,6 +114,15 @@ public class CityDto : BaseDtoWithUserContext
         // 判断当前用户是否为该城市的版主
         if (currentUserId.HasValue && ModeratorId.HasValue)
             IsCurrentUserModerator = currentUserId.Value == ModeratorId.Value;
+    }
+
+    /// <summary>
+    ///     创建当前对象的深拷贝（使用 JSON 序列化确保嵌套对象也被克隆）
+    /// </summary>
+    public CityDto DeepClone()
+    {
+        var json = JsonSerializer.Serialize(this);
+        return JsonSerializer.Deserialize<CityDto>(json) ?? throw new InvalidOperationException("Failed to deep clone CityDto");
     }
 }
 

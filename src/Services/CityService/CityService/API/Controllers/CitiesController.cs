@@ -129,6 +129,7 @@ public class CitiesController : ControllerBase
     /// </summary>
     [HttpGet("list")]
     [AllowAnonymous]
+    [ResponseCache(Duration = 30, VaryByQueryKeys = new[] { "pageNumber", "pageSize", "search" }, VaryByHeader = "Authorization")]
     public async Task<ActionResult<ApiResponse<PaginatedResponse<CityListItemDto>>>> GetCityList(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
@@ -581,6 +582,7 @@ public class CitiesController : ControllerBase
     /// </summary>
     [HttpGet("{id:guid}")]
     [AllowAnonymous]
+    [ResponseCache(Duration = 60, VaryByQueryKeys = new[] { "id" }, VaryByHeader = "Authorization")]
     public async Task<ActionResult<ApiResponse<CityDto>>> GetCity(Guid id)
     {
         try
@@ -595,6 +597,17 @@ public class CitiesController : ControllerBase
                     Message = $"City with ID {id} not found",
                     Errors = new List<string> { "City not found" }
                 });
+
+            // 设置 ETag 用于客户端条件请求
+            var etag = $"\"{city.UpdatedAt?.Ticks ?? city.CreatedAt.Ticks}\"";
+            Response.Headers["ETag"] = etag;
+            Response.Headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=30";
+
+            // 如果客户端发送了 If-None-Match 头且匹配，返回 304
+            if (Request.Headers.TryGetValue("If-None-Match", out var ifNoneMatch) && ifNoneMatch == etag)
+            {
+                return StatusCode(304);
+            }
 
             return Ok(new ApiResponse<CityDto>
             {
