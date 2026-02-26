@@ -87,4 +87,14 @@ public interface ICityService
     ///     清除城市列表缓存（当城市相关数据变更时调用）
     /// </summary>
     void InvalidateCityListCache();
+
+    /// <summary>
+    ///     清除城市详情缓存（当城市数据变更时调用）
+    /// </summary>
+    void InvalidateCityDetailCache(Guid? cityId = null);
+
+    /// <summary>
+    ///     清除所有城市相关缓存（列表 + 详情）
+    /// </summary>
+    void InvalidateAllCityCaches(Guid? cityId = null);
 }

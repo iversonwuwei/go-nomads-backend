@@ -149,6 +149,9 @@ builder.Services.AddScoped<RatingCategorySeeder>();
 // 添加内存缓存 - 用于天气数据缓存
 builder.Services.AddMemoryCache();
 
+// 添加响应缓存中间件（支持 [ResponseCache] 特性）
+builder.Services.AddResponseCaching();
+
 // 注册后台天气刷新服务
 builder.Services.AddHostedService<WeatherCacheRefreshService>();
 
@@ -213,6 +216,9 @@ app.UseUserContext();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// 响应缓存中间件（在 Authorization 之后，MapControllers 之前）
+app.UseResponseCaching();
 
 app.MapControllers();
 

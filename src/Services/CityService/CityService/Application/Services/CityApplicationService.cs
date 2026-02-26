@@ -96,6 +96,36 @@ public class CityApplicationService : ICityService
     }
 
     /// <summary>
+    /// 清除城市详情缓存（当城市数据变更时调用）
+    /// </summary>
+    public void InvalidateCityDetailCache(Guid? cityId = null)
+    {
+        if (cityId.HasValue)
+        {
+            // 清除特定城市的缓存：直接递增全局版本号（简单有效）
+            var newVersion = DateTime.UtcNow.Ticks;
+            _cache.Set("city_detail:version", newVersion);
+            _logger.LogInformation("🗑️ [Cache] 城市详情缓存已失效: CityId={CityId}, 新版本号: {Version}", cityId, newVersion);
+        }
+        else
+        {
+            // 清除所有城市详情缓存
+            var newVersion = DateTime.UtcNow.Ticks;
+            _cache.Set("city_detail:version", newVersion);
+            _logger.LogInformation("🗑️ [Cache] 所有城市详情缓存已失效, 新版本号: {Version}", newVersion);
+        }
+    }
+
+    /// <summary>
+    /// 清除所有城市相关缓存
+    /// </summary>
+    public void InvalidateAllCityCaches(Guid? cityId = null)
+    {
+        InvalidateCityListCache();
+        InvalidateCityDetailCache(cityId);
+    }
+
+    /// <summary>
     /// 发布城市更新事件到 MassTransit，用于同步到 Elasticsearch
     /// </summary>
     private async Task PublishCityUpdatedMessageAsync(City city, List<string> updatedFields)
@@ -722,39 +752,58 @@ public class CityApplicationService : ICityService
 
     public async Task<CityDto?> GetCityByIdAsync(Guid id, Guid? userId = null, string? userRole = null)
     {
-        var city = await _cityRepository.GetByIdAsync(id);
-        if (city == null) return null;
+        var stopwatch = Stopwatch.StartNew();
 
-        // 调试日志 - 打印图片字段
-        _logger.LogInformation(
-            "🖼️ [GetCityById] 图片字段调试: CityId={CityId}, Name={CityName}, ImageUrl={ImageUrl}, PortraitImageUrl={PortraitImageUrl}, LandscapeImageUrls={LandscapeImageUrls}, LandscapeCount={Count}",
-            id, city.Name, city.ImageUrl, city.PortraitImageUrl, 
-            city.LandscapeImageUrls != null ? string.Join(", ", city.LandscapeImageUrls) : "null",
-            city.LandscapeImageUrls?.Count ?? 0);
+        // 🚀 优化：使用内存缓存存储城市基础数据（不包含用户相关数据）
+        var cacheVersion = _cache.GetOrCreate("city_detail:version", entry => DateTime.UtcNow.Ticks);
+        var baseCacheKey = $"city_detail:v{cacheVersion}:{id}";
+        CityDto? cityDto;
 
-        var cityDto = MapToDto(city);
+        if (_cache.TryGetValue(baseCacheKey, out CityDto? cachedCity) && cachedCity != null)
+        {
+            // 深拷贝缓存数据，避免修改缓存中的对象
+            cityDto = cachedCity.DeepClone();
+            _logger.LogInformation("📦 [GetCityById] 从缓存获取城市详情: CityId={CityId}, Name={CityName}", id, cityDto.Name);
+        }
+        else
+        {
+            var city = await _cityRepository.GetByIdAsync(id);
+            if (city == null) return null;
 
-        // 并行填充数据
-        var favoriteTask = userId.HasValue
-            ? _favoriteCityService.IsCityFavoritedAsync(userId.Value, id.ToString())
-            : Task.FromResult(false);
-        var moderatorTask = EnrichCityWithModeratorInfoAsync(cityDto);
-        var ratingsAndCostsTask = EnrichCitiesWithRatingsAndCostsAsync(new List<CityDto> { cityDto });
+            _logger.LogDebug(
+                "🖼️ [GetCityById] 图片字段: CityId={CityId}, Name={CityName}, LandscapeCount={Count}",
+                id, city.Name, city.LandscapeImageUrls?.Count ?? 0);
 
-        await Task.WhenAll(favoriteTask, moderatorTask, ratingsAndCostsTask);
+            cityDto = MapToDto(city);
 
-        if (userId.HasValue) cityDto.IsFavorite = await favoriteTask;
+            // 并行填充非用户相关数据（版主信息 + 评分费用）
+            var moderatorTask = EnrichCityWithModeratorInfoAsync(cityDto);
+            var ratingsAndCostsTask = EnrichCitiesWithRatingsAndCostsAsync(new List<CityDto> { cityDto });
 
-        // 调试日志（Debug 级别）
-        _logger.LogDebug(
-            "🔍 [GetCityById] CityId: {CityId}, CurrentUserId: {UserId}, UserRole: {UserRole}, ModeratorId: {ModeratorId}",
-            id, userId, userRole, cityDto.ModeratorId);
+            await Task.WhenAll(moderatorTask, ratingsAndCostsTask);
+
+            // 缓存基础数据（不含用户收藏状态）— 90秒过期，滑动60秒
+            var cacheOptions = new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(TimeSpan.FromSeconds(90))
+                .SetSlidingExpiration(TimeSpan.FromSeconds(60));
+            _cache.Set(baseCacheKey, cityDto.DeepClone(), cacheOptions);
+
+            _logger.LogInformation("💾 [GetCityById] 城市详情已缓存: CityId={CityId}, key={CacheKey}", id, baseCacheKey);
+        }
+
+        // 用户相关数据每次实时获取（不缓存）
+        if (userId.HasValue)
+        {
+            var isFavorite = await _favoriteCityService.IsCityFavoritedAsync(userId.Value, id.ToString());
+            cityDto.IsFavorite = isFavorite;
+        }
 
         // 设置用户上下文（包括是否为管理员和是否为该城市版主）
         cityDto.SetUserContext(userId, userRole);
 
-        _logger.LogDebug("✅ [GetCityById] IsCurrentUserAdmin: {IsAdmin}, IsCurrentUserModerator: {IsModerator}",
-            cityDto.IsCurrentUserAdmin, cityDto.IsCurrentUserModerator);
+        stopwatch.Stop();
+        _logger.LogInformation("⏱️ [GetCityById] 总耗时: {Elapsed}ms, CityId={CityId}, FromCache={FromCache}",
+            stopwatch.ElapsedMilliseconds, id, _cache.TryGetValue(baseCacheKey, out _));
 
         return cityDto;
     }
@@ -883,8 +932,8 @@ public class CityApplicationService : ICityService
 
         var createdCity = await _cityRepository.CreateAsync(city);
 
-        // 清除城市列表缓存
-        InvalidateCityListCache();
+        // 清除所有城市相关缓存
+        InvalidateAllCityCaches(createdCity.Id);
 
         _logger.LogInformation("City created: {CityId} - {CityName}", createdCity.Id, createdCity.Name);
         return MapToDto(createdCity);
@@ -931,8 +980,8 @@ public class CityApplicationService : ICityService
         // 发布城市更新事件到 Elasticsearch（任何字段变更都同步）
         await PublishCityUpdatedMessageAsync(updatedCity, updatedFields);
 
-        // 清除城市列表缓存
-        InvalidateCityListCache();
+        // 清除所有城市相关缓存
+        InvalidateAllCityCaches(id);
 
         _logger.LogInformation("City updated: {CityId} - {CityName}", id, existingCity.Name);
         return MapToDto(updatedCity);
@@ -943,8 +992,8 @@ public class CityApplicationService : ICityService
         var result = await _cityRepository.DeleteAsync(id, deletedBy);
         if (result)
         {
-            // 清除城市列表缓存
-            InvalidateCityListCache();
+            // 清除所有城市相关缓存
+            InvalidateAllCityCaches(id);
             _logger.LogInformation("City deleted: {CityId}, DeletedBy: {DeletedBy}", id, deletedBy);
         }
 
@@ -1209,8 +1258,8 @@ public class CityApplicationService : ICityService
 
             await _cityRepository.UpdateAsync(city.Id, city);
 
-            // 失效城市列表缓存，确保下次获取列表时能看到新版主
-            InvalidateCityListCache();
+            // 失效所有城市相关缓存，确保下次获取时能看到新版主
+            InvalidateAllCityCaches(dto.CityId);
             _logger.LogInformation("用户 {UserId} 申请成为城市 {CityId} 的版主成功", userId, dto.CityId);
             return true;
         }
@@ -1251,8 +1300,8 @@ public class CityApplicationService : ICityService
                     existingModerator.IsActive = true;
                     existingModerator.AssignedAt = DateTime.UtcNow;
                     await _moderatorRepository.UpdateAsync(existingModerator);
-                    // 失效城市列表缓存
-                    InvalidateCityListCache();
+                    // 失效所有城市相关缓存
+                    InvalidateAllCityCaches(dto.CityId);
                     // 发布城市更新事件，同步到 Elasticsearch
                     await PublishCityUpdatedMessageAsync(city, ["moderator"]);
                     // 通过 SignalR 广播版主变更
@@ -1285,8 +1334,8 @@ public class CityApplicationService : ICityService
 
             await _moderatorRepository.AddAsync(cityModerator);
 
-            // 失效城市列表缓存，确保下次获取列表时能看到新版主
-            InvalidateCityListCache();
+            // 失效所有城市相关缓存，确保下次获取时能看到新版主
+            InvalidateAllCityCaches(dto.CityId);
             // 发布城市更新事件，同步到 Elasticsearch
             await PublishCityUpdatedMessageAsync(city, ["moderator"]);
             // 通过 SignalR 广播版主变更
@@ -2065,8 +2114,8 @@ public class CityApplicationService : ICityService
 
             if (result != null)
             {
-                // 失效城市列表缓存，确保所有 Pod 返回最新图片
-                InvalidateCityListCache();
+                // 失效所有城市相关缓存，确保所有 Pod 返回最新图片
+                InvalidateAllCityCaches(cityId);
                 _logger.LogInformation("✅ 城市图片更新成功: CityId={CityId}", cityId);
                 return true;
             }
@@ -2103,8 +2152,8 @@ public class CityApplicationService : ICityService
 
             if (result)
             {
-                // 失效城市列表缓存，确保下次获取列表时能看到新图片
-                InvalidateCityListCache();
+                // 失效所有城市相关缓存，确保下次获取时能看到新图片
+                InvalidateAllCityCaches(cityId);
                 _logger.LogInformation("✅ 城市图片全部更新成功: CityId={CityId}", cityId);
                 return true;
             }

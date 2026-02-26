@@ -125,8 +125,8 @@ public class ModeratorApplicationService : IModeratorApplicationService
             await _moderatorRepo.AddAsync(moderator);
             _logger.LogInformation("✅ 已为用户 {UserId} 创建版主记录", application.UserId);
 
-            // 失效城市列表缓存 + 同步到 Elasticsearch
-            _cityService.InvalidateCityListCache();
+            // 失效所有城市相关缓存 + 同步到 Elasticsearch
+            _cityService.InvalidateAllCityCaches(application.CityId);
             await PublishCityUpdatedMessageAsync(application.CityId, ["moderator"]);
             // 通过 SignalR 广播版主变更
             await PublishCityModeratorUpdatedMessageAsync(application.CityId, "approved", application.UserId.ToString());
@@ -229,8 +229,8 @@ public class ModeratorApplicationService : IModeratorApplicationService
         
         await _applicationRepo.UpdateAsync(application);
 
-        // 5. 失效城市列表缓存 + 同步到 Elasticsearch
-        _cityService.InvalidateCityListCache();
+        // 5. 失效所有城市相关缓存 + 同步到 Elasticsearch
+        _cityService.InvalidateAllCityCaches(application.CityId);
         await PublishCityUpdatedMessageAsync(application.CityId, ["moderator"]);
         // 通过 SignalR 广播版主变更
         await PublishCityModeratorUpdatedMessageAsync(application.CityId, "revoked", application.UserId.ToString());

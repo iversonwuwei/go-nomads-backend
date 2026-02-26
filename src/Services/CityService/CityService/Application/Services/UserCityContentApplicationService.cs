@@ -59,6 +59,25 @@ public class UserCityContentApplicationService : IUserCityContentService
         _logger.LogInformation("🗑️ [Cache] 城市列表缓存已失效 (from UserCityContent), 新版本号: {Version}", newVersion);
     }
 
+    /// <summary>
+    /// 失效城市详情缓存
+    /// </summary>
+    private void InvalidateCityDetailCache()
+    {
+        var newVersion = DateTime.UtcNow.Ticks;
+        _cache.Set("city_detail:version", newVersion);
+        _logger.LogInformation("🗑️ [Cache] 城市详情缓存已失效 (from UserCityContent), 新版本号: {Version}", newVersion);
+    }
+
+    /// <summary>
+    /// 失效所有城市相关缓存
+    /// </summary>
+    private void InvalidateAllCityCaches()
+    {
+        InvalidateCityListCache();
+        InvalidateCityDetailCache();
+    }
+
     #region 照片相关
 
     public async Task<UserCityPhotoDto> AddPhotoAsync(Guid userId, AddCityPhotoRequest request)
@@ -269,8 +288,8 @@ public class UserCityContentApplicationService : IUserCityContentService
 
         var created = await _reviewRepository.CreateAsync(review); // ✅ 改为 CreateAsync,每次都新增记录
 
-        // 失效城市列表缓存，确保评论数量能同步更新
-        InvalidateCityListCache();
+        // 失效所有城市相关缓存，确保评论数量能同步更新
+        InvalidateAllCityCaches();
         
         // 更新城市评分缓存（评论的 Rating 字段影响城市总评分）
         await UpdateCityScoreFromReviewsAsync(request.CityId);
@@ -471,8 +490,8 @@ public class UserCityContentApplicationService : IUserCityContentService
         {
             _logger.LogInformation("用户 {UserId} 删除了评论 {ReviewId}", userId, reviewId);
             
-            // 失效城市列表缓存
-            InvalidateCityListCache();
+            // 失效所有城市相关缓存
+            InvalidateAllCityCaches();
             
             // 更新城市评分缓存
             if (!string.IsNullOrEmpty(cityId))
