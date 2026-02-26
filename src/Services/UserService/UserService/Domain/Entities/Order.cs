@@ -94,6 +94,9 @@ public class Order : BaseModel
     [Column("wechat_transaction_id")]
     public string? WeChatTransactionId { get; set; }
 
+    [Column("payment_status")]
+    public string PaymentStatus { get; set; } = "pending";
+
     [Column("error_message")]
     public string? ErrorMessage { get; set; }
 
@@ -202,6 +205,7 @@ public class Order : BaseModel
     public void MarkAsCompletedByWeChat(string wechatTransactionId)
     {
         Status = "completed";
+        PaymentStatus = "paid";
         WeChatTransactionId = wechatTransactionId;
         CompletedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
@@ -216,6 +220,7 @@ public class Order : BaseModel
     public void MarkAsCompleted(string captureId, string? payerId = null, string? payerEmail = null)
     {
         Status = "completed";
+        PaymentStatus = "paid";
         PayPalCaptureId = captureId;
         PayPalPayerId = payerId;
         PayPalPayerEmail = payerEmail;
@@ -226,6 +231,7 @@ public class Order : BaseModel
     public void MarkAsFailed(string errorMessage)
     {
         Status = "failed";
+        PaymentStatus = "failed";
         ErrorMessage = errorMessage;
         UpdatedAt = DateTime.UtcNow;
     }
@@ -239,6 +245,7 @@ public class Order : BaseModel
     public void MarkAsRefunded()
     {
         Status = "refunded";
+        PaymentStatus = "refunded";
         UpdatedAt = DateTime.UtcNow;
     }
 
