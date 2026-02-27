@@ -1297,7 +1297,7 @@ public class AIChatApplicationService : IAIChatService
     }
 
     /// <summary>
-    ///     尝试修复不完整的 JSON（处理未闭合的对象/数组）
+    ///     尝试修复不完整的 JSON（处理未闭合的对象/数组、未转义控制字符、截断的字符串）
     /// </summary>
     private string TryFixIncompleteJson(string json)
     {
@@ -1313,13 +1313,16 @@ public class AIChatApplicationService : IAIChatService
         {
             _logger.LogWarning("⚠️ JSON 格式不完整，尝试自动修复...");
 
-            // 统计括号和方括号
+            // 第一步：转义 JSON 字符串值内的控制字符（换行、制表符等）
+            var sanitized = EscapeControlCharsInJsonStrings(json);
+
+            // 第二步：处理截断的字符串和补全括号
             var braceCount = 0;
             var bracketCount = 0;
             var inString = false;
             var prevChar = '\0';
 
-            foreach (var c in json)
+            foreach (var c in sanitized)
             {
                 if (c == '"' && prevChar != '\\')
                 {
@@ -1336,8 +1339,14 @@ public class AIChatApplicationService : IAIChatService
                 prevChar = c;
             }
 
-            // 补全缺失的闭合符号
-            var fixedJson = json;
+            var fixedJson = sanitized;
+
+            // 如果 JSON 在字符串内部被截断，先闭合字符串
+            if (inString)
+            {
+                _logger.LogInformation("🔧 检测到截断的字符串，自动闭合");
+                fixedJson += "\"";
+            }
 
             // 先闭合数组
             for (var i = 0; i < bracketCount; i++) fixedJson += "\n]";
@@ -1345,7 +1354,9 @@ public class AIChatApplicationService : IAIChatService
             // 再闭合对象
             for (var i = 0; i < braceCount; i++) fixedJson += "\n}";
 
-            _logger.LogInformation("🔧 JSON 修复完成，补全了 {Brackets} 个方括号和 {Braces} 个花括号", bracketCount, braceCount);
+            _logger.LogInformation(
+                "🔧 JSON 修复完成，转义控制字符={Sanitized}，闭合字符串={ClosedString}，补全方括号={Brackets}，补全花括号={Braces}",
+                sanitized != json, inString, bracketCount, braceCount);
 
             // 再次验证修复后的 JSON
             try
@@ -1356,9 +1367,135 @@ public class AIChatApplicationService : IAIChatService
             catch (JsonException ex)
             {
                 _logger.LogError(ex, "❌ JSON 修复后仍然无效");
+
+                // 最后兜底：移除截断的最后一个不完整元素再尝试
+                var fallback = TryTruncateLastIncompleteElement(fixedJson);
+                if (fallback != null)
+                {
+                    try
+                    {
+                        JsonDocument.Parse(fallback);
+                        _logger.LogInformation("🔧 移除不完整尾部元素后修复成功");
+                        return fallback;
+                    }
+                    catch (JsonException)
+                    {
+                        // 放弃
+                    }
+                }
+
                 return json; // 修复失败，返回原始内容
             }
         }
+    }
+
+    /// <summary>
+    ///     转义 JSON 字符串值内部的控制字符（换行符、制表符等），保留结构性字符不变
+    /// </summary>
+    private static string EscapeControlCharsInJsonStrings(string json)
+    {
+        var sb = new System.Text.StringBuilder(json.Length + 64);
+        var inString = false;
+        var prevChar = '\0';
+
+        for (var i = 0; i < json.Length; i++)
+        {
+            var c = json[i];
+
+            if (c == '"' && prevChar != '\\')
+            {
+                inString = !inString;
+                sb.Append(c);
+            }
+            else if (inString)
+            {
+                // 转义 JSON 字符串中不允许的控制字符
+                switch (c)
+                {
+                    case '\n':
+                        sb.Append("\\n");
+                        break;
+                    case '\r':
+                        sb.Append("\\r");
+                        break;
+                    case '\t':
+                        sb.Append("\\t");
+                        break;
+                    case '\b':
+                        sb.Append("\\b");
+                        break;
+                    case '\f':
+                        sb.Append("\\f");
+                        break;
+                    default:
+                        if (char.IsControl(c))
+                            sb.Append($"\\u{(int)c:X4}");
+                        else
+                            sb.Append(c);
+                        break;
+                }
+            }
+            else
+            {
+                sb.Append(c);
+            }
+
+            prevChar = c;
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    ///     尝试移除截断的最后一个不完整数组元素或对象属性，重新闭合 JSON
+    /// </summary>
+    private static string? TryTruncateLastIncompleteElement(string json)
+    {
+        // 找到最后一个逗号位置（在字符串外部），移除逗号之后的内容，重新闭合
+        var lastCommaIndex = -1;
+        var inString = false;
+        var prevChar = '\0';
+
+        for (var i = 0; i < json.Length; i++)
+        {
+            var c = json[i];
+            if (c == '"' && prevChar != '\\')
+                inString = !inString;
+            else if (!inString && c == ',')
+                lastCommaIndex = i;
+            prevChar = c;
+        }
+
+        if (lastCommaIndex <= 0) return null;
+
+        // 截断到最后一个逗号之前
+        var truncated = json.Substring(0, lastCommaIndex);
+
+        // 重新统计并闭合
+        var braceCount = 0;
+        var bracketCount = 0;
+        inString = false;
+        prevChar = '\0';
+
+        foreach (var c in truncated)
+        {
+            if (c == '"' && prevChar != '\\')
+                inString = !inString;
+            else if (!inString)
+            {
+                if (c == '{') braceCount++;
+                else if (c == '}') braceCount--;
+                else if (c == '[') bracketCount++;
+                else if (c == ']') bracketCount--;
+            }
+            prevChar = c;
+        }
+
+        if (inString) truncated += "\"";
+        for (var i = 0; i < bracketCount; i++) truncated += "\n]";
+        for (var i = 0; i < braceCount; i++) truncated += "\n}";
+
+        return truncated;
     }
 
     /// <summary>
@@ -1571,7 +1708,7 @@ public class AIChatApplicationService : IAIChatService
 要求：信息要具体可操作，使用中文，返回严格 JSON 格式。";
 
         _logger.LogInformation("🤖 [3/3] 调用 AI 生成实用信息...");
-        var aiResponse = await CallAIAsync(prompt, 1000);
+        var aiResponse = await CallAIAsync(prompt, 2000);
 
         if (onProgress != null) await onProgress(95, "正在解析实用信息...");
 

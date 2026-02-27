@@ -18,6 +18,12 @@ public class NearbyCity : BaseModel
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
     /// <summary>
+    ///     用户ID (数据归属用户)
+    /// </summary>
+    [Column("user_id")]
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>
     ///     源城市ID (外键)
     /// </summary>
     [Column("source_city_id")]

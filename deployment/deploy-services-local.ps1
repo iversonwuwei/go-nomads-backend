@@ -149,7 +149,7 @@ $services = @(
     @{Name="city-service"; Port=8002; Path="src/Services/CityService/CityService"; Dll="CityService.dll"; Container="go-nomads-city-service"},
     @{Name="event-service"; Port=8005; Path="src/Services/EventService/EventService"; Dll="EventService.dll"; Container="go-nomads-event-service"},
     @{Name="coworking-service"; Port=8006; Path="src/Services/CoworkingService/CoworkingService"; Dll="CoworkingService.dll"; Container="go-nomads-coworking-service"},
-    @{Name="ai-service"; Port=8009; Path="src/Services/AIService/AIService"; Dll="AIService.dll"; Container="go-nomads-ai-service"},
+    @{Name="ai-service"; Port=8009; Path="src/Services/AIService/AIService"; Dll="AIService.dll"; Container="go-nomads-ai-service"; NativePackages="libfontconfig1"},
     @{Name="cache-service"; Port=8010; Path="src/Services/CacheService/CacheService"; Dll="CacheService.dll"; Container="go-nomads-cache-service"},
     @{Name="message-service"; Port=5005; Path="src/Services/MessageService/MessageService/API"; Dll="MessageService.dll"; Container="go-nomads-message-service"},
     @{Name="accommodation-service"; Port=8012; Path="src/Services/AccommodationService/AccommodationService"; Dll="AccommodationService.dll"; Container="go-nomads-accommodation-service"},
@@ -389,6 +389,29 @@ foreach ($svc in $services) {
     
     # 确定监听端口
     $listenPort = if ($svc.Name -eq "gateway") { "5000" } else { "8080" }
+
+    # 确定基础镜像：如果服务需要额外原生包，构建自定义镜像
+    $baseImage = "mcr.microsoft.com/dotnet/aspnet:9.0"
+    if ($svc.NativePackages) {
+        $customImage = "go-nomads-$($svc.Name)-runtime:9.0"
+        $existingImage = & $RUNTIME images -q $customImage 2>$null
+        if (-not $existingImage) {
+            Write-Host "  构建自定义运行时镜像 ($($svc.NativePackages))..." -ForegroundColor Yellow
+            $tmpDockerfile = Join-Path $env:TEMP "Dockerfile.go-nomads-$($svc.Name)"
+            "FROM mcr.microsoft.com/dotnet/aspnet:9.0`nRUN apt-get update && apt-get install -y --no-install-recommends $($svc.NativePackages) && rm -rf /var/lib/apt/lists/*" | Set-Content -Path $tmpDockerfile -Encoding UTF8
+            & $RUNTIME build -t $customImage -f $tmpDockerfile . 2>&1 | Out-Null
+            Remove-Item $tmpDockerfile -Force -ErrorAction SilentlyContinue
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  [警告] 自定义镜像构建失败，使用默认镜像" -ForegroundColor Yellow
+            } else {
+                $baseImage = $customImage
+                Write-Host "  自定义运行时镜像构建成功!" -ForegroundColor Green
+            }
+        } else {
+            $baseImage = $customImage
+            Write-Host "  使用已缓存的自定义运行时镜像" -ForegroundColor Green
+        }
+    }
     
     $runArgs = @(
         "run", "-d",
@@ -409,7 +432,7 @@ foreach ($svc in $services) {
     $runArgs += @(
         "-v", "${publish}:/app:ro",
         "-w", "/app",
-        "mcr.microsoft.com/dotnet/aspnet:9.0",
+        $baseImage,
         "dotnet", $svc.Dll
     )
     

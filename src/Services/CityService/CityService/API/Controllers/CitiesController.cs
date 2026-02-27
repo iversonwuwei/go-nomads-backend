@@ -1265,9 +1265,10 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("📖 获取数字游民指南: cityId={CityId}", cityId);
+            var userId = _currentUser.GetUserIdString() ?? "00000000-0000-0000-0000-000000000001";
+            _logger.LogInformation("📖 获取数字游民指南: userId={UserId}, cityId={CityId}", userId, cityId);
 
-            var guide = await _guideService.GetByCityIdAsync(cityId);
+            var guide = await _guideService.GetByUserAndCityIdAsync(userId, cityId);
 
             if (guide == null)
             {
@@ -1332,9 +1333,13 @@ public class CitiesController : ControllerBase
                     Data = null
                 });
 
+            // 获取用户ID：优先使用请求中的UserId，否则从当前用户获取
+            var userId = request.UserId ?? _currentUser.GetUserIdString() ?? "00000000-0000-0000-0000-000000000001";
+
             // 映射到实体
             var guide = new DigitalNomadGuide
             {
+                UserId = userId,
                 CityId = request.CityId,
                 CityName = request.CityName,
                 Overview = request.Overview,
@@ -1397,6 +1402,7 @@ public class CitiesController : ControllerBase
         return new DigitalNomadGuideDto
         {
             Id = guide.Id,
+            UserId = guide.UserId,
             CityId = guide.CityId,
             CityName = guide.CityName,
             Overview = guide.Overview,
@@ -1901,16 +1907,16 @@ public class CitiesController : ControllerBase
     /// <param name="cityId">City ID</param>
     /// <returns>List of nearby cities</returns>
     [HttpGet("{cityId}/nearby")]
-    [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<List<NearbyCityDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<ApiResponse<List<NearbyCityDto>>>> GetNearbyCities(string cityId)
     {
         try
         {
-            _logger.LogInformation("📖 获取附近城市: cityId={CityId}", cityId);
+            var userId = _currentUser.GetUserIdString() ?? "00000000-0000-0000-0000-000000000001";
+            _logger.LogInformation("📖 获取附近城市: userId={UserId}, cityId={CityId}", userId, cityId);
 
-            var nearbyCities = await _nearbyCityService.GetBySourceCityIdAsync(cityId);
+            var nearbyCities = await _nearbyCityService.GetByUserAndSourceCityIdAsync(userId, cityId);
 
             var dtos = nearbyCities.Select(MapToDto).ToList();
 
@@ -1965,9 +1971,13 @@ public class CitiesController : ControllerBase
                     Data = null
                 });
 
+            // 获取用户ID：优先使用请求中的UserId，否则从当前用户获取
+            var userId = request.UserId ?? _currentUser.GetUserIdString() ?? "00000000-0000-0000-0000-000000000001";
+
             // 映射到实体
             var nearbyCities = request.NearbyCities.Select(dto => new NearbyCity
             {
+                UserId = userId,
                 SourceCityId = cityId,
                 TargetCityId = dto.TargetCityId,
                 TargetCityName = dto.TargetCityName,
@@ -1992,7 +2002,7 @@ public class CitiesController : ControllerBase
                 IsAIGenerated = dto.IsAIGenerated
             }).ToList();
 
-            var savedCities = await _nearbyCityService.SaveBatchAsync(cityId, nearbyCities);
+            var savedCities = await _nearbyCityService.SaveBatchAsync(userId, cityId, nearbyCities);
 
             var dtos = savedCities.Select(MapToDto).ToList();
 
@@ -2030,9 +2040,10 @@ public class CitiesController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("🗑️ 删除附近城市: cityId={CityId}", cityId);
+            var userId = _currentUser.GetUserIdString() ?? "00000000-0000-0000-0000-000000000001";
+            _logger.LogInformation("🗑️ 删除附近城市: userId={UserId}, cityId={CityId}", userId, cityId);
 
-            var result = await _nearbyCityService.DeleteBySourceCityIdAsync(cityId);
+            var result = await _nearbyCityService.DeleteByUserAndSourceCityIdAsync(userId, cityId);
 
             return Ok(new ApiResponse<bool>
             {
@@ -2061,6 +2072,7 @@ public class CitiesController : ControllerBase
         return new NearbyCityDto
         {
             Id = entity.Id,
+            UserId = entity.UserId,
             SourceCityId = entity.SourceCityId,
             TargetCityId = entity.TargetCityId,
             TargetCityName = entity.TargetCityName,

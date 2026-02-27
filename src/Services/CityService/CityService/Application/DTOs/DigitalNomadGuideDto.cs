@@ -6,6 +6,7 @@ namespace CityService.Application.DTOs;
 public class DigitalNomadGuideDto
 {
     public string Id { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
     public string CityId { get; set; } = string.Empty;
     public string CityName { get; set; } = string.Empty;
     public string Overview { get; set; } = string.Empty;
@@ -52,6 +53,7 @@ public class BestAreaDto
 /// </summary>
 public class SaveDigitalNomadGuideRequest
 {
+    public string? UserId { get; set; }
     public string CityId { get; set; } = string.Empty;
     public string CityName { get; set; } = string.Empty;
     public string Overview { get; set; } = string.Empty;
