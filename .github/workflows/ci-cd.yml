@@ -36,6 +36,16 @@ jobs:
       - name: 恢复依赖
         run: dotnet restore go-nomads-backend.sln
 
+      - name: 校验 SkiaSharp Docker 依赖
+        run: |
+          chmod +x scripts/check-skia-docker-deps.sh
+          if ! ./scripts/check-skia-docker-deps.sh; then
+            echo ""
+            echo "===== 输出修复建议（--suggest-fix） ====="
+            ./scripts/check-skia-docker-deps.sh --suggest-fix || true
+            exit 1
+          fi
+
       - name: 构建项目
         run: dotnet build go-nomads-backend.sln -c Release --no-restore
 
