@@ -7,36 +7,38 @@
     </PropertyGroup>
 
 <ItemGroup>
-        <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.5"/>
+        <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.5" />
 
         <!-- Semantic Kernel 核心包 -->
-        <PackageReference Include="Microsoft.SemanticKernel" Version="1.25.0"/>
-        <PackageReference Include="Microsoft.SemanticKernel.Connectors.OpenAI" Version="1.25.0"/>
+        <PackageReference Include="Microsoft.SemanticKernel" Version="1.25.0" />
+        <PackageReference Include="Microsoft.SemanticKernel.Connectors.OpenAI" Version="1.25.0" />
 
         <!-- OpenAPI 和 Scalar 文档 -->
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.10"/>
-        <PackageReference Include="Scalar.AspNetCore" Version="1.2.42"/>
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.10" />
+        <PackageReference Include="Scalar.AspNetCore" Version="1.2.42" />
+        <PackageReference Include="SkiaSharp" Version="3.116.1" />
+        <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.116.1" />
 
 <!-- 数据库和缓存 -->
-        <PackageReference Include="supabase-csharp" Version="0.16.2"/>
-        <PackageReference Include="StackExchange.Redis" Version="2.7.33"/>
+        <PackageReference Include="supabase-csharp" Version="0.16.2" />
+        <PackageReference Include="StackExchange.Redis" Version="2.7.33" />
 
         <!-- 消息队列 -->
 
         <!-- 监控和日志 -->
-        <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1"/>
-        <PackageReference Include="Serilog.AspNetCore" Version="9.0.0"/>
-        <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0"/>
-        <PackageReference Include="Serilog.Sinks.File" Version="6.0.0"/>
+        <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />
+        <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+        <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+        <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
 
         <!-- HTTP 客户端 -->
-<PackageReference Include="Microsoft.Extensions.Http" Version="9.0.10"/>
+<PackageReference Include="Microsoft.Extensions.Http" Version="9.0.10" />
 
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj"/>
-<ProjectReference Include="..\..\..\GoNomads.ServiceDefaults\GoNomads.ServiceDefaults.csproj"/>
+        <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj" />
+<ProjectReference Include="..\..\..\GoNomads.ServiceDefaults\GoNomads.ServiceDefaults.csproj" />
 
     </ItemGroup>
 

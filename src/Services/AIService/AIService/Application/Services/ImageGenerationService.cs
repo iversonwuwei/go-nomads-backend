@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AIService.Application.DTOs;
+using SkiaSharp;
 using Client = Supabase.Client;
 
 namespace AIService.Application.Services;
@@ -18,8 +19,6 @@ public class ImageGenerationService : IImageGenerationService
     private const string WanxApiBaseUrl = "https://dashscope.aliyuncs.com/api/v1";
     private const string CreateTaskEndpoint = "/services/aigc/text2image/image-synthesis";
     private const string QueryTaskEndpoint = "/tasks";
-    private const int MaxPollingAttempts = 60; // 最多轮询60次
-    private const int PollingIntervalMs = 2000; // 每2秒轮询一次
     
     // 并发控制：最多同时处理 3 个城市图片生成请求
     private static readonly SemaphoreSlim _cityImageSemaphore = new(3, 3);
@@ -30,6 +29,19 @@ public class ImageGenerationService : IImageGenerationService
     private readonly HttpClient _httpClient;
     private readonly ILogger<ImageGenerationService> _logger;
     private readonly Client _supabaseClient;
+    
+    // 从配置读取的轮询参数
+    private readonly int _maxPollingAttempts;
+    private readonly int _pollingIntervalMs;
+    
+    // 移动端图片优化参数
+    private readonly int _coverImageWidth;      // 封面图宽度（横屏）
+    private readonly int _coverImageHeight;     // 封面图高度（横屏）
+    private readonly int _portraitImageWidth;   // 竖屏封面图宽度
+    private readonly int _portraitImageHeight;  // 竖屏封面图高度
+    private readonly int _landscapeImageWidth;  // 横屏跑马灯图宽度
+    private readonly int _landscapeImageHeight; // 横屏跑马灯图高度
+    private readonly int _webpQuality;          // WebP 压缩质量 (0-100)
 
     public ImageGenerationService(
         IConfiguration configuration,
@@ -41,10 +53,35 @@ public class ImageGenerationService : IImageGenerationService
         _httpClient = httpClientFactory.CreateClient("WanxClient");
         _supabaseClient = supabaseClient;
         _logger = logger;
+        
+        // 从配置读取轮询参数，使用更宽裕的默认值（90次 × 2秒 = 3分钟）
+        _maxPollingAttempts = configuration.GetValue("ImageGeneration:MaxPollingAttempts", 90);
+        _pollingIntervalMs = configuration.GetValue("ImageGeneration:PollingIntervalMs", 2000);
+        
+        // 移动端图片优化参数（适配手机屏幕，减少传输体积）
+        // 封面图：用于旅行计划卡片，手机屏宽一般 360-428dp，2x/3x 屏 → 750*422 足够
+        _coverImageWidth = configuration.GetValue("ImageGeneration:Mobile:CoverImageWidth", 750);
+        _coverImageHeight = configuration.GetValue("ImageGeneration:Mobile:CoverImageHeight", 422);
+        // 竖屏封面图：用于城市详情页头图，手机屏宽 → 750*1334 (iPhone 6/7/8 比例)
+        _portraitImageWidth = configuration.GetValue("ImageGeneration:Mobile:PortraitImageWidth", 750);
+        _portraitImageHeight = configuration.GetValue("ImageGeneration:Mobile:PortraitImageHeight", 1334);
+        // 横屏跑马灯图：用于详情页轮播，750*422 (16:9 比例)
+        _landscapeImageWidth = configuration.GetValue("ImageGeneration:Mobile:LandscapeImageWidth", 750);
+        _landscapeImageHeight = configuration.GetValue("ImageGeneration:Mobile:LandscapeImageHeight", 422);
+        // WebP 压缩质量：75 在视觉质量和文件大小之间取得良好平衡
+        _webpQuality = configuration.GetValue("ImageGeneration:Mobile:WebpQuality", 75);
+        
+        _logger.LogInformation(
+            "图片生成服务初始化，轮询配置: MaxAttempts={MaxAttempts}, IntervalMs={IntervalMs}, 总超时={TotalTimeout}秒, " +
+            "移动端优化: Cover={CoverW}x{CoverH}, Portrait={PortraitW}x{PortraitH}, Landscape={LandscapeW}x{LandscapeH}, WebpQuality={Quality}",
+            _maxPollingAttempts, _pollingIntervalMs, _maxPollingAttempts * _pollingIntervalMs / 1000,
+            _coverImageWidth, _coverImageHeight, _portraitImageWidth, _portraitImageHeight,
+            _landscapeImageWidth, _landscapeImageHeight, _webpQuality);
     }
 
     /// <inheritdoc />
-    public async Task<GenerateImageResponse> GenerateImageAsync(GenerateImageRequest request, Guid userId)
+    public async Task<GenerateImageResponse> GenerateImageAsync(
+        GenerateImageRequest request, Guid userId, CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
         var response = new GenerateImageResponse();
@@ -54,13 +91,13 @@ public class ImageGenerationService : IImageGenerationService
             _logger.LogInformation("开始生成图片，用户: {UserId}, 提示词: {Prompt}", userId, request.Prompt);
 
             // 1. 创建通义万象任务
-            var taskId = await CreateWanxTaskAsync(request);
+            var taskId = await CreateWanxTaskAsync(request, cancellationToken);
             response.TaskId = taskId;
 
             _logger.LogInformation("通义万象任务已创建，TaskId: {TaskId}", taskId);
 
             // 2. 轮询任务状态直到完成
-            var taskResult = await PollTaskUntilCompleteAsync(taskId);
+            var taskResult = await PollTaskUntilCompleteAsync(taskId, cancellationToken);
 
             if (taskResult.Status != "SUCCEEDED" || taskResult.ImageUrls.Count == 0)
             {
@@ -103,7 +140,8 @@ public class ImageGenerationService : IImageGenerationService
     }
 
     /// <inheritdoc />
-    public async Task<GenerateCityImagesResponse> GenerateCityImagesAsync(GenerateCityImagesRequest request)
+    public async Task<GenerateCityImagesResponse> GenerateCityImagesAsync(
+        GenerateCityImagesRequest request, CancellationToken cancellationToken = default)
     {
         // 检查是否有相同城市的请求正在处理中
         if (_pendingCityRequests.TryGetValue(request.CityId, out var existingTask))
@@ -135,7 +173,7 @@ public class ImageGenerationService : IImageGenerationService
 
         try
         {
-            var result = await GenerateCityImagesInternalAsync(request);
+            var result = await GenerateCityImagesInternalAsync(request, cancellationToken);
             taskCompletionSource.SetResult(result);
             return result;
         }
@@ -154,7 +192,8 @@ public class ImageGenerationService : IImageGenerationService
     /// <summary>
     /// 内部方法：实际执行城市图片生成（带并发控制）
     /// </summary>
-    private async Task<GenerateCityImagesResponse> GenerateCityImagesInternalAsync(GenerateCityImagesRequest request)
+    private async Task<GenerateCityImagesResponse> GenerateCityImagesInternalAsync(
+        GenerateCityImagesRequest request, CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
         var response = new GenerateCityImagesResponse
@@ -325,15 +364,17 @@ public class ImageGenerationService : IImageGenerationService
     }
 
     /// <inheritdoc />
-    public async Task<ImageTaskStatusResponse> GetTaskStatusAsync(string taskId)
+    public async Task<ImageTaskStatusResponse> GetTaskStatusAsync(
+        string taskId, CancellationToken cancellationToken = default)
     {
-        return await QueryWanxTaskStatusAsync(taskId);
+        return await QueryWanxTaskStatusAsync(taskId, cancellationToken);
     }
 
     /// <summary>
     ///     创建通义万象图片生成任务
     /// </summary>
-    private async Task<string> CreateWanxTaskAsync(GenerateImageRequest request)
+    private async Task<string> CreateWanxTaskAsync(
+        GenerateImageRequest request, CancellationToken cancellationToken = default)
     {
         var apiKey = _configuration["Qwen:ApiKey"]
                      ?? throw new InvalidOperationException("未配置 Qwen:ApiKey");
@@ -367,8 +408,8 @@ public class ImageGenerationService : IImageGenerationService
 
         _logger.LogDebug("发送通义万象创建任务请求: {Json}", json);
 
-        var httpResponse = await _httpClient.SendAsync(httpRequest);
-        var responseContent = await httpResponse.Content.ReadAsStringAsync();
+        var httpResponse = await _httpClient.SendAsync(httpRequest, cancellationToken);
+        var responseContent = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
 
         _logger.LogDebug("通义万象创建任务响应: {Response}", responseContent);
 
@@ -387,35 +428,46 @@ public class ImageGenerationService : IImageGenerationService
     }
 
     /// <summary>
-    ///     轮询任务状态直到完成
+    ///     轮询任务状态直到完成（支持取消）
     /// </summary>
-    private async Task<ImageTaskStatusResponse> PollTaskUntilCompleteAsync(string taskId)
+    private async Task<ImageTaskStatusResponse> PollTaskUntilCompleteAsync(
+        string taskId, CancellationToken cancellationToken = default)
     {
-        for (var i = 0; i < MaxPollingAttempts; i++)
-        {
-            var status = await QueryWanxTaskStatusAsync(taskId);
+        var totalTimeoutMs = _maxPollingAttempts * _pollingIntervalMs;
+        _logger.LogInformation("开始轮询任务 {TaskId}，最大尝试次数: {MaxAttempts}，间隔: {IntervalMs}ms，总超时: {TotalTimeout}秒",
+            taskId, _maxPollingAttempts, _pollingIntervalMs, totalTimeoutMs / 1000);
 
-            _logger.LogDebug("任务 {TaskId} 状态: {Status} (第 {Attempt} 次查询)",
-                taskId, status.Status, i + 1);
+        for (var i = 0; i < _maxPollingAttempts; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var status = await QueryWanxTaskStatusAsync(taskId, cancellationToken);
+
+            _logger.LogDebug("任务 {TaskId} 状态: {Status} (第 {Attempt}/{MaxAttempts} 次查询)",
+                taskId, status.Status, i + 1, _maxPollingAttempts);
 
             if (status.Status is "SUCCEEDED" or "FAILED" or "CANCELED")
                 return status;
 
-            await Task.Delay(PollingIntervalMs);
+            await Task.Delay(_pollingIntervalMs, cancellationToken);
         }
+
+        _logger.LogWarning("任务 {TaskId} 轮询超时，已尝试 {MaxAttempts} 次（共 {TotalTimeout}秒）",
+            taskId, _maxPollingAttempts, totalTimeoutMs / 1000);
 
         return new ImageTaskStatusResponse
         {
             TaskId = taskId,
             Status = "TIMEOUT",
-            ErrorMessage = "任务轮询超时"
+            ErrorMessage = $"任务轮询超时（已等待 {totalTimeoutMs / 1000} 秒）"
         };
     }
 
     /// <summary>
     ///     查询通义万象任务状态
     /// </summary>
-    private async Task<ImageTaskStatusResponse> QueryWanxTaskStatusAsync(string taskId)
+    private async Task<ImageTaskStatusResponse> QueryWanxTaskStatusAsync(
+        string taskId, CancellationToken cancellationToken = default)
     {
         var apiKey = _configuration["Qwen:ApiKey"]
                      ?? throw new InvalidOperationException("未配置 Qwen:ApiKey");
@@ -423,8 +475,8 @@ public class ImageGenerationService : IImageGenerationService
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"{WanxApiBaseUrl}{QueryTaskEndpoint}/{taskId}");
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
-        var httpResponse = await _httpClient.SendAsync(httpRequest);
-        var responseContent = await httpResponse.Content.ReadAsStringAsync();
+        var httpResponse = await _httpClient.SendAsync(httpRequest, cancellationToken);
+        var responseContent = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
 
         _logger.LogDebug("通义万象任务状态响应: {Response}", responseContent);
 
@@ -466,7 +518,7 @@ public class ImageGenerationService : IImageGenerationService
     }
 
     /// <summary>
-    ///     下载图片并上传到 Supabase Storage（带重试机制）
+    ///     下载图片并上传到 Supabase Storage（带重试机制 + 移动端优化：缩放 + WebP 压缩）
     /// </summary>
     private async Task<List<GeneratedImageInfo>> DownloadAndUploadImagesAsync(
         List<string> imageUrls,
@@ -476,6 +528,9 @@ public class ImageGenerationService : IImageGenerationService
     {
         var uploadedImages = new List<GeneratedImageInfo>();
         const int maxRetries = 3;
+
+        // 根据 pathPrefix 推断目标尺寸
+        var (targetWidth, targetHeight) = InferTargetSize(pathPrefix);
 
         foreach (var imageUrl in imageUrls)
         {
@@ -490,14 +545,15 @@ public class ImageGenerationService : IImageGenerationService
                     {
                         _logger.LogInformation("📥 下载图片 (尝试 {Retry}/{Max}): {Url}", retry + 1, maxRetries, imageUrl);
                         imageBytes = await _httpClient.GetByteArrayAsync(imageUrl);
-                        _logger.LogInformation("✅ 图片下载成功，大小: {Size} bytes", imageBytes.Length);
-                        break; // 下载成功，跳出重试循环
+                        _logger.LogInformation("✅ 图片下载成功，原始大小: {Size} bytes ({SizeKB} KB)", 
+                            imageBytes.Length, imageBytes.Length / 1024);
+                        break;
                     }
                     catch (HttpRequestException ex) when (retry < maxRetries - 1)
                     {
                         _logger.LogWarning("⚠️ 下载图片失败 (尝试 {Retry}/{Max}): {Error}，将在 2 秒后重试",
                             retry + 1, maxRetries, ex.Message);
-                        await Task.Delay(2000); // 等待 2 秒后重试
+                        await Task.Delay(2000);
                     }
                 }
 
@@ -507,8 +563,18 @@ public class ImageGenerationService : IImageGenerationService
                     continue;
                 }
 
-                // 生成存储路径
-                var fileName = $"{Guid.NewGuid():N}.png";
+                // 🔧 移动端优化：缩放 + WebP 压缩
+                var originalSize = imageBytes.Length;
+                var optimizedBytes = OptimizeImageForMobile(imageBytes, targetWidth, targetHeight);
+                
+                _logger.LogInformation(
+                    "📱 图片移动端优化完成: {OriginalKB} KB → {OptimizedKB} KB (节省 {SavedPercent}%), 目标尺寸: {W}x{H}, WebP 质量: {Quality}",
+                    originalSize / 1024, optimizedBytes.Length / 1024,
+                    (int)((1 - (double)optimizedBytes.Length / originalSize) * 100),
+                    targetWidth, targetHeight, _webpQuality);
+
+                // 生成存储路径（使用 .webp 扩展名）
+                var fileName = $"{Guid.NewGuid():N}.webp";
                 var storagePath = string.IsNullOrEmpty(pathPrefix)
                     ? $"{userId}/{fileName}"
                     : $"{pathPrefix}/{userId}/{fileName}";
@@ -520,30 +586,29 @@ public class ImageGenerationService : IImageGenerationService
                 {
                     try
                     {
-                        _logger.LogInformation("📤 上传图片到 Supabase (尝试 {Retry}/{Max}): {Bucket}/{Path}",
-                            retry + 1, maxRetries, bucket, storagePath);
+                        _logger.LogInformation("📤 上传 WebP 图片到 Supabase (尝试 {Retry}/{Max}): {Bucket}/{Path}, 大小: {Size} KB",
+                            retry + 1, maxRetries, bucket, storagePath, optimizedBytes.Length / 1024);
 
                         await _supabaseClient.Storage
                             .From(bucket)
-                            .Upload(imageBytes, storagePath, new Supabase.Storage.FileOptions
+                            .Upload(optimizedBytes, storagePath, new Supabase.Storage.FileOptions
                             {
-                                ContentType = "image/png",
-                                Upsert = true // 使用 Upsert 避免重试时冲突
+                                ContentType = "image/webp",
+                                Upsert = true
                             });
 
-                        // 获取公开 URL
                         publicUrl = _supabaseClient.Storage
                             .From(bucket)
                             .GetPublicUrl(storagePath);
 
                         _logger.LogInformation("✅ 图片上传成功: {Url}", publicUrl);
-                        break; // 上传成功，跳出重试循环
+                        break;
                     }
                     catch (Exception ex) when (retry < maxRetries - 1)
                     {
                         _logger.LogWarning("⚠️ 上传图片失败 (尝试 {Retry}/{Max}): {Error}，将在 2 秒后重试",
                             retry + 1, maxRetries, ex.Message);
-                        await Task.Delay(2000); // 等待 2 秒后重试
+                        await Task.Delay(2000);
                     }
                 }
 
@@ -558,17 +623,95 @@ public class ImageGenerationService : IImageGenerationService
                     Url = publicUrl,
                     StoragePath = storagePath,
                     OriginalUrl = imageUrl,
-                    FileSize = imageBytes.Length
+                    FileSize = optimizedBytes.Length
                 });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "❌ 处理图片失败: {ImageUrl}", imageUrl);
-                // 继续处理其他图片
             }
         }
 
         return uploadedImages;
+    }
+
+    /// <summary>
+    ///     根据存储路径前缀推断目标图片尺寸
+    /// </summary>
+    private (int width, int height) InferTargetSize(string? pathPrefix)
+    {
+        if (string.IsNullOrEmpty(pathPrefix))
+            return (_coverImageWidth, _coverImageHeight);
+
+        // 竖屏封面图
+        if (pathPrefix.Contains("portrait", StringComparison.OrdinalIgnoreCase))
+            return (_portraitImageWidth, _portraitImageHeight);
+
+        // 横屏跑马灯图 / 附近城市 / 旅行计划封面
+        if (pathPrefix.Contains("landscape", StringComparison.OrdinalIgnoreCase) ||
+            pathPrefix.Contains("nearby", StringComparison.OrdinalIgnoreCase) ||
+            pathPrefix.Contains("travel-plans", StringComparison.OrdinalIgnoreCase))
+            return (_landscapeImageWidth, _landscapeImageHeight);
+
+        return (_coverImageWidth, _coverImageHeight);
+    }
+
+    /// <summary>
+    ///     移动端图片优化：缩放到目标尺寸 + WebP 压缩
+    ///     适合手机屏幕显示，大幅减少传输体积
+    /// </summary>
+    private byte[] OptimizeImageForMobile(byte[] originalBytes, int targetWidth, int targetHeight)
+    {
+        try
+        {
+            using var originalBitmap = SKBitmap.Decode(originalBytes);
+            if (originalBitmap == null)
+            {
+                _logger.LogWarning("⚠️ 无法解码图片，将使用原始数据上传");
+                return originalBytes;
+            }
+
+            // 如果原图已经小于等于目标尺寸，只做 WebP 压缩不缩放
+            SKBitmap targetBitmap;
+            if (originalBitmap.Width <= targetWidth && originalBitmap.Height <= targetHeight)
+            {
+                targetBitmap = originalBitmap;
+            }
+            else
+            {
+                // 等比缩放到目标尺寸（保持宽高比，取较小缩放比）
+                var scaleX = (float)targetWidth / originalBitmap.Width;
+                var scaleY = (float)targetHeight / originalBitmap.Height;
+                var scale = Math.Min(scaleX, scaleY);
+
+                var newWidth = (int)(originalBitmap.Width * scale);
+                var newHeight = (int)(originalBitmap.Height * scale);
+
+                targetBitmap = originalBitmap.Resize(new SKImageInfo(newWidth, newHeight), SKSamplingOptions.Default);
+                if (targetBitmap == null)
+                {
+                    _logger.LogWarning("⚠️ 图片缩放失败，将使用原始尺寸进行 WebP 压缩");
+                    targetBitmap = originalBitmap;
+                }
+
+                _logger.LogDebug("图片缩放: {OrigW}x{OrigH} → {NewW}x{NewH}", 
+                    originalBitmap.Width, originalBitmap.Height, newWidth, newHeight);
+            }
+
+            // 编码为 WebP
+            using var image = SKImage.FromBitmap(targetBitmap);
+            using var data = image.Encode(SKEncodedImageFormat.Webp, _webpQuality);
+            
+            if (targetBitmap != originalBitmap)
+                targetBitmap.Dispose();
+
+            return data.ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ 图片优化失败，将使用原始数据上传");
+            return originalBytes;
+        }
     }
 
     #region 通义万象 API 数据模型
