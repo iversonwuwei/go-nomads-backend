@@ -30,6 +30,11 @@ RUN dotnet publish "AIService.csproj" -c Release -o /app/publish /p:UseAppHost=f
 FROM base AS final
 WORKDIR /app
 
+# 安装 SkiaSharp 运行时依赖（图片压缩/转码需要）
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends libfontconfig1 \
+	&& rm -rf /var/lib/apt/lists/*
+
 # 创建日志目录
 RUN mkdir -p /app/logs
 
