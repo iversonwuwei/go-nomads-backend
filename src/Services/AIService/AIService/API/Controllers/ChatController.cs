@@ -1102,10 +1102,10 @@ public class ChatController : ControllerBase
                         
                         _logger.LogInformation("🎨 开始生成旅行计划封面图片: PlanId={PlanId}, CityName={CityName}", planId, request.CityName);
                         
-                        // 构建图片生成提示词
+                        // 构建图片生成提示词（移动端优化，无需超高清）
                         var imagePrompt = $"A stunning travel photography of {request.CityName}, showcasing the most iconic landmarks and atmosphere of this destination, " +
                                          $"beautiful lighting, professional travel magazine quality, vibrant colors, inviting atmosphere for travelers, " +
-                                         $"4K ultra high definition, cinematic composition";
+                                         $"clear details, cinematic composition";
                         
                         var imageRequest = new GenerateImageRequest
                         {
@@ -2080,7 +2080,7 @@ public class ChatController : ControllerBase
                             var cityDesc = string.IsNullOrEmpty(city.Country)
                                 ? cityNameForPrompt
                                 : $"{cityNameForPrompt}, {city.Country}";
-                            var prompt = $"Panoramic travel photograph of {cityDesc}, featuring local food culture, famous scenic spots, modern architecture, vibrant street life, colorful composition, professional photography, high resolution, vivid colors";
+                            var prompt = $"Panoramic travel photograph of {cityDesc}, featuring local food culture, famous scenic spots, modern architecture, vibrant street life, colorful composition, professional photography, vivid colors";
 
                             // 只生成一张横屏图片
                             var imageRequest = new GenerateImageRequest
