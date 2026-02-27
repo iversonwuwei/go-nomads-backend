@@ -1,6 +1,7 @@
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
 using CityService.Domain.ValueObjects;
+using CityService.Infrastructure;
 using Npgsql;
 using Postgrest;
 using Postgrest.Interfaces;
@@ -30,7 +31,11 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
         : base(supabaseClient, logger)
     {
         _configuration = configuration;
-        _connectionString = configuration.GetConnectionString("SupabaseDb");
+        // 预解析主机名为 IPv4，避免 IPv6 不可达导致连接失败
+        var rawCs = configuration.GetConnectionString("SupabaseDb");
+        _connectionString = !string.IsNullOrEmpty(rawCs)
+            ? NpgsqlIPv4Helper.ResolveToIPv4(rawCs)
+            : rawCs;
     }
 
     public async Task<IEnumerable<City>> GetAllAsync(int pageNumber, int pageSize)
