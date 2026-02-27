@@ -1,5 +1,6 @@
 using System.Data;
 using CityService.Application.DTOs;
+using CityService.Infrastructure;
 using Npgsql;
 
 namespace CityService.Services;
@@ -39,8 +40,10 @@ public class UserCityContentService : IUserCityContentService
 
     public UserCityContentService(IConfiguration configuration, ILogger<UserCityContentService> logger)
     {
-        _connectionString = configuration.GetConnectionString("SupabaseDb")
-                            ?? throw new InvalidOperationException("SupabaseDb connection string not found");
+        var rawCs = configuration.GetConnectionString("SupabaseDb")
+                    ?? throw new InvalidOperationException("SupabaseDb connection string not found");
+        // 预解析主机名为 IPv4，避免 IPv6 不可达导致连接失败
+        _connectionString = NpgsqlIPv4Helper.ResolveToIPv4(rawCs);
         _logger = logger;
     }
 
