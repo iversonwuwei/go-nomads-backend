@@ -6,6 +6,7 @@ namespace CityService.Application.DTOs;
 public class NearbyCityDto
 {
     public string Id { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
     public string SourceCityId { get; set; } = string.Empty;
     public string? TargetCityId { get; set; }
     public string TargetCityName { get; set; } = string.Empty;
@@ -65,6 +66,7 @@ public class NearbyCityNomadFeaturesDto
 /// </summary>
 public class SaveNearbyCitiesRequest
 {
+    public string? UserId { get; set; }
     public string SourceCityId { get; set; } = string.Empty;
     public List<NearbyCityItemDto> NearbyCities { get; set; } = new();
 }

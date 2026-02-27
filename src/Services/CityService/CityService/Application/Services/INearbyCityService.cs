@@ -8,22 +8,22 @@ namespace CityService.Application.Services;
 public interface INearbyCityService
 {
     /// <summary>
-    ///     根据源城市ID获取所有附近城市
+    ///     根据用户ID和源城市ID获取所有附近城市
     /// </summary>
-    Task<List<NearbyCity>> GetBySourceCityIdAsync(string sourceCityId);
+    Task<List<NearbyCity>> GetByUserAndSourceCityIdAsync(string userId, string sourceCityId);
 
     /// <summary>
     ///     批量保存附近城市
     /// </summary>
-    Task<List<NearbyCity>> SaveBatchAsync(string sourceCityId, List<NearbyCity> nearbyCities);
+    Task<List<NearbyCity>> SaveBatchAsync(string userId, string sourceCityId, List<NearbyCity> nearbyCities);
 
     /// <summary>
-    ///     删除源城市的所有附近城市记录
+    ///     删除用户的源城市的所有附近城市记录
     /// </summary>
-    Task<bool> DeleteBySourceCityIdAsync(string sourceCityId);
+    Task<bool> DeleteByUserAndSourceCityIdAsync(string userId, string sourceCityId);
 
     /// <summary>
-    ///     检查源城市是否有附近城市数据
+    ///     检查用户的源城市是否有附近城市数据
     /// </summary>
-    Task<bool> ExistsBySourceCityIdAsync(string sourceCityId);
+    Task<bool> ExistsByUserAndSourceCityIdAsync(string userId, string sourceCityId);
 }

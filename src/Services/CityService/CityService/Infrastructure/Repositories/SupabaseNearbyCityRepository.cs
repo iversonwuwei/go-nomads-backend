@@ -18,47 +18,49 @@ public class SupabaseNearbyCityRepository : SupabaseRepositoryBase<NearbyCity>, 
     {
     }
 
-    public async Task<List<NearbyCity>> GetBySourceCityIdAsync(string sourceCityId)
+    public async Task<List<NearbyCity>> GetByUserAndSourceCityIdAsync(string userId, string sourceCityId)
     {
         try
         {
-            Logger.LogInformation("🔍 从Supabase查询附近城市: sourceCityId={SourceCityId}", sourceCityId);
+            Logger.LogInformation("🔍 从Supabase查询附近城市: userId={UserId}, sourceCityId={SourceCityId}", userId, sourceCityId);
 
             var response = await SupabaseClient
                 .From<NearbyCity>()
+                .Where(x => x.UserId == userId)
                 .Where(x => x.SourceCityId == sourceCityId)
                 .Order("distance_km", Constants.Ordering.Ascending)
                 .Get();
 
             var nearbyCities = response.Models;
 
-            Logger.LogInformation("✅ 找到 {Count} 个附近城市: sourceCityId={SourceCityId}",
-                nearbyCities.Count, sourceCityId);
+            Logger.LogInformation("✅ 找到 {Count} 个附近城市: userId={UserId}, sourceCityId={SourceCityId}",
+                nearbyCities.Count, userId, sourceCityId);
 
             return nearbyCities;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "❌ 查询附近城市失败: sourceCityId={SourceCityId}", sourceCityId);
+            Logger.LogError(ex, "❌ 查询附近城市失败: userId={UserId}, sourceCityId={SourceCityId}", userId, sourceCityId);
             return new List<NearbyCity>();
         }
     }
 
-    public async Task<List<NearbyCity>> SaveBatchAsync(string sourceCityId, List<NearbyCity> nearbyCities)
+    public async Task<List<NearbyCity>> SaveBatchAsync(string userId, string sourceCityId, List<NearbyCity> nearbyCities)
     {
         try
         {
-            Logger.LogInformation("🔄 批量保存附近城市: sourceCityId={SourceCityId}, count={Count}",
-                sourceCityId, nearbyCities.Count);
+            Logger.LogInformation("🔄 批量保存附近城市: userId={UserId}, sourceCityId={SourceCityId}, count={Count}",
+                userId, sourceCityId, nearbyCities.Count);
 
-            // 先删除现有的附近城市数据
-            await DeleteBySourceCityIdAsync(sourceCityId);
+            // 先删除该用户现有的附近城市数据
+            await DeleteByUserAndSourceCityIdAsync(userId, sourceCityId);
 
-            // 设置源城市ID和时间戳
+            // 设置用户ID、源城市ID和时间戳
             var now = DateTime.UtcNow;
             foreach (var city in nearbyCities)
             {
                 city.Id = Guid.NewGuid().ToString();
+                city.UserId = userId;
                 city.SourceCityId = sourceCityId;
                 city.CreatedAt = now;
                 city.UpdatedAt = now;
@@ -69,14 +71,14 @@ public class SupabaseNearbyCityRepository : SupabaseRepositoryBase<NearbyCity>, 
                 .From<NearbyCity>()
                 .Insert(nearbyCities);
 
-            Logger.LogInformation("✅ 批量保存成功: sourceCityId={SourceCityId}, savedCount={Count}",
-                sourceCityId, response.Models.Count);
+            Logger.LogInformation("✅ 批量保存成功: userId={UserId}, sourceCityId={SourceCityId}, savedCount={Count}",
+                userId, sourceCityId, response.Models.Count);
 
             return response.Models;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "❌ 批量保存附近城市失败: sourceCityId={SourceCityId}", sourceCityId);
+            Logger.LogError(ex, "❌ 批量保存附近城市失败: userId={UserId}, sourceCityId={SourceCityId}", userId, sourceCityId);
             throw;
         }
     }
@@ -129,47 +131,49 @@ public class SupabaseNearbyCityRepository : SupabaseRepositoryBase<NearbyCity>, 
         }
     }
 
-    public async Task<bool> DeleteBySourceCityIdAsync(string sourceCityId)
+    public async Task<bool> DeleteByUserAndSourceCityIdAsync(string userId, string sourceCityId)
     {
         try
         {
-            Logger.LogInformation("🗑️ 删除附近城市: sourceCityId={SourceCityId}", sourceCityId);
+            Logger.LogInformation("🗑️ 删除附近城市: userId={UserId}, sourceCityId={SourceCityId}", userId, sourceCityId);
 
             await SupabaseClient
                 .From<NearbyCity>()
+                .Where(x => x.UserId == userId)
                 .Where(x => x.SourceCityId == sourceCityId)
                 .Delete();
 
-            Logger.LogInformation("✅ 删除成功: sourceCityId={SourceCityId}", sourceCityId);
+            Logger.LogInformation("✅ 删除成功: userId={UserId}, sourceCityId={SourceCityId}", userId, sourceCityId);
             return true;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "❌ 删除附近城市失败: sourceCityId={SourceCityId}", sourceCityId);
+            Logger.LogError(ex, "❌ 删除附近城市失败: userId={UserId}, sourceCityId={SourceCityId}", userId, sourceCityId);
             return false;
         }
     }
 
-    public async Task<bool> ExistsBySourceCityIdAsync(string sourceCityId)
+    public async Task<bool> ExistsByUserAndSourceCityIdAsync(string userId, string sourceCityId)
     {
         try
         {
-            var count = await GetCountBySourceCityIdAsync(sourceCityId);
+            var count = await GetCountByUserAndSourceCityIdAsync(userId, sourceCityId);
             return count > 0;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "❌ 检查附近城市是否存在失败: sourceCityId={SourceCityId}", sourceCityId);
+            Logger.LogError(ex, "❌ 检查附近城市是否存在失败: userId={UserId}, sourceCityId={SourceCityId}", userId, sourceCityId);
             return false;
         }
     }
 
-    public async Task<int> GetCountBySourceCityIdAsync(string sourceCityId)
+    public async Task<int> GetCountByUserAndSourceCityIdAsync(string userId, string sourceCityId)
     {
         try
         {
             var response = await SupabaseClient
                 .From<NearbyCity>()
+                .Where(x => x.UserId == userId)
                 .Where(x => x.SourceCityId == sourceCityId)
                 .Count(Constants.CountType.Exact);
 
@@ -177,7 +181,7 @@ public class SupabaseNearbyCityRepository : SupabaseRepositoryBase<NearbyCity>, 
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "❌ 获取附近城市数量失败: sourceCityId={SourceCityId}", sourceCityId);
+            Logger.LogError(ex, "❌ 获取附近城市数量失败: userId={UserId}, sourceCityId={SourceCityId}", userId, sourceCityId);
             return 0;
         }
     }

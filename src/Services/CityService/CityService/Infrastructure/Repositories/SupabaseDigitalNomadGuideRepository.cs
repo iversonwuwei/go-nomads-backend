@@ -19,14 +19,15 @@ public class SupabaseDigitalNomadGuideRepository : SupabaseRepositoryBase<Digita
     {
     }
 
-    public async Task<DigitalNomadGuide?> GetByCityIdAsync(string cityId)
+    public async Task<DigitalNomadGuide?> GetByUserAndCityIdAsync(string userId, string cityId)
     {
         try
         {
-            Logger.LogInformation("🔍 从Supabase查询指南: cityId={CityId}", cityId);
+            Logger.LogInformation("🔍 从Supabase查询指南: userId={UserId}, cityId={CityId}", userId, cityId);
 
             var response = await SupabaseClient
                 .From<DigitalNomadGuide>()
+                .Where(x => x.UserId == userId)
                 .Where(x => x.CityId == cityId)
                 .Order("updated_at", Constants.Ordering.Descending)
                 .Limit(1)
@@ -35,15 +36,15 @@ public class SupabaseDigitalNomadGuideRepository : SupabaseRepositoryBase<Digita
             var guide = response.Models.FirstOrDefault();
 
             if (guide != null)
-                Logger.LogInformation("✅ 找到指南: guideId={GuideId}, cityName={CityName}", guide.Id, guide.CityName);
+                Logger.LogInformation("✅ 找到指南: guideId={GuideId}, cityName={CityName}, userId={UserId}", guide.Id, guide.CityName, userId);
             else
-                Logger.LogInformation("📭 未找到指南: cityId={CityId}", cityId);
+                Logger.LogInformation("📭 未找到指南: userId={UserId}, cityId={CityId}", userId, cityId);
 
             return guide;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "❌ 查询指南失败: cityId={CityId}", cityId);
+            Logger.LogError(ex, "❌ 查询指南失败: userId={UserId}, cityId={CityId}", userId, cityId);
             return null;
         }
     }
@@ -54,13 +55,13 @@ public class SupabaseDigitalNomadGuideRepository : SupabaseRepositoryBase<Digita
         {
             guide.UpdatedAt = DateTime.UtcNow;
 
-            // 检查是否已存在
-            var existing = await GetByCityIdAsync(guide.CityId);
+            // 检查是否已存在（按用户+城市）
+            var existing = await GetByUserAndCityIdAsync(guide.UserId, guide.CityId);
 
             if (existing != null)
             {
                 // 更新现有记录
-                Logger.LogInformation("🔄 更新现有指南: guideId={GuideId}, cityId={CityId}", existing.Id, guide.CityId);
+                Logger.LogInformation("🔄 更新现有指南: guideId={GuideId}, userId={UserId}, cityId={CityId}", existing.Id, guide.UserId, guide.CityId);
 
                 guide.Id = existing.Id;
                 guide.CreatedAt = existing.CreatedAt;
@@ -75,7 +76,7 @@ public class SupabaseDigitalNomadGuideRepository : SupabaseRepositoryBase<Digita
             else
             {
                 // 插入新记录
-                Logger.LogInformation("➕ 创建新指南: cityId={CityId}, cityName={CityName}", guide.CityId, guide.CityName);
+                Logger.LogInformation("➕ 创建新指南: userId={UserId}, cityId={CityId}, cityName={CityName}", guide.UserId, guide.CityId, guide.CityName);
 
                 guide.Id = Guid.NewGuid().ToString();
                 guide.CreatedAt = DateTime.UtcNow;
@@ -90,7 +91,7 @@ public class SupabaseDigitalNomadGuideRepository : SupabaseRepositoryBase<Digita
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "❌ 保存指南失败: cityId={CityId}", guide.CityId);
+            Logger.LogError(ex, "❌ 保存指南失败: userId={UserId}, cityId={CityId}", guide.UserId, guide.CityId);
             throw;
         }
     }
@@ -116,11 +117,11 @@ public class SupabaseDigitalNomadGuideRepository : SupabaseRepositoryBase<Digita
         }
     }
 
-    public async Task<bool> ExistsByCityIdAsync(string cityId)
+    public async Task<bool> ExistsByUserAndCityIdAsync(string userId, string cityId)
     {
         try
         {
-            var guide = await GetByCityIdAsync(cityId);
+            var guide = await GetByUserAndCityIdAsync(userId, cityId);
             return guide != null;
         }
         catch

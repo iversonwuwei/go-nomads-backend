@@ -17,6 +17,12 @@ public class DigitalNomadGuide : BaseModel
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
     /// <summary>
+    ///     用户ID (数据归属用户)
+    /// </summary>
+    [Column("user_id")]
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>
     ///     城市ID (外键)
     /// </summary>
     [Column("city_id")]

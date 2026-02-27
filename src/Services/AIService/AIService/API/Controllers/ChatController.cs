@@ -1740,6 +1740,7 @@ public class ChatController : ControllerBase
                     {
                         var saveRequest = new
                         {
+                            UserId = userId.ToString(),
                             request.CityId,
                             request.CityName,
                             guide.Overview,
@@ -2179,6 +2180,7 @@ public class ChatController : ControllerBase
                     {
                         var saveRequest = new
                         {
+                            UserId = userId.ToString(),
                             SourceCityId = request.CityId,
                             NearbyCities = nearbyCities.Cities.Select(c => new
                             {

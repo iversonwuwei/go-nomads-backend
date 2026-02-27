@@ -9,7 +9,6 @@ using GoNomads.Shared.Models;
 using MassTransit;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
-using Npgsql;
 using Shared.Messages;
 
 namespace CityService.Application.Services;

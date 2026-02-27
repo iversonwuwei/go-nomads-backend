@@ -19,16 +19,16 @@ public class DigitalNomadGuideService : IDigitalNomadGuideService
         _logger = logger;
     }
 
-    public async Task<DigitalNomadGuide?> GetByCityIdAsync(string cityId)
+    public async Task<DigitalNomadGuide?> GetByUserAndCityIdAsync(string userId, string cityId)
     {
-        _logger.LogInformation("📖 获取城市指南: cityId={CityId}", cityId);
+        _logger.LogInformation("📖 获取城市指南: userId={UserId}, cityId={CityId}", userId, cityId);
 
-        var guide = await _repository.GetByCityIdAsync(cityId);
+        var guide = await _repository.GetByUserAndCityIdAsync(userId, cityId);
 
         if (guide != null)
             _logger.LogInformation("✅ 找到指南: guideId={GuideId}, cityName={CityName}", guide.Id, guide.CityName);
         else
-            _logger.LogInformation("📭 未找到指南: cityId={CityId}", cityId);
+            _logger.LogInformation("📭 未找到指南: userId={UserId}, cityId={CityId}", userId, cityId);
 
         return guide;
     }

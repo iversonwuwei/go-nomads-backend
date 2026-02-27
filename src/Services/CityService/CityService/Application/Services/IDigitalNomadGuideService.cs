@@ -8,9 +8,9 @@ namespace CityService.Application.Services;
 public interface IDigitalNomadGuideService
 {
     /// <summary>
-    ///     根据城市ID获取指南
+    ///     根据用户ID和城市ID获取指南
     /// </summary>
-    Task<DigitalNomadGuide?> GetByCityIdAsync(string cityId);
+    Task<DigitalNomadGuide?> GetByUserAndCityIdAsync(string userId, string cityId);
 
     /// <summary>
     ///     保存指南
