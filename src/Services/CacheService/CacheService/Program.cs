@@ -44,18 +44,8 @@ builder.Services.AddOpenApi(options =>
     });
 });
 
-// 配置 Redis
-var redisConnectionString = builder.Configuration.GetConnectionString("Redis") 
-    ?? throw new InvalidOperationException("Redis connection string not configured");
-
-builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
-{
-    var configuration = ConfigurationOptions.Parse(redisConnectionString);
-    configuration.AbortOnConnectFail = false;
-    configuration.ConnectTimeout = 5000;
-    configuration.SyncTimeout = 5000;
-    return ConnectionMultiplexer.Connect(configuration);
-});
+// 配置 Redis（Aspire 集成 - 自动注册 IConnectionMultiplexer）
+builder.AddRedisClient("redis");
 
 // 注册 Infrastructure 集成客户端 (typed HttpClient)
 builder.Services.AddServiceClient<ICityServiceClient, CityServiceClient>("city-service");

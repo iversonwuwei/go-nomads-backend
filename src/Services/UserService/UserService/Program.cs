@@ -20,20 +20,11 @@ var builder = WebApplication.CreateBuilder(args);
 // ============================================================
 builder.AddServiceDefaults();
 
-// 注册 IDistributedCache（Redis 或内存后备）
-var redisConn = builder.Configuration.GetConnectionString("redis");
-if (!string.IsNullOrEmpty(redisConn))
+// 注册 IDistributedCache（Aspire Redis 集成）
+builder.AddRedisDistributedCache("redis", settings =>
 {
-    builder.Services.AddStackExchangeRedisCache(options =>
-    {
-        options.Configuration = redisConn;
-        options.InstanceName = "user-service:";
-    });
-}
-else
-{
-    builder.Services.AddDistributedMemoryCache();
-}
+    settings.DisableTracing = false;
+});
 
 // 添加 Supabase 客户端（使用 Shared 扩展方法）
 builder.Services.AddSupabase(builder.Configuration);
@@ -107,17 +98,24 @@ builder.Services.AddServiceClient("city-service");
 builder.Services.AddServiceClient("product-service");
 builder.Services.AddServiceClient("event-service");
 
-// 配置 MassTransit + RabbitMQ（用于发布用户更新事件）
+// 配置 MassTransit + RabbitMQ（使用 Aspire 注入的连接字符串）
 builder.Services.AddMassTransit(x =>
 {
     x.UsingRabbitMq((context, cfg) =>
     {
-        var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
-        cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
+        var connectionString = builder.Configuration.GetConnectionString("rabbitmq");
+        if (!string.IsNullOrEmpty(connectionString))
         {
-            h.Username(rabbitMqConfig["Username"] ?? "guest");
-            h.Password(rabbitMqConfig["Password"] ?? "guest");
-        });
+            cfg.Host(new Uri(connectionString));
+        }
+        else
+        {
+            cfg.Host("localhost", "/", h =>
+            {
+                h.Username("guest");
+                h.Password("guest");
+            });
+        }
     });
 });
 

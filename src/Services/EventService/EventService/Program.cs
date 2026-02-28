@@ -8,7 +8,6 @@ using EventService.Infrastructure.Repositories;
 using GoNomads.Shared.Extensions;
 using MassTransit;
 using Microsoft.OpenApi.Models;
-using Prometheus;
 using Scalar.AspNetCore;
 using Serilog;
 
@@ -71,12 +70,19 @@ builder.Services.AddMassTransit(x =>
 
     x.UsingRabbitMq((context, cfg) =>
     {
-        var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
-        cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
+        var connectionString = builder.Configuration.GetConnectionString("rabbitmq");
+        if (!string.IsNullOrEmpty(connectionString))
         {
-            h.Username(rabbitMqConfig["Username"] ?? "guest");
-            h.Password(rabbitMqConfig["Password"] ?? "guest");
-        });
+            cfg.Host(new Uri(connectionString));
+        }
+        else
+        {
+            cfg.Host("localhost", "/", h =>
+            {
+                h.Username("guest");
+                h.Password("guest");
+            });
+        }
 
         // 配置接收端点用于消费事件
         cfg.ReceiveEndpoint("event-service-user-updated", e =>
@@ -162,9 +168,6 @@ app.UseCors("SignalRPolicy");
 
 app.UseRouting();
 
-// Enable Prometheus metrics
-app.UseHttpMetrics();
-
 // 使用用户上下文中间件 - 从 Gateway 传递的请求头中提取用户信息
 app.UseUserContext();
 
@@ -176,9 +179,6 @@ app.MapHub<MeetupHub>("/hubs/meetup");
 
 // Aspire 默认端点 (健康检查 /health + /alive)
 app.MapDefaultEndpoints();
-
-// Map Prometheus metrics endpoint
-app.MapMetrics();
 
 Log.Information("Event Service starting on port 8005...");
 

@@ -26,6 +26,11 @@ builder.Host.UseSerilog();
 builder.AddServiceDefaults();
 
 // ============================================================
+// Elasticsearch 客户端（Aspire 集成）
+// ============================================================
+builder.AddElasticsearchClient("elasticsearch");
+
+// ============================================================
 // 配置绑定
 // ============================================================
 builder.Services.Configure<ElasticsearchSettings>(
@@ -76,9 +81,6 @@ builder.Services.AddCors(options =>
             .AllowAnyHeader();
     });
 });
-
-// 添加健康检查
-builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 

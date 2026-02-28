@@ -9,38 +9,37 @@ metadata:
 data:
   # ASP.NET Core 配置
   ASPNETCORE_ENVIRONMENT: "Production"
-  
-  # Redis 配置
+
+  # ==========================================================================
+  # Aspire ConnectionStrings — 与 AppHost .WithReference() 注入格式一致
+  # 服务代码通过 builder.Configuration.GetConnectionString("<name>") 读取
+  # ==========================================================================
+  CONNECTIONSTRINGS_REDIS: "redis-service:6379"
+  CONNECTIONSTRINGS_RABBITMQ: "amqp://guest:guest@rabbitmq-service:5672"
+  CONNECTIONSTRINGS_ELASTICSEARCH: "http://elasticsearch-service:9200"
+
+  # ==========================================================================
+  # Aspire Service Discovery — services__{name}__http__0 环境变量格式
+  # 所有服务统一监听 8080, Gateway 监听 80(K8s Service port)
+  # ==========================================================================
+  SERVICES_GATEWAY_HTTP_0: "http://gateway-service:80"
+  SERVICES_USER_SERVICE_HTTP_0: "http://user-service:80"
+  SERVICES_CITY_SERVICE_HTTP_0: "http://city-service:80"
+  SERVICES_PRODUCT_SERVICE_HTTP_0: "http://product-service:80"
+  SERVICES_DOCUMENT_SERVICE_HTTP_0: "http://document-service:80"
+  SERVICES_COWORKING_SERVICE_HTTP_0: "http://coworking-service:80"
+  SERVICES_ACCOMMODATION_SERVICE_HTTP_0: "http://accommodation-service:80"
+  SERVICES_EVENT_SERVICE_HTTP_0: "http://event-service:80"
+  SERVICES_INNOVATION_SERVICE_HTTP_0: "http://innovation-service:80"
+  SERVICES_AI_SERVICE_HTTP_0: "http://ai-service:80"
+  SERVICES_SEARCH_SERVICE_HTTP_0: "http://search-service:80"
+  SERVICES_CACHE_SERVICE_HTTP_0: "http://cache-service:80"
+  SERVICES_MESSAGE_SERVICE_HTTP_0: "http://message-service:80"
+
+  # ==========================================================================
+  # 旧格式（保留兼容，后续清理）
+  # ==========================================================================
   REDIS_HOST: "redis-service"
   REDIS_PORT: "6379"
-  
-  # RabbitMQ 配置
   RABBITMQ_HOST: "rabbitmq-service"
   RABBITMQ_PORT: "5672"
-  RABBITMQ_MANAGEMENT_PORT: "15672"
-  
-  # Elasticsearch 配置
-  ELASTICSEARCH_HOST: "elasticsearch-service"
-  ELASTICSEARCH_PORT: "9200"
-  
-  # Consul 配置
-  CONSUL_HOST: "consul-service"
-  CONSUL_PORT: "8500"
-  
-  # Zipkin 配置
-  ZIPKIN_HOST: "zipkin-service"
-  ZIPKIN_PORT: "9411"
-  
-  # 服务发现配置
-  GATEWAY_URL: "http://gateway-service:80"
-  USER_SERVICE_URL: "http://user-service:80"
-  CITY_SERVICE_URL: "http://city-service:8002"
-  COWORKING_SERVICE_URL: "http://coworking-service:8003"
-  ACCOMMODATION_SERVICE_URL: "http://accommodation-service:8004"
-  EVENT_SERVICE_URL: "http://event-service:8005"
-  INNOVATION_SERVICE_URL: "http://innovation-service:8006"
-  TRAVEL_PLANNING_SERVICE_URL: "http://travel-planning-service:8007"
-  ECOMMERCE_SERVICE_URL: "http://ecommerce-service:8008"
-  AI_SERVICE_URL: "http://ai-service:8080"
-  MESSAGE_SERVICE_URL: "http://message-service:8010"
-  CACHE_SERVICE_URL: "http://cache-service:8011"

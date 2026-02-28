@@ -20,16 +20,12 @@ x-common-env: &common-env
   # Aspire Dashboard OTLP (可选, 如未部署 dashboard 则自动跳过)
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://go-nomads-aspire-dashboard:18889"
 
-x-infra-env: &infra-env
-  # Redis
-  REDIS_HOST: &redis-host "go-nomads-redis"
-  REDIS_PORT: &redis-port "6379"
-  # RabbitMQ
-  RABBITMQ_HOST: &rabbitmq-host "go-nomads-rabbitmq"
-  RABBITMQ_USER: &rabbitmq-user "walden"
-  RABBITMQ_PASS: &rabbitmq-pass "walden"
-  # Elasticsearch
-  ELASTICSEARCH_URL: &elasticsearch-url "http://go-nomads-elasticsearch:9200"
+# Aspire ConnectionStrings — 与 Aspire AppHost 注入格式一致
+# 服务代码通过 builder.Configuration.GetConnectionString("<name>") 或
+# builder.Add<Client>("<name>") 读取这些值
+x-conn-redis:         &conn-redis         "go-nomads-redis:6379"
+x-conn-rabbitmq:      &conn-rabbitmq      "amqp://walden:walden@go-nomads-rabbitmq:5672"
+x-conn-elasticsearch: &conn-elasticsearch  "http://go-nomads-elasticsearch:9200"
 
 # 服务发现辅助: Aspire ServiceDiscovery 格式 services__{name}__http__0
 # 所有服务容器内监听 8080, Gateway 监听 5000
@@ -92,10 +88,8 @@ services:
       <<: *common-env
       ASPNETCORE_URLS: "http://+:8080"
       OTEL_SERVICE_NAME: user-service
-      ConnectionStrings__redis: "go-nomads-redis:6379"
-      RabbitMQ__Host: *rabbitmq-host
-      RabbitMQ__Username: *rabbitmq-user
-      RabbitMQ__Password: *rabbitmq-pass
+      ConnectionStrings__redis: *conn-redis
+      ConnectionStrings__rabbitmq: *conn-rabbitmq
       # 阿里云短信 - 通过 .env 文件注入
       AliyunSms__AccessKeyId: "${ALIYUN_SMS_ACCESS_KEY_ID}"
       AliyunSms__AccessKeySecret: "${ALIYUN_SMS_ACCESS_KEY_SECRET}"
@@ -123,9 +117,7 @@ services:
       <<: *common-env
       ASPNETCORE_URLS: "http://+:8080"
       OTEL_SERVICE_NAME: city-service
-      RabbitMQ__Host: *rabbitmq-host
-      RabbitMQ__Username: *rabbitmq-user
-      RabbitMQ__Password: *rabbitmq-pass
+      ConnectionStrings__rabbitmq: *conn-rabbitmq
       # 服务发现
       services__user-service__http__0:      *svc-user
       services__cache-service__http__0:     *svc-cache
@@ -189,9 +181,7 @@ services:
       <<: *common-env
       ASPNETCORE_URLS: "http://+:8080"
       OTEL_SERVICE_NAME: coworking-service
-      RabbitMQ__Host: *rabbitmq-host
-      RabbitMQ__Username: *rabbitmq-user
-      RabbitMQ__Password: *rabbitmq-pass
+      ConnectionStrings__rabbitmq: *conn-rabbitmq
       services__cache-service__http__0: *svc-cache
       services__user-service__http__0:  *svc-user
       services__city-service__http__0:  *svc-city
@@ -211,9 +201,7 @@ services:
       <<: *common-env
       ASPNETCORE_URLS: "http://+:8080"
       OTEL_SERVICE_NAME: event-service
-      RabbitMQ__Host: *rabbitmq-host
-      RabbitMQ__Username: *rabbitmq-user
-      RabbitMQ__Password: *rabbitmq-pass
+      ConnectionStrings__rabbitmq: *conn-rabbitmq
       services__city-service__http__0:    *svc-city
       services__user-service__http__0:    *svc-user
       services__message-service__http__0: *svc-message
@@ -233,10 +221,8 @@ services:
       <<: *common-env
       ASPNETCORE_URLS: "http://+:8080"
       OTEL_SERVICE_NAME: ai-service
-      Redis__ConnectionString: "go-nomads-redis:6379"
-      RabbitMQ__HostName: *rabbitmq-host
-      RabbitMQ__UserName: *rabbitmq-user
-      RabbitMQ__Password: *rabbitmq-pass
+      ConnectionStrings__redis: *conn-redis
+      ConnectionStrings__rabbitmq: *conn-rabbitmq
       services__user-service__http__0: *svc-user
       services__city-service__http__0: *svc-city
     networks:
@@ -255,7 +241,7 @@ services:
       <<: *common-env
       ASPNETCORE_URLS: "http://+:8080"
       OTEL_SERVICE_NAME: cache-service
-      ConnectionStrings__Redis: "go-nomads-redis:6379"
+      ConnectionStrings__redis: *conn-redis
       services__city-service__http__0:      *svc-city
       services__coworking-service__http__0: *svc-coworking
     networks:
@@ -274,10 +260,8 @@ services:
       <<: *common-env
       ASPNETCORE_URLS: "http://+:8080"
       OTEL_SERVICE_NAME: message-service
-      ConnectionStrings__Redis: "go-nomads-redis:6379"
-      RabbitMQ__Host: *rabbitmq-host
-      RabbitMQ__Username: *rabbitmq-user
-      RabbitMQ__Password: *rabbitmq-pass
+      ConnectionStrings__redis: *conn-redis
+      ConnectionStrings__rabbitmq: *conn-rabbitmq
       services__user-service__http__0: *svc-user
     networks:
       - go-nomads-network
@@ -312,9 +296,7 @@ services:
       <<: *common-env
       ASPNETCORE_URLS: "http://+:8080"
       OTEL_SERVICE_NAME: innovation-service
-      RabbitMQ__Host: *rabbitmq-host
-      RabbitMQ__Username: *rabbitmq-user
-      RabbitMQ__Password: *rabbitmq-pass
+      ConnectionStrings__rabbitmq: *conn-rabbitmq
       services__user-service__http__0: *svc-user
     networks:
       - go-nomads-network
@@ -332,10 +314,7 @@ services:
       <<: *common-env
       ASPNETCORE_URLS: "http://+:8080"
       OTEL_SERVICE_NAME: search-service
-      Elasticsearch__Url: *elasticsearch-url
-      RabbitMQ__Host: *rabbitmq-host
-      RabbitMQ__Username: *rabbitmq-user
-      RabbitMQ__Password: *rabbitmq-pass
+      ConnectionStrings__elasticsearch: *conn-elasticsearch
       services__city-service__http__0:      *svc-city
       services__coworking-service__http__0: *svc-coworking
     networks:

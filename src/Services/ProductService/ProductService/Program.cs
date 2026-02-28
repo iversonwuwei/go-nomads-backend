@@ -1,4 +1,3 @@
-using Prometheus;
 using Scalar.AspNetCore;
 using GoNomads.Shared.Extensions;
 using Serilog;
@@ -45,16 +44,10 @@ app.MapScalarApiReference(options =>
 
 app.UseRouting();
 
-// Enable Prometheus metrics
-app.UseHttpMetrics();
-
 // Map controllers
 app.MapControllers();
 
 // Aspire 默认端点 (健康检查 /health + /alive)
 app.MapDefaultEndpoints();
-
-// Map Prometheus metrics endpoint
-app.MapMetrics();
 
 app.Run();

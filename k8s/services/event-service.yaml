@@ -17,10 +17,6 @@ spec:
     metadata:
       labels:
         app: event-service
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8005"
-        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: event-service
@@ -37,21 +33,17 @@ spec:
                   key: ASPNETCORE_ENVIRONMENT
             - name: ASPNETCORE_URLS
               value: "http://+:8005"
+            # Aspire ConnectionStrings
+            - name: ConnectionStrings__rabbitmq
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: CONNECTIONSTRINGS_RABBITMQ
             - name: ConnectionStrings__DefaultConnection
               valueFrom:
                 secretKeyRef:
                   name: go-nomads-secrets
                   key: DATABASE_CONNECTION_STRING
-            - name: ConnectionStrings__Redis
-              valueFrom:
-                secretKeyRef:
-                  name: go-nomads-secrets
-                  key: REDIS_CONNECTION_STRING
-            - name: MessageBroker__Host
-              valueFrom:
-                configMapKeyRef:
-                  name: go-nomads-config
-                  key: RABBITMQ_HOST
             - name: Supabase__Url
               valueFrom:
                 secretKeyRef:
@@ -62,6 +54,13 @@ spec:
                 secretKeyRef:
                   name: go-nomads-secrets
                   key: SUPABASE_KEY
+            # Aspire Service Discovery
+            - name: services__city-service__http__0
+              value: "http://city-service:80"
+            - name: services__user-service__http__0
+              value: "http://user-service:80"
+            - name: services__message-service__http__0
+              value: "http://message-service:80"
           resources:
             requests:
               memory: "256Mi"

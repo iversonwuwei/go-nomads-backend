@@ -21,12 +21,13 @@
 
 <!-- 数据库和缓存 -->
         <PackageReference Include="supabase-csharp" Version="0.16.2" />
-        <PackageReference Include="StackExchange.Redis" Version="2.7.33" />
+<PackageReference Include="Aspire.StackExchange.Redis" Version="9.2.1" />
+<PackageReference Include="StackExchange.Redis" Version="2.8.31" />
+
 
         <!-- 消息队列 -->
 
-        <!-- 监控和日志 -->
-        <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />
+<!-- 监控和日志 -->
         <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
         <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
         <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />

@@ -8,7 +8,9 @@
     </PropertyGroup>
 
 <ItemGroup>
-        <PackageReference Include="Elastic.Clients.Elasticsearch" Version="8.16.3" />
+<PackageReference Include="Aspire.Elastic.Clients.Elasticsearch" Version="9.2.1" />
+<PackageReference Include="Elastic.Clients.Elasticsearch" Version="8.19.4" />
+
         <PackageReference Include="MassTransit" Version="8.4.0" />
         <PackageReference Include="MassTransit.RabbitMQ" Version="8.4.0" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
