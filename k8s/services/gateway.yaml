@@ -17,10 +17,6 @@ spec:
     metadata:
       labels:
         app: gateway
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8080"
-        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: gateway
@@ -37,43 +33,31 @@ spec:
                   key: ASPNETCORE_ENVIRONMENT
             - name: ASPNETCORE_URLS
               value: "http://+:8080"
-            # Redis 配置
-            - name: ConnectionStrings__Redis
-              valueFrom:
-                secretKeyRef:
-                  name: go-nomads-secrets
-                  key: REDIS_CONNECTION_STRING
-            # 服务发现配置
-            - name: ServiceUrls__UserService
-              valueFrom:
-                configMapKeyRef:
-                  name: go-nomads-config
-                  key: USER_SERVICE_URL
-            - name: ServiceUrls__CityService
-              valueFrom:
-                configMapKeyRef:
-                  name: go-nomads-config
-                  key: CITY_SERVICE_URL
-            - name: ServiceUrls__CoworkingService
-              valueFrom:
-                configMapKeyRef:
-                  name: go-nomads-config
-                  key: COWORKING_SERVICE_URL
-            - name: ServiceUrls__AccommodationService
-              valueFrom:
-                configMapKeyRef:
-                  name: go-nomads-config
-                  key: ACCOMMODATION_SERVICE_URL
-            - name: ServiceUrls__EventService
-              valueFrom:
-                configMapKeyRef:
-                  name: go-nomads-config
-                  key: EVENT_SERVICE_URL
-            - name: ServiceUrls__AIService
-              valueFrom:
-                configMapKeyRef:
-                  name: go-nomads-config
-                  key: AI_SERVICE_URL
+            # Aspire Service Discovery — services__{name}__http__0 格式
+            - name: services__user-service__http__0
+              value: "http://user-service:80"
+            - name: services__city-service__http__0
+              value: "http://city-service:80"
+            - name: services__product-service__http__0
+              value: "http://product-service:80"
+            - name: services__document-service__http__0
+              value: "http://document-service:80"
+            - name: services__coworking-service__http__0
+              value: "http://coworking-service:80"
+            - name: services__accommodation-service__http__0
+              value: "http://accommodation-service:80"
+            - name: services__event-service__http__0
+              value: "http://event-service:80"
+            - name: services__innovation-service__http__0
+              value: "http://innovation-service:80"
+            - name: services__ai-service__http__0
+              value: "http://ai-service:80"
+            - name: services__search-service__http__0
+              value: "http://search-service:80"
+            - name: services__cache-service__http__0
+              value: "http://cache-service:80"
+            - name: services__message-service__http__0
+              value: "http://message-service:80"
           resources:
             requests:
               memory: "256Mi"

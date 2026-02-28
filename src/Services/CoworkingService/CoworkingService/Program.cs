@@ -62,12 +62,19 @@ builder.Services.AddMassTransit(x =>
 
     x.UsingRabbitMq((context, cfg) =>
     {
-        var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
-        cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
+        var connectionString = builder.Configuration.GetConnectionString("rabbitmq");
+        if (!string.IsNullOrEmpty(connectionString))
         {
-            h.Username(rabbitMqConfig["Username"] ?? "guest");
-            h.Password(rabbitMqConfig["Password"] ?? "guest");
-        });
+            cfg.Host(new Uri(connectionString));
+        }
+        else
+        {
+            cfg.Host("localhost", "/", h =>
+            {
+                h.Username("guest");
+                h.Password("guest");
+            });
+        }
 
         // 配置接收端点用于消费事件
         cfg.ReceiveEndpoint("coworking-service-user-updated", e =>
@@ -105,9 +112,6 @@ builder.Services.AddCors(options =>
             .AllowAnyHeader();
     });
 });
-
-// 添加健康检查
-builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 

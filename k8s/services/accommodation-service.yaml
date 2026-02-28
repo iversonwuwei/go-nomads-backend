@@ -17,10 +17,6 @@ spec:
     metadata:
       labels:
         app: accommodation-service
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8012"
-        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: accommodation-service
@@ -37,16 +33,17 @@ spec:
                   key: ASPNETCORE_ENVIRONMENT
             - name: ASPNETCORE_URLS
               value: "http://+:8012"
+            # Aspire ConnectionStrings
+            - name: ConnectionStrings__redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: CONNECTIONSTRINGS_REDIS
             - name: ConnectionStrings__DefaultConnection
               valueFrom:
                 secretKeyRef:
                   name: go-nomads-secrets
                   key: DATABASE_CONNECTION_STRING
-            - name: ConnectionStrings__Redis
-              valueFrom:
-                secretKeyRef:
-                  name: go-nomads-secrets
-                  key: REDIS_CONNECTION_STRING
             - name: Supabase__Url
               valueFrom:
                 secretKeyRef:
@@ -57,6 +54,9 @@ spec:
                 secretKeyRef:
                   name: go-nomads-secrets
                   key: SUPABASE_KEY
+            # Aspire Service Discovery
+            - name: services__user-service__http__0
+              value: "http://user-service:80"
           resources:
             requests:
               memory: "256Mi"

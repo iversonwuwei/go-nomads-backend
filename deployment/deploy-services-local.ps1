@@ -6,14 +6,11 @@ $ROOT_DIR = Split-Path -Parent $SCRIPT_DIR
 $NETWORK_NAME = "go-nomads-network"
 
 # ============================================================
-# 基础设施连接配置（Docker 容器名称）
+# Aspire ConnectionStrings（Docker 容器内部地址）
 # ============================================================
-$REDIS_HOST = "go-nomads-redis"
-$REDIS_PORT = "6379"
-$RABBITMQ_HOST = "go-nomads-rabbitmq"
-$RABBITMQ_USER = "walden"
-$RABBITMQ_PASS = "walden"
-$ELASTICSEARCH_URL = "http://go-nomads-elasticsearch:9200"
+$CONN_REDIS = "go-nomads-redis:6379"
+$CONN_RABBITMQ = "amqp://walden:walden@go-nomads-rabbitmq:5672"
+$CONN_ELASTICSEARCH = "http://go-nomads-elasticsearch:9200"
 
 # Aspire Dashboard OTLP 端点（容器内部地址）
 $OTLP_ENDPOINT = "http://go-nomads-aspire-dashboard:18889"
@@ -251,10 +248,8 @@ foreach ($svc in $services) {
     # --- User Service: Redis + RabbitMQ + AliyunSms + 服务发现 ---
     if ($svc.Name -eq "user-service") {
         $extraEnvArgs = @(
-            "-e", "ConnectionStrings__redis=${REDIS_HOST}:${REDIS_PORT}",
-            "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
-            "-e", "RabbitMQ__Username=$RABBITMQ_USER",
-            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "ConnectionStrings__redis=$CONN_REDIS",
+            "-e", "ConnectionStrings__rabbitmq=$CONN_RABBITMQ",
             "-e", "AliyunSms__AccessKeyId=$env:ALIYUN_SMS_ACCESS_KEY_ID",
             "-e", "AliyunSms__AccessKeySecret=$env:ALIYUN_SMS_ACCESS_KEY_SECRET",
             "-e", "services__city-service__http__0=$(SvcUrl 'city-service')",
@@ -267,9 +262,7 @@ foreach ($svc in $services) {
     # --- City Service: RabbitMQ + 服务发现 ---
     if ($svc.Name -eq "city-service") {
         $extraEnvArgs = @(
-            "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
-            "-e", "RabbitMQ__Username=$RABBITMQ_USER",
-            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "ConnectionStrings__rabbitmq=$CONN_RABBITMQ",
             "-e", "services__user-service__http__0=$(SvcUrl 'user-service')",
             "-e", "services__cache-service__http__0=$(SvcUrl 'cache-service')",
             "-e", "services__coworking-service__http__0=$(SvcUrl 'coworking-service')",
@@ -299,12 +292,11 @@ foreach ($svc in $services) {
         )
     }
 
-    # --- Coworking Service: RabbitMQ + 服务发现 ---
+    # --- Coworking Service: Redis + RabbitMQ + 服务发现 ---
     if ($svc.Name -eq "coworking-service") {
         $extraEnvArgs = @(
-            "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
-            "-e", "RabbitMQ__Username=$RABBITMQ_USER",
-            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "ConnectionStrings__redis=$CONN_REDIS",
+            "-e", "ConnectionStrings__rabbitmq=$CONN_RABBITMQ",
             "-e", "services__cache-service__http__0=$(SvcUrl 'cache-service')",
             "-e", "services__user-service__http__0=$(SvcUrl 'user-service')",
             "-e", "services__city-service__http__0=$(SvcUrl 'city-service')"
@@ -314,22 +306,18 @@ foreach ($svc in $services) {
     # --- Event Service: RabbitMQ + 服务发现 ---
     if ($svc.Name -eq "event-service") {
         $extraEnvArgs = @(
-            "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
-            "-e", "RabbitMQ__Username=$RABBITMQ_USER",
-            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "ConnectionStrings__rabbitmq=$CONN_RABBITMQ",
             "-e", "services__city-service__http__0=$(SvcUrl 'city-service')",
             "-e", "services__user-service__http__0=$(SvcUrl 'user-service')",
             "-e", "services__message-service__http__0=$(SvcUrl 'message-service')"
         )
     }
 
-    # --- AI Service: Redis + RabbitMQ (注意: key 名不同!) + 服务发现 ---
+    # --- AI Service: Redis + RabbitMQ + 服务发现 ---
     if ($svc.Name -eq "ai-service") {
         $extraEnvArgs = @(
-            "-e", "Redis__ConnectionString=${REDIS_HOST}:${REDIS_PORT}",
-            "-e", "RabbitMQ__HostName=$RABBITMQ_HOST",
-            "-e", "RabbitMQ__UserName=$RABBITMQ_USER",
-            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "ConnectionStrings__redis=$CONN_REDIS",
+            "-e", "ConnectionStrings__rabbitmq=$CONN_RABBITMQ",
             "-e", "services__user-service__http__0=$(SvcUrl 'user-service')",
             "-e", "services__city-service__http__0=$(SvcUrl 'city-service')"
         )
@@ -338,7 +326,7 @@ foreach ($svc in $services) {
     # --- Cache Service: Redis + 服务发现 ---
     if ($svc.Name -eq "cache-service") {
         $extraEnvArgs = @(
-            "-e", "ConnectionStrings__Redis=${REDIS_HOST}:${REDIS_PORT}",
+            "-e", "ConnectionStrings__redis=$CONN_REDIS",
             "-e", "services__city-service__http__0=$(SvcUrl 'city-service')",
             "-e", "services__coworking-service__http__0=$(SvcUrl 'coworking-service')"
         )
@@ -347,17 +335,16 @@ foreach ($svc in $services) {
     # --- Message Service: Redis + RabbitMQ + 服务发现 ---
     if ($svc.Name -eq "message-service") {
         $extraEnvArgs = @(
-            "-e", "ConnectionStrings__Redis=${REDIS_HOST}:${REDIS_PORT}",
-            "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
-            "-e", "RabbitMQ__Username=$RABBITMQ_USER",
-            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "ConnectionStrings__redis=$CONN_REDIS",
+            "-e", "ConnectionStrings__rabbitmq=$CONN_RABBITMQ",
             "-e", "services__user-service__http__0=$(SvcUrl 'user-service')"
         )
     }
 
-    # --- Accommodation Service: 服务发现 ---
+    # --- Accommodation Service: Redis + 服务发现 ---
     if ($svc.Name -eq "accommodation-service") {
         $extraEnvArgs = @(
+            "-e", "ConnectionStrings__redis=$CONN_REDIS",
             "-e", "services__user-service__http__0=$(SvcUrl 'user-service')"
         )
     }
@@ -365,9 +352,7 @@ foreach ($svc in $services) {
     # --- Innovation Service: RabbitMQ + 服务发现 ---
     if ($svc.Name -eq "innovation-service") {
         $extraEnvArgs = @(
-            "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
-            "-e", "RabbitMQ__Username=$RABBITMQ_USER",
-            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "ConnectionStrings__rabbitmq=$CONN_RABBITMQ",
             "-e", "services__user-service__http__0=$(SvcUrl 'user-service')"
         )
     }
@@ -375,10 +360,8 @@ foreach ($svc in $services) {
     # --- Search Service: Elasticsearch + RabbitMQ + 服务发现 ---
     if ($svc.Name -eq "search-service") {
         $extraEnvArgs = @(
-            "-e", "Elasticsearch__Url=$ELASTICSEARCH_URL",
-            "-e", "RabbitMQ__Host=$RABBITMQ_HOST",
-            "-e", "RabbitMQ__Username=$RABBITMQ_USER",
-            "-e", "RabbitMQ__Password=$RABBITMQ_PASS",
+            "-e", "ConnectionStrings__elasticsearch=$CONN_ELASTICSEARCH",
+            "-e", "ConnectionStrings__rabbitmq=$CONN_RABBITMQ",
             "-e", "services__city-service__http__0=$(SvcUrl 'city-service')",
             "-e", "services__coworking-service__http__0=$(SvcUrl 'coworking-service')"
         )

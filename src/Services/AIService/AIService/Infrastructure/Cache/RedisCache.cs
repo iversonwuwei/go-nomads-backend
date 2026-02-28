@@ -4,7 +4,7 @@ using StackExchange.Redis;
 namespace AIService.Infrastructure.Cache;
 
 /// <summary>
-///     Redis 缓存服务实现
+///     Redis 缓存服务实现（使用 Aspire 注入的 IConnectionMultiplexer）
 /// </summary>
 public class RedisCache : IRedisCache
 {
@@ -12,24 +12,12 @@ public class RedisCache : IRedisCache
     private readonly ILogger<RedisCache> _logger;
     private readonly IConnectionMultiplexer _redis;
 
-    public RedisCache(IConfiguration configuration, ILogger<RedisCache> logger)
+    public RedisCache(IConnectionMultiplexer redis, ILogger<RedisCache> logger)
     {
         _logger = logger;
-
-        var connectionString = configuration["Redis:ConnectionString"] ?? "localhost:6379";
-
-        try
-        {
-            _redis = ConnectionMultiplexer.Connect(connectionString);
-            _db = _redis.GetDatabase();
-
-            _logger.LogInformation("✅ Redis 连接成功: {ConnectionString}", connectionString);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ Redis 连接失败");
-            throw;
-        }
+        _redis = redis;
+        _db = _redis.GetDatabase();
+        _logger.LogInformation("✅ Redis 缓存服务已初始化（通过 Aspire 集成）");
     }
 
     public async Task<T?> GetAsync<T>(string key) where T : class

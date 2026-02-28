@@ -17,10 +17,6 @@ spec:
     metadata:
       labels:
         app: cache-service
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8011"
-        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: cache-service
@@ -37,11 +33,17 @@ spec:
                   key: ASPNETCORE_ENVIRONMENT
             - name: ASPNETCORE_URLS
               value: "http://+:8011"
-            - name: ConnectionStrings__Redis
+            # Aspire ConnectionStrings
+            - name: ConnectionStrings__redis
               valueFrom:
                 secretKeyRef:
                   name: go-nomads-secrets
-                  key: REDIS_CONNECTION_STRING
+                  key: CONNECTIONSTRINGS_REDIS
+            # Aspire Service Discovery
+            - name: services__city-service__http__0
+              value: "http://city-service:80"
+            - name: services__coworking-service__http__0
+              value: "http://coworking-service:80"
           resources:
             requests:
               memory: "128Mi"

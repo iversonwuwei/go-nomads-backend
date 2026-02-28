@@ -8,7 +8,6 @@ using GoNomads.Shared.Extensions;
 using MassTransit;
 using Microsoft.OpenApi.Models;
 using Microsoft.SemanticKernel;
-using Prometheus;
 using Scalar.AspNetCore;
 using Serilog;
 
@@ -106,23 +105,31 @@ builder.Services.AddHttpClient("WanxClient", client =>
 builder.Services.AddScoped<IImageGenerationService, ImageGenerationService>();
 Log.Information("✅ 图片生成服务已注册（通义万象 + Supabase Storage）");
 
-// 配置 MassTransit + RabbitMQ
-var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
+// 配置 MassTransit + RabbitMQ（使用 Aspire 注入的连接字符串）
 builder.Services.AddMassTransit(x =>
 {
     x.UsingRabbitMq((context, cfg) =>
     {
-        cfg.Host(rabbitMqConfig["HostName"] ?? "localhost", "/", h =>
+        var connectionString = builder.Configuration.GetConnectionString("rabbitmq");
+        if (!string.IsNullOrEmpty(connectionString))
         {
-            h.Username(rabbitMqConfig["UserName"] ?? "guest");
-            h.Password(rabbitMqConfig["Password"] ?? "guest");
-        });
+            cfg.Host(new Uri(connectionString));
+        }
+        else
+        {
+            cfg.Host("localhost", "/", h =>
+            {
+                h.Username("guest");
+                h.Password("guest");
+            });
+        }
 
         cfg.ConfigureEndpoints(context);
     });
 });
 
-// 注册缓存服务 (Infrastructure Layer)
+// 注册 Redis 缓存服务 (Aspire 集成 - 自动注册 IConnectionMultiplexer)
+builder.AddRedisClient("redis");
 builder.Services.AddSingleton<IRedisCache, RedisCache>();
 
 // 注册 SignalR 通知服务
@@ -204,9 +211,6 @@ app.UseRouting();
 // Enable CORS
 app.UseCors();
 
-// Enable Prometheus metrics
-app.UseHttpMetrics();
-
 // 使用用户上下文中间件 - 从 Gateway 传递的请求头中提取用户信息
 app.UseUserContext();
 
@@ -234,8 +238,7 @@ app.MapGet("/health/ai", () =>
     });
 });
 
-// Map Prometheus metrics endpoint
-app.MapMetrics();
+// Map Prometheus metrics endpoint (已迁移到 Aspire OpenTelemetry)
 
 // 启动时日志
 app.Lifetime.ApplicationStarted.Register(() =>

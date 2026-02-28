@@ -1,6 +1,6 @@
 # 本地开发环境 - 业务服务部署配置
 # 使用本地构建的 Docker 镜像
-# 支持动态 Consul 服务发现（使用 Pod IP 进行健康检查）
+# Aspire 兼容服务发现 + ConnectionStrings
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -18,11 +18,6 @@ spec:
     metadata:
       labels:
         app: gateway
-      annotations:
-        dapr.io/enabled: "true"
-        dapr.io/app-id: "gateway"
-        dapr.io/app-port: "8080"
-        dapr.io/enable-api-logging: "true"
     spec:
       containers:
         - name: gateway
@@ -31,26 +26,35 @@ spec:
           ports:
             - containerPort: 8080
           env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
               value: "http://+:8080"
-            - name: ConnectionStrings__Redis
-              value: "redis-service:6379,abortConnect=false"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "gateway"
-            - name: Consul__ServicePort
-              value: "8080"
+            # Aspire Service Discovery
+            - name: services__user-service__http__0
+              value: "http://user-service:80"
+            - name: services__city-service__http__0
+              value: "http://city-service:8002"
+            - name: services__coworking-service__http__0
+              value: "http://coworking-service:8003"
+            - name: services__event-service__http__0
+              value: "http://event-service:8005"
+            - name: services__ai-service__http__0
+              value: "http://ai-service:8080"
+            - name: services__cache-service__http__0
+              value: "http://cache-service:8011"
+            - name: services__message-service__http__0
+              value: "http://message-service:8010"
+            - name: services__accommodation-service__http__0
+              value: "http://accommodation-service:8012"
+            - name: services__product-service__http__0
+              value: "http://product-service:8080"
+            - name: services__document-service__http__0
+              value: "http://document-service:8080"
+            - name: services__search-service__http__0
+              value: "http://search-service:8080"
+            - name: services__innovation-service__http__0
+              value: "http://innovation-service:8080"
           resources:
             requests:
               memory: "128Mi"
@@ -89,11 +93,6 @@ spec:
     metadata:
       labels:
         app: user-service
-      annotations:
-        dapr.io/enabled: "true"
-        dapr.io/app-id: "user-service"
-        dapr.io/app-port: "8080"
-        dapr.io/enable-api-logging: "true"
     spec:
       containers:
         - name: user-service
@@ -102,26 +101,24 @@ spec:
           ports:
             - containerPort: 8080
           env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
               value: "http://+:8080"
-            - name: ConnectionStrings__Redis
+            # Aspire ConnectionStrings
+            - name: ConnectionStrings__redis
               value: "redis-service:6379,abortConnect=false"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "user-service"
-            - name: Consul__ServicePort
-              value: "8080"
+            - name: ConnectionStrings__rabbitmq
+              value: "amqp://guest:guest@rabbitmq-service:5672"
+            # Aspire Service Discovery
+            - name: services__city-service__http__0
+              value: "http://city-service:8002"
+            - name: services__product-service__http__0
+              value: "http://product-service:8080"
+            - name: services__event-service__http__0
+              value: "http://event-service:8005"
+            - name: services__message-service__http__0
+              value: "http://message-service:8010"
             - name: Kestrel__Endpoints__Grpc__Url
               value: "http://0.0.0.0:50003"
           resources:
@@ -161,11 +158,6 @@ spec:
     metadata:
       labels:
         app: city-service
-      annotations:
-        dapr.io/enabled: "true"
-        dapr.io/app-id: "city-service"
-        dapr.io/app-port: "8002"
-        dapr.io/enable-api-logging: "true"
     spec:
       containers:
         - name: city-service
@@ -174,34 +166,30 @@ spec:
           ports:
             - containerPort: 8002
           env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
               value: "http://+:8002"
-            - name: ConnectionStrings__Redis
+            # Aspire ConnectionStrings
+            - name: ConnectionStrings__redis
               value: "redis-service:6379,abortConnect=false"
-            - name: ConnectionStrings__Elasticsearch
+            - name: ConnectionStrings__rabbitmq
+              value: "amqp://guest:guest@rabbitmq-service:5672"
+            - name: ConnectionStrings__elasticsearch
               value: "http://elasticsearch-service:9200"
-            - name: RabbitMQ__Host
-              value: "rabbitmq-service"
-            - name: RabbitMQ__Username
-              value: "guest"
-            - name: RabbitMQ__Password
-              value: "guest"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "city-service"
-            - name: Consul__ServicePort
-              value: "8002"
+            # Aspire Service Discovery
+            - name: services__user-service__http__0
+              value: "http://user-service:80"
+            - name: services__cache-service__http__0
+              value: "http://cache-service:8011"
+            - name: services__coworking-service__http__0
+              value: "http://coworking-service:8003"
+            - name: services__event-service__http__0
+              value: "http://event-service:8005"
+            - name: services__message-service__http__0
+              value: "http://message-service:8010"
+            - name: services__ai-service__http__0
+              value: "http://ai-service:8080"
           resources:
             requests:
               memory: "128Mi"
@@ -239,11 +227,6 @@ spec:
     metadata:
       labels:
         app: coworking-service
-      annotations:
-        dapr.io/enabled: "true"
-        dapr.io/app-id: "coworking-service"
-        dapr.io/app-port: "8003"
-        dapr.io/enable-api-logging: "true"
     spec:
       containers:
         - name: coworking-service
@@ -252,26 +235,22 @@ spec:
           ports:
             - containerPort: 8003
           env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
               value: "http://+:8003"
-            - name: ConnectionStrings__Redis
+            # Aspire ConnectionStrings
+            - name: ConnectionStrings__redis
               value: "redis-service:6379,abortConnect=false"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "coworking-service"
-            - name: Consul__ServicePort
-              value: "8003"
+            - name: ConnectionStrings__rabbitmq
+              value: "amqp://guest:guest@rabbitmq-service:5672"
+            # Aspire Service Discovery
+            - name: services__cache-service__http__0
+              value: "http://cache-service:8011"
+            - name: services__user-service__http__0
+              value: "http://user-service:80"
+            - name: services__city-service__http__0
+              value: "http://city-service:8002"
           resources:
             requests:
               memory: "128Mi"
@@ -309,11 +288,6 @@ spec:
     metadata:
       labels:
         app: event-service
-      annotations:
-        dapr.io/enabled: "true"
-        dapr.io/app-id: "event-service"
-        dapr.io/app-port: "8005"
-        dapr.io/enable-api-logging: "true"
     spec:
       containers:
         - name: event-service
@@ -322,28 +296,20 @@ spec:
           ports:
             - containerPort: 8005
           env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
               value: "http://+:8005"
-            - name: ConnectionStrings__Redis
-              value: "redis-service:6379,abortConnect=false"
-            - name: MessageBroker__Host
-              value: "rabbitmq-service"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "event-service"
-            - name: Consul__ServicePort
-              value: "8005"
+            # Aspire ConnectionStrings
+            - name: ConnectionStrings__rabbitmq
+              value: "amqp://guest:guest@rabbitmq-service:5672"
+            # Aspire Service Discovery
+            - name: services__city-service__http__0
+              value: "http://city-service:8002"
+            - name: services__user-service__http__0
+              value: "http://user-service:80"
+            - name: services__message-service__http__0
+              value: "http://message-service:8010"
           resources:
             requests:
               memory: "128Mi"
@@ -381,11 +347,6 @@ spec:
     metadata:
       labels:
         app: ai-service
-      annotations:
-        dapr.io/enabled: "true"
-        dapr.io/app-id: "ai-service"
-        dapr.io/app-port: "8080"
-        dapr.io/enable-api-logging: "true"
     spec:
       containers:
         - name: ai-service
@@ -394,30 +355,20 @@ spec:
           ports:
             - containerPort: 8080
           env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
               value: "http://+:8080"
-            - name: ConnectionStrings__Redis
+            # Aspire ConnectionStrings
+            - name: ConnectionStrings__redis
               value: "redis-service:6379,abortConnect=false"
-            - name: Redis__ConnectionString
-              value: "redis-service:6379,abortConnect=false"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "ai-service"
-            - name: Consul__ServicePort
-              value: "8080"
-            - name: RabbitMQ__HostName
-              value: "rabbitmq-service"
+            - name: ConnectionStrings__rabbitmq
+              value: "amqp://guest:guest@rabbitmq-service:5672"
+            # Aspire Service Discovery
+            - name: services__user-service__http__0
+              value: "http://user-service:80"
+            - name: services__city-service__http__0
+              value: "http://city-service:8002"
           resources:
             requests:
               memory: "256Mi"
@@ -455,11 +406,6 @@ spec:
     metadata:
       labels:
         app: cache-service
-      annotations:
-        dapr.io/enabled: "true"
-        dapr.io/app-id: "cache-service"
-        dapr.io/app-port: "8011"
-        dapr.io/enable-api-logging: "true"
     spec:
       containers:
         - name: cache-service
@@ -468,26 +414,18 @@ spec:
           ports:
             - containerPort: 8011
           env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
               value: "http://+:8011"
-            - name: ConnectionStrings__Redis
+            # Aspire ConnectionStrings
+            - name: ConnectionStrings__redis
               value: "redis-service:6379,abortConnect=false"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "cache-service"
-            - name: Consul__ServicePort
-              value: "8011"
+            # Aspire Service Discovery
+            - name: services__city-service__http__0
+              value: "http://city-service:8002"
+            - name: services__coworking-service__http__0
+              value: "http://coworking-service:8003"
           resources:
             requests:
               memory: "64Mi"
@@ -526,11 +464,6 @@ spec:
     metadata:
       labels:
         app: message-service
-      annotations:
-        dapr.io/enabled: "true"
-        dapr.io/app-id: "message-service"
-        dapr.io/app-port: "8010"
-        dapr.io/enable-api-logging: "true"
     spec:
       containers:
         - name: message-service
@@ -539,32 +472,18 @@ spec:
           ports:
             - containerPort: 8010
           env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
               value: "http://+:8010"
-            - name: ConnectionStrings__Redis
+            # Aspire ConnectionStrings
+            - name: ConnectionStrings__redis
               value: "redis-service:6379,abortConnect=false"
-            - name: RabbitMQ__Host
-              value: "rabbitmq-service"
-            - name: RabbitMQ__Username
-              value: "guest"
-            - name: RabbitMQ__Password
-              value: "guest"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "message-service"
-            - name: Consul__ServicePort
-              value: "8010"
+            - name: ConnectionStrings__rabbitmq
+              value: "amqp://guest:guest@rabbitmq-service:5672"
+            # Aspire Service Discovery
+            - name: services__user-service__http__0
+              value: "http://user-service:80"
           resources:
             requests:
               memory: "128Mi"

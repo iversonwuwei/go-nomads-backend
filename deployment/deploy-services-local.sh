@@ -90,14 +90,11 @@ select_container_runtime
 NETWORK_NAME="go-nomads-network"
 
 # ============================================================
-# 基础设施连接配置（Docker 容器名称）
+# Aspire ConnectionStrings（Docker 容器内部地址）
 # ============================================================
-REDIS_HOST="go-nomads-redis"
-REDIS_PORT="6379"
-RABBITMQ_HOST="go-nomads-rabbitmq"
-RABBITMQ_USER="walden"
-RABBITMQ_PASS="walden"
-ELASTICSEARCH_URL="http://go-nomads-elasticsearch:9200"
+CONN_REDIS="go-nomads-redis:6379"
+CONN_RABBITMQ="amqp://walden:walden@go-nomads-rabbitmq:5672"
+CONN_ELASTICSEARCH="http://go-nomads-elasticsearch:9200"
 
 # Aspire Dashboard OTLP 端点（容器内部地址）
 OTLP_ENDPOINT="http://go-nomads-aspire-dashboard:18889"
@@ -236,10 +233,8 @@ deploy_service_local() {
     # --- User Service: Redis + RabbitMQ + AliyunSms + 服务发现 ---
     if [[ "$service_name" == "user-service" ]]; then
         extra_env+=(
-            "-e" "ConnectionStrings__redis=${REDIS_HOST}:${REDIS_PORT}"
-            "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
-            "-e" "RabbitMQ__Username=$RABBITMQ_USER"
-            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "ConnectionStrings__redis=$CONN_REDIS"
+            "-e" "ConnectionStrings__rabbitmq=$CONN_RABBITMQ"
             "-e" "AliyunSms__AccessKeyId=${ALIYUN_SMS_ACCESS_KEY_ID}"
             "-e" "AliyunSms__AccessKeySecret=${ALIYUN_SMS_ACCESS_KEY_SECRET}"
             "-e" "services__city-service__http__0=$(svc_url city-service)"
@@ -252,9 +247,7 @@ deploy_service_local() {
     # --- City Service: RabbitMQ + 服务发现 ---
     if [[ "$service_name" == "city-service" ]]; then
         extra_env+=(
-            "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
-            "-e" "RabbitMQ__Username=$RABBITMQ_USER"
-            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "ConnectionStrings__rabbitmq=$CONN_RABBITMQ"
             "-e" "services__user-service__http__0=$(svc_url user-service)"
             "-e" "services__cache-service__http__0=$(svc_url cache-service)"
             "-e" "services__coworking-service__http__0=$(svc_url coworking-service)"
@@ -284,12 +277,11 @@ deploy_service_local() {
         )
     fi
 
-    # --- Coworking Service: RabbitMQ + 服务发现 ---
+    # --- Coworking Service: Redis + RabbitMQ + 服务发现 ---
     if [[ "$service_name" == "coworking-service" ]]; then
         extra_env+=(
-            "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
-            "-e" "RabbitMQ__Username=$RABBITMQ_USER"
-            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "ConnectionStrings__redis=$CONN_REDIS"
+            "-e" "ConnectionStrings__rabbitmq=$CONN_RABBITMQ"
             "-e" "services__cache-service__http__0=$(svc_url cache-service)"
             "-e" "services__user-service__http__0=$(svc_url user-service)"
             "-e" "services__city-service__http__0=$(svc_url city-service)"
@@ -299,22 +291,18 @@ deploy_service_local() {
     # --- Event Service: RabbitMQ + 服务发现 ---
     if [[ "$service_name" == "event-service" ]]; then
         extra_env+=(
-            "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
-            "-e" "RabbitMQ__Username=$RABBITMQ_USER"
-            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "ConnectionStrings__rabbitmq=$CONN_RABBITMQ"
             "-e" "services__city-service__http__0=$(svc_url city-service)"
             "-e" "services__user-service__http__0=$(svc_url user-service)"
             "-e" "services__message-service__http__0=$(svc_url message-service)"
         )
     fi
 
-    # --- AI Service: Redis + RabbitMQ (注意: key 名不同!) + 服务发现 ---
+    # --- AI Service: Redis + RabbitMQ + 服务发现 ---
     if [[ "$service_name" == "ai-service" ]]; then
         extra_env+=(
-            "-e" "Redis__ConnectionString=${REDIS_HOST}:${REDIS_PORT}"
-            "-e" "RabbitMQ__HostName=$RABBITMQ_HOST"
-            "-e" "RabbitMQ__UserName=$RABBITMQ_USER"
-            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "ConnectionStrings__redis=$CONN_REDIS"
+            "-e" "ConnectionStrings__rabbitmq=$CONN_RABBITMQ"
             "-e" "services__user-service__http__0=$(svc_url user-service)"
             "-e" "services__city-service__http__0=$(svc_url city-service)"
         )
@@ -323,7 +311,7 @@ deploy_service_local() {
     # --- Cache Service: Redis + 服务发现 ---
     if [[ "$service_name" == "cache-service" ]]; then
         extra_env+=(
-            "-e" "ConnectionStrings__Redis=${REDIS_HOST}:${REDIS_PORT}"
+            "-e" "ConnectionStrings__redis=$CONN_REDIS"
             "-e" "services__city-service__http__0=$(svc_url city-service)"
             "-e" "services__coworking-service__http__0=$(svc_url coworking-service)"
         )
@@ -332,17 +320,16 @@ deploy_service_local() {
     # --- Message Service: Redis + RabbitMQ + 服务发现 ---
     if [[ "$service_name" == "message-service" ]]; then
         extra_env+=(
-            "-e" "ConnectionStrings__Redis=${REDIS_HOST}:${REDIS_PORT}"
-            "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
-            "-e" "RabbitMQ__Username=$RABBITMQ_USER"
-            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "ConnectionStrings__redis=$CONN_REDIS"
+            "-e" "ConnectionStrings__rabbitmq=$CONN_RABBITMQ"
             "-e" "services__user-service__http__0=$(svc_url user-service)"
         )
     fi
 
-    # --- Accommodation Service: 服务发现 ---
+    # --- Accommodation Service: Redis + 服务发现 ---
     if [[ "$service_name" == "accommodation-service" ]]; then
         extra_env+=(
+            "-e" "ConnectionStrings__redis=$CONN_REDIS"
             "-e" "services__user-service__http__0=$(svc_url user-service)"
         )
     fi
@@ -350,9 +337,7 @@ deploy_service_local() {
     # --- Innovation Service: RabbitMQ + 服务发现 ---
     if [[ "$service_name" == "innovation-service" ]]; then
         extra_env+=(
-            "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
-            "-e" "RabbitMQ__Username=$RABBITMQ_USER"
-            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "ConnectionStrings__rabbitmq=$CONN_RABBITMQ"
             "-e" "services__user-service__http__0=$(svc_url user-service)"
         )
     fi
@@ -360,10 +345,8 @@ deploy_service_local() {
     # --- Search Service: Elasticsearch + RabbitMQ + 服务发现 ---
     if [[ "$service_name" == "search-service" ]]; then
         extra_env+=(
-            "-e" "Elasticsearch__Url=$ELASTICSEARCH_URL"
-            "-e" "RabbitMQ__Host=$RABBITMQ_HOST"
-            "-e" "RabbitMQ__Username=$RABBITMQ_USER"
-            "-e" "RabbitMQ__Password=$RABBITMQ_PASS"
+            "-e" "ConnectionStrings__elasticsearch=$CONN_ELASTICSEARCH"
+            "-e" "ConnectionStrings__rabbitmq=$CONN_RABBITMQ"
             "-e" "services__city-service__http__0=$(svc_url city-service)"
             "-e" "services__coworking-service__http__0=$(svc_url coworking-service)"
         )

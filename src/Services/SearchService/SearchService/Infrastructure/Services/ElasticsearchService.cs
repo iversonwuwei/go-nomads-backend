@@ -18,7 +18,7 @@ using EsIndexSettings = Elastic.Clients.Elasticsearch.IndexManagement.IndexSetti
 namespace SearchService.Infrastructure.Services;
 
 /// <summary>
-/// Elasticsearch服务实现
+/// Elasticsearch服务实现（使用 Aspire 注入的 ElasticsearchClient）
 /// </summary>
 public class ElasticsearchService : IElasticsearchService
 {
@@ -28,28 +28,15 @@ public class ElasticsearchService : IElasticsearchService
     private readonly Infrastructure.Configuration.IndexSettings _indexSettings;
 
     public ElasticsearchService(
+        ElasticsearchClient client,
         IOptions<ElasticsearchSettings> settings,
         IOptions<Infrastructure.Configuration.IndexSettings> indexSettings,
         ILogger<ElasticsearchService> logger)
     {
+        _client = client;
         _settings = settings.Value;
         _indexSettings = indexSettings.Value;
         _logger = logger;
-
-        var clientSettings = new ElasticsearchClientSettings(new Uri(_settings.Url))
-            .DefaultIndex(_settings.DefaultIndex);
-
-        if (!string.IsNullOrEmpty(_settings.Username) && !string.IsNullOrEmpty(_settings.Password))
-        {
-            clientSettings.Authentication(new BasicAuthentication(_settings.Username, _settings.Password));
-        }
-
-        if (_settings.EnableDebugMode)
-        {
-            clientSettings.EnableDebugMode();
-        }
-
-        _client = new ElasticsearchClient(clientSettings);
     }
 
     public async Task<bool> IsHealthyAsync()

@@ -73,7 +73,7 @@ builder.Services.AddScoped<IChatService, ChatApplicationService>();
 builder.Services.Configure<TencentIMConfig>(builder.Configuration.GetSection(TencentIMConfig.SectionName));
 builder.Services.AddHttpClient<ITencentIMService, TencentIMService>();
 
-// 配置 SignalR + Redis Backplane
+// 配置 SignalR + Redis Backplane（使用 Aspire 注入的连接字符串）
 builder.Services.AddSignalR(options =>
     {
         // 增加超时配置，防止连接超时
@@ -83,7 +83,7 @@ builder.Services.AddSignalR(options =>
         options.MaximumReceiveMessageSize = 1024 * 1024; // 最大消息大小 1MB
         options.StreamBufferCapacity = 20; // 流缓冲区容量
     })
-    .AddStackExchangeRedis(builder.Configuration.GetConnectionString("Redis")
+    .AddStackExchangeRedis(builder.Configuration.GetConnectionString("redis")
                            ?? "localhost:6379",
         options => { options.Configuration.ChannelPrefix = RedisChannel.Literal("MessageService"); });
 
@@ -123,13 +123,20 @@ builder.Services.AddMassTransit(x =>
 
     x.UsingRabbitMq((context, cfg) =>
     {
-        var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
+        var connectionString = builder.Configuration.GetConnectionString("rabbitmq");
 
-        cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
+        if (!string.IsNullOrEmpty(connectionString))
         {
-            h.Username(rabbitMqConfig["Username"] ?? "guest");
-            h.Password(rabbitMqConfig["Password"] ?? "guest");
-        });
+            cfg.Host(new Uri(connectionString));
+        }
+        else
+        {
+            cfg.Host("localhost", "/", h =>
+            {
+                h.Username("guest");
+                h.Password("guest");
+            });
+        }
 
         // 配置 Exchange 和队列
         cfg.Message<AIProgressMessage>(x => x.SetEntityName("ai.progress.exchange"));

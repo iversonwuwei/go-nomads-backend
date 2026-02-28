@@ -6,7 +6,6 @@ using DocumentService.Configuration;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
-using Prometheus;
 using Scalar.AspNetCore;
 using GoNomads.Shared.Extensions;
 using Serilog;
@@ -81,9 +80,6 @@ var serviceConfig = app.Services.GetRequiredService<IOptions<ServiceConfiguratio
 // Configure the HTTP request pipeline
 app.UseCors();
 app.UseRouting();
-
-// Enable Prometheus metrics
-app.UseHttpMetrics();
 
 // Map OpenAPI endpoint
 app.MapOpenApi();
@@ -562,9 +558,6 @@ systemGroup.MapGet("/specs", async (IHttpClientFactory httpClientFactory) =>
 
 // Aspire 默认端点 (健康检查 /health + /alive)
 app.MapDefaultEndpoints();
-
-// Map Prometheus metrics endpoint
-app.MapMetrics();
 
 app.MapControllers();
 

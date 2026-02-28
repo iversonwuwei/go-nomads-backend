@@ -14,12 +14,9 @@ resources:
   - ../../infrastructure/redis.yaml
   - ../../infrastructure/rabbitmq.yaml
   - ../../infrastructure/elasticsearch.yaml
-  - ../../infrastructure/consul.yaml
   
-  # 监控服务
-  - ../../monitoring/prometheus.yaml
+  # 监控服务（Aspire Dashboard 替代 Consul/Zipkin/Prometheus）
   - ../../monitoring/grafana.yaml
-  - ../../monitoring/zipkin.yaml
 
 # 本地环境标签
 commonLabels:

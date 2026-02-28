@@ -17,10 +17,6 @@ spec:
     metadata:
       labels:
         app: ai-service
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8080"
-        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: ai-service
@@ -37,37 +33,27 @@ spec:
                   key: ASPNETCORE_ENVIRONMENT
             - name: ASPNETCORE_URLS
               value: "http://+:8080"
+            # Aspire ConnectionStrings
+            - name: ConnectionStrings__redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: CONNECTIONSTRINGS_REDIS
+            - name: ConnectionStrings__rabbitmq
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: CONNECTIONSTRINGS_RABBITMQ
             - name: ConnectionStrings__SupabaseDb
               valueFrom:
                 secretKeyRef:
                   name: go-nomads-secrets
                   key: DATABASE_CONNECTION_STRING
-            - name: ConnectionStrings__Redis
-              valueFrom:
-                secretKeyRef:
-                  name: go-nomads-secrets
-                  key: REDIS_CONNECTION_STRING
             - name: ConnectionStrings__QianWenApiKey
               valueFrom:
                 secretKeyRef:
                   name: go-nomads-secrets
                   key: QIANWEN_API_KEY
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceAddress
-              value: "ai-service"
-            - name: Consul__ServicePort
-              value: "8080"
-            - name: RabbitMQ__HostName
-              valueFrom:
-                configMapKeyRef:
-                  name: go-nomads-config
-                  key: RABBITMQ_HOST
-            - name: Redis__ConnectionString
-              valueFrom:
-                secretKeyRef:
-                  name: go-nomads-secrets
-                  key: REDIS_CONNECTION_STRING
             - name: OpenAI__ApiKey
               valueFrom:
                 secretKeyRef:
@@ -88,6 +74,11 @@ spec:
                 secretKeyRef:
                   name: go-nomads-secrets
                   key: SUPABASE_KEY
+            # Aspire Service Discovery
+            - name: services__user-service__http__0
+              value: "http://user-service:80"
+            - name: services__city-service__http__0
+              value: "http://city-service:80"
           resources:
             requests:
               memory: "512Mi"

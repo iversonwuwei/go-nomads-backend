@@ -17,10 +17,6 @@ spec:
     metadata:
       labels:
         app: message-service
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8010"
-        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: message-service
@@ -37,31 +33,22 @@ spec:
                   key: ASPNETCORE_ENVIRONMENT
             - name: ASPNETCORE_URLS
               value: "http://+:8010"
+            # Aspire ConnectionStrings
+            - name: ConnectionStrings__redis
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: CONNECTIONSTRINGS_REDIS
+            - name: ConnectionStrings__rabbitmq
+              valueFrom:
+                secretKeyRef:
+                  name: go-nomads-secrets
+                  key: CONNECTIONSTRINGS_RABBITMQ
             - name: ConnectionStrings__DefaultConnection
               valueFrom:
                 secretKeyRef:
                   name: go-nomads-secrets
                   key: DATABASE_CONNECTION_STRING
-            - name: ConnectionStrings__Redis
-              valueFrom:
-                secretKeyRef:
-                  name: go-nomads-secrets
-                  key: REDIS_CONNECTION_STRING
-            - name: RabbitMQ__Host
-              valueFrom:
-                configMapKeyRef:
-                  name: go-nomads-config
-                  key: RABBITMQ_HOST
-            - name: RabbitMQ__Username
-              valueFrom:
-                secretKeyRef:
-                  name: go-nomads-secrets
-                  key: RABBITMQ_DEFAULT_USER
-            - name: RabbitMQ__Password
-              valueFrom:
-                secretKeyRef:
-                  name: go-nomads-secrets
-                  key: RABBITMQ_DEFAULT_PASS
             - name: Supabase__Url
               valueFrom:
                 secretKeyRef:
@@ -72,6 +59,9 @@ spec:
                 secretKeyRef:
                   name: go-nomads-secrets
                   key: SUPABASE_KEY
+            # Aspire Service Discovery
+            - name: services__user-service__http__0
+              value: "http://user-service:80"
           resources:
             requests:
               memory: "256Mi"
