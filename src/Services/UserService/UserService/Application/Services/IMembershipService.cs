@@ -15,7 +15,7 @@ public interface IMembershipService
     /// <summary>
     ///     升级会员
     /// </summary>
-    Task<MembershipResponse> UpgradeMembershipAsync(string userId, int level, int durationDays);
+    Task<MembershipResponse> UpgradeMembershipAsync(string userId, int level, int durationDays, string billingCycle = "yearly");
 
     /// <summary>
     ///     缴纳保证金

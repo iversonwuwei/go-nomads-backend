@@ -34,23 +34,33 @@ public class MembershipService : IMembershipService
         return MembershipResponse.FromEntity(membership);
     }
 
-    public async Task<MembershipResponse> UpgradeMembershipAsync(string userId, int level, int durationDays)
+    public async Task<MembershipResponse> UpgradeMembershipAsync(string userId, int level, int durationDays, string billingCycle = "yearly")
     {
         var membership = await _membershipRepository.GetByUserIdAsync(userId);
+        var cycle = billingCycle.ToLower() == "monthly"
+            ? BillingCycle.Monthly
+            : BillingCycle.Yearly;
 
         if (membership == null)
         {
-            membership = Membership.Create(userId, (MembershipLevel)level, durationDays);
+            membership = Membership.Create(userId, (MembershipLevel)level, durationDays, cycle);
             await _membershipRepository.CreateAsync(membership);
         }
         else
         {
-            membership.Upgrade((MembershipLevel)level, durationDays);
+            // 业务规则：年付用户在会员有效期内不能切换到月付
+            if (membership.IsActive && membership.IsYearly && cycle == BillingCycle.Monthly
+                && membership.Level == level)
+            {
+                throw new InvalidOperationException("年付会员在有效期内不能切换为月付，请等会员到期后再操作");
+            }
+
+            membership.Upgrade((MembershipLevel)level, durationDays, cycle);
             await _membershipRepository.UpdateAsync(membership);
         }
 
-        _logger.LogInformation("User {UserId} upgraded to level {Level} for {Days} days",
-            userId, level, durationDays);
+        _logger.LogInformation("User {UserId} upgraded to level {Level} for {Days} days ({Cycle})",
+            userId, level, durationDays, cycle);
 
         return MembershipResponse.FromEntity(membership);
     }

@@ -84,10 +84,17 @@ public class MembershipController : ControllerBase
         if (string.IsNullOrEmpty(userId))
             return Unauthorized(new { message = "用户未登录" });
 
-        _logger.LogInformation("⬆️ 升级会员: UserId={UserId}, Level={Level}", userId, request.Level);
-        var membership = await _membershipService.UpgradeMembershipAsync(
-            userId, request.Level, request.DurationDays);
-        return Ok(membership);
+        _logger.LogInformation("⬆️ 升级会员: UserId={UserId}, Level={Level}, BillingCycle={BillingCycle}", userId, request.Level, request.BillingCycle);
+        try
+        {
+            var membership = await _membershipService.UpgradeMembershipAsync(
+                userId, request.Level, request.DurationDays, request.BillingCycle);
+            return Ok(membership);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>

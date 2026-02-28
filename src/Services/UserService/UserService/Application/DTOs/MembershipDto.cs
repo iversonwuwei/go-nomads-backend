@@ -23,6 +23,8 @@ public class MembershipResponse
     public bool IsExpiringSoon { get; set; }
     public bool CanUseAI { get; set; }
     public bool CanApplyModerator { get; set; }
+    /// <summary>计费周期： monthly / yearly</summary>
+    public string BillingCycle { get; set; } = "yearly";
 
     public static MembershipResponse FromEntity(Membership entity)
     {
@@ -43,7 +45,8 @@ public class MembershipResponse
             RemainingDays = entity.RemainingDays,
             IsExpiringSoon = entity.IsExpiringSoon,
             CanUseAI = entity.CanUseAI,
-            CanApplyModerator = entity.CanApplyModerator
+            CanApplyModerator = entity.CanApplyModerator,
+            BillingCycle = entity.BillingCycle.ToString().ToLower()
         };
     }
 }
@@ -55,6 +58,8 @@ public class UpgradeMembershipRequest
 {
     public int Level { get; set; }
     public int DurationDays { get; set; } = 365;
+    /// <summary>计费周期： monthly / yearly，默认 yearly</summary>
+    public string BillingCycle { get; set; } = "yearly";
 }
 
 /// <summary>
