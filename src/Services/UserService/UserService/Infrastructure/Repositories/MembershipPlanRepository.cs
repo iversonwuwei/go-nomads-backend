@@ -30,18 +30,6 @@ public class MembershipPlanRepository : IMembershipPlanRepository
                 .Order("sort_order", Postgrest.Constants.Ordering.Ascending)
                 .Get(cancellationToken);
 
-            foreach (var plan in response.Models)
-            {
-                if (plan.Level <= 0)
-                {
-                    continue;
-                }
-
-                plan.PriceYearly = 1m;
-                plan.PriceMonthly = 1m;
-                plan.Currency = "CNY";
-            }
-
             _logger.LogInformation("✅ 获取到 {Count} 个会员计划", response.Models.Count);
             return response.Models;
         }
@@ -60,13 +48,6 @@ public class MembershipPlanRepository : IMembershipPlanRepository
                 .From<MembershipPlan>()
                 .Where(p => p.Level == level)
                 .Single(cancellationToken);
-
-            if (response != null && response.Level > 0)
-            {
-                response.PriceYearly = 1m;
-                response.PriceMonthly = 1m;
-                response.Currency = "CNY";
-            }
 
             return response;
         }

@@ -2,7 +2,6 @@ using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
 using CityService.Domain.ValueObjects;
 using Postgrest;
-using Postgrest.Interfaces;
 using Shared.Repositories;
 using Client = Supabase.Client;
 
@@ -429,10 +428,10 @@ public partial class SupabaseCityRepository : SupabaseRepositoryBase<City>, ICit
                 .Where(x => x.Id == id)
                 .Set(x => x.IsActive, false)
                 .Set(x => x.IsDeleted, true)
-                .Set(x => x.DeletedAt, now)
-                .Set(x => x.DeletedBy, deletedBy)
-                .Set(x => x.UpdatedAt, now)
-                .Set(x => x.UpdatedById, deletedBy)
+                .Set(x => x.DeletedAt!, now)
+                .Set(x => x.DeletedBy!, deletedBy)
+                .Set(x => x.UpdatedAt!, now)
+                .Set(x => x.UpdatedById!, deletedBy)
                 .Update();
 
             Logger.LogInformation("✅ City 逻辑删除成功，ID: {CityId}, DeletedBy: {DeletedBy}", id, deletedBy);

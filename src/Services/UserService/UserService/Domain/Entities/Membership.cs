@@ -15,6 +15,17 @@ public enum MembershipLevel
 }
 
 /// <summary>
+///     计费周期枚举
+/// </summary>
+public enum BillingCycle
+{
+    /// <summary>月付</summary>
+    Monthly = 0,
+    /// <summary>年付</summary>
+    Yearly = 1
+}
+
+/// <summary>
 ///     会员实体 - DDD 领域实体
 /// </summary>
 [Table("memberships")]
@@ -43,6 +54,9 @@ public class Membership : BaseModel
     [Column("expiry_date")]
     public DateTime? ExpiryDate { get; set; }
 
+    [Column("billing_cycle")]
+    public int BillingCycleValue { get; set; } = (int)BillingCycle.Yearly;
+
     [Column("auto_renew")]
     public bool AutoRenew { get; set; } = false;
 
@@ -66,6 +80,18 @@ public class Membership : BaseModel
     [System.Text.Json.Serialization.JsonIgnore]
     [Newtonsoft.Json.JsonIgnore]
     public MembershipLevel MembershipLevel => (MembershipLevel)Level;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
+    public BillingCycle BillingCycle => (BillingCycle)BillingCycleValue;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
+    public bool IsMonthly => BillingCycle == BillingCycle.Monthly;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
+    public bool IsYearly => BillingCycle == BillingCycle.Yearly;
 
     [System.Text.Json.Serialization.JsonIgnore]
     [Newtonsoft.Json.JsonIgnore]
@@ -130,13 +156,14 @@ public class Membership : BaseModel
         };
     }
 
-    public static Membership Create(string userId, MembershipLevel level, int durationDays = 365)
+    public static Membership Create(string userId, MembershipLevel level, int durationDays = 365, BillingCycle billingCycle = BillingCycle.Yearly)
     {
         var now = DateTime.UtcNow;
         return new Membership
         {
             UserId = userId,
             Level = (int)level,
+            BillingCycleValue = (int)billingCycle,
             StartDate = now,
             ExpiryDate = now.AddDays(durationDays),
             AutoRenew = true,
@@ -148,10 +175,11 @@ public class Membership : BaseModel
 
     #region 领域方法
 
-    public void Upgrade(MembershipLevel newLevel, int durationDays = 365)
+    public void Upgrade(MembershipLevel newLevel, int durationDays = 365, BillingCycle billingCycle = BillingCycle.Yearly)
     {
         var now = DateTime.UtcNow;
         Level = (int)newLevel;
+        BillingCycleValue = (int)billingCycle;
         StartDate = now;
         ExpiryDate = now.AddDays(durationDays);
         AutoRenew = true;
@@ -187,7 +215,7 @@ public class Membership : BaseModel
         UpdatedAt = DateTime.UtcNow;
     }
 
-    public void Renew(int durationDays = 365)
+    public void Renew(int durationDays = 365, BillingCycle? billingCycle = null)
     {
         var now = DateTime.UtcNow;
         // 如果未过期，从过期日延续；否则从今天开始
@@ -195,6 +223,8 @@ public class Membership : BaseModel
             ? ExpiryDate.Value 
             : now;
         ExpiryDate = startFrom.AddDays(durationDays);
+        if (billingCycle.HasValue)
+            BillingCycleValue = (int)billingCycle.Value;
         UpdatedAt = now;
     }
 

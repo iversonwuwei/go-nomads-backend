@@ -324,8 +324,11 @@ public class PaymentService : IPaymentService
                 if (plan == null)
                     throw new ArgumentException($"未找到会员等级 {membershipLevel} 的计划");
 
-                // 测试模式：会员统一 1 元人民币
-                return (1m, "CNY", $"Go Nomads {plan.Name} 会员（测试价）");
+                // 根据时长选择月付或年付价格
+                var isMonthly = durationDays.HasValue && durationDays.Value <= 31;
+                var price = isMonthly ? plan.PriceMonthly : plan.PriceYearly;
+                var periodLabel = isMonthly ? "月" : "年";
+                return (price, plan.Currency, $"Go Nomads {plan.Name} 会员（{periodLabel}付）");
 
             case "moderator_deposit":
                 return (depositAmount ?? 50m, "CNY", "Go Nomads 版主保证金");
