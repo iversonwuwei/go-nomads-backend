@@ -97,9 +97,6 @@ data:
   ELASTICSEARCH_HOST: "elasticsearch-service"
   ELASTICSEARCH_PORT: "9200"
   
-  # Consul 配置
-  CONSUL_HOST: "consul-service"
-  CONSUL_PORT: "8500"
   
   # Zipkin 配置
   ZIPKIN_HOST: "zipkin-service"

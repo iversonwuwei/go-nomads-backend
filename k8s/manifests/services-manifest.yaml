@@ -5,8 +5,6 @@ data:
   ASPNETCORE_ENVIRONMENT: Production
   CACHE_SERVICE_URL: http://cache-service:8011
   CITY_SERVICE_URL: http://city-service:8002
-  CONSUL_HOST: consul-service
-  CONSUL_PORT: "8500"
   COWORKING_SERVICE_URL: http://coworking-service:8003
   ECOMMERCE_SERVICE_URL: http://ecommerce-service:8008
   ELASTICSEARCH_HOST: elasticsearch-service
@@ -378,12 +376,6 @@ spec:
             secretKeyRef:
               key: QIANWEN_API_KEY
               name: go-nomads-secrets
-        - name: Consul__Address
-          value: http://consul-service:8500
-        - name: Consul__ServiceAddress
-          value: ai-service
-        - name: Consul__ServicePort
-          value: "8080"
         - name: RabbitMQ__HostName
           valueFrom:
             configMapKeyRef:

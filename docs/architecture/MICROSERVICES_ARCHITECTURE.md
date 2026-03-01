@@ -494,7 +494,6 @@ docker-compose down -v
 
 - [ ] 实现 API Gateway 路由配置
 - [ ] 添加服务间通信 (gRPC/HTTP)
-- [ ] 实现服务注册与发现 (Consul/Nacos)
 - [ ] 添加熔断降级 (Polly)
 - [ ] 实现配置中心
 - [ ] 添加健康检查

@@ -2,7 +2,7 @@ name: go-nomads
 
 # ============================================================
 # Go-Nomads 后端服务 - 从华为云 SWR 拉取预构建镜像
-# (Aspire 架构: ServiceDiscovery + OTLP, 无 Dapr/Consul)
+# (Aspire 架构: ServiceDiscovery + OTLP)
 #
 # 使用方法:
 #   启动: docker compose -f docker-compose-services-swr.yml up -d

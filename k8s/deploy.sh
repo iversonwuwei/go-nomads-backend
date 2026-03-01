@@ -176,7 +176,6 @@ deploy_infrastructure() {
     apply_config "$K8S_DIR/infrastructure/redis.yaml" "Redis"
     apply_config "$K8S_DIR/infrastructure/rabbitmq.yaml" "RabbitMQ"
     apply_config "$K8S_DIR/infrastructure/elasticsearch.yaml" "Elasticsearch"
-    apply_config "$K8S_DIR/infrastructure/consul.yaml" "Consul"
     
     # 等待基础设施就绪
     print_info "等待基础设施服务就绪..."
@@ -184,7 +183,6 @@ deploy_infrastructure() {
     
     wait_for_deployment "redis" "go-nomads" 120
     wait_for_deployment "rabbitmq" "go-nomads" 180
-    wait_for_deployment "consul" "go-nomads" 120
     
     print_success "基础设施服务部署完成"
 }

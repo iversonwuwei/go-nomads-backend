@@ -51,8 +51,7 @@ CacheService/
 
 - **框架**: ASP.NET Core 9.0
 - **缓存**: Redis (StackExchange.Redis)
-- **服务发现**: Consul
-- **服务调用**: Dapr Service Invocation
+- **服务调用**: HttpClient + Aspire 服务发现
 - **日志**: Serilog
 - **API 文档**: Scalar
 
@@ -110,11 +109,6 @@ final response = await http.post(
   },
   "Cache": {
     "ScoreTtlHours": 24
-  },
-  "Consul": {
-    "Address": "http://go-nomads-consul:7500",
-    "ServiceName": "cache-service",
-    "HealthCheckPath": "/health"
   }
 }
 ```
@@ -225,9 +219,8 @@ var results = await Task.WhenAll(tasks);
 
 ### 本地开发
 1. 启动 Redis: `docker run -d -p 6379:6379 redis:latest`
-2. 启动 Consul: `docker run -d -p 7500:8500 consul:latest`
-3. 启动服务: `dotnet run`
-4. 访问 API 文档: `http://localhost:8010/scalar/v1`
+2. 启动服务: `dotnet run`
+3. 访问 API 文档: `http://localhost:8010/scalar/v1`
 
 ### 添加新的缓存类型
 1. 在 `Domain/Entities/ScoreCache.cs` 添加新的 `ScoreEntityType`
@@ -257,6 +250,5 @@ A: 调用批量失效 API,或者直接清空 Redis 中对应的 key pattern。
 - ✅ 初始版本
 - ✅ 支持 City 和 Coworking 评分缓存
 - ✅ Redis 持久化
-- ✅ Dapr 服务调用集成
-- ✅ Consul 服务注册
+- ✅ 服务调用集成
 - ✅ 完整的 DDD 架构

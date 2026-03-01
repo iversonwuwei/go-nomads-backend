@@ -106,9 +106,7 @@
 
 | 服务名称 | 端口 | 技术栈 | 状态 | 说明 |
 |---------|------|--------|------|------|
-| API Gateway | 5000 | C# + Ocelot/YARP | ✅ 已实现 | 路由、认证、限流 |
-| Config Service | 8888 | Consul/Nacos | 🔵 待部署 | 配置中心 |
-| Registry Service | 8500 | Consul | ✅ 已部署 | 服务注册发现 |
+| API Gateway | 5000 | C# + YARP | ✅ 已实现 | 路由、认证、限流 |
 
 ---
 
@@ -283,7 +281,6 @@ docker-compose up
 - ...
 - postgres: localhost:5432
 - redis: localhost:6379
-- consul: http://localhost:8500
 ```
 
 ### 生产环境

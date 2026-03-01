@@ -10,13 +10,11 @@
 - ✅ 配置 DaprClient 使用 **gRPC 端口 50001**
 - ✅ 添加 Scalar API 文档
 - ✅ 添加 Prometheus 指标
-- ✅ 自动注册到 Consul
 
 **appsettings.json**:
 - ✅ Supabase 连接配置
 - ✅ Dapr gRPC 配置 (端口 50001)
 - ✅ Serilog 日志配置
-- ✅ Consul 服务注册配置
 
 **EventService.csproj**:
 - ✅ 添加必要的 NuGet 包：
@@ -67,17 +65,6 @@ App ID: event-service
 HTTP Port: 3505 (Dapr sidecar)
 gRPC Port: 50001 (Dapr sidecar)
 Protocol: gRPC (强制使用)
-```
-
-### Consul 注册信息
-
-```json
-{
-  "ServiceName": "event-service",
-  "ServiceAddress": "<container-id>",
-  "ServicePort": 8080,
-  "ServiceTags": ["1.0.0", "http", "api", "microservice"]
-}
 ```
 
 ## 🔧 Dapr gRPC 配置详情
@@ -135,18 +122,7 @@ curl http://localhost:8005/health
 - ✅ 显示 "Event Service API" 标题
 - ✅ 服务器 URL 显示为 http://localhost:8005
 
-### 3. Consul 注册验证
-
-```bash
-curl http://localhost:8500/v1/catalog/service/event-service | jq '.'
-```
-
-预期:
-- ✅ 返回服务注册信息
-- ✅ ServiceName 为 "event-service"
-- ✅ ServicePort 为 8080
-
-### 4. Dapr Sidecar 验证
+### 3. Dapr Sidecar 验证
 
 ```bash
 docker logs go-nomads-event-service-dapr 2>&1 | grep "gRPC"
@@ -239,20 +215,9 @@ docker logs go-nomads-event-service-dapr
 docker inspect go-nomads-event-service | grep -A 10 "NetworkMode"
 ```
 
-### Consul 注册失败
-
-```bash
-# 检查 Consul 连接
-curl http://localhost:8500/v1/status/leader
-
-# 检查服务注册
-curl http://localhost:8500/v1/catalog/services
-```
-
 ## 📝 重要说明
 
 1. **gRPC 强制使用**: EventService 的 Dapr 客户端配置为强制使用 gRPC 协议
 2. **Container Sidecar 模式**: EventService 和 Dapr sidecar 共享网络命名空间
 3. **端口映射**: 应用端口 8005 映射到容器内部的 8080
-4. **Consul 注册**: 服务自动注册到 Consul，健康检查间隔 10 秒
-5. **日志输出**: 使用 Serilog 输出到控制台和文件（logs/eventservice-*.txt）
+4. **日志输出**: 使用 Serilog 输出到控制台和文件（logs/eventservice-*.txt）

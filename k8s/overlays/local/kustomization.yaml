@@ -15,7 +15,7 @@ resources:
   - ../../infrastructure/rabbitmq.yaml
   - ../../infrastructure/elasticsearch.yaml
   
-  # 监控服务（Aspire Dashboard 替代 Consul/Zipkin/Prometheus）
+  # 监控服务（Aspire Dashboard 替代 Zipkin/Prometheus）
   - ../../monitoring/grafana.yaml
 
 # 本地环境标签
