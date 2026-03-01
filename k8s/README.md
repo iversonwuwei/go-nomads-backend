@@ -11,8 +11,7 @@ k8s/
 ├── infrastructure/             # 基础设施服务
 │   ├── redis.yaml              # Redis 缓存
 │   ├── rabbitmq.yaml           # RabbitMQ 消息队列
-│   ├── elasticsearch.yaml      # Elasticsearch 搜索
-│   └── consul.yaml             # Consul 服务发现
+│   └── elasticsearch.yaml      # Elasticsearch 搜索
 ├── services/                   # 业务服务
 │   ├── gateway.yaml            # API 网关
 │   ├── user-service.yaml       # 用户服务
@@ -236,7 +235,6 @@ kubectl apply -k overlays/prod/
 | Redis | 6379 | 6379 |
 | RabbitMQ | 5672, 15672 | 5672, 15672 |
 | Elasticsearch | 9200, 9300 | 9200, 9300 |
-| Consul | 8500 | 8500 |
 | Prometheus | 9090 | 9090 |
 | Grafana | 3000 | 3000 |
 | Zipkin | 9411 | 9411 |
@@ -302,9 +300,6 @@ kubectl port-forward svc/zipkin-service 9411:9411 -n go-nomads
 
 # RabbitMQ 管理界面
 kubectl port-forward svc/rabbitmq-service 15672:15672 -n go-nomads
-
-# Consul UI
-kubectl port-forward svc/consul-service 8500:8500 -n go-nomads
 ```
 
 ### 通过 Ingress 访问

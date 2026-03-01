@@ -5,7 +5,6 @@
 ## 基础设施组件
 
 - **Redis** - 配置中心 & 状态存储
-- **Consul** - 服务注册与发现
 - **Zipkin** - 分布式链路追踪
 - **Prometheus** - 指标收集
 - **Grafana** - 指标可视化
@@ -75,7 +74,6 @@ chmod +x deploy-infrastructure.sh
 
 | 组件 | 地址 | 说明 |
 |------|------|------|
-| Consul | http://localhost:8500 | 服务注册中心 Web UI |
 | Prometheus | http://localhost:9090 | 指标查询与监控 |
 | Grafana | http://localhost:3000 | 可视化仪表盘 (admin/admin) |
 | Zipkin | http://localhost:9411 | 分布式追踪 UI |
@@ -94,21 +92,12 @@ chmod +x deploy-infrastructure.sh
 - 功能开关
 - 业务规则
 
-### Consul 服务注册
-
-自动注册以下服务到 Consul:
-- `gateway` - API 网关服务
-- `product-service` - 产品服务
-- `user-service` - 用户服务
-
 ### Prometheus 监控
 
 自动配置以下监控目标:
 - Dapr sidecar metrics (端口 9090)
 - 应用 metrics (端口 8080)
 - Redis 和 Zipkin metrics
-
-通过 Consul 服务发现自动更新监控目标。
 
 ## 网络配置
 
@@ -130,26 +119,21 @@ chmod +x deploy-infrastructure.sh
 1. 检查端口占用:
    ```powershell
    # Windows
-   netstat -ano | findstr "8500|9090|3000|9411|6379|9200|15672|5432"
+   netstat -ano | findstr "9090|3000|9411|6379|9200|15672|5432"
    
    # Linux
-   netstat -tuln | grep -E "8500|9090|3000|9411|6379|9200|15672|5432"
+   netstat -tuln | grep -E "9090|3000|9411|6379|9200|15672|5432"
    ```
 
 2. 检查容器日志:
+
    ```bash
-   podman logs go-nomads-consul
    podman logs go-nomads-redis
    ```
 
 ### Prometheus 无法发现服务
 
-1. 确认 Consul 服务已注册:
-   ```bash
-   podman exec go-nomads-consul consul catalog services
-   ```
-
-2. 检查 Prometheus targets:
+1. 检查 Prometheus targets:
    访问 http://localhost:9090/targets
 
 ### 网络问题
@@ -183,7 +167,6 @@ chmod +x deploy-infrastructure.sh
          │
 基础设施层 (本脚本部署)
 ├─ Redis (配置中心 & 状态存储)
-├─ Consul (服务注册 & 健康检查)
 ├─ Zipkin (分布式追踪)
 ├─ Prometheus (指标收集 & 查询)
 └─ Grafana (可视化监控)
@@ -201,8 +184,7 @@ chmod +x deploy-infrastructure.sh
    - 添加 Prometheus 数据源
    - 导入 Dapr 官方仪表盘
 
-3. **验证服务注册**
-   - 访问 Consul UI 查看服务列表
+3. **验证服务状态**
    - 检查健康检查状态
 
 ## 清理资源

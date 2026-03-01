@@ -18,9 +18,9 @@
 │  • Redis                     • Gateway              │
 │  • RabbitMQ                  • User Service         │
 │  • Elasticsearch             • City Service         │
-│  • Consul                    • Coworking Service    │
-│  • Zipkin                    • Event Service        │
-│  • Prometheus                • AI Service           │
+│  • Zipkin                    • Coworking Service    │
+│  • Prometheus                • Event Service        │
+│  • Grafana                   • AI Service           │
 │  • Grafana                   • Message Service      │
 │                              • Cache Service        │
 │                              • Accommodation Svc    │
@@ -47,7 +47,6 @@ helm/go-nomads/
     ├── redis.yaml          # Redis
     ├── rabbitmq.yaml       # RabbitMQ
     ├── elasticsearch.yaml  # Elasticsearch
-    ├── consul.yaml         # Consul
     ├── zipkin.yaml         # Zipkin
     ├── prometheus.yaml     # Prometheus
     └── grafana.yaml        # Grafana
@@ -102,9 +101,6 @@ rabbitmq:
 
 elasticsearch:
   enabled: false      # 默认禁用（资源消耗大）
-
-consul:
-  enabled: false      # 默认禁用
 
 zipkin:
   enabled: false      # 默认禁用

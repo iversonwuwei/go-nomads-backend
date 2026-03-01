@@ -14,7 +14,6 @@ resources:
   - infrastructure/redis.yaml
   - infrastructure/rabbitmq.yaml
   - infrastructure/elasticsearch.yaml
-  - infrastructure/consul.yaml
   
   # 监控服务
   - monitoring/prometheus.yaml

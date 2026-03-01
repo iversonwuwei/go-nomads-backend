@@ -172,7 +172,8 @@ dotnet build src/GoNomads.AppHost/GoNomads.AppHost.csproj
 | `docker-compose.messageservice.yml` | MessageService 独立栈 |
 
 ### 注意事项
-- `k8s/` 目录中的 Kubernetes manifests 仍包含 Consul 引用，待 K8s 部署方案更新时一并清理
+
+- `k8s/` 目录中的 Kubernetes manifests 和文档中的 Consul 引用已清理完毕
 
 ---
 

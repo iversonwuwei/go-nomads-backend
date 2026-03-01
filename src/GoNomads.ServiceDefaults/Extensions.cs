@@ -5,7 +5,7 @@
 // 渐进式迁移:
 // - 阶段1: 各服务可选引用此项目，与现有 Shared 项目的 Observability 并存
 // - 阶段2: 逐步替换 Shared 中的手动 OpenTelemetry 配置
-// - 阶段3+: 逐步替换 Consul 和 Dapr 相关功能
+// - 阶段3+: 逐步替换 Dapr 相关功能
 // =============================================================================
 
 using Microsoft.AspNetCore.Builder;
@@ -36,7 +36,7 @@ public static class GoNomadsServiceDefaultsExtensions
     /// </summary>
     public static IHostApplicationBuilder AddServiceDefaults(this IHostApplicationBuilder builder)
     {
-        // 添加服务发现（Aspire 自动配置，替代 Consul）
+        // 添加服务发现（Aspire 自动配置）
         builder.Services.AddServiceDiscovery();
 
         // 配置默认 HTTP 客户端：启用服务发现 + 弹性策略

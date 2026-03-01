@@ -30,9 +30,6 @@ rabbitmq:
 elasticsearch:
   enabled: false
 
-consul:
-  enabled: false
-
 zipkin:
   enabled: false
 

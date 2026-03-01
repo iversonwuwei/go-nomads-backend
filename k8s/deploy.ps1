@@ -204,14 +204,12 @@ function Deploy-Infrastructure {
     Apply-Config -FilePath "$K8sDir\infrastructure\redis.yaml" -Description "Redis"
     Apply-Config -FilePath "$K8sDir\infrastructure\rabbitmq.yaml" -Description "RabbitMQ"
     Apply-Config -FilePath "$K8sDir\infrastructure\elasticsearch.yaml" -Description "Elasticsearch"
-    Apply-Config -FilePath "$K8sDir\infrastructure\consul.yaml" -Description "Consul"
     
     Write-Info "Waiting for infrastructure..."
     Start-Sleep -Seconds 10
     
     Wait-ForDeployment -DeploymentName "redis" -Namespace "go-nomads" -TimeoutSeconds 120
     Wait-ForDeployment -DeploymentName "rabbitmq" -Namespace "go-nomads" -TimeoutSeconds 180
-    Wait-ForDeployment -DeploymentName "consul" -Namespace "go-nomads" -TimeoutSeconds 120
     
     Write-Success "Infrastructure deployed"
 }
