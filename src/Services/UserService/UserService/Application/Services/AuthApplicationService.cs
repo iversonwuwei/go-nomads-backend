@@ -29,6 +29,7 @@ public class AuthApplicationService : IAuthService
     private readonly IWeChatOAuthService _weChatOAuthService;
     private readonly IGoogleOAuthService _googleOAuthService;
     private readonly ITwitterOAuthService _twitterOAuthService;
+    private readonly IAppleOAuthService _appleOAuthService;
     private readonly IQQService _qqService;
 
     /// <summary>
@@ -48,6 +49,7 @@ public class AuthApplicationService : IAuthService
         IWeChatOAuthService weChatOAuthService,
         IGoogleOAuthService googleOAuthService,
         ITwitterOAuthService twitterOAuthService,
+        IAppleOAuthService appleOAuthService,
         IQQService qqService,
         IConfiguration configuration,
         ILogger<AuthApplicationService> logger)
@@ -62,6 +64,7 @@ public class AuthApplicationService : IAuthService
         _weChatOAuthService = weChatOAuthService;
         _googleOAuthService = googleOAuthService;
         _twitterOAuthService = twitterOAuthService;
+        _appleOAuthService = appleOAuthService;
         _qqService = qqService;
         _configuration = configuration;
         _logger = logger;
@@ -786,6 +789,33 @@ public class AuthApplicationService : IAuthService
 
                 _logger.LogInformation("✅ Twitter 用户信息获取成功: id={Id}, name={Name}, username={Username}",
                     openId, nickname, twitterUserInfo.Username);
+            }
+            else if (provider == "apple")
+            {
+                // Apple 登录：验证 Identity Token (JWT)
+                // Flutter 端将 identityToken 放在 AccessToken 字段，authorizationCode 放在 Code 字段
+                var appleIdentityToken = request.AccessToken;
+                if (string.IsNullOrEmpty(appleIdentityToken))
+                {
+                    throw new InvalidOperationException("Apple 登录需要提供 Identity Token");
+                }
+
+                var appleUserInfo = await _appleOAuthService.VerifyIdentityTokenAsync(appleIdentityToken, cancellationToken);
+                if (appleUserInfo == null)
+                {
+                    throw new InvalidOperationException("Apple Identity Token 验证失败");
+                }
+
+                openId = appleUserInfo.Sub;
+
+                // Apple 仅在用户首次授权时返回姓名，由客户端传入 Nickname 字段
+                if (!string.IsNullOrEmpty(request.Nickname))
+                {
+                    nickname = request.Nickname;
+                }
+
+                _logger.LogInformation("✅ Apple 用户信息验证成功: sub={Sub}, email={Email}, nickname={Nickname}",
+                    openId, appleUserInfo.Email, nickname);
             }
             else if (provider == "qq")
             {
