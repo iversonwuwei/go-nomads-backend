@@ -91,4 +91,9 @@ public class SocialLoginRequest
     ///     用户唯一标识（OpenID）
     /// </summary>
     public string? OpenId { get; set; }
+
+    /// <summary>
+    ///     用户昵称（Apple 首次授权时返回，其他平台可选）
+    /// </summary>
+    public string? Nickname { get; set; }
 }

@@ -64,6 +64,9 @@ builder.Services.AddHttpClient<IGoogleOAuthService, GoogleOAuthService>();
 // 配置 Twitter OAuth 服务
 builder.Services.AddHttpClient<ITwitterOAuthService, TwitterOAuthService>();
 
+// 配置 Apple OAuth 服务
+builder.Services.AddHttpClient<IAppleOAuthService, AppleOAuthService>();
+
 // Register Domain Repositories (Infrastructure Layer)
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
