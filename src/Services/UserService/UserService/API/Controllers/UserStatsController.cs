@@ -17,16 +17,19 @@ public class UserStatsController : ControllerBase
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<UserStatsController> _logger;
+    private readonly IUserRepository _userRepository;
     private readonly IUserStatsRepository _userStatsRepository;
     private readonly ITravelHistoryService _travelHistoryService;
 
     public UserStatsController(
         IUserStatsRepository userStatsRepository,
+        IUserRepository userRepository,
         ITravelHistoryService travelHistoryService,
         IHttpClientFactory httpClientFactory,
         ILogger<UserStatsController> logger)
     {
         _userStatsRepository = userStatsRepository;
+        _userRepository = userRepository;
         _travelHistoryService = travelHistoryService;
         _httpClientFactory = httpClientFactory;
         _logger = logger;
@@ -300,6 +303,53 @@ public class UserStatsController : ControllerBase
             {
                 Success = false,
                 Message = "更新用户统计数据失败"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     管理后台 Dashboard 聚合数据（用户）
+    /// </summary>
+    [HttpGet("dashboard/overview")]
+    public async Task<ActionResult<ApiResponse<AdminDashboardOverviewDto>>> GetDashboardOverview(
+        [FromQuery] DateOnly? date = null,
+        CancellationToken cancellationToken = default)
+    {
+        var targetDateUtc = date?.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc) ?? DateTime.UtcNow.Date;
+        var nextDateUtc = targetDateUtc.AddDays(1);
+
+        try
+        {
+            var usersTask = _userRepository.GetAllAsync(cancellationToken);
+
+            var users = await usersTask;
+            var totalUsers = users.Count;
+            var newUsers = users.Count(x => x.CreatedAt >= targetDateUtc && x.CreatedAt < nextDateUtc);
+
+            var data = new AdminDashboardOverviewDto
+            {
+                CalculatedDate = targetDateUtc.ToString("yyyy.MM.dd"),
+                Users = new AdminDashboardUserMetricsDto
+                {
+                    TotalUsers = totalUsers,
+                    NewUsers = newUsers
+                }
+            };
+
+            return Ok(new ApiResponse<AdminDashboardOverviewDto>
+            {
+                Success = true,
+                Message = "Dashboard overview loaded",
+                Data = data
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取 Dashboard 聚合数据失败");
+            return StatusCode(500, new ApiResponse<AdminDashboardOverviewDto>
+            {
+                Success = false,
+                Message = "获取 Dashboard 聚合数据失败"
             });
         }
     }
