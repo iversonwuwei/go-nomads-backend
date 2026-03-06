@@ -172,6 +172,30 @@ public class UserCityContentApplicationService : IUserCityContentService
         return deleted;
     }
 
+    public async Task<CityPhotoModerationResultDto?> ReviewPhotoAsync(
+        Guid photoId,
+        string moderatorId,
+        string action,
+        string? reason)
+    {
+        var normalized = (action ?? string.Empty).Trim().ToLowerInvariant();
+        if (normalized != "approve" && normalized != "reject")
+            throw new ArgumentException("仅支持 approve / reject", nameof(action));
+
+        var updated = await _photoRepository.ModerateAsync(photoId, moderatorId, normalized, reason);
+        if (updated == null) return null;
+
+        return new CityPhotoModerationResultDto
+        {
+            PhotoId = updated.Id,
+            CityId = updated.CityId,
+            Action = normalized,
+            Reason = reason,
+            ModeratorId = moderatorId,
+            ReviewedAt = updated.ModeratedAt ?? DateTime.UtcNow
+        };
+    }
+
     #endregion
 
     #region 费用相关
@@ -689,6 +713,10 @@ public class UserCityContentApplicationService : IUserCityContentService
             Latitude = photo.Latitude,
             Longitude = photo.Longitude,
             TakenAt = photo.TakenAt,
+            ModerationStatus = photo.ModerationStatus,
+            ModeratedBy = photo.ModeratedBy,
+            ModerationNote = photo.ModerationNote,
+            ModeratedAt = photo.ModeratedAt,
             CreatedAt = photo.CreatedAt
         };
     }

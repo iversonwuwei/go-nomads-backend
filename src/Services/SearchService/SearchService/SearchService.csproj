@@ -8,7 +8,7 @@
     </PropertyGroup>
 
 <ItemGroup>
-<PackageReference Include="Aspire.Elastic.Clients.Elasticsearch" Version="9.2.1" />
+<PackageReference Include="Aspire.Elastic.Clients.Elasticsearch" Version="9.1.0" />
 <PackageReference Include="Elastic.Clients.Elasticsearch" Version="8.19.4" />
 
         <PackageReference Include="MassTransit" Version="8.4.0" />

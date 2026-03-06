@@ -34,4 +34,14 @@ public interface IReportService
     ///     获取当前用户的举报记录
     /// </summary>
     Task<List<ReportDto>> GetMyReportsAsync(string reporterId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     管理员处置举报（assign / resolve / dismiss）
+    /// </summary>
+    Task<ReportDto> HandleReportActionAsync(
+        string reportId,
+        string action,
+        string adminId,
+        string? note,
+        CancellationToken cancellationToken = default);
 }

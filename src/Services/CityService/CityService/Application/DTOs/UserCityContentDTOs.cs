@@ -39,6 +39,10 @@ public class UserCityPhotoDto
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
     public DateTime? TakenAt { get; set; }
+    public string? ModerationStatus { get; set; }
+    public string? ModeratedBy { get; set; }
+    public string? ModerationNote { get; set; }
+    public DateTime? ModeratedAt { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 
@@ -75,6 +79,27 @@ public class SubmitCityPhotoBatchRequest
     [MaxLength(1000)] public string? Description { get; set; }
 
     [MaxLength(200)] public string? LocationNote { get; set; }
+}
+
+/// <summary>
+///     管理员审核图片请求
+/// </summary>
+public class ReviewCityPhotoRequest
+{
+    [MaxLength(1000)] public string? Reason { get; set; }
+}
+
+/// <summary>
+///     图片审核结果 DTO
+/// </summary>
+public class CityPhotoModerationResultDto
+{
+    public Guid PhotoId { get; set; }
+    public string CityId { get; set; } = string.Empty;
+    public string Action { get; set; } = string.Empty;
+    public string? Reason { get; set; }
+    public string ModeratorId { get; set; } = string.Empty;
+    public DateTime ReviewedAt { get; set; }
 }
 
 #endregion

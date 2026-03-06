@@ -86,6 +86,43 @@ public class ReportApplicationService : IReportService
         return reports.Select(MapToDto).ToList();
     }
 
+    public async Task<ReportDto> HandleReportActionAsync(
+        string reportId,
+        string action,
+        string adminId,
+        string? note,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedAction = (action ?? string.Empty).Trim().ToLowerInvariant();
+        var targetStatus = normalizedAction switch
+        {
+            "assign" => "reviewed",
+            "resolve" => "resolved",
+            "dismiss" => "dismissed",
+            _ => throw new ArgumentException($"Unsupported action: {action}", nameof(action))
+        };
+
+        var report = await _reportRepository.GetByIdAsync(reportId, cancellationToken);
+        if (report == null)
+            throw new KeyNotFoundException($"Report not found: {reportId}");
+
+        report.Status = targetStatus;
+        report.AdminNotes = string.IsNullOrWhiteSpace(note)
+            ? $"action={normalizedAction}; admin={adminId}; at={DateTime.UtcNow:O}"
+            : $"action={normalizedAction}; admin={adminId}; note={note}";
+        report.UpdatedAt = DateTime.UtcNow;
+
+        var updated = await _reportRepository.UpdateAsync(report, cancellationToken);
+        _logger.LogInformation(
+            "✅ 举报处置成功: ReportId={ReportId}, Action={Action}, Status={Status}, AdminId={AdminId}",
+            reportId,
+            normalizedAction,
+            updated.Status,
+            adminId);
+
+        return MapToDto(updated);
+    }
+
     #region 私有方法
 
     /// <summary>

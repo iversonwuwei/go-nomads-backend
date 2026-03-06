@@ -37,6 +37,19 @@ public class UserCityContentController : ControllerBase
         return Guid.Parse(userContext.UserId);
     }
 
+    private UserContext EnsureModeratorOrAdminContext()
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true || string.IsNullOrWhiteSpace(userContext.UserId))
+            throw new UnauthorizedAccessException("用户未认证");
+
+        var role = (userContext.Role ?? string.Empty).Trim().ToLowerInvariant();
+        if (role != "admin" && role != "moderator")
+            throw new UnauthorizedAccessException("仅管理员或版主可以执行审核操作");
+
+        return userContext;
+    }
+
     #region 照片 API
 
     /// <summary>
@@ -217,6 +230,79 @@ public class UserCityContentController : ControllerBase
             {
                 Success = false,
                 Message = "删除照片失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
+    ///     审核城市照片（管理员/版主）
+    ///     POST /api/v1/cities/{cityId}/user-content/photos/{photoId}/{action}
+    /// </summary>
+    [HttpPost("photos/{photoId}/{action}")]
+    public async Task<ActionResult<ApiResponse<CityPhotoModerationResultDto>>> ReviewPhoto(
+        string cityId,
+        Guid photoId,
+        string action,
+        [FromBody] ReviewCityPhotoRequest? request)
+    {
+        try
+        {
+            var userContext = EnsureModeratorOrAdminContext();
+
+            var normalizedAction = (action ?? string.Empty).Trim().ToLowerInvariant();
+            if (normalizedAction != "approve" && normalizedAction != "reject")
+                return BadRequest(new ApiResponse<CityPhotoModerationResultDto>
+                {
+                    Success = false,
+                    Message = "不支持的审核动作，仅支持 approve / reject"
+                });
+
+            // 先校验图片是否存在于当前城市，避免误操作。
+            var photos = await _contentService.GetCityPhotosAsync(cityId);
+            var exists = photos.Any(p => p.Id == photoId);
+            if (!exists)
+                return NotFound(new ApiResponse<CityPhotoModerationResultDto>
+                {
+                    Success = false,
+                    Message = "图片不存在"
+                });
+
+            var result = await _contentService.ReviewPhotoAsync(
+                photoId,
+                userContext.UserId!,
+                normalizedAction,
+                request?.Reason);
+
+            if (result == null)
+                return NotFound(new ApiResponse<CityPhotoModerationResultDto>
+                {
+                    Success = false,
+                    Message = "图片不存在"
+                });
+
+            return Ok(new ApiResponse<CityPhotoModerationResultDto>
+            {
+                Success = true,
+                Message = "图片审核成功",
+                Data = result
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new ApiResponse<CityPhotoModerationResultDto>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "图片审核失败: CityId={CityId}, PhotoId={PhotoId}, Action={Action}", cityId, photoId, action);
+            return StatusCode(500, new ApiResponse<CityPhotoModerationResultDto>
+            {
+                Success = false,
+                Message = "图片审核失败",
                 Errors = new List<string> { ex.Message }
             });
         }

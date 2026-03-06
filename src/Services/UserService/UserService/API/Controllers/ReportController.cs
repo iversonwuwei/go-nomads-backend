@@ -176,4 +176,72 @@ public class ReportController : ControllerBase
             });
         }
     }
+
+    /// <summary>
+    ///     管理员处置举报（assign / resolve / dismiss）
+    /// </summary>
+    [HttpPost("{id}/{action}")]
+    public async Task<ActionResult<ApiResponse<ReportDto>>> HandleAction(
+        [FromRoute] string id,
+        [FromRoute] string action,
+        [FromBody] ReportAdminActionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true)
+            return Unauthorized(new ApiResponse<ReportDto>
+            {
+                Success = false,
+                Message = "未授权访问"
+            });
+
+        if (userContext.IsAdmin != true)
+            return StatusCode(403, new ApiResponse<ReportDto>
+            {
+                Success = false,
+                Message = "无权限，仅管理员可处置举报"
+            });
+
+        try
+        {
+            var dto = await _reportService.HandleReportActionAsync(
+                id,
+                action,
+                userContext.UserId!,
+                request?.Note,
+                cancellationToken);
+
+            return Ok(new ApiResponse<ReportDto>
+            {
+                Success = true,
+                Message = "举报处置成功",
+                Data = dto
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<ReportDto>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ApiResponse<ReportDto>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 处置举报失败: ReportId={ReportId}, Action={Action}", id, action);
+            return StatusCode(500, new ApiResponse<ReportDto>
+            {
+                Success = false,
+                Message = "处置举报失败"
+            });
+        }
+    }
 }
