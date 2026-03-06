@@ -49,3 +49,14 @@ public class ReportDto
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
+
+/// <summary>
+///     举报处置动作请求 DTO
+/// </summary>
+public class ReportAdminActionRequest
+{
+    /// <summary>
+    ///     管理员备注
+    /// </summary>
+    public string? Note { get; set; }
+}

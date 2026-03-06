@@ -117,4 +117,31 @@ public class SupabaseUserCityPhotoRepository : SupabaseRepositoryBase<UserCityPh
             return false;
         }
     }
+
+    public async Task<UserCityPhoto?> ModerateAsync(Guid id, string moderatorId, string action, string? note)
+    {
+        try
+        {
+            var photo = await GetByIdAsync(id);
+            if (photo == null) return null;
+
+            photo.ModerationStatus = action;
+            photo.ModeratedBy = moderatorId;
+            photo.ModerationNote = note;
+            photo.ModeratedAt = DateTime.UtcNow;
+            photo.UpdatedAt = DateTime.UtcNow;
+
+            var result = await SupabaseClient
+                .From<UserCityPhoto>()
+                .Where(x => x.Id == id)
+                .Update(photo);
+
+            return result.Models.FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "审核照片失败: {PhotoId}, {ModeratorId}, {Action}", id, moderatorId, action);
+            return null;
+        }
+    }
 }

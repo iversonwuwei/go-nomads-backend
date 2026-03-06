@@ -40,6 +40,14 @@ public class UserCityPhoto : BaseModel
 
     [Column("taken_at")] public DateTime? TakenAt { get; set; }
 
+    [MaxLength(20)][Column("moderation_status")] public string? ModerationStatus { get; set; }
+
+    [MaxLength(100)][Column("moderated_by")] public string? ModeratedBy { get; set; }
+
+    [Column("moderation_note")] public string? ModerationNote { get; set; }
+
+    [Column("moderated_at")] public DateTime? ModeratedAt { get; set; }
+
     [Column("created_at")] public DateTime CreatedAt { get; set; }
 
     [Column("updated_at")] public DateTime? UpdatedAt { get; set; }

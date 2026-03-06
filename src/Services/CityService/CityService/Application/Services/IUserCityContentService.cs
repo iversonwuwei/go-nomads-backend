@@ -14,6 +14,7 @@ public interface IUserCityContentService
     Task<IEnumerable<UserCityPhotoDto>> GetCityPhotosAsync(string cityId, Guid? userId = null);
     Task<IEnumerable<UserCityPhotoDto>> GetUserPhotosAsync(Guid userId);
     Task<bool> DeletePhotoAsync(Guid userId, Guid photoId);
+    Task<CityPhotoModerationResultDto?> ReviewPhotoAsync(Guid photoId, string moderatorId, string action, string? reason);
 
     #endregion
 

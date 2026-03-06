@@ -80,6 +80,7 @@ builder.Services.AddScoped<ITravelHistoryRepository, TravelHistoryRepository>();
 builder.Services.AddScoped<IVisitedPlaceRepository, VisitedPlaceRepository>();
 builder.Services.AddScoped<ILegalDocumentRepository, LegalDocumentRepository>();
 builder.Services.AddScoped<IReportRepository, ReportRepository>();
+builder.Services.AddScoped<IAdminAuditEventRepository, AdminAuditEventRepository>();
 
 // Register Application Services
 builder.Services.AddScoped<IUserService, UserApplicationService>();

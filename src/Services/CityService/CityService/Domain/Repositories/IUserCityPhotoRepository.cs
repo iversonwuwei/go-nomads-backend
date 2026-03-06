@@ -41,4 +41,9 @@ public interface IUserCityPhotoRepository
     ///     删除照片
     /// </summary>
     Task<bool> DeleteAsync(Guid id, Guid userId);
+
+    /// <summary>
+    ///     审核照片
+    /// </summary>
+    Task<UserCityPhoto?> ModerateAsync(Guid id, string moderatorId, string action, string? note);
 }
