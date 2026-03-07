@@ -217,6 +217,26 @@ public class UserRepository : IUserRepository
         return user != null;
     }
 
+    public async Task<List<User>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📋 查询全部用户用于统计");
+
+        try
+        {
+            var response = await _supabaseClient
+                .From<User>()
+                .Select("id,created_at")
+                .Get(cancellationToken);
+
+            return response.Models.ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 查询全部用户失败");
+            throw;
+        }
+    }
+
     public async Task<(List<User> Users, int Total)> GetListAsync(
         int page = 1,
         int pageSize = 20,

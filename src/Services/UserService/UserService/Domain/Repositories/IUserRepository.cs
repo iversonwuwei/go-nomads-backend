@@ -61,6 +61,11 @@ public interface IUserRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     获取全部用户（用于统计）
+    /// </summary>
+    Task<List<User>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     搜索用户（按名称或邮箱，可筛选角色）
     /// </summary>
     Task<(List<User> Users, int Total)> SearchAsync(
