@@ -128,6 +128,14 @@ public class PaymentTransaction : BaseModel
         UpdatedAt = DateTime.UtcNow;
     }
 
+    public void MarkAsCompletedByAppleIap(string appleTransactionId, string? rawResponse = null)
+    {
+        Status = "completed";
+        PaymentMethod = "apple_iap";
+        RawResponse = rawResponse;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
     public void MarkAsFailed(string errorCode, string errorMessage, string? rawResponse = null)
     {
         Status = "failed";

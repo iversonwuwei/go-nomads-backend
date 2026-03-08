@@ -137,6 +137,46 @@ public class PaymentController : ControllerBase
     }
 
     /// <summary>
+    ///     完成 Apple IAP 购买
+    /// </summary>
+    [HttpPost("apple/complete")]
+    public async Task<ActionResult<ApiResponse<PaymentResultDto>>> CompleteAppleIapPurchase(
+        [FromBody] CompleteAppleIapPurchaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+        {
+            return Unauthorized(new ApiResponse<PaymentResultDto>
+            {
+                Success = false,
+                Message = "未认证用户"
+            });
+        }
+
+        try
+        {
+            var result = await _paymentService.CompleteAppleIapPurchaseAsync(userContext.UserId, request, cancellationToken);
+
+            return Ok(new ApiResponse<PaymentResultDto>
+            {
+                Success = result.Success,
+                Message = result.Message ?? string.Empty,
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 完成 Apple IAP 购买失败");
+            return StatusCode(500, new ApiResponse<PaymentResultDto>
+            {
+                Success = false,
+                Message = "完成 Apple IAP 购买失败"
+            });
+        }
+    }
+
+    /// <summary>
     ///     获取订单详情
     /// </summary>
     [HttpGet("orders/{orderId}")]

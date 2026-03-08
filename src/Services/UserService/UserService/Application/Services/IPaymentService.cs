@@ -48,6 +48,11 @@ public interface IPaymentService
     Task<PaymentResultDto> ConfirmWeChatPaymentAsync(string userId, string orderId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     完成 Apple IAP 购买并发放会员
+    /// </summary>
+    Task<PaymentResultDto> CompleteAppleIapPurchaseAsync(string userId, CompleteAppleIapPurchaseRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     处理微信支付回调通知
     /// </summary>
     Task HandleWeChatPayNotificationAsync(string outTradeNo, string transactionId, DateTimeOffset? successTime, CancellationToken cancellationToken = default);

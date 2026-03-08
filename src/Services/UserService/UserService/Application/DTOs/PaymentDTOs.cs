@@ -80,6 +80,37 @@ public class PaymentResultDto
 }
 
 /// <summary>
+///     Apple IAP 完成请求
+/// </summary>
+public class CompleteAppleIapPurchaseRequest
+{
+    /// <summary>
+    ///     App Store Product ID
+    /// </summary>
+    public string ProductId { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     Apple transaction id / purchase id
+    /// </summary>
+    public string TransactionId { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     原始交易 ID（恢复购买时可选）
+    /// </summary>
+    public string? OriginalTransactionId { get; set; }
+
+    /// <summary>
+    ///     Flutter 提供的服务端校验数据
+    /// </summary>
+    public string? VerificationData { get; set; }
+
+    /// <summary>
+    ///     是否为恢复购买
+    /// </summary>
+    public bool IsRestore { get; set; }
+}
+
+/// <summary>
 ///     微信支付创建订单请求
 /// </summary>
 public class CreateWeChatPayOrderRequest
