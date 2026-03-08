@@ -211,6 +211,16 @@ public class Order : BaseModel
         UpdatedAt = DateTime.UtcNow;
     }
 
+    public void MarkAsCompletedByAppleIap(string appleTransactionId, string? metadata = null)
+    {
+        Status = "completed";
+        PaymentStatus = "paid";
+        PaymentMethod = "apple_iap";
+        Metadata = metadata;
+        CompletedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
     public void MarkAsProcessing()
     {
         Status = "processing";

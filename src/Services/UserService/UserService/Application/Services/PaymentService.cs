@@ -1,6 +1,7 @@
 using UserService.Application.DTOs;
 using UserService.Domain.Entities;
 using UserService.Domain.Repositories;
+using System.Text.Json;
 
 namespace UserService.Application.Services;
 
@@ -476,6 +477,81 @@ public class PaymentService : IPaymentService
         }
     }
 
+    public async Task<PaymentResultDto> CompleteAppleIapPurchaseAsync(
+        string userId,
+        CompleteAppleIapPurchaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🍎 完成 Apple IAP 购买: UserId={UserId}, ProductId={ProductId}, TransactionId={TransactionId}",
+            userId, request.ProductId, request.TransactionId);
+
+        if (string.IsNullOrWhiteSpace(request.ProductId))
+        {
+            return new PaymentResultDto { Success = false, Message = "缺少 ProductId" };
+        }
+
+        if (string.IsNullOrWhiteSpace(request.TransactionId))
+        {
+            return new PaymentResultDto { Success = false, Message = "缺少 TransactionId" };
+        }
+
+        var mapping = MapAppleProduct(request.ProductId);
+        if (mapping == null)
+        {
+            return new PaymentResultDto { Success = false, Message = $"未识别的 Apple 商品: {request.ProductId}" };
+        }
+
+        var (amount, currency, _) = await CalculateOrderAmountAsync(
+            request.IsRestore ? "membership_renew" : "membership_upgrade",
+            (int)mapping.Value.level,
+            mapping.Value.durationDays,
+            null,
+            cancellationToken);
+
+        var metadata = JsonSerializer.Serialize(new
+        {
+            appleProductId = request.ProductId,
+            appleTransactionId = request.TransactionId,
+            originalTransactionId = request.OriginalTransactionId,
+            verificationData = request.VerificationData,
+            isRestore = request.IsRestore,
+            billingCycle = mapping.Value.billingCycle.ToString().ToLowerInvariant()
+        });
+
+        var order = new Order
+        {
+            UserId = userId,
+            OrderType = request.IsRestore ? "membership_renew" : "membership_upgrade",
+            Amount = amount,
+            TotalAmount = amount,
+            Currency = currency,
+            PaymentMethod = "apple_iap",
+            MembershipLevel = (int)mapping.Value.level,
+            DurationDays = mapping.Value.durationDays,
+            Metadata = metadata
+        };
+
+        order = await _orderRepository.CreateAsync(order, cancellationToken);
+        order.MarkAsCompletedByAppleIap(request.TransactionId, metadata);
+        await _orderRepository.UpdateAsync(order, cancellationToken);
+
+        var transaction = PaymentTransaction.CreatePayment(order.Id, order.Amount, order.Currency);
+        transaction.MarkAsCompletedByAppleIap(request.TransactionId, metadata);
+        await _transactionRepository.CreateAsync(transaction, cancellationToken);
+
+        var membership = await ProcessOrderCompletionAsync(order, cancellationToken);
+
+        return new PaymentResultDto
+        {
+            Success = true,
+            OrderId = order.Id,
+            OrderNumber = order.OrderNumber,
+            Status = order.Status,
+            Message = request.IsRestore ? "恢复购买成功" : "Apple IAP 购买成功",
+            Membership = membership != null ? MapToMembershipDto(membership) : null
+        };
+    }
+
     public async Task HandleWeChatPayNotificationAsync(
         string outTradeNo,
         string transactionId,
@@ -601,6 +677,20 @@ public class PaymentService : IPaymentService
     private static MembershipResponse MapToMembershipDto(Membership membership)
     {
         return MembershipResponse.FromEntity(membership);
+    }
+
+    private static (MembershipLevel level, BillingCycle billingCycle, int durationDays)? MapAppleProduct(string productId)
+    {
+        return productId switch
+        {
+            "com.gonomads.membership.basic.monthly" => (MembershipLevel.Basic, BillingCycle.Monthly, 30),
+            "com.gonomads.membership.basic.yearly" => (MembershipLevel.Basic, BillingCycle.Yearly, 365),
+            "com.gonomads.membership.pro.monthly" => (MembershipLevel.Pro, BillingCycle.Monthly, 30),
+            "com.gonomads.membership.pro.yearly" => (MembershipLevel.Pro, BillingCycle.Yearly, 365),
+            "com.gonomads.membership.premium.monthly" => (MembershipLevel.Premium, BillingCycle.Monthly, 30),
+            "com.gonomads.membership.premium.yearly" => (MembershipLevel.Premium, BillingCycle.Yearly, 365),
+            _ => null
+        };
     }
 
     #endregion
