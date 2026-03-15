@@ -30,6 +30,10 @@ public class HotelController : ControllerBase
     /// <summary>
     ///     获取酒店列表（分页）
     /// </summary>
+    /// <remarks>
+    ///     返回结果会自动融合社区酒店与第三方酒店。
+    ///     即使第三方酒店接口未开通、超时或失败，此接口也会继续返回社区酒店，并通过 externalDataStatus、partialExternalData、externalDataMessage 标识降级状态。
+    /// </remarks>
     [HttpGet]
     public async Task<ActionResult<HotelListResponse>> GetList([FromQuery] HotelQueryParameters parameters)
     {
@@ -50,8 +54,13 @@ public class HotelController : ControllerBase
     /// <summary>
     ///     获取酒店详情
     /// </summary>
-    [HttpGet("{id:guid}")]
-    public async Task<ActionResult<HotelDto>> GetById(Guid id)
+    /// <remarks>
+    ///     社区酒店使用 GUID 字符串 ID。
+    ///     第三方酒店当前使用 booking_{id} 形式的外部 ID，由服务端代理查询第三方详情。
+    ///     如果第三方详情暂时不可用，将返回 404，客户端应保留列表页已有的基础数据展示。
+    /// </remarks>
+    [HttpGet("{id}")]
+    public async Task<ActionResult<HotelDto>> GetById(string id)
     {
         var hotel = await _hotelService.GetByIdAsync(id);
         if (hotel == null)

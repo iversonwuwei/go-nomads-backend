@@ -1,6 +1,7 @@
 using AccommodationService.Application.DTOs;
 using AccommodationService.Domain.Entities;
 using AccommodationService.Domain.Repositories;
+using AccommodationService.Services;
 
 namespace AccommodationService.Application.Services;
 
@@ -9,6 +10,10 @@ namespace AccommodationService.Application.Services;
 /// </summary>
 public class HotelApplicationService : IHotelService
 {
+    private const int MaxExternalPageSize = 100;
+
+    private readonly IBookingDemandClient _bookingDemandClient;
+    private readonly ICityServiceClient _cityServiceClient;
     private readonly IHotelRepository _hotelRepository;
     private readonly IRoomTypeRepository _roomTypeRepository;
     private readonly ILogger<HotelApplicationService> _logger;
@@ -16,29 +21,79 @@ public class HotelApplicationService : IHotelService
     public HotelApplicationService(
         IHotelRepository hotelRepository,
         IRoomTypeRepository roomTypeRepository,
+        ICityServiceClient cityServiceClient,
+        IBookingDemandClient bookingDemandClient,
         ILogger<HotelApplicationService> logger)
     {
         _hotelRepository = hotelRepository;
         _roomTypeRepository = roomTypeRepository;
+        _cityServiceClient = cityServiceClient;
+        _bookingDemandClient = bookingDemandClient;
         _logger = logger;
     }
 
-    public async Task<HotelDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<HotelDto?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
     {
-        var hotel = await _hotelRepository.GetByIdAsync(id, cancellationToken);
+        if (string.IsNullOrWhiteSpace(id)) return null;
+
+        if (IsExternalHotelId(id))
+        {
+            try
+            {
+                return await _bookingDemandClient.GetHotelDetailsAsync(id, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to load external hotel detail for {HotelId}. Returning null detail.", id);
+                return null;
+            }
+        }
+
+        if (!Guid.TryParse(id, out var hotelId)) return null;
+
+        var hotel = await _hotelRepository.GetByIdAsync(hotelId, cancellationToken);
         if (hotel == null) return null;
-        
+
         var dto = MapToDto(hotel);
-        dto.RoomTypes = (await _roomTypeRepository.GetByHotelIdAsync(id, cancellationToken))
+        dto.RoomTypes = (await _roomTypeRepository.GetByHotelIdAsync(hotelId, cancellationToken))
             .Select(MapRoomTypeToDto).ToList();
         return dto;
     }
 
     public async Task<HotelListResponse> GetListAsync(HotelQueryParameters parameters, CancellationToken cancellationToken = default)
     {
-        var (hotels, totalCount) = await _hotelRepository.GetListAsync(
-            parameters.Page,
-            parameters.PageSize,
+        var shouldMergeExternal = ShouldMergeExternalHotels(parameters);
+        if (!shouldMergeExternal)
+        {
+            var (pagedHotels, totalCount) = await _hotelRepository.GetListAsync(
+                parameters.Page,
+                parameters.PageSize,
+                parameters.CityId,
+                parameters.Search,
+                parameters.HasWifi,
+                parameters.HasCoworkingSpace,
+                parameters.MinPrice,
+                parameters.MaxPrice,
+                activeOnly: true,
+                cancellationToken);
+
+            return new HotelListResponse
+            {
+                Hotels = pagedHotels.Select(MapToDto).ToList(),
+                ExternalDataStatus = "not_requested",
+                PartialExternalData = false,
+                TotalCount = totalCount,
+                Page = parameters.Page,
+                PageSize = parameters.PageSize
+            };
+        }
+
+        var fetchSize = Math.Min(Math.Max(parameters.Page * parameters.PageSize, parameters.PageSize), MaxExternalPageSize);
+
+        var externalTask = SearchExternalHotelsAsync(parameters, fetchSize, cancellationToken);
+        var internalTask = _hotelRepository.GetListAsync(
+            1,
+            fetchSize,
             parameters.CityId,
             parameters.Search,
             parameters.HasWifi,
@@ -48,10 +103,24 @@ public class HotelApplicationService : IHotelService
             activeOnly: true,
             cancellationToken);
 
+        await Task.WhenAll(externalTask, internalTask);
+
+        var externalResult = await externalTask;
+        var (internalHotels, internalTotalCount) = await internalTask;
+        var mergedHotels = MergeHotels(
+            internalHotels.Select(MapToDto),
+            externalResult.Response?.Hotels ?? Enumerable.Empty<HotelDto>());
+
         return new HotelListResponse
         {
-            Hotels = hotels.Select(MapToDto).ToList(),
-            TotalCount = totalCount,
+            Hotels = mergedHotels
+                .Skip((parameters.Page - 1) * parameters.PageSize)
+                .Take(parameters.PageSize)
+                .ToList(),
+            ExternalDataStatus = externalResult.Status,
+            PartialExternalData = externalResult.PartialExternalData,
+            ExternalDataMessage = externalResult.Message,
+            TotalCount = mergedHotels.Count,
             Page = parameters.Page,
             PageSize = parameters.PageSize
         };
@@ -60,7 +129,38 @@ public class HotelApplicationService : IHotelService
     public async Task<List<HotelDto>> GetByCityIdAsync(Guid cityId, CancellationToken cancellationToken = default)
     {
         var hotels = await _hotelRepository.GetByCityIdAsync(cityId, cancellationToken);
-        return hotels.Select(MapToDto).ToList();
+        var internalHotels = hotels.Select(MapToDto);
+
+        if (!_bookingDemandClient.IsConfigured)
+        {
+            return internalHotels.ToList();
+        }
+
+        var cityInfo = await _cityServiceClient.GetCityInfoAsync(cityId.ToString(), cancellationToken);
+        if (cityInfo == null)
+        {
+            return internalHotels.ToList();
+        }
+
+        List<HotelDto> externalHotels;
+        try
+        {
+            externalHotels = await _bookingDemandClient.SearchHotelsAsync(new BookingHotelSearchRequest
+            {
+                CityName = cityInfo.NameEn ?? cityInfo.Name,
+                CountryName = cityInfo.Country,
+                Latitude = cityInfo.Latitude,
+                Longitude = cityInfo.Longitude,
+                Rows = 50
+            }, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load external hotels for city {CityId}. Falling back to internal hotels only.", cityId);
+            externalHotels = new List<HotelDto>();
+        }
+
+        return MergeHotels(internalHotels, externalHotels).ToList();
     }
 
     public async Task<HotelDto> CreateAsync(CreateHotelRequest request, Guid userId, CancellationToken cancellationToken = default)
@@ -131,7 +231,7 @@ public class HotelApplicationService : IHotelService
         }
 
         _logger.LogInformation("Successfully created hotel: {HotelId}", created.Id);
-        return await GetByIdAsync(created.Id, cancellationToken) ?? MapToDto(created);
+        return await GetByIdAsync(created.Id.ToString(), cancellationToken) ?? MapToDto(created);
     }
 
     public async Task<HotelDto?> UpdateAsync(Guid id, UpdateHotelRequest request, Guid userId, bool isAdmin = false, CancellationToken cancellationToken = default)
@@ -246,7 +346,7 @@ public class HotelApplicationService : IHotelService
             }
         }
 
-        return await GetByIdAsync(updated.Id, cancellationToken) ?? MapToDto(updated);
+        return await GetByIdAsync(updated.Id.ToString(), cancellationToken) ?? MapToDto(updated);
     }
 
     public async Task<bool> DeleteAsync(Guid id, Guid userId, bool isAdmin = false, CancellationToken cancellationToken = default)
@@ -352,7 +452,9 @@ public class HotelApplicationService : IHotelService
     {
         return new HotelDto
         {
-            Id = hotel.Id,
+            Id = hotel.Id.ToString(),
+            Source = "community",
+            ExternalStatus = "internal",
             Name = hotel.Name,
             Description = hotel.Description,
             Address = hotel.Address,
@@ -391,6 +493,177 @@ public class HotelApplicationService : IHotelService
             CreatedBy = hotel.CreatedBy
         };
     }
+
+    private async Task<ExternalHotelFetchResult> SearchExternalHotelsAsync(
+        HotelQueryParameters parameters,
+        int rows,
+        CancellationToken cancellationToken)
+    {
+        if (!_bookingDemandClient.IsConfigured)
+        {
+            return new ExternalHotelFetchResult(
+                null,
+                "disabled",
+                "Booking Demand integration is disabled. Returned community hotels only.",
+                false);
+        }
+
+        var cityName = parameters.CityName;
+        var countryName = parameters.CountryName;
+        var latitude = parameters.Latitude;
+        var longitude = parameters.Longitude;
+
+        if (parameters.CityId.HasValue &&
+            (string.IsNullOrWhiteSpace(cityName) || !latitude.HasValue || !longitude.HasValue))
+        {
+            var cityInfo = await _cityServiceClient.GetCityInfoAsync(parameters.CityId.Value.ToString(), cancellationToken);
+            if (cityInfo != null)
+            {
+                cityName ??= cityInfo.NameEn ?? cityInfo.Name;
+                countryName ??= cityInfo.Country;
+                latitude ??= cityInfo.Latitude;
+                longitude ??= cityInfo.Longitude;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(cityName) && (!latitude.HasValue || !longitude.HasValue))
+        {
+            return new ExternalHotelFetchResult(
+                null,
+                "not_requested",
+                "External hotel search skipped because location context was incomplete.",
+                false);
+        }
+
+        List<HotelDto> hotels;
+        try
+        {
+            hotels = await _bookingDemandClient.SearchHotelsAsync(new BookingHotelSearchRequest
+            {
+                CityName = cityName,
+                CountryName = countryName,
+                Latitude = latitude,
+                Longitude = longitude,
+                CheckInDate = parameters.CheckInDate,
+                StayNights = parameters.StayNights,
+                AdultCount = parameters.AdultCount,
+                RoomCount = parameters.RoomCount,
+                Search = parameters.Search,
+                Rows = rows
+            }, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load external hotels for query. Falling back to internal hotels only.");
+            return new ExternalHotelFetchResult(
+                new HotelListResponse
+                {
+                    Hotels = new List<HotelDto>(),
+                    ExternalDataStatus = "unavailable",
+                    PartialExternalData = true,
+                    ExternalDataMessage = "Booking Demand request failed. Returned community hotels only.",
+                    TotalCount = 0,
+                    Page = parameters.Page,
+                    PageSize = parameters.PageSize
+                },
+                "unavailable",
+                "Booking Demand request failed. Returned community hotels only.",
+                true);
+        }
+
+        if (hotels.Count == 0)
+        {
+            return new ExternalHotelFetchResult(
+                new HotelListResponse
+                {
+                    Hotels = new List<HotelDto>(),
+                    ExternalDataStatus = "live",
+                    PartialExternalData = false,
+                    TotalCount = 0,
+                    Page = parameters.Page,
+                    PageSize = parameters.PageSize
+                },
+                "live",
+                null,
+                false);
+        }
+
+        return new ExternalHotelFetchResult(
+            new HotelListResponse
+            {
+                Hotels = hotels,
+                ExternalDataStatus = "live",
+                PartialExternalData = false,
+                TotalCount = hotels.Count,
+                Page = parameters.Page,
+                PageSize = parameters.PageSize
+            },
+            "live",
+            null,
+            false);
+    }
+
+    private static bool ShouldMergeExternalHotels(HotelQueryParameters parameters)
+    {
+        return parameters.CityId.HasValue ||
+               !string.IsNullOrWhiteSpace(parameters.CityName) ||
+               (parameters.Latitude.HasValue && parameters.Longitude.HasValue);
+    }
+
+    private static List<HotelDto> MergeHotels(IEnumerable<HotelDto> internalHotels, IEnumerable<HotelDto> externalHotels)
+    {
+        var merged = internalHotels
+            .Concat(externalHotels)
+            .GroupBy(BuildHotelIdentityKey)
+            .Select(group => group
+                .OrderByDescending(h => h.Source.Equals("community", StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(h => h.IsFeatured)
+                .ThenByDescending(h => h.Rating)
+                .ThenByDescending(h => h.ReviewCount)
+                .First())
+            .OrderByDescending(h => h.Source.Equals("community", StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(h => h.IsFeatured)
+            .ThenByDescending(h => h.Rating)
+            .ThenByDescending(h => h.ReviewCount)
+            .ThenBy(h => h.PricePerNight)
+            .ToList();
+
+        return merged;
+    }
+
+    private static string BuildHotelIdentityKey(HotelDto hotel)
+    {
+        var normalizedName = NormalizeKeyPart(hotel.Name);
+        var normalizedCity = NormalizeKeyPart(hotel.CityName);
+        var normalizedAddress = NormalizeKeyPart(hotel.Address);
+
+        return string.Join("|", normalizedName, normalizedCity, normalizedAddress);
+    }
+
+    private static string NormalizeKeyPart(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return new string(value
+            .Trim()
+            .ToLowerInvariant()
+            .Where(char.IsLetterOrDigit)
+            .ToArray());
+    }
+
+    private static bool IsExternalHotelId(string id)
+    {
+        return id.StartsWith("booking_", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed record ExternalHotelFetchResult(
+        HotelListResponse? Response,
+        string Status,
+        string? Message,
+        bool PartialExternalData);
 
     private static RoomTypeDto MapRoomTypeToDto(RoomType roomType)
     {

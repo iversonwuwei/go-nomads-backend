@@ -10,7 +10,7 @@ public interface IHotelService
     /// <summary>
     ///     获取酒店详情
     /// </summary>
-    Task<HotelDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<HotelDto?> GetByIdAsync(string id, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     获取酒店列表（分页）
