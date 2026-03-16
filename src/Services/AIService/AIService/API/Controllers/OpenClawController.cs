@@ -11,11 +11,16 @@ namespace AIService.API.Controllers;
 public class OpenClawController : ControllerBase
 {
     private readonly ILogger<OpenClawController> _logger;
+    private readonly IMembershipAccessService _membershipAccessService;
     private readonly IOpenClawResearchService _openClawResearchService;
 
-    public OpenClawController(IOpenClawResearchService openClawResearchService, ILogger<OpenClawController> logger)
+    public OpenClawController(
+        IOpenClawResearchService openClawResearchService,
+        IMembershipAccessService membershipAccessService,
+        ILogger<OpenClawController> logger)
     {
         _openClawResearchService = openClawResearchService;
+        _membershipAccessService = membershipAccessService;
         _logger = logger;
     }
 
@@ -26,6 +31,17 @@ public class OpenClawController : ControllerBase
     {
         try
         {
+            var access = await _membershipAccessService.EnsurePaidMembershipAsync(cancellationToken);
+            if (!access.Allowed)
+            {
+                return StatusCode(access.StatusCode, new ApiResponse<OpenClawResearchResponse?>
+                {
+                    Success = false,
+                    Message = access.Message,
+                    Data = null
+                });
+            }
+
             var result = await _openClawResearchService.ResearchTravelPlanAsync(request, cancellationToken);
 
             if (result == null)

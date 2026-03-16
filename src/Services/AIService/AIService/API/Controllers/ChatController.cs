@@ -28,10 +28,15 @@ public class ChatController : ControllerBase
 {
     private readonly IAIChatService _aiChatService;
     private readonly ILogger<ChatController> _logger;
+    private readonly IMembershipAccessService _membershipAccessService;
 
-    public ChatController(IAIChatService aiChatService, ILogger<ChatController> logger)
+    public ChatController(
+        IAIChatService aiChatService,
+        IMembershipAccessService membershipAccessService,
+        ILogger<ChatController> logger)
     {
         _aiChatService = aiChatService;
+        _membershipAccessService = membershipAccessService;
         _logger = logger;
     }
 
@@ -478,6 +483,14 @@ public class ChatController : ControllerBase
     {
         try
         {
+            var access = await _membershipAccessService.EnsurePaidMembershipAsync();
+            if (!access.Allowed)
+                return StatusCode(access.StatusCode, new ApiResponse<TravelPlanResponse>
+                {
+                    Success = false,
+                    Message = access.Message
+                });
+
             // 获取当前用户ID(可选,AIService 不强制要求认证)
             var userId = GetUserId();
 
@@ -551,6 +564,19 @@ public class ChatController : ControllerBase
     [HttpPost("travel-plan/stream")]
     public async Task GenerateTravelPlanStream([FromBody] GenerateTravelPlanRequest request)
     {
+        var access = await _membershipAccessService.EnsurePaidMembershipAsync();
+        if (!access.Allowed)
+        {
+            Response.StatusCode = access.StatusCode;
+            Response.ContentType = "application/json";
+            await Response.WriteAsJsonAsync(new ApiResponse<object>
+            {
+                Success = false,
+                Message = access.Message
+            });
+            return;
+        }
+
         Response.Headers.Append("Content-Type", "text/event-stream");
         Response.Headers.Append("Cache-Control", "no-cache");
         Response.Headers.Append("Connection", "keep-alive");
@@ -609,6 +635,19 @@ public class ChatController : ControllerBase
         var requestId = Guid.NewGuid().ToString("N")[..8];
         _logger.LogInformation("🌊 [流式文本-{RequestId}] 开始生成旅行计划 - 城市: {CityName}, Duration: {Duration}",
             requestId, request.CityName, request.Duration);
+
+        var access = await _membershipAccessService.EnsurePaidMembershipAsync();
+        if (!access.Allowed)
+        {
+            Response.StatusCode = access.StatusCode;
+            Response.ContentType = "application/json";
+            await Response.WriteAsJsonAsync(new ApiResponse<object>
+            {
+                Success = false,
+                Message = access.Message
+            });
+            return;
+        }
 
         // 设置SSE响应头 - 必须在发送任何内容前设置
         Response.ContentType = "text/event-stream";
@@ -1008,6 +1047,14 @@ public class ChatController : ControllerBase
     {
         try
         {
+            var access = await _membershipAccessService.EnsurePaidMembershipAsync();
+            if (!access.Allowed)
+                return StatusCode(access.StatusCode, new ApiResponse<CreateTaskResponse>
+                {
+                    Success = false,
+                    Message = access.Message
+                });
+
             _logger.LogInformation(
                 "📥 收到异步旅行计划请求: CityId={CityId}, CityName={CityName}, Duration={Duration}, Budget={Budget}, TravelStyle={TravelStyle}",
                 request.CityId, request.CityName, request.Duration, request.Budget, request.TravelStyle);
