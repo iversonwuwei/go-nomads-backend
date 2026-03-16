@@ -210,6 +210,18 @@ public class TravelGuideResponse
 }
 
 /// <summary>
+///     OpenClaw 旅行研究响应
+/// </summary>
+public class OpenClawResearchResponse
+{
+    public string SessionKey { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
+    public List<string> Insights { get; set; } = new();
+    public List<string> Checks { get; set; } = new();
+    public string RawResponse { get; set; } = string.Empty;
+}
+
+/// <summary>
 ///     附近城市响应
 /// </summary>
 public class NearbyCitiesResponse

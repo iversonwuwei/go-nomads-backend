@@ -95,6 +95,8 @@ catch (Exception ex)
 
 // 注册应用服务 (Application Layer)
 builder.Services.AddScoped<IAIChatService, AIChatApplicationService>();
+builder.Services.Configure<OpenClawOptions>(builder.Configuration.GetSection(OpenClawOptions.SectionName));
+builder.Services.AddScoped<IOpenClawResearchService, OpenClawResearchService>();
 
 // 注册图片生成服务 (通义万象)
 builder.Services.AddHttpClient("WanxClient", client =>

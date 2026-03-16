@@ -2,6 +2,11 @@
 
 This setup keeps the existing service containers unchanged and adds TLS only at the Nginx edge.
 
+Current default behavior:
+
+- `docker-compose-services-swr.yml` now uses the HTTPS Nginx config by default.
+- Only use the HTTP config temporarily for ACME webroot validation when certificates do not exist yet.
+
 ## What Was Added
 
 - `deployment/nginx/nginx.conf`
@@ -12,7 +17,7 @@ This setup keeps the existing service containers unchanged and adds TLS only at 
   - `www.go-nomads.com`
   - `api.go-nomads.com`
 - `docker-compose-services-swr-https.yml`
-  Starts the TLS-enabled Nginx container and mounts Let's Encrypt certificates.
+  Keeps a standalone TLS-only Nginx definition for manual replacement or emergency recovery.
 
 ## Prerequisites
 
@@ -27,12 +32,13 @@ cd /path/to/go-nomads-backend
 mkdir -p deployment/nginx/certbot-www
 ```
 
-## 2. Start The Current HTTP Stack First
+## 2. Start HTTP ACME Mode Only When Needed
 
-Use the existing compose file so the ACME challenge can be served over HTTP:
+For first-time certificate issuance, temporarily force the main compose file to use the HTTP config:
 
 ```bash
-docker compose -f docker-compose-services-swr.yml up -d
+NGINX_EDGE_CONF=./deployment/nginx/nginx.conf \
+docker compose -f docker-compose-services-swr.yml up -d nginx
 ```
 
 ## 2.5. Verify The ACME Path Before Running Certbot
@@ -43,7 +49,8 @@ Create a probe file in the webroot:
 cd /path/to/go-nomads-backend
 mkdir -p deployment/nginx/certbot-www/.well-known/acme-challenge
 echo ok > deployment/nginx/certbot-www/.well-known/acme-challenge/probe.txt
-docker compose -f docker-compose-services-swr.yml restart nginx
+NGINX_EDGE_CONF=./deployment/nginx/nginx.conf \
+docker compose -f docker-compose-services-swr.yml up -d nginx
 ```
 
 Now verify all domains over plain HTTP:
@@ -82,13 +89,12 @@ Notes:
 - This command creates one SAN certificate covering all three names and stores it under `/etc/letsencrypt/live/go-nomads.com/`.
 - `api.go-nomads.com` uses the same certificate files because it is included in that SAN certificate.
 
-## 4. Switch To TLS Nginx
+## 4. Start TLS Nginx
 
-After certificates are issued:
+After certificates are issued, the main compose file can be started normally and will use HTTPS by default:
 
 ```bash
-docker compose -f docker-compose-services-swr.yml stop nginx
-docker compose -f docker-compose-services-swr-https.yml up -d
+docker compose -f docker-compose-services-swr.yml up -d nginx
 ```
 
 Make sure the separate web stack is still running on the shared Docker network before switching traffic:
@@ -100,7 +106,7 @@ docker compose -f docker-compose-web-swr.yml up -d
 
 Also make sure backend containers such as `go-nomads-gateway` are already running before starting the standalone HTTPS nginx compose, because this file only defines the edge proxy.
 
-If the service stack is already up, you only need to replace the old HTTP-only `nginx` container with the TLS-enabled one.
+If the service stack is already up, a normal `docker compose -f docker-compose-services-swr.yml up -d nginx` is enough.
 
 ## 5. Verify
 

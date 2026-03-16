@@ -10,6 +10,10 @@ name: go-nomads
 #   更新: docker compose -f docker-compose-services-swr.yml pull && \
 #          docker compose -f docker-compose-services-swr.yml up -d
 #   日志: docker compose -f docker-compose-services-swr.yml logs -f [service]
+#   默认: Nginx 使用 HTTPS 边缘配置
+#   ACME: 如需临时切回 HTTP 验证模式，使用
+#         NGINX_EDGE_CONF=./deployment/nginx/nginx.conf \
+#         docker compose -f docker-compose-services-swr.yml up -d nginx
 # ============================================================
 
 x-swr-registry: &swr-registry "swr.ap-southeast-3.myhuaweicloud.com/go-nomads"
@@ -223,6 +227,8 @@ services:
       OTEL_SERVICE_NAME: ai-service
       ConnectionStrings__redis: *conn-redis
       ConnectionStrings__rabbitmq: *conn-rabbitmq
+      OpenClaw__GatewayUrl: "${OPENCLAW_GATEWAY_URL:-wss://api.go-nomads.com/openclaw}"
+      OpenClaw__GatewayToken: "${OPENCLAW_GATEWAY_TOKEN}"
       services__user-service__http__0: *svc-user
       services__city-service__http__0: *svc-city
     networks:
@@ -331,7 +337,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./deployment/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${NGINX_EDGE_CONF:-./deployment/nginx/nginx.https.conf}:/etc/nginx/conf.d/default.conf:ro
+      - ${LETSENCRYPT_DIR:-/etc/letsencrypt}:/etc/letsencrypt:ro
       - ${CERTBOT_WEBROOT:-./deployment/nginx/certbot-www}:/var/www/certbot:ro
     depends_on:
       - gateway
