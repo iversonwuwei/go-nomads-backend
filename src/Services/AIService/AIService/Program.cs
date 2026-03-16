@@ -43,6 +43,7 @@ builder.Services.AddServiceClient<ICityGrpcClient, CityGrpcClient>("city-service
 
 // Named HttpClient for controllers using IHttpClientFactory
 builder.Services.AddServiceClient("city-service");
+builder.Services.AddServiceClient("user-service");
 
 // 配置 Semantic Kernel - 使用 Qwen 模型
 try
@@ -97,6 +98,7 @@ catch (Exception ex)
 builder.Services.AddScoped<IAIChatService, AIChatApplicationService>();
 builder.Services.Configure<OpenClawOptions>(builder.Configuration.GetSection(OpenClawOptions.SectionName));
 builder.Services.AddScoped<IOpenClawResearchService, OpenClawResearchService>();
+builder.Services.AddScoped<IMembershipAccessService, MembershipAccessService>();
 
 // 注册图片生成服务 (通义万象)
 builder.Services.AddHttpClient("WanxClient", client =>
