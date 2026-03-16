@@ -162,6 +162,38 @@ public class GenerateTravelGuideRequest
 }
 
 /// <summary>
+///     OpenClaw 旅行研究请求
+/// </summary>
+public class OpenClawResearchRequest
+{
+    [Required(ErrorMessage = "城市名称不能为空")]
+    public string CityName { get; set; } = string.Empty;
+
+    [Range(1, 30, ErrorMessage = "旅行天数必须在1-30天之间")]
+    public int Duration { get; set; } = 7;
+
+    [Required(ErrorMessage = "预算不能为空")]
+    public string Budget { get; set; } = "medium";
+
+    [Required(ErrorMessage = "旅行风格不能为空")]
+    public string TravelStyle { get; set; } = "culture";
+
+    [Required(ErrorMessage = "规划模式不能为空")]
+    public string PlanningMode { get; set; } = "balanced";
+
+    [Required(ErrorMessage = "规划目标不能为空")]
+    public string PlanningObjective { get; set; } = "hybrid";
+
+    public List<string> ResearchSignals { get; set; } = new();
+
+    public List<string> Interests { get; set; } = new();
+
+    public string? DepartureLocation { get; set; }
+
+    public DateTime? DepartureDate { get; set; }
+}
+
+/// <summary>
 ///     生成附近城市请求
 /// </summary>
 public class GenerateNearbyCitiesRequest

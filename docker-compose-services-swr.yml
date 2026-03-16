@@ -227,6 +227,8 @@ services:
       OTEL_SERVICE_NAME: ai-service
       ConnectionStrings__redis: *conn-redis
       ConnectionStrings__rabbitmq: *conn-rabbitmq
+      OpenClaw__GatewayUrl: "${OPENCLAW_GATEWAY_URL:-wss://api.go-nomads.com/openclaw}"
+      OpenClaw__GatewayToken: "${OPENCLAW_GATEWAY_TOKEN}"
       services__user-service__http__0: *svc-user
       services__city-service__http__0: *svc-city
     networks:
