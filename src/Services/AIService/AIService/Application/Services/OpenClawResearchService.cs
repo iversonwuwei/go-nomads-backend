@@ -15,6 +15,7 @@ public class OpenClawOptions
     public bool Enabled { get; set; } = true;
     public string GatewayUrl { get; set; } = "wss://api.go-nomads.com/openclaw";
     public string GatewayToken { get; set; } = string.Empty;
+    public string ClientId { get; set; } = "gonomads-backend";
     public int ConnectTimeoutSeconds { get; set; } = 15;
     public int RequestTimeoutSeconds { get; set; } = 70;
     public int HistoryTimeoutSeconds { get; set; } = 35;
@@ -334,7 +335,7 @@ public class OpenClawResearchService : IOpenClawResearchService
             _receiveCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             await _socket.ConnectAsync(new Uri(_options.GatewayUrl), cancellationToken);
             _receiveTask = ReceiveLoopAsync(_receiveCts.Token);
-            await SendConnectRequestAsync(null, cancellationToken);
+            await SendConnectRequestAsync(cancellationToken);
             await _connected.Task.WaitAsync(TimeSpan.FromSeconds(_options.ConnectTimeoutSeconds), cancellationToken);
         }
 
@@ -387,7 +388,7 @@ public class OpenClawResearchService : IOpenClawResearchService
                     } while (!result.EndOfMessage);
 
                     var message = Encoding.UTF8.GetString(stream.ToArray());
-                    await HandleMessageAsync(message, cancellationToken);
+                    await HandleMessageAsync(message);
                 }
             }
             catch (Exception ex)
@@ -398,10 +399,10 @@ public class OpenClawResearchService : IOpenClawResearchService
             }
         }
 
-        private async Task HandleMessageAsync(string message, CancellationToken cancellationToken)
+        private Task HandleMessageAsync(string message)
         {
             if (string.IsNullOrWhiteSpace(message))
-                return;
+            return Task.CompletedTask;
 
             JsonDocument document;
             try
@@ -410,7 +411,7 @@ public class OpenClawResearchService : IOpenClawResearchService
             }
             catch
             {
-                return;
+                return Task.CompletedTask;
             }
 
             using (document)
@@ -419,24 +420,16 @@ public class OpenClawResearchService : IOpenClawResearchService
 
                 if (root.TryGetProperty("event", out var eventNode) && eventNode.GetString() == "connect.challenge")
                 {
-                    if (root.TryGetProperty("payload", out var payload) &&
-                        payload.ValueKind == JsonValueKind.Object &&
-                        payload.TryGetProperty("nonce", out var nonceNode))
-                    {
-                        var nonce = nonceNode.GetString();
-                        if (!string.IsNullOrWhiteSpace(nonce))
-                            await SendConnectRequestAsync(nonce, cancellationToken);
-                    }
-
-                    return;
+                    _logger.LogDebug("OpenClaw gateway sent connect.challenge; current gateway handshake does not require nonce replay");
+                    return Task.CompletedTask;
                 }
 
                 if (!root.TryGetProperty("id", out var idNode))
-                    return;
+                    return Task.CompletedTask;
 
                 var id = idNode.GetString();
                 if (string.IsNullOrWhiteSpace(id) || !_pending.TryRemove(id, out var completer))
-                    return;
+                    return Task.CompletedTask;
 
                 if (root.TryGetProperty("ok", out var okNode) && okNode.ValueKind == JsonValueKind.True)
                 {
@@ -451,7 +444,7 @@ public class OpenClawResearchService : IOpenClawResearchService
                     }
 
                     completer.TrySetResult(payload);
-                    return;
+                    return Task.CompletedTask;
                 }
 
                 var errorMessage = root.TryGetProperty("error", out var errorNode) &&
@@ -462,19 +455,24 @@ public class OpenClawResearchService : IOpenClawResearchService
                         ? fallbackMessageNode.GetString()
                         : "OpenClaw request failed";
 
-                completer.TrySetException(new InvalidOperationException(errorMessage));
+                var connectError = new InvalidOperationException(errorMessage);
+                if (id.StartsWith("connect-", StringComparison.Ordinal) && !_connected.Task.IsCompleted)
+                    _connected.TrySetException(connectError);
+
+                completer.TrySetException(connectError);
             }
+
+            return Task.CompletedTask;
         }
 
-        private async Task SendConnectRequestAsync(string? nonce, CancellationToken cancellationToken)
+        private async Task SendConnectRequestAsync(CancellationToken cancellationToken)
         {
             if (_isConnected)
                 return;
 
-            var dedupeKey = string.IsNullOrWhiteSpace(nonce) ? "__default__" : nonce;
             lock (_sentConnectKeys)
             {
-                if (!_sentConnectKeys.Add(dedupeKey!))
+                if (!_sentConnectKeys.Add("__default__"))
                     return;
             }
 
@@ -493,7 +491,7 @@ public class OpenClawResearchService : IOpenClawResearchService
                     maxProtocol = 3,
                     client = new
                     {
-                        id = "go-nomads-ai-service",
+                        id = _options.ClientId,
                         displayName = "Go Nomads AI Service",
                         version = "1.0.1",
                         platform = "dotnet",
@@ -510,7 +508,6 @@ public class OpenClawResearchService : IOpenClawResearchService
                         "operator.approvals",
                         "operator.pairing"
                     },
-                    nonce,
                     auth = new
                     {
                         token = _options.GatewayToken
