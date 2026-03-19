@@ -524,8 +524,8 @@ public class EventRepository : IEventRepository
             await _supabaseClient.From<Event>()
                 .Filter("organizer_id", Constants.Operator.Equals, organizerId.ToString())
                 .Filter("is_deleted", Constants.Operator.NotEqual, "true")
-                .Set(x => x.OrganizerName, name)
-                .Set(x => x.OrganizerAvatar, avatarUrl)
+                .Set(x => x.OrganizerName!, name)
+                .Set(x => x.OrganizerAvatar!, avatarUrl)
                 .Set(x => x.UpdatedAt, DateTime.UtcNow)
                 .Update();
 
@@ -567,9 +567,9 @@ public class EventRepository : IEventRepository
             await _supabaseClient.From<Event>()
                 .Filter("city_id", Constants.Operator.Equals, cityId.ToString())
                 .Filter("is_deleted", Constants.Operator.NotEqual, "true")
-                .Set(x => x.CityName, name)
-                .Set(x => x.CityNameEn, nameEn)
-                .Set(x => x.CityCountry, country)
+                .Set(x => x.CityName!, name)
+                .Set(x => x.CityNameEn!, nameEn)
+                .Set(x => x.CityCountry!, country)
                 .Set(x => x.UpdatedAt, DateTime.UtcNow)
                 .Update();
 

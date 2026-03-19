@@ -148,7 +148,7 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
             var routes = new List<YarpRouteConfig>();
             var clusters = new List<YarpClusterConfig>();
 
-            // Filter services with 'dapr' tag (our backend services)
+            // Filter healthy backend service instances discovered from Consul
             foreach (var service in services.Response)
             {
                 var serviceName = service.Key;
@@ -168,7 +168,7 @@ public class ConsulProxyConfigProvider : IProxyConfigProvider, IDisposable
                 }
 
                 // Get all healthy instances
-                // 不再要求 'dapr' 标签，所有健康的服务实例都可以路由
+                // 不再要求特定标签，所有健康的服务实例都可以路由
                 var healthyInstances = healthServices.Response.ToList();
 
                 if (!healthyInstances.Any())

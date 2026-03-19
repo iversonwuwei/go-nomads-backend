@@ -104,7 +104,8 @@ chmod +x deploy-infrastructure.sh
 ### Prometheus 监控
 
 自动配置以下监控目标:
-- Dapr sidecar metrics (端口 9090)
+
+- 业务服务指标（通过 Consul 服务发现收集）
 - 应用 metrics (端口 8080)
 - Redis 和 Zipkin metrics
 
@@ -176,10 +177,10 @@ chmod +x deploy-infrastructure.sh
 ├─ Product Service (产品服务)
 └─ User Service (用户服务)
          │
-         ├─ Dapr Sidecar (服务网格)
-         │  ├─ mDNS (服务发现)
-         │  ├─ Redis (配置/状态)
-         │  └─ Zipkin (追踪)
+         ├─ 服务发现与调用
+         │  ├─ Consul (注册/发现)
+         │  ├─ HTTP APIs (同步调用)
+         │  └─ RabbitMQ (异步消息)
          │
 基础设施层 (本脚本部署)
 ├─ Redis (配置中心 & 状态存储)
@@ -194,12 +195,12 @@ chmod +x deploy-infrastructure.sh
 基础设施部署完成后:
 
 1. **部署应用服务**
-   - 使用 Dapr CLI 运行微服务
-   - 或使用容器化部署
+   - 使用 Docker Compose 或本地脚本运行微服务
+   - 或使用 Kubernetes / 容器化部署
 
 2. **配置 Grafana 仪表盘**
    - 添加 Prometheus 数据源
-   - 导入 Dapr 官方仪表盘
+   - 导入业务服务与基础设施仪表盘
 
 3. **验证服务注册**
    - 访问 Consul UI 查看服务列表

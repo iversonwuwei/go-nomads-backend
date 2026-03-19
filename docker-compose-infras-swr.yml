@@ -1,21 +1,23 @@
 name: go-nomads-infras
 
 # ============================================================
-# 基础设施服务 - 从华为云 SWR 拉取镜像
-# 使用方法: docker compose -f docker-compose-infras-swr.yml up -d
-# 
-# 注意: 部分基础设施镜像可以选择从 SWR 缓存或直接使用公共镜像
-# 如果需要从 SWR 获取，请先运行脚本上传这些镜像
+# 基础设施服务 - 默认从华为云 SWR 拉取镜像
+# 使用方法:
+#   docker compose -f docker-compose-infras-swr.yml up -d
+# 或使用包装脚本默认启动 redis/rabbitmq/elasticsearch:
+#   ./docker-compose-infras-swr.sh up -d
+# 如需显式带上 consul:
+#   ./docker-compose-infras-swr.sh --with-consul
+#
+# 可通过环境变量覆盖镜像源:
+#   SWR_REGISTRY=swr.ap-southeast-3.myhuaweicloud.com
+#   SWR_ORGANIZATION=go-nomads
 # ============================================================
-
-x-swr-registry: &swr-registry "swr.ap-southeast-3.myhuaweicloud.com/go-nomads"
 
 services:
   # Infrastructure Services
   redis:
-    # 可选: 使用 SWR 缓存的镜像
-    # image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/redis:7-alpine
-    image: redis:7-alpine
+    image: ${SWR_REGISTRY:-swr.ap-southeast-3.myhuaweicloud.com}/${SWR_ORGANIZATION:-go-nomads}/redis:7-alpine
     container_name: go-nomads-redis
     ports:
       - "6379:6379"
@@ -26,9 +28,7 @@ services:
       - gonomads-network
 
   rabbitmq:
-    # 可选: 使用 SWR 缓存的镜像
-    # image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/rabbitmq:3-management-alpine
-    image: rabbitmq:3-management-alpine
+    image: ${SWR_REGISTRY:-swr.ap-southeast-3.myhuaweicloud.com}/${SWR_ORGANIZATION:-go-nomads}/rabbitmq:3-management-alpine
     container_name: go-nomads-rabbitmq
     ports:
       - "5672:5672"    # AMQP protocol port
@@ -47,9 +47,7 @@ services:
       retries: 5
 
   elasticsearch:
-    # 可选: 使用 SWR 缓存的镜像
-    # image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/elasticsearch:8.16.1
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.16.1
+    image: ${SWR_REGISTRY:-swr.ap-southeast-3.myhuaweicloud.com}/${SWR_ORGANIZATION:-go-nomads}/elasticsearch:8.11.0
     container_name: go-nomads-elasticsearch
     environment:
       - discovery.type=single-node
@@ -64,9 +62,7 @@ services:
       - gonomads-network
 
   consul:
-    # 可选: 使用 SWR 缓存的镜像
-    # image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/consul:latest
-    image: hashicorp/consul:latest
+    image: ${SWR_REGISTRY:-swr.ap-southeast-3.myhuaweicloud.com}/${SWR_ORGANIZATION:-go-nomads}/consul:latest
     container_name: go-nomads-consul
     ports:
       - "7500:7500"
@@ -82,48 +78,6 @@ services:
     networks:
       - gonomads-network
 
-  zipkin:
-    # 可选: 使用 SWR 缓存的镜像
-    # image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/zipkin:latest
-    image: openzipkin/zipkin
-    container_name: go-nomads-zipkin
-    ports:
-      - "9411:9411"
-    networks:
-      - gonomads-network
-
-  prometheus:
-    # 可选: 使用 SWR 缓存的镜像
-    # image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/prometheus:latest
-    image: prom/prometheus:latest
-    container_name: go-nomads-prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./deployment/prometheus/prometheus-local.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-    networks:
-      - gonomads-network
-
-  grafana:
-    # 可选: 使用 SWR 缓存的镜像
-    # image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/grafana:latest
-    image: grafana/grafana:latest
-    container_name: go-nomads-grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./deployment/grafana/provisioning:/etc/grafana/provisioning
-    depends_on:
-      - prometheus
-    networks:
-      - gonomads-network
-
 networks:
   gonomads-network:
     name: go-nomads-network
@@ -134,5 +88,3 @@ volumes:
   rabbitmq_data:
   elasticsearch_data:
   consul_data:
-  prometheus_data:
-  grafana_data:

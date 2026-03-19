@@ -202,9 +202,6 @@ go-nomads/
 │   ├── deploy-infrastructure-local.ps1
 │   ├── deploy-services-local.ps1
 │   ├── stop-services.ps1
-│   └── prometheus/
-│       └── prometheus-local.yml
-├── dapr/                          # Dapr 配置
 │   ├── components.yaml
 │   └── config.yaml
 ├── docs/                          # 文档

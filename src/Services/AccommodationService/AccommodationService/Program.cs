@@ -1,13 +1,11 @@
 using AccommodationService.Application.Services;
 using AccommodationService.Domain.Repositories;
 using AccommodationService.Infrastructure.Repositories;
+using GoNomads.Shared.Communication;
 using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
 using Scalar.AspNetCore;
 using Serilog;
 using System.Text.Json.Serialization;
-
-const string serviceName = "AccommodationService";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,28 +18,13 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// ============================================================
-// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
-// ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
-
 // 添加 Supabase 客户端
 builder.Services.AddSupabase(builder.Configuration);
 
 // 添加当前用户服务（统一的用户身份和权限检查）
 builder.Services.AddCurrentUserService();
 
-// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync，访问控制策略自动生效）
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    var daprHttpPort = builder.Configuration.GetValue("Dapr:HttpPort", 3500);
-    var daprHttpEndpoint = $"http://localhost:{daprHttpPort}";
-    daprClientBuilder.UseHttpEndpoint(daprHttpEndpoint);
-    
-    var logger = LoggerFactory.Create(loggingBuilder => loggingBuilder.AddConsole()).CreateLogger("DaprSetup");
-    logger.LogInformation("🚀 Dapr Client 配置使用 HTTP: {Endpoint}", daprHttpEndpoint);
-});
+builder.Services.AddServiceInvocationClient();
 
 // ============================================================
 // DDD 架构依赖注入配置
@@ -60,7 +43,6 @@ builder.Services.AddScoped<IHotelService, HotelApplicationService>();
 
 // 添加控制器
 builder.Services.AddControllers()
-    .AddDapr()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;

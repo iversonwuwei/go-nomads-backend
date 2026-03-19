@@ -1,20 +1,20 @@
 using System.Text.Json;
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 
 namespace CacheService.Infrastructure.Integrations;
 
 /// <summary>
-/// CityService 客户端实现 (通过 Dapr Service Invocation)
+/// CityService 客户端实现
 /// </summary>
 public class CityServiceClient : ICityServiceClient
 {
-    private readonly DaprClient _daprClient;
     private readonly ILogger<CityServiceClient> _logger;
+    private readonly ServiceInvocationClient _serviceInvocationClient;
     private const string CityServiceAppId = "city-service";
 
-    public CityServiceClient(DaprClient daprClient, ILogger<CityServiceClient> logger)
+    public CityServiceClient(ServiceInvocationClient serviceInvocationClient, ILogger<CityServiceClient> logger)
     {
-        _daprClient = daprClient;
+        _serviceInvocationClient = serviceInvocationClient;
         _logger = logger;
     }
 
@@ -23,13 +23,11 @@ public class CityServiceClient : ICityServiceClient
         try
         {
             _logger.LogInformation("Calling CityService to calculate score for city {CityId}", cityId);
-            
-            // 调用 CityService 的评分统计接口
-            var response = await _daprClient.InvokeMethodAsync<CityRatingStatsResponse>(
+
+            var response = await _serviceInvocationClient.InvokeAsync<CityRatingStatsResponse>(
                 HttpMethod.Get,
                 CityServiceAppId,
-                $"api/v1/cities/{cityId}/ratings/statistics"
-            );
+                $"api/v1/cities/{cityId}/ratings/statistics");
 
             if (response?.Statistics == null || !response.Statistics.Any())
             {
@@ -81,7 +79,7 @@ public class CityServiceClient : ICityServiceClient
         try
         {
             // 使用新的批量 API 端点（一次请求获取所有城市的评分统计）
-            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchCityRatingStatsResponse>(
+            var response = await _serviceInvocationClient.InvokeAsync<List<string>, BatchCityRatingStatsResponse>(
                 HttpMethod.Post,
                 CityServiceAppId,
                 "api/v1/cities/ratings/statistics/batch",
@@ -94,7 +92,6 @@ public class CityServiceClient : ICityServiceClient
                 {
                     var cityId = kvp.Key;
                     var stats = kvp.Value;
-
                     // 计算总评分 (有评分的分类的平均分)
                     var ratingsWithData = stats.Statistics?.Where(s => s.RatingCount > 0).ToList() ?? new List<CategoryStatistics>();
                     var overallScore = ratingsWithData.Any()
@@ -143,7 +140,7 @@ public class CityServiceClient : ICityServiceClient
             _logger.LogInformation("Calling CityService to calculate cost for city {CityId}", cityId);
 
             // 调用 CityService 的费用统计接口
-            var response = await _daprClient.InvokeMethodAsync<CityCostStatsResponse>(
+            var response = await _serviceInvocationClient.InvokeAsync<CityCostStatsResponse>(
                 HttpMethod.Get,
                 CityServiceAppId,
                 $"api/v1/cities/{cityId}/expenses/statistics"

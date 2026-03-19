@@ -473,7 +473,7 @@ public class PaymentController : ControllerBase
     ///     创建微信支付订单，返回调用微信 SDK 所需的参数
     /// </remarks>
     [HttpPost("orders/wechat")]
-    public async Task<ActionResult<ApiResponse<WeChatPayOrderDto>>> CreateWeChatPayOrder(
+    public ActionResult<ApiResponse<WeChatPayOrderDto>> CreateWeChatPayOrder(
         [FromBody] CreateWeChatPayOrderRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -534,7 +534,7 @@ public class PaymentController : ControllerBase
     ///     创建支付宝订单，返回签名后的订单信息字符串
     /// </remarks>
     [HttpPost("orders/alipay")]
-    public async Task<ActionResult<ApiResponse<AlipayOrderDto>>> CreateAlipayOrder(
+    public ActionResult<ApiResponse<AlipayOrderDto>> CreateAlipayOrder(
         [FromBody] CreateAlipayOrderRequest request,
         CancellationToken cancellationToken = default)
     {

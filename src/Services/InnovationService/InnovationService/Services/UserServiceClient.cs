@@ -1,4 +1,4 @@
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 using GoNomads.Shared.Models;
 
 namespace InnovationService.Services;
@@ -17,7 +17,7 @@ public class UserInfoDto
 }
 
 /// <summary>
-///     UserService 客户端 - 通过 Dapr Service Invocation 调用
+///     UserService 客户端
 /// </summary>
 public interface IUserServiceClient
 {
@@ -27,19 +27,18 @@ public interface IUserServiceClient
 
 public class UserServiceClient : IUserServiceClient
 {
-    private readonly DaprClient _daprClient;
+    private readonly ServiceInvocationClient _serviceClient;
     private readonly ILogger<UserServiceClient> _logger;
-    private readonly string _userServiceAppId;
+    private readonly string _userServiceName;
 
     public UserServiceClient(
-        DaprClient daprClient,
+        ServiceInvocationClient serviceClient,
         IConfiguration configuration,
         ILogger<UserServiceClient> logger)
     {
-        _daprClient = daprClient;
+        _serviceClient = serviceClient;
         _logger = logger;
-        // Dapr app-id 从配置读取，默认为 "user-service"
-        _userServiceAppId = configuration["Dapr:UserServiceAppId"] ?? "user-service";
+        _userServiceName = configuration["ServiceNames:UserService"] ?? "user-service";
     }
 
     /// <summary>
@@ -49,12 +48,11 @@ public class UserServiceClient : IUserServiceClient
     {
         try
         {
-            _logger.LogInformation("📞 通过 Dapr 调用 UserService - GET /api/v1/users/{UserId}", userId);
+            _logger.LogInformation("📞 调用 UserService - GET /api/v1/users/{UserId}", userId);
 
-            // 使用 Dapr Service Invocation 调用 UserService 的 REST API
-            var response = await _daprClient.InvokeMethodAsync<ApiResponse<UserInfoDto>>(
+            var response = await _serviceClient.InvokeAsync<ApiResponse<UserInfoDto>>(
                 HttpMethod.Get,
-                _userServiceAppId,
+                _userServiceName,
                 $"api/v1/users/{userId}",
                 cancellationToken);
 
@@ -69,7 +67,7 @@ public class UserServiceClient : IUserServiceClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Dapr 调用 UserService 失败 - UserId: {UserId}", userId);
+            _logger.LogError(ex, "❌ 调用 UserService 失败 - UserId: {UserId}", userId);
             return null;
         }
     }
@@ -88,7 +86,7 @@ public class UserServiceClient : IUserServiceClient
 
         try
         {
-            _logger.LogInformation("📞 通过 Dapr 批量调用 UserService - 用户数量: {Count}", userIdList.Count);
+            _logger.LogInformation("📞 批量调用 UserService - 用户数量: {Count}", userIdList.Count);
 
             // 并发调用多个用户信息
             var tasks = userIdList.Select(async userId =>
@@ -111,7 +109,7 @@ public class UserServiceClient : IUserServiceClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Dapr 批量调用 UserService 失败");
+            _logger.LogError(ex, "❌ 批量调用 UserService 失败");
         }
 
         return result;

@@ -32,12 +32,3 @@ elasticsearch:
 
 consul:
   enabled: false
-
-zipkin:
-  enabled: false
-
-prometheus:
-  enabled: false
-
-grafana:
-  enabled: false

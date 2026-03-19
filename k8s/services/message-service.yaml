@@ -17,10 +17,6 @@ spec:
     metadata:
       labels:
         app: message-service
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8010"
-        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: message-service

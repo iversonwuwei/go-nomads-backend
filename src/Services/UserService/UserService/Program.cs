@@ -1,6 +1,6 @@
 using System.Text;
+using GoNomads.Shared.Communication;
 using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
 using GoNomads.Shared.Security;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -12,15 +12,7 @@ using UserService.Infrastructure.Configuration;
 using UserService.Infrastructure.Repositories;
 using UserService.Infrastructure.Services;
 
-const string serviceName = "user-service";
-
 var builder = WebApplication.CreateBuilder(args);
-
-// ============================================================
-// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
-// ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
 
 // 添加 Supabase 客户端（使用 Shared 扩展方法）
 builder.Services.AddSupabase(builder.Configuration);
@@ -85,24 +77,14 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
-// 配置 DaprClient 连接到 Dapr sidecar
-// Dapr sidecar 与应用共享网络命名空间，通过 localhost 访问
-// 方案A: 使用 HTTP 端点 - 原生支持 DaprClient.InvokeMethodAsync，访问控制策略自动生效
-// 
-// Dapr 配置 - 使用 HTTP 端点
-var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
-});
+builder.Services.AddServiceInvocationClient();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-    })
-    .AddDapr();
+    });
 
 // 添加 JWT 认证
 var jwtSettings = builder.Configuration.GetSection("Jwt");
@@ -153,12 +135,6 @@ app.UseRouting();
 // 启用认证和授权中间件
 app.UseAuthentication();
 app.UseAuthorization();
-
-// ============================================================
-// OpenTelemetry 可观测性中间件
-// ============================================================
-app.UseGoNomadsTracing();
-app.UseGoNomadsObservability();
 
 // 使用用户上下文中间件 - 从 Gateway 传递的请求头中提取用户信息
 app.UseUserContext();

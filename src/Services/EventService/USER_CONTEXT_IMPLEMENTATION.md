@@ -23,7 +23,6 @@ using GoNomads.Shared.Extensions;
 // ... 其他代码
 
 app.UseRouting();
-app.UseHttpMetrics();
 
 // 使用用户上下文中间件 - 从 Gateway 传递的请求头中提取用户信息
 app.UseUserContext();

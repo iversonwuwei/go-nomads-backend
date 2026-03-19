@@ -53,19 +53,6 @@ function Test-Kubectl {
     }
 }
 
-# Check Helm
-function Test-Helm {
-    try {
-        $null = helm version --short 2>&1
-        Write-Success "Helm is ready"
-        return $true
-    }
-    catch {
-        Write-Err "Helm not installed, required for Dapr"
-        return $false
-    }
-}
-
 # Check cluster connection
 function Test-Cluster {
     try {
@@ -77,63 +64,6 @@ function Test-Cluster {
         Write-Err "Cannot connect to Kubernetes cluster"
         return $false
     }
-}
-
-# Install Dapr
-function Install-Dapr {
-    Write-Info "========== Installing Dapr =========="
-    
-    # Check if Dapr is already installed
-    $daprPods = kubectl get pods -n dapr-system --no-headers 2>&1
-    if ($daprPods -and ($daprPods -notmatch "No resources found")) {
-        Write-Success "Dapr already installed, skipping..."
-        return $true
-    }
-    
-    Write-Info "Adding Dapr Helm repo..."
-    helm repo add dapr https://dapr.github.io/helm-charts/ 2>&1 | Out-Null
-    helm repo update
-    
-    Write-Info "Creating dapr-system namespace..."
-    kubectl create namespace dapr-system --dry-run=client -o yaml | kubectl apply -f -
-    
-    Write-Info "Installing Dapr..."
-    helm upgrade --install dapr dapr/dapr --namespace dapr-system --set global.ha.enabled=false --wait --timeout 5m
-    
-    Write-Info "Waiting for Dapr components..."
-    $maxRetries = 30
-    $retryCount = 0
-    
-    while ($retryCount -lt $maxRetries) {
-        $podOutput = kubectl get pods -n dapr-system --no-headers 2>&1
-        
-        if ($podOutput -match "No resources found") {
-            $runningPods = 0
-            $totalPods = 0
-        }
-        else {
-            $lines = @($podOutput -split "`n" | Where-Object { $_ -match '\S' })
-            $totalPods = $lines.Count
-            $runningPods = @($lines | Where-Object { $_ -match 'Running' }).Count
-        }
-        
-        if (($runningPods -eq $totalPods) -and ($totalPods -gt 0)) {
-            Write-Success "Dapr components ready ($runningPods/$totalPods)"
-            break
-        }
-        
-        $retryCount++
-        Write-Info "Waiting for Dapr... ($retryCount/$maxRetries) - Running: $runningPods/$totalPods"
-        Start-Sleep -Seconds 10
-    }
-    
-    if ($retryCount -eq $maxRetries) {
-        Write-Warn "Dapr timeout, check: kubectl get pods -n dapr-system"
-        return $false
-    }
-    
-    Write-Success "Dapr installation complete"
-    return $true
 }
 
 # Process config file variables
@@ -216,17 +146,6 @@ function Deploy-Infrastructure {
     Write-Success "Infrastructure deployed"
 }
 
-# Deploy monitoring
-function Deploy-Monitoring {
-    Write-Info "========== Deploying Monitoring =========="
-    
-    Apply-Config -FilePath "$K8sDir\monitoring\prometheus.yaml" -Description "Prometheus"
-    Apply-Config -FilePath "$K8sDir\monitoring\grafana.yaml" -Description "Grafana"
-    Apply-Config -FilePath "$K8sDir\monitoring\zipkin.yaml" -Description "Zipkin"
-    
-    Write-Success "Monitoring deployed"
-}
-
 # Deploy services
 function Deploy-Services {
     Write-Info "========== Deploying Services =========="
@@ -251,35 +170,25 @@ function Deploy-All {
     Write-Info "Image Tag: $ImageTag"
     Write-Host ""
     
-    # 1. Install Dapr
-    if (-not (Test-Helm)) { 
-        Write-Warn "Helm not installed, skipping Dapr. Services will not have Dapr sidecar."
-    }
-    else {
-        Install-Dapr
-        Write-Host ""
-    }
-    
-    # 2. Deploy base config
+    # 1. Deploy base config
     Deploy-Base
     Write-Host ""
     
-    # 3. Deploy infrastructure
+    # 2. Deploy infrastructure
     Deploy-Infrastructure
     Write-Host ""
     
-    # 4. Deploy monitoring
+    # 3. Deploy monitoring
     Deploy-Monitoring
     Write-Host ""
     
-    # 5. Deploy services
+    # 4. Deploy services
     Deploy-Services
     Write-Host ""
     
     Write-Success "========== Deployment Complete =========="
     Write-Info "Check pods: kubectl get pods -n go-nomads"
     Write-Info "Check services: kubectl get services -n go-nomads"
-    Write-Info "Check Dapr: dapr list -k"
 }
 
 # Remove all resources
@@ -389,13 +298,9 @@ function Main {
         "monitoring" { 
             Deploy-Monitoring 
         }
-        "dapr" { 
-            if (-not (Test-Helm)) { exit 1 }
-            Install-Dapr 
-        }
         default {
             Write-Err "Unknown action: $Action"
-            Write-Host "Available: deploy, delete, status, build, infrastructure, services, monitoring, dapr"
+            Write-Host "Available: deploy, delete, status, build, infrastructure, services, monitoring"
             exit 1
         }
     }

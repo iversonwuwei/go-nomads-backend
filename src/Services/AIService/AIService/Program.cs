@@ -4,16 +4,13 @@ using AIService.Domain.Repositories;
 using AIService.Infrastructure.Cache;
 using AIService.Infrastructure.GrpcClients;
 using AIService.Infrastructure.Repositories;
+using GoNomads.Shared.Communication;
 using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
 using MassTransit;
 using Microsoft.OpenApi.Models;
 using Microsoft.SemanticKernel;
-using Prometheus;
 using Scalar.AspNetCore;
 using Serilog;
-
-const string serviceName = "AIService";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,12 +21,6 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 builder.Host.UseSerilog();
-
-// ============================================================
-// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
-// ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
 
 // 注册 Supabase 客户端
 builder.Services.AddSupabase(builder.Configuration);
@@ -42,7 +33,7 @@ builder.Services.AddScoped<IAIConversationRepository, AIConversationRepository>(
 builder.Services.AddScoped<IAIMessageRepository, AIMessageRepository>();
 builder.Services.AddScoped<ITravelPlanRepository, TravelPlanRepository>();
 
-// 注册 gRPC 客户端 (通过 Dapr Service Invocation)
+// 注册跨服务客户端
 builder.Services.AddScoped<IUserGrpcClient, UserGrpcClient>();
 builder.Services.AddScoped<ICityGrpcClient, CityGrpcClient>();
 
@@ -107,6 +98,21 @@ builder.Services.AddHttpClient("WanxClient", client =>
 builder.Services.AddScoped<IImageGenerationService, ImageGenerationService>();
 Log.Information("✅ 图片生成服务已注册（通义万象 + Supabase Storage）");
 
+// 注册 OpenClaw 自动化服务
+var openClawToken = builder.Configuration["OpenClaw:Token"] ?? "";
+builder.Services.AddHttpClient("OpenClawClient", client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(2); // OpenClaw 执行可能较慢
+    client.DefaultRequestHeaders.Add("User-Agent", "GoNomads-AIService/1.0");
+    if (!string.IsNullOrEmpty(openClawToken))
+    {
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", openClawToken);
+    }
+});
+builder.Services.AddScoped<IOpenClawService, OpenClawApplicationService>();
+Log.Information("✅ OpenClaw 自动化服务已注册");
+
 // 配置 MassTransit + RabbitMQ
 var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
 builder.Services.AddMassTransit(x =>
@@ -134,19 +140,7 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 
 Log.Information("✅ MassTransit、缓存服务已注册");
 
-// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync，访问控制策略自动生效）
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    // 使用 HTTP 端点（默认端口 3500）
-    var daprHttpPort = builder.Configuration.GetValue("Dapr:HttpPort", 3500);
-    var daprHttpEndpoint = $"http://localhost:{daprHttpPort}";
-
-    daprClientBuilder.UseHttpEndpoint(daprHttpEndpoint);
-
-    // 记录配置
-    var logger = LoggerFactory.Create(loggingBuilder => loggingBuilder.AddConsole()).CreateLogger("DaprSetup");
-    logger.LogInformation("🚀 Dapr Client 配置使用 HTTP: {Endpoint}", daprHttpEndpoint);
-});
+builder.Services.AddServiceInvocationClient();
 
 // Add services to the container.
 builder.Services.AddControllers()
@@ -154,8 +148,7 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-    })
-    .AddDapr();
+    });
 
 // 配置 CORS
 builder.Services.AddCors(options =>
@@ -223,9 +216,6 @@ app.UseRouting();
 // Enable CORS
 app.UseCors();
 
-// Enable Prometheus metrics
-app.UseHttpMetrics();
-
 // 使用用户上下文中间件 - 从 Gateway 传递的请求头中提取用户信息
 app.UseUserContext();
 
@@ -265,9 +255,6 @@ app.MapGet("/health/ai", () =>
         timestamp = DateTime.UtcNow
     });
 });
-
-// Map Prometheus metrics endpoint
-app.MapMetrics();
 
 // 启动时日志
 app.Lifetime.ApplicationStarted.Register(() =>

@@ -1,4 +1,4 @@
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 using SearchService.Domain.Models;
 
 namespace SearchService.Infrastructure.Services;
@@ -20,22 +20,19 @@ public interface ICoworkingServiceClient
 }
 
 /// <summary>
-/// 共享办公空间服务客户端实现 (通过Dapr gRPC调用)
+/// 共享办公空间服务客户端实现
 /// </summary>
 public class CoworkingServiceClient : ICoworkingServiceClient
 {
     private readonly ILogger<CoworkingServiceClient> _logger;
-    private readonly DaprClient _daprClient;
-    private readonly string _coworkingServiceAppId;
+    private readonly ServiceInvocationClient _serviceInvocationClient;
 
     public CoworkingServiceClient(
         ILogger<CoworkingServiceClient> logger,
-        IConfiguration configuration,
-        DaprClient daprClient)
+        ServiceInvocationClient serviceInvocationClient)
     {
         _logger = logger;
-        _daprClient = daprClient;
-        _coworkingServiceAppId = configuration["Dapr:CoworkingServiceAppId"] ?? "coworking-service";
+        _serviceInvocationClient = serviceInvocationClient;
     }
 
     public async Task<List<CoworkingSearchDocument>> GetAllCoworkingsAsync()
@@ -48,30 +45,14 @@ public class CoworkingServiceClient : ICoworkingServiceClient
             const int pageSize = 100;
             bool hasMore = true;
 
-            _logger.LogInformation("开始通过Dapr从 {AppId} 获取共享办公空间数据...", _coworkingServiceAppId);
+            _logger.LogInformation("开始从 coworking-service 获取共享办公空间数据...");
 
             while (hasMore)
             {
-                var request = _daprClient.CreateInvokeMethodRequest(
+                var data = await _serviceInvocationClient.InvokeAsync<CoworkingListResponse>(
                     HttpMethod.Get,
-                    _coworkingServiceAppId,
+                    "coworking-service",
                     $"coworkings?page={page}&pageSize={pageSize}");
-
-                var response = await _daprClient.InvokeMethodWithResponseAsync(request);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    _logger.LogWarning("获取共享办公空间列表失败: {StatusCode}, 响应: {Response}", 
-                        response.StatusCode, errorContent);
-                    break;
-                }
-
-                var content = await response.Content.ReadAsStringAsync();
-                _logger.LogDebug("收到共享办公空间响应: {Content}", content.Length > 500 ? content[..500] + "..." : content);
-
-                var data = System.Text.Json.JsonSerializer.Deserialize<CoworkingListResponse>(content,
-                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
                 if (data?.Items == null || !data.Items.Any())
                 {
@@ -95,7 +76,7 @@ public class CoworkingServiceClient : ICoworkingServiceClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "通过Dapr获取共享办公空间列表时发生异常");
+            _logger.LogError(ex, "获取共享办公空间列表时发生异常");
         }
 
         return result;
@@ -105,24 +86,12 @@ public class CoworkingServiceClient : ICoworkingServiceClient
     {
         try
         {
-            _logger.LogInformation("通过Dapr从 {AppId} 获取共享办公空间 {CoworkingId}...", _coworkingServiceAppId, id);
+            _logger.LogInformation("从 coworking-service 获取共享办公空间 {CoworkingId}...", id);
 
-            var request = _daprClient.CreateInvokeMethodRequest(
+            var apiResponse = await _serviceInvocationClient.InvokeAsync<ApiResponse<CoworkingDto>>(
                 HttpMethod.Get,
-                _coworkingServiceAppId,
+                "coworking-service",
                 $"coworkings/{id}");
-
-            var response = await _daprClient.InvokeMethodWithResponseAsync(request);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("获取共享办公空间 {Id} 失败: {StatusCode}", id, response.StatusCode);
-                return null;
-            }
-
-            var content = await response.Content.ReadAsStringAsync();
-            var apiResponse = System.Text.Json.JsonSerializer.Deserialize<ApiResponse<CoworkingDto>>(content,
-                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (apiResponse?.Data == null)
             {
@@ -133,7 +102,7 @@ public class CoworkingServiceClient : ICoworkingServiceClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "通过Dapr获取共享办公空间 {Id} 时发生异常", id);
+            _logger.LogError(ex, "获取共享办公空间 {Id} 时发生异常", id);
             return null;
         }
     }

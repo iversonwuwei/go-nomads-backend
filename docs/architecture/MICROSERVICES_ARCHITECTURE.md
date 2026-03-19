@@ -21,7 +21,6 @@ go-nomads-backend/
 │   └── Shared/                     # 共享库
 │       └── Shared/
 ├── deployment/                     # 部署脚本
-├── dapr/                          # Dapr 配置
 ├── docker-compose.yml             # Docker Compose 配置 ✅ UPDATED
 └── go-nomads-backend.sln          # 解决方案文件 ✅ UPDATED
 ```

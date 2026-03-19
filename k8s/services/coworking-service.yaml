@@ -17,10 +17,6 @@ spec:
     metadata:
       labels:
         app: coworking-service
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8003"
-        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: coworking-service

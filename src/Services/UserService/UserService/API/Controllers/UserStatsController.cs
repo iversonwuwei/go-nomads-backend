@@ -1,4 +1,4 @@
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 using GoNomads.Shared.Middleware;
 using GoNomads.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -15,20 +15,20 @@ namespace UserService.API.Controllers;
 [Route("api/v1/users")]
 public class UserStatsController : ControllerBase
 {
-    private readonly DaprClient _daprClient;
     private readonly ILogger<UserStatsController> _logger;
+    private readonly ServiceInvocationClient _serviceInvocationClient;
     private readonly IUserStatsRepository _userStatsRepository;
     private readonly ITravelHistoryService _travelHistoryService;
 
     public UserStatsController(
         IUserStatsRepository userStatsRepository,
         ITravelHistoryService travelHistoryService,
-        DaprClient daprClient,
+        ServiceInvocationClient serviceInvocationClient,
         ILogger<UserStatsController> logger)
     {
         _userStatsRepository = userStatsRepository;
         _travelHistoryService = travelHistoryService;
-        _daprClient = daprClient;
+        _serviceInvocationClient = serviceInvocationClient;
         _logger = logger;
     }
 
@@ -97,14 +97,12 @@ public class UserStatsController : ControllerBase
     {
         try
         {
-            // 调用 EventService 的 /api/v1/events/me/created 接口
-            // 需要传递用户信息头
-            var request = _daprClient.CreateInvokeMethodRequest(
+            var response = await _serviceInvocationClient.InvokeAsync<int>(
                 HttpMethod.Get,
                 "event-service",
-                $"api/v1/events/user/{userId}/created/count");
+                $"api/v1/events/user/{userId}/created/count",
+                cancellationToken);
 
-            var response = await _daprClient.InvokeMethodAsync<int>(request, cancellationToken);
             _logger.LogInformation("✅ 获取用户 Meetups 创建数量: {Count}", response);
             return response;
         }
@@ -122,12 +120,12 @@ public class UserStatsController : ControllerBase
     {
         try
         {
-            var request = _daprClient.CreateInvokeMethodRequest(
+            var response = await _serviceInvocationClient.InvokeAsync<int>(
                 HttpMethod.Get,
                 "event-service",
-                $"api/v1/events/user/{userId}/joined/count");
+                $"api/v1/events/user/{userId}/joined/count",
+                cancellationToken);
 
-            var response = await _daprClient.InvokeMethodAsync<int>(request, cancellationToken);
             _logger.LogInformation("✅ 获取用户参加的未结束 Meetups 数量: {Count}", response);
             return response;
         }
@@ -145,12 +143,12 @@ public class UserStatsController : ControllerBase
     {
         try
         {
-            var request = _daprClient.CreateInvokeMethodRequest(
+            var response = await _serviceInvocationClient.InvokeAsync<int>(
                 HttpMethod.Get,
                 "city-service",
-                $"api/v1/user-favorite-cities/user/{userId}/count");
+                $"api/v1/user-favorite-cities/user/{userId}/count",
+                cancellationToken);
 
-            var response = await _daprClient.InvokeMethodAsync<int>(request, cancellationToken);
             _logger.LogInformation("✅ 获取用户收藏城市数量: {Count}", response);
             return response;
         }

@@ -18,11 +18,7 @@ redis:7-alpine:redis:7-alpine
 rabbitmq:3-management-alpine:rabbitmq:3-management-alpine
 docker.elastic.co/elasticsearch/elasticsearch:8.11.0:elasticsearch:8.11.0
 hashicorp/consul:latest:consul:latest
-openzipkin/zipkin:latest:zipkin:latest
-prom/prometheus:latest:prometheus:latest
-grafana/grafana:latest:grafana:latest
-daprio/dapr:latest:dapr:latest
-daprio/daprd:latest:daprd:latest
+nginx:latest:nginx:latest
 "
 
 # ============================================================

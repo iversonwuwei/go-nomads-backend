@@ -47,7 +47,6 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # 容器运行时检测
 CONTAINER_RUNTIME=""
-CONSUL_HTTP_ADDR="${CONSUL_HTTP_ADDR:-http://localhost:8500}"
 
 select_container_runtime() {
     local docker_bin="${DOCKER_BINARY:-$(command -v docker || true)}"
@@ -113,7 +112,6 @@ ensure_network() {
 }
 
 # 注意：服务现在使用自动注册机制
-# 每个服务在启动时会自动调用 RegisterWithConsulAsync() 注册到 Consul
 # 无需手动注册配置文件
 
 # 显示标题
@@ -147,14 +145,12 @@ remove_container_if_exists() {
     fi
 }
 
-# 本地构建并部署服务（带 Dapr sidecar）- Container Sidecar 模式
+# 本地构建并部署服务
 deploy_service_local() {
     local service_name=$1
     local service_path=$2
     local app_port=$3
     local dll_name=$4
-    local dapr_http_port=$5
-    local app_id=$6
     
     show_header "部署 $service_name"
     
@@ -176,9 +172,8 @@ deploy_service_local() {
         echo -e "${YELLOW}  跳过构建，使用已有的发布文件...${NC}"
     fi
     
-    # 删除旧容器（应用容器和 Dapr sidecar）
+    # 删除旧容器
     remove_container_if_exists "go-nomads-$service_name"
-    remove_container_if_exists "go-nomads-$service_name-dapr"
     
     # 发布目录
     local publish_dir="$ROOT_DIR/$service_path/bin/Release/net9.0/publish"
@@ -211,11 +206,9 @@ deploy_service_local() {
         )
     fi
     
-    # message-service 需要指定 ServiceAddress 和 RabbitMQ 配置
+    # message-service 需要指定 RabbitMQ 配置
     if [[ "$service_name" == "message-service" ]]; then
         extra_env+=(
-            "-e" "Consul__ServiceAddress=go-nomads-$service_name"
-            "-e" "Consul__ServicePort=8080"
             "-e" "RabbitMQ__HostName=go-nomads-rabbitmq"
             "-e" "RabbitMQ__Port=5672"
             "-e" "RabbitMQ__UserName=walden"
@@ -238,18 +231,17 @@ deploy_service_local() {
     # 启动应用容器
     echo -e "${YELLOW}  启动应用容器...${NC}"
     
-    # Gateway 使用生产配置（appsettings.json 中的 go-nomads-consul:8500）
+    # Gateway 使用生产配置
     # 其他服务使用 Development 环境
     local env_config=()
     if [[ "$service_name" == "gateway" ]]; then
-        # Gateway 使用生产配置，不需要 Dapr
+        # Gateway 使用生产配置
         env_config+=("-e" "ASPNETCORE_ENVIRONMENT=Production")
     else
         # 其他服务使用 Development 环境
         env_config+=("-e" "ASPNETCORE_ENVIRONMENT=Development")
     fi
     
-    # Gateway 容器配置（不需要 Dapr）
     if [[ "$service_name" == "gateway" ]]; then
         $CONTAINER_RUNTIME run -d \
             --name "go-nomads-$service_name" \
@@ -259,7 +251,6 @@ deploy_service_local() {
             -p "$app_port:5000" \
             "${env_config[@]}" \
             -e ASPNETCORE_URLS="http://+:5000" \
-            -e Consul__Address="http://go-nomads-consul:7500" \
             -e HTTP_PROXY= \
             -e HTTPS_PROXY= \
             -e NO_PROXY= \
@@ -269,20 +260,14 @@ deploy_service_local() {
             mcr.microsoft.com/dotnet/aspnet:9.0 \
             dotnet "$dll_name" > /dev/null
     else
-        # 其他服务需要 Dapr 支持
         $CONTAINER_RUNTIME run -d \
             --name "go-nomads-$service_name" \
             --network "$NETWORK_NAME" \
             --label "com.docker.compose.project=go-nomads" \
             --label "com.docker.compose.service=$service_name" \
             -p "$app_port:8080" \
-            -p "$dapr_http_port:$dapr_http_port" \
             "${env_config[@]}" \
             -e ASPNETCORE_URLS="http://+:8080" \
-            -e DAPR_GRPC_PORT="50001" \
-            -e DAPR_HTTP_PORT="$dapr_http_port" \
-            -e Consul__Address="http://go-nomads-consul:7500" \
-            -e DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2UNENCRYPTEDSUPPORT=true \
             -e HTTP_PROXY= \
             -e HTTPS_PROXY= \
             -e NO_PROXY= \
@@ -303,46 +288,10 @@ deploy_service_local() {
 
     sleep 2
 
-    # Gateway 不需要 Dapr sidecar（只使用 YARP 反向代理 + JWT 验证）
-    if [[ "$service_name" == "gateway" ]]; then
-        echo -e "${YELLOW}  跳过 Dapr sidecar ($service_name 不需要 Dapr)${NC}"
-        echo -e "${GREEN}  $service_name 部署成功!${NC}"
-        echo -e "${GREEN}  应用端口: http://localhost:$app_port${NC}"
-        sleep 2
-        return 0
-    fi
-
-    # 启动 Dapr sidecar（共享应用容器的网络命名空间）
-    # 使用 --network container:<app-container> 实现真正的 sidecar 模式
-    # 应用和 Dapr 通过 localhost 通信，端口已在应用容器暴露
-    echo -e "${YELLOW}  启动 Dapr sidecar (container sidecar 模式)...${NC}"
-    
-    $CONTAINER_RUNTIME run -d \
-        --name "go-nomads-$service_name-dapr" \
-        --network "container:go-nomads-$service_name" \
-        --label "com.docker.compose.project=go-nomads" \
-        --label "com.docker.compose.service=$service_name-dapr" \
-        daprio/daprd:latest \
-        ./daprd \
-        --app-id "$app_id" \
-        --app-port 8080 \
-        --dapr-http-port "$dapr_http_port" \
-        --dapr-grpc-port 50001 \
-        --log-level info > /dev/null
-    
-    if container_running "go-nomads-$service_name-dapr"; then
-        echo -e "${GREEN}  Dapr sidecar 启动成功!${NC}"
-        echo -e "${GREEN}  $service_name 部署成功!${NC}"
-        echo -e "${GREEN}  应用端口: http://localhost:$app_port${NC}"
-        echo -e "${GREEN}  Dapr HTTP: localhost:$dapr_http_port (通过应用容器暴露)${NC}"
-        echo -e "${GREEN}  Dapr gRPC: localhost:50001 (container sidecar 模式)${NC}"
-        sleep 2
-        return 0
-    else
-        echo -e "${RED}  [错误] Dapr sidecar 启动失败${NC}"
-        echo -e "${YELLOW}  查看日志: $CONTAINER_RUNTIME logs go-nomads-$service_name-dapr${NC}"
-        return 1
-    fi
+    echo -e "${GREEN}  $service_name 部署成功!${NC}"
+    echo -e "${GREEN}  应用端口: http://localhost:$app_port${NC}"
+    sleep 2
+    return 0
 }
 
 # 检查前置条件
@@ -367,14 +316,6 @@ check_prerequisites() {
     fi
     echo -e "${GREEN}  Redis 运行正常${NC}"
 
-    # 检查 Consul
-    if ! container_running "go-nomads-consul"; then
-        echo -e "${RED}  [错误] Consul 未运行${NC}"
-        echo -e "${YELLOW}  请先运行基础设施部署脚本: ./deploy-infrastructure-local.sh${NC}"
-        exit 1
-    fi
-    echo -e "${GREEN}  Consul 运行正常${NC}"
-    
     # 检查 Nginx
     if ! container_running "go-nomads-nginx"; then
         echo -e "${YELLOW}  [提示] Nginx 未运行，可通过 deploy-infrastructure-local.sh 部署${NC}"
@@ -556,13 +497,8 @@ main() {
     echo -e "  ${GREEN}Search Service:      http://localhost:8015${NC}"
     echo -e "  ${GREEN}Message Swagger:     http://localhost:5005/swagger${NC}"
     echo ""
-    echo -e "${BLUE}Dapr 配置:${NC}"
-    echo -e "  ${GREEN}模式:             Container Sidecar (共享网络命名空间)${NC}"
-    echo -e "  ${GREEN}gRPC 端口:        50001 (通过 DAPR_GRPC_PORT 环境变量)${NC}"
-    echo -e "  ${GREEN}HTTP 端口:        3500-3511 (各服务独立端口)${NC}"
-    echo ""
     echo -e "${BLUE}基础设施:${NC}"
-    echo -e "  ${GREEN}Consul UI:        http://localhost:8500${NC}"
+    echo -e "  ${GREEN}RabbitMQ UI:      http://localhost:15672 (guest/guest)${NC}"
     echo ""
     echo -e "${BLUE}常用命令:${NC}"
     echo -e "  查看运行中的容器:  ${YELLOW}$CONTAINER_RUNTIME ps${NC}"

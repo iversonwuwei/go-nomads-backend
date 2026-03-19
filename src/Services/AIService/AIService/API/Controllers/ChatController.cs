@@ -7,7 +7,7 @@ using AIService.Domain.Entities;
 using AIService.Domain.Repositories;
 using AIService.Infrastructure.Cache;
 using AIService.Infrastructure.GrpcClients;
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 using GoNomads.Shared.DTOs;
 using GoNomads.Shared.Middleware;
 using MassTransit;
@@ -1661,7 +1661,7 @@ public class ChatController : ControllerBase
         [FromServices] IPublishEndpoint publishEndpoint,
         [FromServices] IRedisCache cache,
         [FromServices] IAIChatService chatService,
-        [FromServices] DaprClient daprClient)
+        [FromServices] ServiceInvocationClient serviceClient)
     {
         try
         {
@@ -1735,7 +1735,7 @@ public class ChatController : ControllerBase
                             _logger.LogInformation("📊 指南进度: {Progress}% - {Message}", progress, message);
                         });
 
-                    // 保存结果到 CityService（通过 Dapr）
+                    // 保存结果到 CityService（通过服务调用）
                     try
                     {
                         var saveRequest = new
@@ -1769,7 +1769,7 @@ public class ChatController : ControllerBase
                             guide.EssentialInfo
                         };
 
-                        await daprClient.InvokeMethodAsync<object, object>(
+                        await serviceClient.InvokeAsync<object, object>(
                             HttpMethod.Post,
                             "city-service",
                             $"api/v1/cities/{request.CityId}/guide",
@@ -1957,7 +1957,7 @@ public class ChatController : ControllerBase
         [FromServices] IPublishEndpoint publishEndpoint,
         [FromServices] IRedisCache cache,
         [FromServices] IAIChatService chatService,
-        [FromServices] DaprClient daprClient,
+        [FromServices] ServiceInvocationClient serviceClient,
         [FromServices] IImageGenerationService imageService)
     {
         try
@@ -2176,7 +2176,7 @@ public class ChatController : ControllerBase
                     // 更新结果中的城市列表
                     nearbyCities.Cities = citiesWithImages;
 
-                    // 保存结果到 CityService（通过 Dapr）
+                    // 保存结果到 CityService（通过服务调用）
                     try
                     {
                         var saveRequest = new
@@ -2207,7 +2207,7 @@ public class ChatController : ControllerBase
                             }).ToList()
                         };
 
-                        await daprClient.InvokeMethodAsync<object, object>(
+                        await serviceClient.InvokeAsync<object, object>(
                             HttpMethod.Post,
                             "city-service",
                             $"api/v1/cities/{request.CityId}/nearby",

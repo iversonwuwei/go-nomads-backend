@@ -1,19 +1,19 @@
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 
 namespace CacheService.Infrastructure.Integrations;
 
 /// <summary>
-/// CoworkingService 客户端实现 (通过 Dapr Service Invocation)
+/// CoworkingService 客户端实现
 /// </summary>
 public class CoworkingServiceClient : ICoworkingServiceClient
 {
-    private readonly DaprClient _daprClient;
     private readonly ILogger<CoworkingServiceClient> _logger;
+    private readonly ServiceInvocationClient _serviceInvocationClient;
     private const string CoworkingServiceAppId = "coworking-service";
 
-    public CoworkingServiceClient(DaprClient daprClient, ILogger<CoworkingServiceClient> logger)
+    public CoworkingServiceClient(ServiceInvocationClient serviceInvocationClient, ILogger<CoworkingServiceClient> logger)
     {
-        _daprClient = daprClient;
+        _serviceInvocationClient = serviceInvocationClient;
         _logger = logger;
     }
 
@@ -22,9 +22,9 @@ public class CoworkingServiceClient : ICoworkingServiceClient
         try
         {
             _logger.LogInformation("Calling CoworkingService to get score for coworking {CoworkingId}", coworkingId);
-            
+
             // 调用 CoworkingService 获取详情
-            var response = await _daprClient.InvokeMethodAsync<CoworkingDetailResponse>(
+            var response = await _serviceInvocationClient.InvokeAsync<CoworkingDetailResponse>(
                 HttpMethod.Get,
                 CoworkingServiceAppId,
                 $"api/coworkings/{coworkingId}"

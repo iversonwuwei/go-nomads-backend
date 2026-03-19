@@ -17,10 +17,6 @@ spec:
     metadata:
       labels:
         app: accommodation-service
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8012"
-        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: accommodation-service

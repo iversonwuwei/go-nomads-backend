@@ -26,7 +26,8 @@
 #### 已完成的修改
 
 1. **新增 UserServiceClient** - `Application/Services/UserServiceClient.cs`
-   - 通过 Dapr Service Invocation 调用 UserService
+
+- 通过内部服务调用访问 UserService
    - 支持单个和批量用户信息查询
 
 2. **重构 ChatApplicationService** - `Application/Services/ChatApplicationService.cs`

@@ -1,18 +1,14 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using Dapr.Client;
 using DocumentService.Configuration;
+using GoNomads.Shared.Communication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
-using Prometheus;
 using Scalar.AspNetCore;
 using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
 using Serilog;
-
-const string serviceName = "DocumentService";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,23 +21,12 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// ============================================================
-// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
-// ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
-
 // Bind service configuration
 builder.Services.Configure<ServiceConfiguration>(
     builder.Configuration.GetSection("Services"));
 
-// Add services to the container - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync）
-var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
-});
-builder.Services.AddControllers().AddDapr();
+builder.Services.AddServiceInvocationClient();
+builder.Services.AddControllers();
 
 // Configure OpenAPI with enhanced documentation
 builder.Services.AddOpenApi(options =>
@@ -88,9 +73,6 @@ var serviceConfig = app.Services.GetRequiredService<IOptions<ServiceConfiguratio
 app.UseCors();
 app.UseRouting();
 
-// Enable Prometheus metrics
-app.UseHttpMetrics();
-
 // Map OpenAPI endpoint
 app.MapOpenApi();
 
@@ -114,12 +96,11 @@ var productsGroup = app.MapGroup("/api/products")
 
 // GET /api/products - 获取产品列表
 productsGroup.MapGet("/",
-        async (DaprClient daprClient, [FromQuery] int page = 1, [FromQuery] int pageSize = 10) =>
+        async (ServiceInvocationClient serviceClient, [FromQuery] int page = 1, [FromQuery] int pageSize = 10) =>
         {
             try
             {
-                // 使用 Dapr Service Invocation 调用 ProductService
-                var response = await daprClient.InvokeMethodAsync<JsonElement>(
+                var response = await serviceClient.InvokeAsync<JsonElement>(
                     HttpMethod.Get,
                     "product-service",
                     $"api/products?page={page}&pageSize={pageSize}");
@@ -136,11 +117,11 @@ productsGroup.MapGet("/",
     .WithOpenApi();
 
 // GET /api/products/{id} - 获取单个产品
-productsGroup.MapGet("/{id}", async (DaprClient daprClient, string id) =>
+productsGroup.MapGet("/{id}", async (ServiceInvocationClient serviceClient, string id) =>
     {
         try
         {
-            var response = await daprClient.InvokeMethodAsync<JsonElement>(
+            var response = await serviceClient.InvokeAsync<JsonElement>(
                 HttpMethod.Get,
                 "product-service",
                 $"api/products/{id}");
@@ -158,12 +139,12 @@ productsGroup.MapGet("/{id}", async (DaprClient daprClient, string id) =>
 
 // GET /api/products/user/{userId} - 获取用户的产品
 productsGroup.MapGet("/user/{userId}",
-        async (DaprClient daprClient, string userId, [FromQuery] int page = 1,
+        async (ServiceInvocationClient serviceClient, string userId, [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10) =>
         {
             try
             {
-                var response = await daprClient.InvokeMethodAsync<JsonElement>(
+                var response = await serviceClient.InvokeAsync<JsonElement>(
                     HttpMethod.Get,
                     "product-service",
                     $"api/products/user/{userId}?page={page}&pageSize={pageSize}");
@@ -180,15 +161,15 @@ productsGroup.MapGet("/user/{userId}",
     .WithOpenApi();
 
 // POST /api/products - 创建产品
-productsGroup.MapPost("/", async (DaprClient daprClient, HttpRequest request) =>
+productsGroup.MapPost("/", async (ServiceInvocationClient serviceClient, HttpRequest request) =>
     {
         try
         {
             using var reader = new StreamReader(request.Body);
             var body = await reader.ReadToEndAsync();
             var requestData = JsonSerializer.Deserialize<JsonElement>(body);
-            
-            var response = await daprClient.InvokeMethodAsync<JsonElement, JsonElement>(
+
+            var response = await serviceClient.InvokeAsync<JsonElement, JsonElement>(
                 HttpMethod.Post,
                 "product-service",
                 "api/products",
@@ -206,15 +187,15 @@ productsGroup.MapPost("/", async (DaprClient daprClient, HttpRequest request) =>
     .WithOpenApi();
 
 // PUT /api/products/{id} - 更新产品
-productsGroup.MapPut("/{id}", async (DaprClient daprClient, string id, HttpRequest request) =>
+productsGroup.MapPut("/{id}", async (ServiceInvocationClient serviceClient, string id, HttpRequest request) =>
     {
         try
         {
             using var reader = new StreamReader(request.Body);
             var body = await reader.ReadToEndAsync();
             var requestData = JsonSerializer.Deserialize<JsonElement>(body);
-            
-            var response = await daprClient.InvokeMethodAsync<JsonElement, JsonElement>(
+
+            var response = await serviceClient.InvokeAsync<JsonElement, JsonElement>(
                 HttpMethod.Put,
                 "product-service",
                 $"api/products/{id}",
@@ -232,11 +213,11 @@ productsGroup.MapPut("/{id}", async (DaprClient daprClient, string id, HttpReque
     .WithOpenApi();
 
 // DELETE /api/products/{id} - 删除产品
-productsGroup.MapDelete("/{id}", async (DaprClient daprClient, string id) =>
+productsGroup.MapDelete("/{id}", async (ServiceInvocationClient serviceClient, string id) =>
     {
         try
         {
-            await daprClient.InvokeMethodAsync(
+            await serviceClient.InvokeAsync(
                 HttpMethod.Delete,
                 "product-service",
                 $"api/products/{id}");
@@ -586,9 +567,6 @@ app.MapGet("/health", () => Results.Ok(new
     .WithSummary("Consul 健康检查端点")
     .WithDescription("用于 Consul 服务发现的健康检查")
     .WithOpenApi();
-
-// Map Prometheus metrics endpoint
-app.MapMetrics();
 
 app.MapControllers();
 

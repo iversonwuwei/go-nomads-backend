@@ -1,5 +1,5 @@
 using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
+using GoNomads.Shared.Communication;
 using InnovationService.Infrastructure.Consumers;
 using InnovationService.Repositories;
 using InnovationService.Services;
@@ -7,8 +7,6 @@ using MassTransit;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using Serilog;
-
-const string serviceName = "InnovationService";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,15 +20,8 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// ============================================================
-// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
-// ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
-
 // Add services to the container
 builder.Services.AddControllers()
-    .AddDapr()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
@@ -55,12 +46,7 @@ builder.Services.AddSupabase(builder.Configuration);
 // 添加当前用户服务（统一的用户身份和权限检查）
 builder.Services.AddCurrentUserService();
 
-// 配置 DaprClient - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync）
-var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
-});
+builder.Services.AddServiceInvocationClient();
 
 // 注册服务客户端
 builder.Services.AddScoped<IUserServiceClient, UserServiceClient>();
@@ -127,8 +113,6 @@ app.MapScalarApiReference(options =>
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "innovation-service", timestamp = DateTime.UtcNow }));
 
 app.MapControllers();
-app.UseCloudEvents();
-app.MapSubscribeHandler();
 
 // 自动注册到 Consul
 await app.RegisterWithConsulAsync();

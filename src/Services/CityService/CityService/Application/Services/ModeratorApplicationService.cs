@@ -1,7 +1,7 @@
 using CityService.Application.DTOs;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 
 namespace CityService.Application.Services;
 
@@ -13,20 +13,20 @@ public class ModeratorApplicationService : IModeratorApplicationService
     private readonly IModeratorApplicationRepository _applicationRepo;
     private readonly ICityModeratorRepository _moderatorRepo;
     private readonly ICityRepository _cityRepo;
-    private readonly DaprClient _daprClient;
     private readonly ILogger<ModeratorApplicationService> _logger;
+    private readonly ServiceInvocationClient _serviceInvocationClient;
 
     public ModeratorApplicationService(
         IModeratorApplicationRepository applicationRepo,
         ICityModeratorRepository moderatorRepo,
         ICityRepository cityRepo,
-        DaprClient daprClient,
+        ServiceInvocationClient serviceInvocationClient,
         ILogger<ModeratorApplicationService> logger)
     {
         _applicationRepo = applicationRepo;
         _moderatorRepo = moderatorRepo;
         _cityRepo = cityRepo;
-        _daprClient = daprClient;
+        _serviceInvocationClient = serviceInvocationClient;
         _logger = logger;
     }
 
@@ -258,13 +258,13 @@ public class ModeratorApplicationService : IModeratorApplicationService
     }
 
     /// <summary>
-    ///     通过 Dapr 调用 UserService 获取用户信息
+    ///     调用 UserService 获取用户信息
     /// </summary>
     private async Task<UserInfo?> GetUserInfoAsync(Guid userId)
     {
         try
         {
-            var response = await _daprClient.InvokeMethodAsync<UserInfo>(
+            var response = await _serviceInvocationClient.InvokeAsync<UserInfo>(
                 HttpMethod.Get,
                 "user-service",
                 $"api/v1/users/{userId}/basic"
@@ -317,8 +317,7 @@ public class ModeratorApplicationService : IModeratorApplicationService
                 }
             };
 
-            // 通过 Dapr 调用 MessageService 批量发送通知
-            await _daprClient.InvokeMethodAsync(
+            await _serviceInvocationClient.InvokeAsync(
                 HttpMethod.Post,
                 "message-service",
                 "api/v1/notifications/batch",
@@ -358,7 +357,7 @@ public class ModeratorApplicationService : IModeratorApplicationService
                 }
             };
 
-            await _daprClient.InvokeMethodAsync(
+            await _serviceInvocationClient.InvokeAsync(
                 HttpMethod.Post,
                 "message-service",
                 "api/v1/notifications",
@@ -398,7 +397,7 @@ public class ModeratorApplicationService : IModeratorApplicationService
                 }
             };
 
-            await _daprClient.InvokeMethodAsync(
+            await _serviceInvocationClient.InvokeAsync(
                 HttpMethod.Post,
                 "message-service",
                 "api/v1/notifications",
@@ -437,7 +436,7 @@ public class ModeratorApplicationService : IModeratorApplicationService
                 }
             };
 
-            await _daprClient.InvokeMethodAsync(
+            await _serviceInvocationClient.InvokeAsync(
                 HttpMethod.Post,
                 "message-service",
                 "api/v1/notifications",
@@ -459,7 +458,7 @@ public class ModeratorApplicationService : IModeratorApplicationService
     {
         try
         {
-            var response = await _daprClient.InvokeMethodAsync<List<Guid>>(
+            var response = await _serviceInvocationClient.InvokeAsync<List<Guid>>(
                 HttpMethod.Get,
                 "user-service",
                 "api/v1/users/admins"

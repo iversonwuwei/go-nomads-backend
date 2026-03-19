@@ -365,7 +365,7 @@ public class UserCityContentApplicationService : IUserCityContentService
         // ✅ 收集所有唯一的 userId
         var userIds = reviews.Select(r => r.UserId.ToString()).Distinct().ToList();
 
-        // ✅ 通过 Dapr 批量获取用户信息
+        // ✅ 通过用户服务批量获取用户信息
         var usersInfo = await _userServiceClient.GetUsersInfoAsync(userIds);
 
         foreach (var review in reviews)
@@ -402,7 +402,7 @@ public class UserCityContentApplicationService : IUserCityContentService
         // ✅ 收集所有唯一的 userId
         var userIds = reviews.Select(r => r.UserId.ToString()).Distinct().ToList();
 
-        // ✅ 通过 Dapr 批量获取用户信息
+        // ✅ 通过用户服务批量获取用户信息
         var usersInfo = await _userServiceClient.GetUsersInfoAsync(userIds);
 
         foreach (var review in reviews)

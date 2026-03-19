@@ -16,11 +16,6 @@ resources:
   - infrastructure/elasticsearch.yaml
   - infrastructure/consul.yaml
   
-  # 监控服务
-  - monitoring/prometheus.yaml
-  - monitoring/grafana.yaml
-  - monitoring/zipkin.yaml
-  
   # 业务服务
   - services/gateway.yaml
   - services/user-service.yaml

@@ -1,4 +1,4 @@
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 
 namespace CoworkingService.Services;
 
@@ -14,22 +14,19 @@ public interface ICacheServiceClient
 }
 
 /// <summary>
-/// CacheService 客户端实现 - 通过 Dapr Service Invocation 调用
+/// CacheService 客户端实现
 /// </summary>
 public class CacheServiceClient : ICacheServiceClient
 {
-    private readonly DaprClient _daprClient;
     private readonly ILogger<CacheServiceClient> _logger;
-    private readonly string _cacheServiceAppId;
+    private readonly ServiceInvocationClient _serviceInvocationClient;
 
     public CacheServiceClient(
-        DaprClient daprClient,
-        IConfiguration configuration,
+        ServiceInvocationClient serviceInvocationClient,
         ILogger<CacheServiceClient> logger)
     {
-        _daprClient = daprClient;
+        _serviceInvocationClient = serviceInvocationClient;
         _logger = logger;
-        _cacheServiceAppId = configuration["Dapr:CacheServiceAppId"] ?? "cache-service";
     }
 
     public async Task UpdateCoworkingScoreCacheAsync(Guid coworkingId, double averageRating, int reviewCount)
@@ -45,9 +42,9 @@ public class CacheServiceClient : ICacheServiceClient
                 Statistics = $"{{\"reviewCount\":{reviewCount},\"averageRating\":{averageRating}}}"
             };
 
-            await _daprClient.InvokeMethodAsync(
+            await _serviceInvocationClient.InvokeAsync(
                 HttpMethod.Put,
-                _cacheServiceAppId,
+                "cache-service",
                 $"api/v1/cache/scores/coworking/{coworkingId}",
                 request
             );

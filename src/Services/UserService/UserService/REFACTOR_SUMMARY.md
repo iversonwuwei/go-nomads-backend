@@ -79,8 +79,8 @@ UserService 已成功完成从传统三层架构到 DDD（领域驱动设计）+
     - `PUT /api/users/me` - 更新当前用户（使用 UserContext）
     - `DELETE /api/users/{id}` - 删除用户
     - `GET /api/users/health` - 健康检查
-    - `GET /api/users/{userId}/products` - 获取用户产品（Dapr 服务调用）
-    - `GET /api/users/{id}/cached` - 获取缓存用户（Dapr State Store）
+  - `GET /api/users/{userId}/products` - 获取用户产品（内部服务调用）
+  - `GET /api/users/{id}/cached` - 获取缓存用户（应用缓存）
 
 ### 5. 依赖注入配置
 
@@ -130,11 +130,11 @@ UserService 已成功完成从传统三层架构到 DDD（领域驱动设计）+
 
 所有需要当前用户信息的 API 均从 Gateway 传递的 `X-User-Id` header 中获取，无需在路径或请求体中传递。
 
-### Dapr 集成
+### 服务集成
 
-- ✅ **Pub/Sub**: 发布 `user-created` 和 `user-deleted` 事件
-- ✅ **Service Invocation**: 调用 ProductService
-- ✅ **State Store**: 缓存用户数据（5 分钟 TTL）
+- ✅ **消息总线**: 发布 `user-created` 和 `user-deleted` 事件
+- ✅ **内部服务调用**: 调用 ProductService
+- ✅ **缓存层**: 缓存用户数据（5 分钟 TTL）
 
 ---
 
@@ -217,7 +217,7 @@ UserService/
 - [ ] 部署到测试环境
 - [ ] 端到端测试所有 API
 - [ ] 验证 UserContext 集成
-- [ ] 验证 Dapr 事件发布
+- [ ] 验证消息事件发布
 - [ ] 检查 JWT Token 生成和刷新
 
 ### 优先级 P1（重要）

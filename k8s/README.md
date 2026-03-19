@@ -22,10 +22,6 @@ k8s/
 │   ├── ai-service.yaml         # AI 服务
 │   ├── message-service.yaml    # 消息服务
 │   └── cache-service.yaml      # 缓存服务
-├── monitoring/                 # 监控服务
-│   ├── prometheus.yaml         # Prometheus 监控
-│   ├── grafana.yaml            # Grafana 可视化
-│   └── zipkin.yaml             # Zipkin 链路追踪
 ├── overlays/                   # 环境特定配置
 │   ├── dev/                    # 开发环境
 │   ├── staging/                # 预发布环境
@@ -44,7 +40,7 @@ k8s/
 2. 配置好 Kubernetes 集群连接
 3. 安装 Docker（用于构建镜像）
 4. 配置 Docker Registry 凭证
-5. 安装 Helm（用于自动安装 Dapr）
+5. 根据集群需要安装 Helm（可选，用于管理额外组件）
 
 ### 配置 Docker Registry
 
@@ -90,19 +86,17 @@ cd k8s
 
 | 操作 | 说明 |
 |------|------|
-| `deploy` | 完整部署所有组件（包括 Dapr） |
+| `deploy` | 完整部署所有组件 |
 | `delete` | 删除所有资源 |
 | `status` | 查看部署状态 |
 | `build` | 构建并推送 Docker 镜像 |
 | `infrastructure` | 仅部署基础设施 |
 | `services` | 仅部署业务服务 |
-| `monitoring` | 仅部署监控服务 |
-| `dapr` | 仅安装 Dapr |
 
 ### 示例
 
 ```bash
-# 完整部署（自动安装 Dapr + 所有服务）
+# 完整部署所有服务
 ./deploy.sh deploy
 
 # 查看状态
@@ -117,56 +111,36 @@ cd k8s
 # 仅部署基础设施
 ./deploy.sh infrastructure
 
-# 单独安装 Dapr
-./deploy.sh dapr
 ```
 
-## Dapr 微服务架构
+## 当前通信模型
 
-### 自动安装说明
+### 服务发现与路由
 
-部署脚本会自动执行以下操作：
-
-1. **检查 Dapr 是否已安装** - 如果 `dapr-system` 命名空间中已有 Dapr 组件，则跳过安装
-2. **安装 Dapr** - 通过 Helm 安装 Dapr 到 `dapr-system` 命名空间
-3. **等待 Dapr 就绪** - 确保所有 Dapr 组件（dapr-sidecar-injector, dapr-operator, dapr-placement）运行正常
-4. **部署业务服务** - 所有业务服务的 Pod 会自动注入 Dapr sidecar
-
-### Dapr 配置
-
-每个业务服务都配置了 Dapr sidecar 注入注解：
-
-```yaml
-annotations:
-  dapr.io/enabled: "true"
-  dapr.io/app-id: "service-name"
-  dapr.io/app-port: "8080"
-  dapr.io/enable-api-logging: "true"
-```
+- Kubernetes 内部服务通过 `Service` + DNS 互相访问
+- 对外统一经由 Gateway 暴露 API
+- 运行时服务发现与健康状态由 Consul 维护
 
 ### 服务间调用
 
-服务间通过 Dapr 进行通信，使用以下方式：
+服务间通过内部 HTTP API 和共享的 `ServiceInvocationClient` 进行通信，示例：
 
-```
-# HTTP 调用
-http://localhost:3500/v1.0/invoke/{app-id}/method/{method-name}
-
-# 示例: Gateway 调用 user-service
-http://localhost:3500/v1.0/invoke/user-service/method/api/users
+```text
+http://user-service:8080/api/users/{id}
+http://product-service:8080/api/products/user/{userId}
 ```
 
-### 验证 Dapr 状态
+### 验证服务状态
 
 ```bash
-# 查看 Dapr 系统组件
-kubectl get pods -n dapr-system
+# 查看业务 Pod
+kubectl get pods -n go-nomads
 
-# 查看 Dapr 应用列表
-dapr list -k
+# 查看业务 Service
+kubectl get svc -n go-nomads
 
-# 查看特定服务的 Dapr sidecar 日志
-kubectl logs <pod-name> -n go-nomads -c daprd
+# 查看特定服务日志
+kubectl logs <pod-name> -n go-nomads
 ```
 
 ## 使用 Kustomize 部署
@@ -237,9 +211,6 @@ kubectl apply -k overlays/prod/
 | RabbitMQ | 5672, 15672 | 5672, 15672 |
 | Elasticsearch | 9200, 9300 | 9200, 9300 |
 | Consul | 8500 | 8500 |
-| Prometheus | 9090 | 9090 |
-| Grafana | 3000 | 3000 |
-| Zipkin | 9411 | 9411 |
 
 ## 资源配额
 
@@ -284,36 +255,17 @@ kubectl apply -k overlays/prod/
 - 最小副本数: 2 (生产环境)
 - 最大副本数: 5-10
 
-## 监控访问
+## 运维访问
 
-部署完成后，可以通过以下方式访问监控服务：
-
-### 使用 Port Forward
+部署完成后，可按需使用 Port Forward 访问基础设施服务：
 
 ```bash
-# Grafana
-kubectl port-forward svc/grafana-service 3000:3000 -n go-nomads
-
-# Prometheus
-kubectl port-forward svc/prometheus-service 9090:9090 -n go-nomads
-
-# Zipkin
-kubectl port-forward svc/zipkin-service 9411:9411 -n go-nomads
-
 # RabbitMQ 管理界面
 kubectl port-forward svc/rabbitmq-service 15672:15672 -n go-nomads
 
 # Consul UI
 kubectl port-forward svc/consul-service 8500:8500 -n go-nomads
 ```
-
-### 通过 Ingress 访问
-
-如果配置了 Ingress，可以通过以下域名访问：
-
-- API: https://api.go-nomads.com
-- Grafana: https://grafana.go-nomads.com
-- Zipkin: https://zipkin.go-nomads.com
 
 ## 故障排查
 

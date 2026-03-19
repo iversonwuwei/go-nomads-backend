@@ -1,7 +1,7 @@
 using System.Text.Json;
-using Dapr.Client;
 using EventService.Application.DTOs;
 using EventService.Application.Services;
+using GoNomads.Shared.Communication;
 using GoNomads.Shared.Middleware;
 using GoNomads.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -16,15 +16,18 @@ namespace EventService.API.Controllers;
 [Route("api/v1/events")]
 public class EventsController : ControllerBase
 {
-    private readonly DaprClient _daprClient;
     private readonly IEventService _eventService;
     private readonly ILogger<EventsController> _logger;
+    private readonly ServiceInvocationClient _serviceInvocationClient;
 
-    public EventsController(IEventService eventService, ILogger<EventsController> logger, DaprClient daprClient)
+    public EventsController(
+        IEventService eventService,
+        ILogger<EventsController> logger,
+        ServiceInvocationClient serviceInvocationClient)
     {
         _eventService = eventService;
         _logger = logger;
-        _daprClient = daprClient;
+        _serviceInvocationClient = serviceInvocationClient;
     }
 
     /// <summary>
@@ -752,9 +755,8 @@ public class EventsController : ControllerBase
 
             try
             {
-                // 通过 Dapr 调用 UserService 批量获取用户信息
                 var userServiceRequest = new { UserIds = userIds };
-                var userServiceResponse = await _daprClient.InvokeMethodAsync<object, JsonElement>(
+                var userServiceResponse = await _serviceInvocationClient.InvokeAsync<object, JsonElement>(
                     HttpMethod.Post,
                     "user-service",
                     "api/v1/users/batch",
@@ -1355,8 +1357,7 @@ public class EventsController : ControllerBase
                 }
             };
 
-            // 使用 Dapr 调用 MessageService API 创建通知
-            await _daprClient.InvokeMethodAsync(
+            await _serviceInvocationClient.InvokeAsync(
                 HttpMethod.Post,
                 "message-service",
                 "api/v1/notifications",
@@ -1398,8 +1399,7 @@ public class EventsController : ControllerBase
                 }
             };
 
-            // 使用 Dapr 调用 MessageService API 创建通知
-            await _daprClient.InvokeMethodAsync(
+            await _serviceInvocationClient.InvokeAsync(
                 HttpMethod.Post,
                 "message-service",
                 "api/v1/notifications",

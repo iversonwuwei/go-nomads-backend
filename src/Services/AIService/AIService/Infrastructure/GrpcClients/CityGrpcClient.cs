@@ -1,19 +1,19 @@
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 
 namespace AIService.Infrastructure.GrpcClients;
 
 /// <summary>
-///     城市服务 gRPC 客户端实现 (通过 Dapr Service Invocation)
+///     城市服务客户端实现
 /// </summary>
 public class CityGrpcClient : ICityGrpcClient
 {
     private const string CityServiceName = "city-service";
-    private readonly DaprClient _daprClient;
+    private readonly ServiceInvocationClient _serviceClient;
     private readonly ILogger<CityGrpcClient> _logger;
 
-    public CityGrpcClient(DaprClient daprClient, ILogger<CityGrpcClient> logger)
+    public CityGrpcClient(ServiceInvocationClient serviceClient, ILogger<CityGrpcClient> logger)
     {
-        _daprClient = daprClient;
+        _serviceClient = serviceClient;
         _logger = logger;
     }
 
@@ -47,7 +47,7 @@ public class CityGrpcClient : ICityGrpcClient
         {
             _logger.LogInformation("获取城市信息，城市ID: {CityId}", cityId);
 
-            var response = await _daprClient.InvokeMethodAsync<ApiResponse<CityDto>>(
+            var response = await _serviceClient.InvokeAsync<ApiResponse<CityDto>>(
                 HttpMethod.Get,
                 CityServiceName,
                 $"api/v1/cities/{cityId}"

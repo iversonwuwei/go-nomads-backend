@@ -8,7 +8,7 @@
 
 ## 部署架构
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │                    Go-Nomads 部署                    │
 ├─────────────────────────────────────────────────────┤
@@ -27,7 +27,7 @@
 │                                                     │
 │  ./helm-deploy.sh            ./k8s/deploy.sh        │
 └─────────────────────────────────────────────────────┘
-```
+```text
 
 ## 前提条件
 
@@ -36,7 +36,7 @@
 
 ## 目录结构
 
-```
+```text
 helm/go-nomads/
 ├── Chart.yaml              # Chart 元数据
 ├── values.yaml             # 默认配置
@@ -48,9 +48,7 @@ helm/go-nomads/
     ├── rabbitmq.yaml       # RabbitMQ
     ├── elasticsearch.yaml  # Elasticsearch
     ├── consul.yaml         # Consul
-    ├── zipkin.yaml         # Zipkin
-    ├── prometheus.yaml     # Prometheus
-    └── grafana.yaml        # Grafana
+    └── ...
 ```
 
 ## 快速开始
@@ -105,24 +103,6 @@ elasticsearch:
 
 consul:
   enabled: false      # 默认禁用
-
-zipkin:
-  enabled: false      # 默认禁用
-
-prometheus:
-  enabled: false      # 默认禁用
-
-grafana:
-  enabled: false      # 默认禁用
-```
-
-### 启用监控套件
-
-```bash
-helm install go-nomads-infra ./helm/go-nomads \
-  --set prometheus.enabled=true \
-  --set grafana.enabled=true \
-  --set zipkin.enabled=true
 ```
 
 ### 持久化存储

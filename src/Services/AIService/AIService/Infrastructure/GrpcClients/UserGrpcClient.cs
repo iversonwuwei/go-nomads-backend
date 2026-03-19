@@ -1,19 +1,19 @@
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 
 namespace AIService.Infrastructure.GrpcClients;
 
 /// <summary>
-///     用户服务 gRPC 客户端实现 (通过 Dapr Service Invocation)
+///     用户服务客户端实现
 /// </summary>
 public class UserGrpcClient : IUserGrpcClient
 {
     private const string UserServiceName = "user-service";
-    private readonly DaprClient _daprClient;
+    private readonly ServiceInvocationClient _serviceClient;
     private readonly ILogger<UserGrpcClient> _logger;
 
-    public UserGrpcClient(DaprClient daprClient, ILogger<UserGrpcClient> logger)
+    public UserGrpcClient(ServiceInvocationClient serviceClient, ILogger<UserGrpcClient> logger)
     {
-        _daprClient = daprClient;
+        _serviceClient = serviceClient;
         _logger = logger;
     }
 
@@ -23,11 +23,11 @@ public class UserGrpcClient : IUserGrpcClient
         {
             _logger.LogInformation("获取用户信息，用户ID: {UserId}", userId);
 
-            var response = await _daprClient.InvokeMethodAsync<object, ApiResponse<UserDto>>(
+            var response = await _serviceClient.InvokeAsync<object, ApiResponse<UserDto>>(
+                HttpMethod.Post,
                 UserServiceName,
                 $"api/v1/users/{userId}",
-                new { }
-            );
+                new { });
 
             if (response?.Success == true && response.Data != null)
             {

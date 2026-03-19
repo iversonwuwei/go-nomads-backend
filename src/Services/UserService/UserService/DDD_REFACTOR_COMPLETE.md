@@ -111,7 +111,7 @@ UserService/
 - ✅ 路由: `/api/users/*`
 - ✅ 端点: `GET /`, `GET /{id}`, `GET /me`, `POST /`, `PUT /{id}`, `PUT /me`, `DELETE /{id}`
 - ✅ UserContext 集成: `/me` 路由获取当前用户
-- ✅ Dapr 集成: Pub/Sub事件发布、服务调用、State Store缓存
+- ✅ 服务集成: 消息事件发布、内部服务调用、缓存层支持
 - ✅ 统一 `ApiResponse<T>` 响应格式
 
 ## 🔧 依赖注入配置（Program.cs）

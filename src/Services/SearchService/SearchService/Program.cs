@@ -1,5 +1,5 @@
 using GoNomads.Shared.Extensions;
-using GoNomads.Shared.Observability;
+using GoNomads.Shared.Communication;
 using Scalar.AspNetCore;
 using SearchService.Application.Interfaces;
 using SearchService.Application.Services;
@@ -24,12 +24,6 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 // ============================================================
-// OpenTelemetry 可观测性配置 (Traces + Metrics + Logs)
-// ============================================================
-builder.Services.AddGoNomadsObservability(builder.Configuration, serviceName);
-builder.Logging.AddGoNomadsLogging(builder.Configuration, serviceName);
-
-// ============================================================
 // 配置绑定
 // ============================================================
 builder.Services.Configure<ElasticsearchSettings>(
@@ -39,14 +33,7 @@ builder.Services.Configure<IndexSettings>(
 builder.Services.Configure<IndexMaintenanceSettings>(
     builder.Configuration.GetSection("IndexMaintenance"));
 
-// ============================================================
-// 添加 Dapr 客户端 - 方案A: 使用 HTTP 端点（原生支持 InvokeMethodAsync）
-// ============================================================
-var daprHttpPort = Environment.GetEnvironmentVariable("DAPR_HTTP_PORT") ?? "3500";
-builder.Services.AddDaprClient(daprClientBuilder =>
-{
-    daprClientBuilder.UseHttpEndpoint($"http://localhost:{daprHttpPort}");
-});
+builder.Services.AddServiceInvocationClient();
 
 // ============================================================
 // 依赖注入 - Infrastructure 层
@@ -66,7 +53,6 @@ builder.Services.AddScoped<ISearchService, SearchApplicationService>();
 // 添加控制器
 // ============================================================
 builder.Services.AddControllers()
-    .AddDapr()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;

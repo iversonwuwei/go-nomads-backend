@@ -4,7 +4,7 @@ set -euo pipefail
 # Wrapper to deploy using Huawei Cloud SWR registry defaults.
 # Usage: ./deploy-swr.sh [env] [action]
 #   env: dev|staging|prod (default: dev)
-#   action: deploy|delete|status|build|services|infrastructure|monitoring|dapr (default: deploy)
+#   action: deploy|delete|status|build|services|infrastructure|monitoring (default: deploy)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_REGISTRY="swr.ap-southeast-3.myhuaweicloud.com/go-nomads"

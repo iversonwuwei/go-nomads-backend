@@ -52,7 +52,7 @@ CacheService/
 - **框架**: ASP.NET Core 9.0
 - **缓存**: Redis (StackExchange.Redis)
 - **服务发现**: Consul
-- **服务调用**: Dapr Service Invocation
+- **服务调用**: Internal HTTP + ServiceInvocationClient
 - **日志**: Serilog
 - **API 文档**: Scalar
 
@@ -78,10 +78,10 @@ CacheService/
 
 ```csharp
 // 评分提交后,自动使缓存失效
-await _daprClient.InvokeMethodAsync(
-    HttpMethod.Delete,
-    "cache-service",
-    $"api/scores/city/{cityId}"
+await _serviceInvocationClient.InvokeAsync<object>(
+  "cache-service",
+  $"api/scores/city/{cityId}",
+  HttpMethod.Delete
 );
 ```
 
@@ -134,14 +134,10 @@ docker run -d \
   cache-service:latest
 ```
 
-### Dapr Sidecar
+### 本地运行
+
 ```bash
-dapr run \
-  --app-id cache-service \
-  --app-port 8010 \
-  --dapr-http-port 3510 \
-  --dapr-grpc-port 50010 \
-  -- dotnet run
+dotnet run --project CacheService.csproj
 ```
 
 ## 监控与日志
@@ -257,6 +253,6 @@ A: 调用批量失效 API,或者直接清空 Redis 中对应的 key pattern。
 - ✅ 初始版本
 - ✅ 支持 City 和 Coworking 评分缓存
 - ✅ Redis 持久化
-- ✅ Dapr 服务调用集成
+- ✅ 内部服务调用集成
 - ✅ Consul 服务注册
 - ✅ 完整的 DDD 架构

@@ -51,16 +51,6 @@ check_kubectl() {
     print_success "kubectl 已安装"
 }
 
-# 检查 Helm 是否安装
-check_helm() {
-    if ! command -v helm &> /dev/null; then
-        print_error "Helm 未安装，Dapr 安装需要 Helm，请先安装 Helm"
-        return 1
-    fi
-    print_success "Helm 已安装"
-    return 0
-}
-
 # 检查集群连接
 check_cluster() {
     if ! kubectl cluster-info &> /dev/null; then
@@ -68,56 +58,6 @@ check_cluster() {
         exit 1
     fi
     print_success "已连接到 Kubernetes 集群"
-}
-
-# 安装 Dapr
-install_dapr() {
-    print_info "========== 安装 Dapr =========="
-    
-    # 检查 Dapr 是否已安装
-    if kubectl get pods -n dapr-system --no-headers 2>/dev/null | grep -q .; then
-        print_success "Dapr 已安装，跳过安装步骤"
-        return 0
-    fi
-    
-    print_info "添加 Dapr Helm 仓库..."
-    helm repo add dapr https://dapr.github.io/helm-charts/ 2>/dev/null || true
-    helm repo update
-    
-    print_info "创建 dapr-system 命名空间..."
-    kubectl create namespace dapr-system --dry-run=client -o yaml | kubectl apply -f -
-    
-    print_info "安装 Dapr..."
-    helm upgrade --install dapr dapr/dapr \
-        --namespace dapr-system \
-        --set global.ha.enabled=false \
-        --wait \
-        --timeout 5m
-    
-    print_info "等待 Dapr 组件就绪..."
-    max_retries=30
-    retry_count=0
-    while [ $retry_count -lt $max_retries ]; do
-        running_pods=$(kubectl get pods -n dapr-system --no-headers 2>/dev/null | grep -c "Running" || echo "0")
-        total_pods=$(kubectl get pods -n dapr-system --no-headers 2>/dev/null | wc -l)
-        
-        if [ "$running_pods" -eq "$total_pods" ] && [ "$total_pods" -gt 0 ]; then
-            print_success "Dapr 所有组件已就绪 ($running_pods/$total_pods)"
-            break
-        fi
-        
-        retry_count=$((retry_count + 1))
-        print_info "等待 Dapr 组件就绪... ($retry_count/$max_retries) - Running: $running_pods/$total_pods"
-        sleep 10
-    done
-    
-    if [ $retry_count -eq $max_retries ]; then
-        print_warning "Dapr 组件启动超时，请手动检查状态: kubectl get pods -n dapr-system"
-        return 1
-    fi
-    
-    print_success "Dapr 安装完成"
-    return 0
 }
 
 # 替换镜像变量
@@ -189,17 +129,6 @@ deploy_infrastructure() {
     print_success "基础设施服务部署完成"
 }
 
-# 部署监控服务
-deploy_monitoring() {
-    print_info "========== 部署监控服务 =========="
-    
-    apply_config "$K8S_DIR/monitoring/prometheus.yaml" "Prometheus"
-    apply_config "$K8S_DIR/monitoring/grafana.yaml" "Grafana"
-    apply_config "$K8S_DIR/monitoring/zipkin.yaml" "Zipkin"
-    
-    print_success "监控服务部署完成"
-}
-
 # 部署业务服务
 deploy_services() {
     print_info "========== 部署业务服务 =========="
@@ -227,34 +156,25 @@ deploy_all() {
     print_info "镜像标签: $IMAGE_TAG"
     echo ""
     
-    # 1. 安装 Dapr（如果尚未安装）
-    if check_helm; then
-        install_dapr
-        echo ""
-    else
-        print_warning "Helm 未安装，跳过 Dapr 安装。业务服务将无法使用 Dapr sidecar。"
-    fi
-    
-    # 2. 部署基础配置
+    # 1. 部署基础配置
     deploy_base
     echo ""
     
-    # 3. 部署基础设施服务
+    # 2. 部署基础设施服务
     deploy_infrastructure
     echo ""
     
-    # 4. 部署监控服务
+    # 3. 部署监控服务
     deploy_monitoring
     echo ""
     
-    # 5. 部署业务服务
+    # 4. 部署业务服务
     deploy_services
     echo ""
     
     print_success "========== 部署完成 =========="
     print_info "使用 kubectl get pods -n go-nomads 查看 Pod 状态"
     print_info "使用 kubectl get services -n go-nomads 查看服务状态"
-    print_info "使用 dapr list -k 查看 Dapr 应用状态"
 }
 
 # 删除所有资源
@@ -365,13 +285,9 @@ main() {
         monitoring)
             deploy_monitoring
             ;;
-        dapr)
-            check_helm || exit 1
-            install_dapr
-            ;;
         *)
             print_error "未知操作: $ACTION"
-            echo "可用操作: deploy, delete, status, build, infrastructure, services, monitoring, dapr"
+            echo "可用操作: deploy, delete, status, build, infrastructure, services, monitoring"
             exit 1
             ;;
     esac

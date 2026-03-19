@@ -17,9 +17,6 @@ resources:
   - ../../infrastructure/consul.yaml
   
   # 监控服务
-  - ../../monitoring/prometheus.yaml
-  - ../../monitoring/grafana.yaml
-  - ../../monitoring/zipkin.yaml
 
 # 本地环境标签
 commonLabels:

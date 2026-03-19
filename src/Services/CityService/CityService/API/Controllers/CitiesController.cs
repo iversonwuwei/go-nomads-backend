@@ -3,7 +3,7 @@ using CityService.Application.DTOs;
 using CityService.Application.Services;
 using CityService.Domain.Entities;
 using CityService.Domain.Repositories;
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 using GoNomads.Shared.Middleware;
 using GoNomads.Shared.Models;
 using GoNomads.Shared.Services;
@@ -25,11 +25,11 @@ public class CitiesController : ControllerBase
     private readonly ICityService _cityService;
     private readonly ICityMatchingService _cityMatchingService;
     private readonly ICurrentUserService _currentUser;
-    private readonly DaprClient _daprClient;
     private readonly IDigitalNomadGuideService _guideService;
     private readonly INearbyCityService _nearbyCityService;
     private readonly ILogger<CitiesController> _logger;
     private readonly ICityModeratorRepository _moderatorRepository;
+    private readonly ServiceInvocationClient _serviceInvocationClient;
     private readonly Client _supabaseClient;
 
     public CitiesController(
@@ -38,7 +38,7 @@ public class CitiesController : ControllerBase
         IDigitalNomadGuideService guideService,
         INearbyCityService nearbyCityService,
         ICityModeratorRepository moderatorRepository,
-        DaprClient daprClient,
+        ServiceInvocationClient serviceInvocationClient,
         Client supabaseClient,
         ICurrentUserService currentUser,
         ILogger<CitiesController> logger)
@@ -48,7 +48,7 @@ public class CitiesController : ControllerBase
         _guideService = guideService;
         _nearbyCityService = nearbyCityService;
         _moderatorRepository = moderatorRepository;
-        _daprClient = daprClient;
+        _serviceInvocationClient = serviceInvocationClient;
         _supabaseClient = supabaseClient;
         _currentUser = currentUser;
         _logger = logger;
@@ -675,7 +675,7 @@ public class CitiesController : ControllerBase
         {
             // 调用 CoworkingService 获取数量
             var cityIdStrings = new List<string> { id.ToString() };
-            var response = await _daprClient.InvokeMethodAsync<List<string>, BatchCountResponse>(
+            var response = await _serviceInvocationClient.InvokeAsync<List<string>, BatchCountResponse>(
                 HttpMethod.Post,
                 "coworking-service",
                 "api/v1/coworking/cities/counts",
@@ -1422,7 +1422,7 @@ public class CitiesController : ControllerBase
             // 获取版主的用户信息
             var moderatorDtos = new List<CityModeratorDto>();
             foreach (var moderator in moderators)
-                // TODO: 通过 Dapr 调用 UserService 获取用户详细信息
+                // TODO: 通过用户服务获取用户详细信息
                 // 目前先返回基本信息
                 moderatorDtos.Add(new CityModeratorDto
                 {
@@ -1432,7 +1432,7 @@ public class CitiesController : ControllerBase
                     User = new ModeratorUserDto
                     {
                         Id = moderator.UserId,
-                        Name = "Loading...", // 后续通过 Dapr 获取
+                        Name = "Loading...", // 后续通过用户服务获取
                         Email = "",
                         Role = "moderator"
                     },
@@ -1509,9 +1509,9 @@ public class CitiesController : ControllerBase
                     Message = "该用户已经是此城市的版主"
                 });
 
-            // 步骤 1: 通过 Dapr 获取 moderator 角色
+            // 步骤 1: 通过 UserService 获取 moderator 角色
             _logger.LogInformation("🔍 通过 UserService API 获取 moderator 角色");
-            var roleResponse = await _daprClient.InvokeMethodAsync<ApiResponse<SimpleRoleDto>>(
+            var roleResponse = await _serviceInvocationClient.InvokeAsync<ApiResponse<SimpleRoleDto>>(
                 HttpMethod.Get,
                 "user-service",
                 "api/v1/roles/by-name/moderator");
@@ -1531,10 +1531,10 @@ public class CitiesController : ControllerBase
             _logger.LogInformation("✅ 成功获取 moderator 角色 - RoleId: {RoleId}, RoleName: {RoleName}",
                 moderatorRoleId, roleResponse.Data.Name);
 
-            // 步骤 2: 通过 Dapr 为用户分配 moderator 角色
+            // 步骤 2: 通过 UserService 为用户分配 moderator 角色
             _logger.LogInformation("🔄 通过 UserService API 为用户分配 moderator 角色");
             var changeRoleRequest = new { roleId = moderatorRoleId };
-            var changeRoleResponse = await _daprClient.InvokeMethodAsync<object, ApiResponse<SimpleUserDto>>(
+            var changeRoleResponse = await _serviceInvocationClient.InvokeAsync<object, ApiResponse<SimpleUserDto>>(
                 HttpMethod.Patch,
                 "user-service",
                 $"api/v1/users/{dto.UserId}/role",
@@ -2049,7 +2049,7 @@ public class GenerateCityImagesTaskResponseDto
 }
 
 /// <summary>
-///     简单的用户 DTO - 用于 Dapr 服务间调用
+///     简单的用户 DTO - 用于服务间调用
 ///     映射自 UserService.Application.DTOs.UserDto
 /// </summary>
 public class SimpleUserDto
@@ -2061,7 +2061,7 @@ public class SimpleUserDto
 }
 
 /// <summary>
-///     简单的角色 DTO - 用于 Dapr 服务间调用
+///     简单的角色 DTO - 用于服务间调用
 ///     映射自 UserService.Application.DTOs.RoleDto
 /// </summary>
 public class SimpleRoleDto
@@ -2081,7 +2081,7 @@ public class CoworkingCountDto
 }
 
 /// <summary>
-///     批量获取数量响应模型 - 用于 Dapr 服务间调用
+///     批量获取数量响应模型 - 用于服务间调用
 /// </summary>
 internal class BatchCountResponse
 {

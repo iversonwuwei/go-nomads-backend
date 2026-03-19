@@ -28,7 +28,6 @@ data:
   CONSUL_PORT: "8500"
   
   # Zipkin 配置
-  ZIPKIN_HOST: "zipkin-service"
   ZIPKIN_PORT: "9411"
   
   # 服务发现配置

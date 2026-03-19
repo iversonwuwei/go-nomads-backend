@@ -1,4 +1,4 @@
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 using GoNomads.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,13 +12,13 @@ namespace ProductService.Controllers;
 public class ProductsController : ControllerBase
 {
     private static readonly List<Product> Products = new();
-    private readonly DaprClient _daprClient;
+    private readonly ServiceInvocationClient _serviceClient;
     private readonly ILogger<ProductsController> _logger;
 
-    public ProductsController(ILogger<ProductsController> logger, DaprClient daprClient)
+    public ProductsController(ILogger<ProductsController> logger, ServiceInvocationClient serviceClient)
     {
         _logger = logger;
-        _daprClient = daprClient;
+        _serviceClient = serviceClient;
 
         // Initialize with sample data
         if (!Products.Any())
@@ -143,10 +143,11 @@ public class ProductsController : ControllerBase
             });
         }
 
-        // Validate user exists via Dapr service invocation
+        // Validate user exists via service invocation
         try
         {
-            var userResponse = await _daprClient.InvokeMethodAsync<ApiResponse<object>>(
+            var userResponse = await _serviceClient.InvokeAsync<ApiResponse<object>>(
+                HttpMethod.Get,
                 "user-service",
                 $"api/users/{dto.UserId}");
 

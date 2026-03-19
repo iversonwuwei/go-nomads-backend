@@ -90,8 +90,8 @@ consul_sd_configs:
    - 如果微服务配置文件中硬编码了 Consul 地址 `localhost:8500`
    - 需要改为 `localhost:7500`
 
-2. **Dapr 组件配置**
-   - 检查 `components/` 目录下是否有硬编码 Consul/Zipkin/Elasticsearch 地址
+2. **基础设施组件配置**
+   - 检查部署脚本、监控配置和服务注册配置中是否有硬编码 Consul/Zipkin/Elasticsearch 地址
    - 更新为新端口
 
 3. **应用程序配置**

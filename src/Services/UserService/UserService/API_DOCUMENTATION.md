@@ -361,7 +361,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 }
 ```
 
-**注意**: 该接口会发布 `user-created` 事件到 Dapr Pub/Sub。
+**注意**: 该接口会通过消息总线发布 `user-created` 事件。
 
 ---
 
@@ -468,7 +468,7 @@ X-User-Id: <user_id>  (来自 Gateway)
 }
 ```
 
-**注意**: 该接口会发布 `user-deleted` 事件到 Dapr Pub/Sub。
+**注意**: 该接口会通过消息总线发布 `user-deleted` 事件。
 
 ---
 
@@ -490,11 +490,11 @@ X-User-Id: <user_id>  (来自 Gateway)
 
 ---
 
-### 9. 获取用户的产品列表（Dapr 服务调用）
+### 9. 获取用户的产品列表（内部服务调用）
 
 **GET** `/api/users/{userId}/products`
 
-通过 Dapr 调用 ProductService 获取用户的产品列表。
+通过内部服务调用 ProductService 获取用户的产品列表。
 
 **Response (200 OK):**
 
@@ -508,11 +508,11 @@ X-User-Id: <user_id>  (来自 Gateway)
 
 ---
 
-### 10. 获取缓存的用户信息（Dapr State Store）
+### 10. 获取缓存的用户信息（应用缓存）
 
 **GET** `/api/users/{id}/cached`
 
-使用 Dapr State Store 缓存用户数据（缓存 5 分钟）。
+使用缓存层保存用户数据（缓存 5 分钟）。
 
 **Response (200 OK):**
 
@@ -589,18 +589,18 @@ X-User-Role: <user_role>
 
 ---
 
-## 🔌 Dapr 集成
+## 🔌 服务集成
 
-UserService 集成了以下 Dapr 功能：
+UserService 集成了以下能力：
 
-1. **Pub/Sub**:
+1. **消息发布**:
     - 发布 `user-created` 事件（用户创建时）
     - 发布 `user-deleted` 事件（用户删除时）
 
-2. **Service Invocation**:
+2. **内部服务调用**:
     - 调用 ProductService: `GET /api/users/{userId}/products`
 
-3. **State Store**:
+3. **缓存**:
     - 缓存用户数据: `GET /api/users/{id}/cached`
 
 ---
@@ -657,7 +657,7 @@ curl -X GET http://localhost:5002/api/users/me \
 
 - 基础 CRUD 功能
 - 认证和授权
-- Dapr 集成
+- 服务集成
 
 ---
 

@@ -25,7 +25,7 @@
 - **主语言**: C# (.NET 8+) - 已有 UserService, ProductService, DocumentService
 - **辅助语言**: Node.js (实时服务), Go (高性能服务), Python (AI 服务)
 - **统一框架**: ASP.NET Core Web API
-- **服务通信**: Dapr (已集成)
+- **服务通信**: HTTP/gRPC + RabbitMQ + Consul
 - **数据存储**: PostgreSQL + Supabase
 
 ---
@@ -139,9 +139,9 @@ Layer 3: 聚合服务 (依赖 Layer 2)
 
 | 通信场景 | 方式 | 技术 | 示例 |
 |---------|------|------|------|
-| 同步调用 | HTTP/gRPC | Dapr Service Invocation | User → File |
-| 异步消息 | Pub/Sub | Dapr Pub/Sub + RabbitMQ | Event → Notification |
-| 状态管理 | State Store | Dapr State + Redis | User Session |
+| 同步调用 | HTTP/gRPC | 内部 API + ServiceInvocationClient | User → File |
+| 异步消息 | Message Bus | MassTransit + RabbitMQ | Event → Notification |
+| 状态管理 | Cache / KV | Redis + 应用缓存 | User Session |
 | 分布式锁 | Distributed Lock | Redis | Payment Lock |
 
 ---

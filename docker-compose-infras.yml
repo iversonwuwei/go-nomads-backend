@@ -64,48 +64,6 @@ services:
     networks:
       - go-nomads-network
 
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    container_name: go-nomads-jaeger
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
-    ports:
-      - "16686:16686"   # Jaeger UI
-      - "4317:4317"     # OTLP gRPC
-      - "4318:4318"     # OTLP HTTP
-      - "9411:9411"     # Zipkin compatible
-    command: ["--memory.max-traces=100000"]
-    networks:
-      - go-nomads-network
-
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: go-nomads-prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./deployment/prometheus/prometheus-local.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-    networks:
-      - go-nomads-network
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: go-nomads-grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./deployment/grafana/provisioning:/etc/grafana/provisioning
-    depends_on:
-      - prometheus
-    networks:
-      - go-nomads-network
-
   nginx:
     image: nginx:alpine
     container_name: go-nomads-nginx
@@ -128,5 +86,3 @@ volumes:
   rabbitmq_data:
   elasticsearch_data:
   consul_data:
-  prometheus_data:
-  grafana_data:

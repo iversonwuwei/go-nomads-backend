@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 
 namespace CoworkingService.Services;
 
@@ -16,7 +16,7 @@ public class CityInfoDto
 }
 
 /// <summary>
-///     CityService 客户端接口 - 通过 Dapr Service Invocation 调用
+///     CityService 客户端接口
 /// </summary>
 public interface ICityServiceClient
 {
@@ -33,23 +33,19 @@ public interface ICityServiceClient
 }
 
 /// <summary>
-///     CityService 客户端实现 - 通过 Dapr Service Invocation 调用
+///     CityService 客户端实现
 /// </summary>
 public class CityServiceClient : ICityServiceClient
 {
-    private readonly DaprClient _daprClient;
     private readonly ILogger<CityServiceClient> _logger;
-    private readonly string _cityServiceAppId;
+    private readonly ServiceInvocationClient _serviceInvocationClient;
 
     public CityServiceClient(
-        DaprClient daprClient,
-        IConfiguration configuration,
+        ServiceInvocationClient serviceInvocationClient,
         ILogger<CityServiceClient> logger)
     {
-        _daprClient = daprClient;
+        _serviceInvocationClient = serviceInvocationClient;
         _logger = logger;
-        // Dapr app-id 从配置读取,默认为 "city-service"
-        _cityServiceAppId = configuration["Dapr:CityServiceAppId"] ?? "city-service";
     }
 
     /// <summary>
@@ -64,12 +60,11 @@ public class CityServiceClient : ICityServiceClient
 
         try
         {
-            _logger.LogDebug("📞 通过 Dapr 调用 CityService - GET /api/v1/cities/{CityId}", cityId);
+            _logger.LogDebug("📞 调用 CityService - GET /api/v1/cities/{CityId}", cityId);
 
-            // 使用 Dapr Service Invocation 调用 CityService
-            var response = await _daprClient.InvokeMethodAsync<JsonElement>(
+            var response = await _serviceInvocationClient.InvokeAsync<JsonElement>(
                 HttpMethod.Get,
-                _cityServiceAppId,
+                "city-service",
                 $"api/v1/cities/{cityId}",
                 cancellationToken);
 
@@ -137,11 +132,10 @@ public class CityServiceClient : ICityServiceClient
                 return result;
             }
 
-            // 使用批量 API 一次获取所有城市信息
             var requestBody = new { CityIds = cityGuids };
-            var response = await _daprClient.InvokeMethodAsync<object, JsonElement>(
+            var response = await _serviceInvocationClient.InvokeAsync<object, JsonElement>(
                 HttpMethod.Post,
-                _cityServiceAppId,
+                "city-service",
                 "api/v1/cities/lookup",
                 requestBody,
                 cancellationToken);

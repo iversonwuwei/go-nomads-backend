@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 
 namespace UserService.Infrastructure.Services;
 
@@ -138,17 +138,17 @@ public class CityWeatherInfo
 }
 
 /// <summary>
-///     城市服务客户端实现 - 使用 Dapr Service Invocation
+///     城市服务客户端实现
 /// </summary>
 public class CityServiceClient : ICityServiceClient
 {
-    private readonly DaprClient _daprClient;
     private readonly ILogger<CityServiceClient> _logger;
+    private readonly ServiceInvocationClient _serviceInvocationClient;
     private const string CityServiceAppId = "city-service";
 
-    public CityServiceClient(DaprClient daprClient, ILogger<CityServiceClient> logger)
+    public CityServiceClient(ServiceInvocationClient serviceInvocationClient, ILogger<CityServiceClient> logger)
     {
-        _daprClient = daprClient;
+        _serviceInvocationClient = serviceInvocationClient;
         _logger = logger;
     }
 
@@ -162,7 +162,7 @@ public class CityServiceClient : ICityServiceClient
                 "🔍 调用城市匹配 API: Lat={Lat}, Lng={Lng}, CityName={CityName}",
                 request.Latitude, request.Longitude, request.CityName);
 
-            var response = await _daprClient.InvokeMethodAsync<CityMatchRequest, ApiResponse<CityMatchResult>>(
+            var response = await _serviceInvocationClient.InvokeAsync<CityMatchRequest, ApiResponse<CityMatchResult>>(
                 HttpMethod.Post,
                 CityServiceAppId,
                 "api/v1/cities/match",
@@ -195,7 +195,7 @@ public class CityServiceClient : ICityServiceClient
         {
             _logger.LogInformation("🏙️ 获取城市详情: CityId={CityId}", cityId);
 
-            var response = await _daprClient.InvokeMethodAsync<ApiResponse<CityDetailDto>>(
+            var response = await _serviceInvocationClient.InvokeAsync<ApiResponse<CityDetailDto>>(
                 HttpMethod.Get,
                 CityServiceAppId,
                 $"api/v1/cities/{cityId}",
@@ -225,7 +225,7 @@ public class CityServiceClient : ICityServiceClient
         {
             _logger.LogInformation("🌤️ 获取城市天气: CityId={CityId}", cityId);
 
-            var response = await _daprClient.InvokeMethodAsync<ApiResponse<CityWeatherInfo>>(
+            var response = await _serviceInvocationClient.InvokeAsync<ApiResponse<CityWeatherInfo>>(
                 HttpMethod.Get,
                 CityServiceAppId,
                 $"api/v1/cities/{cityId}/weather",
@@ -256,7 +256,7 @@ public class CityServiceClient : ICityServiceClient
         {
             _logger.LogInformation("🏢 获取共享办公数量: CityId={CityId}", cityId);
 
-            var response = await _daprClient.InvokeMethodAsync<ApiResponse<CoworkingCountResponse>>(
+            var response = await _serviceInvocationClient.InvokeAsync<ApiResponse<CoworkingCountResponse>>(
                 HttpMethod.Get,
                 CityServiceAppId,
                 $"api/v1/cities/{cityId}/coworking-count",

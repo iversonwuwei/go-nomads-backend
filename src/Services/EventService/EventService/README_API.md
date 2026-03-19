@@ -420,4 +420,4 @@ CREATE INDEX idx_event_followers_user_id ON event_followers(user_id);
 - **服务地址**: http://localhost:8005
 - **Scalar 文档**: http://localhost:8005/scalar/v1
 - **健康检查**: http://localhost:8005/health
-- **Dapr gRPC**: localhost:50001 (container sidecar 模式)
+- **内部服务通信**: 通过 HTTP API 与共享服务客户端完成

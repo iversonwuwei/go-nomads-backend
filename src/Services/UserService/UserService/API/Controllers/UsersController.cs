@@ -1,7 +1,8 @@
 using System.ComponentModel.DataAnnotations;
-using Dapr.Client;
+using GoNomads.Shared.Communication;
 using GoNomads.Shared.Middleware;
 using GoNomads.Shared.Models;
+using MassTransit;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using UserService.Application.DTOs;
@@ -16,17 +17,20 @@ namespace UserService.API.Controllers;
 [Route("api/v1/users")]
 public class UsersController : ControllerBase
 {
-    private readonly DaprClient _daprClient;
     private readonly ILogger<UsersController> _logger;
+    private readonly IPublishEndpoint _publishEndpoint;
+    private readonly ServiceInvocationClient _serviceInvocationClient;
     private readonly IUserService _userService;
 
     public UsersController(
         IUserService userService,
-        DaprClient daprClient,
+        ServiceInvocationClient serviceInvocationClient,
+        IPublishEndpoint publishEndpoint,
         ILogger<UsersController> logger)
     {
         _userService = userService;
-        _daprClient = daprClient;
+        _serviceInvocationClient = serviceInvocationClient;
+        _publishEndpoint = publishEndpoint;
         _logger = logger;
     }
 
@@ -238,7 +242,7 @@ public class UsersController : ControllerBase
                 return NotFound();
             }
 
-            // 返回简化的用户信息（直接返回 DTO，不包装 ApiResponse，便于 Dapr 调用）
+            // 返回简化的用户信息（直接返回 DTO，不包装 ApiResponse，便于服务间调用）
             return Ok(new UserBasicDto
             {
                 Id = user.Id,
@@ -399,7 +403,7 @@ public class UsersController : ControllerBase
                 request.Phone,
                 cancellationToken);
 
-            // 发布用户创建事件到 Dapr Pub/Sub
+            // 发布用户创建事件到消息总线
             try
             {
                 var userCreatedEvent = new UserCreatedEvent
@@ -410,11 +414,7 @@ public class UsersController : ControllerBase
                     CreatedAt = user.CreatedAt
                 };
 
-                await _daprClient.PublishEventAsync(
-                    "pubsub",
-                    "user-created",
-                    userCreatedEvent,
-                    cancellationToken);
+                await _publishEndpoint.Publish(userCreatedEvent, cancellationToken);
 
                 _logger.LogInformation("📤 Published user-created event for user {UserId}", user.Id);
             }
@@ -617,7 +617,7 @@ public class UsersController : ControllerBase
                     Message = "User not found"
                 });
 
-            // 发布用户删除事件到 Dapr Pub/Sub
+            // 发布用户删除事件到消息总线
             try
             {
                 var userDeletedEvent = new UserDeletedEvent
@@ -626,11 +626,7 @@ public class UsersController : ControllerBase
                     DeletedAt = DateTime.UtcNow
                 };
 
-                await _daprClient.PublishEventAsync(
-                    "pubsub",
-                    "user-deleted",
-                    userDeletedEvent,
-                    cancellationToken);
+                await _publishEndpoint.Publish(userDeletedEvent, cancellationToken);
 
                 _logger.LogInformation("📤 Published user-deleted event for user {UserId}", id);
             }
@@ -820,14 +816,14 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    ///     获取用户的产品列表（通过 Dapr 调用 ProductService）
+    ///     获取用户的产品列表（通过服务调用 ProductService）
     /// </summary>
     [HttpGet("{userId}/products")]
     public async Task<ActionResult<ApiResponse<object>>> GetUserProducts(
         string userId,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("📦 Getting products for user {UserId} via Dapr", userId);
+        _logger.LogInformation("📦 Getting products for user {UserId} via service invocation", userId);
 
         try
         {
@@ -840,8 +836,7 @@ public class UsersController : ControllerBase
                     Message = "User not found"
                 });
 
-            // 使用 Dapr 服务调用 ProductService
-            var products = await _daprClient.InvokeMethodAsync<object>(
+            var products = await _serviceInvocationClient.InvokeAsync<object>(
                 HttpMethod.Get,
                 "product-service",
                 $"/api/products/user/{userId}",
@@ -867,7 +862,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    ///     使用 Dapr State Store 缓存用户数据
+    ///     使用内存缓存缓存用户数据
     /// </summary>
     [HttpGet("{id}/cached")]
     public async Task<ActionResult<ApiResponse<UserDto>>> GetCachedUser(
@@ -878,11 +873,10 @@ public class UsersController : ControllerBase
 
         try
         {
-            // 尝试从 Dapr State Store 获取缓存
-            var cachedUser = await _daprClient.GetStateAsync<UserDto>(
+            var cachedUser = await _serviceInvocationClient.GetCachedStateAsync<UserDto>(
                 "statestore",
                 $"user:{id}",
-                cancellationToken: cancellationToken);
+                cancellationToken);
 
             if (cachedUser != null)
             {
@@ -906,8 +900,7 @@ public class UsersController : ControllerBase
                     Message = "User not found"
                 });
 
-            // 保存到缓存（5分钟过期）
-            await _daprClient.SaveStateAsync(
+            await _serviceInvocationClient.SaveCachedStateAsync(
                 "statestore",
                 $"user:{id}",
                 user,
@@ -915,7 +908,7 @@ public class UsersController : ControllerBase
                 {
                     { "ttlInSeconds", "300" }
                 },
-                cancellationToken: cancellationToken);
+                cancellationToken);
 
             _logger.LogInformation("✅ User {UserId} cached successfully", id);
 

@@ -132,10 +132,10 @@ public class CoworkingRepository : ICoworkingRepository
                 .From<CoworkingSpace>()
                 .Where(x => x.Id == id)
                 .Set(x => x.IsDeleted, true)
-                .Set(x => x.DeletedAt, coworkingSpace.DeletedAt)
-                .Set(x => x.DeletedBy, deletedBy)
+                .Set(x => x.DeletedAt!, coworkingSpace.DeletedAt)
+                .Set(x => x.DeletedBy!, deletedBy)
                 .Set(x => x.UpdatedAt, coworkingSpace.UpdatedAt)
-                .Set(x => x.UpdatedBy, deletedBy)
+                .Set(x => x.UpdatedBy!, deletedBy)
                 .Update();
 
             _logger.LogInformation("✅ Supabase 逻辑删除成功: {Id}, DeletedBy: {DeletedBy}", id, deletedBy);

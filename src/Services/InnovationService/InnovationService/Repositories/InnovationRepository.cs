@@ -430,10 +430,10 @@ public class InnovationRepository : IInnovationRepository
             await _supabase.From<Innovation>()
                 .Filter("id", Postgrest.Constants.Operator.Equals, id.ToString())
                 .Set(x => x.IsDeleted, true)
-                .Set(x => x.DeletedAt, existing.DeletedAt)
-                .Set(x => x.DeletedBy, userId)
+                .Set(x => x.DeletedAt!, existing.DeletedAt)
+                .Set(x => x.DeletedBy!, userId)
                 .Set(x => x.UpdatedAt, existing.UpdatedAt)
-                .Set(x => x.UpdatedBy, userId)
+                .Set(x => x.UpdatedBy!, userId)
                 .Update();
 
             _logger.LogInformation("✅ 创新项目逻辑删除成功: {Id}, DeletedBy: {UserId}", id, userId);
@@ -469,10 +469,10 @@ public class InnovationRepository : IInnovationRepository
             await _supabase.From<Innovation>()
                 .Filter("id", Postgrest.Constants.Operator.Equals, id.ToString())
                 .Set(x => x.IsDeleted, true)
-                .Set(x => x.DeletedAt, existing.DeletedAt)
-                .Set(x => x.DeletedBy, deletedBy)
+                .Set(x => x.DeletedAt!, existing.DeletedAt)
+                .Set(x => x.DeletedBy!, deletedBy)
                 .Set(x => x.UpdatedAt, existing.UpdatedAt)
-                .Set(x => x.UpdatedBy, deletedBy)
+                .Set(x => x.UpdatedBy!, deletedBy)
                 .Update();
 
             _logger.LogInformation("✅ 管理员逻辑删除创新项目成功: {Id}, DeletedBy: {DeletedBy}", id, deletedBy);
@@ -1134,8 +1134,8 @@ public class InnovationRepository : IInnovationRepository
             await _supabase.From<Innovation>()
                 .Filter("creator_id", Postgrest.Constants.Operator.Equals, creatorId.ToString())
                 .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
-                .Set(x => x.CreatorName, name)
-                .Set(x => x.CreatorAvatar, avatarUrl)
+                .Set(x => x.CreatorName!, name)
+                .Set(x => x.CreatorAvatar!, avatarUrl)
                 .Set(x => x.UpdatedAt, DateTime.UtcNow)
                 .Update();
 
@@ -1175,8 +1175,8 @@ public class InnovationRepository : IInnovationRepository
             // 更新所有记录的冗余字段
             await _supabase.From<InnovationComment>()
                 .Filter("user_id", Postgrest.Constants.Operator.Equals, userId.ToString())
-                .Set(x => x.UserName, name)
-                .Set(x => x.UserAvatar, avatarUrl)
+                .Set(x => x.UserName!, name)
+                .Set(x => x.UserAvatar!, avatarUrl)
                 .Set(x => x.UpdatedAt, DateTime.UtcNow)
                 .Update();
 
