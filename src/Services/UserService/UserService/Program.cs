@@ -14,6 +14,8 @@ using UserService.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);
+
 // 添加 Supabase 客户端（使用 Shared 扩展方法）
 builder.Services.AddSupabase(builder.Configuration);
 
@@ -71,8 +73,8 @@ builder.Services.AddMassTransit(x =>
         var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
         cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
         {
-            h.Username(rabbitMqConfig["Username"] ?? "guest");
-            h.Password(rabbitMqConfig["Password"] ?? "guest");
+            h.Username(rabbitMqConfig["Username"] ?? "walden");
+            h.Password(rabbitMqConfig["Password"] ?? "walden");
         });
     });
 });
@@ -145,8 +147,5 @@ app.MapControllers();
 // Add health check endpoint
 app.MapGet("/health",
     () => Results.Ok(new { status = "healthy", service = "UserService", timestamp = DateTime.UtcNow }));
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 app.Run();

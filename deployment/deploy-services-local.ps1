@@ -1,9 +1,17 @@
 ﻿# Go-Nomads Services Deployment (Local Build + Container)
-param([switch]$SkipBuild, [switch]$Help)
+param([switch]$SkipBuild, [switch]$UseMirror, [switch]$Help)
 $ErrorActionPreference = 'Stop'
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ROOT_DIR = Split-Path -Parent $SCRIPT_DIR
 $NETWORK_NAME = "go-nomads-network"
+$RABBITMQ_USERNAME = if ($env:RABBITMQ_USERNAME) { $env:RABBITMQ_USERNAME } else { "walden" }
+$RABBITMQ_PASSWORD = if ($env:RABBITMQ_PASSWORD) { $env:RABBITMQ_PASSWORD } else { "walden" }
+$MCR_MIRROR_PREFIX = if ($env:MCR_MIRROR_PREFIX) { $env:MCR_MIRROR_PREFIX } else { "m.daocloud.io" }
+$ASPNET_RUNTIME_IMAGE = if ($env:ASPNET_RUNTIME_IMAGE) { $env:ASPNET_RUNTIME_IMAGE } else { "mcr.microsoft.com/dotnet/aspnet:9.0" }
+
+if ($UseMirror) {
+    $ASPNET_RUNTIME_IMAGE = "$MCR_MIRROR_PREFIX/mcr.microsoft.com/dotnet/aspnet:9.0"
+}
 
 # 获取容器运行时
 function Get-Runtime {
@@ -59,6 +67,7 @@ function Ensure-Network {
 $RUNTIME = Get-Runtime
 Write-Host "使用容器运行时: $RUNTIME" -ForegroundColor Cyan
 Write-Host "根目录: $ROOT_DIR" -ForegroundColor Cyan
+Write-Host "运行时镜像: $ASPNET_RUNTIME_IMAGE" -ForegroundColor Cyan
 if ($SkipBuild) {
     Write-Host "构建模式: 跳过构建" -ForegroundColor Yellow
 } else {
@@ -67,7 +76,7 @@ if ($SkipBuild) {
 Write-Host ""
 
 if ($Help) {
-    Write-Host "`nUsage: .\deploy-services-local.ps1 [-SkipBuild] [-Help]`n"
+    Write-Host "`nUsage: .\deploy-services-local.ps1 [-SkipBuild] [-UseMirror] [-Help]`n"
     exit 0
 }
 
@@ -195,9 +204,27 @@ foreach ($svc in $services) {
     # Gateway 使用生产配置（不设置 Development 环境）
     # 其他服务继续使用 Development 环境
     $aspnetEnv = if ($svc.Name -eq "gateway") { "Production" } else { "Development" }
+
+    if ($svc.Name -eq "gateway") {
+        $extraEnvArgs = @(
+            "-e", "ServiceUrls__UserService=http://go-nomads-user-service:8080",
+            "-e", "ServiceUrls__CityService=http://go-nomads-city-service:8080",
+            "-e", "ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080",
+            "-e", "ServiceUrls__EventService=http://go-nomads-event-service:8080",
+            "-e", "ServiceUrls__AIService=http://go-nomads-ai-service:8080",
+            "-e", "ServiceUrls__CacheService=http://go-nomads-cache-service:8080",
+            "-e", "ServiceUrls__MessageService=http://go-nomads-message-service:8080",
+            "-e", "ServiceUrls__InnovationService=http://go-nomads-innovation-service:8080",
+            "-e", "ServiceUrls__SearchService=http://go-nomads-search-service:8080",
+            "-e", "ServiceUrls__AccommodationService=http://go-nomads-accommodation-service:8080",
+            "-e", "ServiceUrls__ProductService=http://go-nomads-product-service:8080"
+        )
+    }
     
     # 额外的环境变量（针对特定服务）
-    $extraEnvArgs = @()
+    if (-not $extraEnvArgs) {
+        $extraEnvArgs = @()
+    }
     if ($svc.Name -eq "document-service") {
         $extraEnvArgs = @(
             "-e", "Services__Gateway__Url=http://go-nomads-gateway:8080",
@@ -214,8 +241,40 @@ foreach ($svc in $services) {
         $extraEnvArgs = @(
             "-e", "ConnectionStrings__Elasticsearch=http://go-nomads-elasticsearch:9200",
             "-e", "RabbitMQ__Host=go-nomads-rabbitmq",
-            "-e", "RabbitMQ__Username=walden",
-            "-e", "RabbitMQ__Password=walden"
+            "-e", "RabbitMQ__Username=$RABBITMQ_USERNAME",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASSWORD"
+        )
+    }
+
+    if ($svc.Name -eq "coworking-service") {
+        $extraEnvArgs = @(
+            "-e", "RabbitMQ__Host=go-nomads-rabbitmq",
+            "-e", "RabbitMQ__Username=$RABBITMQ_USERNAME",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASSWORD"
+        )
+    }
+
+    if ($svc.Name -eq "user-service") {
+        $extraEnvArgs = @(
+            "-e", "RabbitMQ__Host=go-nomads-rabbitmq",
+            "-e", "RabbitMQ__Username=$RABBITMQ_USERNAME",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASSWORD"
+        )
+    }
+
+    if ($svc.Name -eq "event-service") {
+        $extraEnvArgs = @(
+            "-e", "RabbitMQ__Host=go-nomads-rabbitmq",
+            "-e", "RabbitMQ__Username=$RABBITMQ_USERNAME",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASSWORD"
+        )
+    }
+
+    if ($svc.Name -eq "ai-service") {
+        $extraEnvArgs = @(
+            "-e", "RabbitMQ__HostName=go-nomads-rabbitmq",
+            "-e", "RabbitMQ__UserName=$RABBITMQ_USERNAME",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASSWORD"
         )
     }
     
@@ -224,8 +283,16 @@ foreach ($svc in $services) {
         $extraEnvArgs = @(
             "-e", "RabbitMQ__HostName=go-nomads-rabbitmq",
             "-e", "RabbitMQ__Port=5672",
-            "-e", "RabbitMQ__UserName=walden",
-            "-e", "RabbitMQ__Password=walden"
+            "-e", "RabbitMQ__UserName=$RABBITMQ_USERNAME",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASSWORD"
+        )
+    }
+
+    if ($svc.Name -eq "innovation-service") {
+        $extraEnvArgs = @(
+            "-e", "RabbitMQ__Host=go-nomads-rabbitmq",
+            "-e", "RabbitMQ__Username=$RABBITMQ_USERNAME",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASSWORD"
         )
     }
 
@@ -236,8 +303,8 @@ foreach ($svc in $services) {
             "-e", "ServiceUrls__CityService=http://go-nomads-city-service:8080",
             "-e", "ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080",
             "-e", "RabbitMQ__Host=go-nomads-rabbitmq",
-            "-e", "RabbitMQ__Username=walden",
-            "-e", "RabbitMQ__Password=walden"
+            "-e", "RabbitMQ__Username=$RABBITMQ_USERNAME",
+            "-e", "RabbitMQ__Password=$RABBITMQ_PASSWORD"
         )
     }
 
@@ -262,7 +329,7 @@ foreach ($svc in $services) {
         $runArgs += @(
             "-v", "${publish}:/app:ro",
             "-w", "/app",
-            "mcr.microsoft.com/dotnet/aspnet:9.0",
+            $ASPNET_RUNTIME_IMAGE,
             "dotnet", $svc.Dll
         )
     } else {
@@ -283,7 +350,7 @@ foreach ($svc in $services) {
         $runArgs += @(
             "-v", "${publish}:/app:ro",
             "-w", "/app",
-            "mcr.microsoft.com/dotnet/aspnet:9.0",
+            $ASPNET_RUNTIME_IMAGE,
             "dotnet", $svc.Dll
         )
     }

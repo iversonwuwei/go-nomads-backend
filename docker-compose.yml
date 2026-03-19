@@ -19,9 +19,6 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5000
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-gateway
-      - Consul__ServicePort=5000
     networks:
       - go-nomads-network
 
@@ -35,9 +32,6 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-document-service
-      - Consul__ServicePort=8080
       - Services__Gateway__Url=http://go-nomads-gateway:8080
       - Services__Gateway__OpenApiUrl=http://go-nomads-gateway:8080/openapi/v1.json
       - Services__ProductService__Url=http://go-nomads-product-service:8080
@@ -57,9 +51,6 @@ services:
       - "50002:50002"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-user-service
-      - Consul__ServicePort=8080
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=userservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
       # 阿里云短信服务 - 通过环境变量注入密钥，请勿明文写入配置文件
@@ -78,15 +69,12 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8002
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-city-service
-      - Consul__ServicePort=8002
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=cityservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
       - ConnectionStrings__Elasticsearch=http://go-nomads-elasticsearch:9200
       - RabbitMQ__Host=go-nomads-rabbitmq
-      - RabbitMQ__Username=guest
-      - RabbitMQ__Password=guest
+      - RabbitMQ__Username=walden
+      - RabbitMQ__Password=walden
     networks:
       - go-nomads-network
 
@@ -100,9 +88,6 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8006
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-coworking-service
-      - Consul__ServicePort=8006
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=coworkingservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
     networks:
@@ -118,15 +103,12 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-search-service
-      - Consul__ServicePort=8080
       - Elasticsearch__Url=http://go-nomads-elasticsearch:9200
-      - ServiceUrls__CityService=http://go-nomads-city-service:8080
-      - ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080
+      - ServiceUrls__CityService=http://go-nomads-city-service:8002
+      - ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8006
       - RabbitMQ__Host=go-nomads-rabbitmq
-      - RabbitMQ__Username=guest
-      - RabbitMQ__Password=guest
+      - RabbitMQ__Username=walden
+      - RabbitMQ__Password=walden
     networks:
       - go-nomads-network
     depends_on:
@@ -143,9 +125,6 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8010
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-cache-service
-      - Consul__ServicePort=8010
       - ConnectionStrings__Redis=go-nomads-redis:6379
     networks:
       - go-nomads-network
@@ -160,9 +139,6 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8012
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-accommodation-service
-      - Consul__ServicePort=8012
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=accommodationservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
     networks:
@@ -179,9 +155,6 @@ services:
       - TZ=Asia/Shanghai
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8005
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-event-service
-      - Consul__ServicePort=8005
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=eventservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
       - MessageBroker__Host=go-nomads-rabbitmq
@@ -200,9 +173,6 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5002
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-product-service
-      - Consul__ServicePort=5002
     networks:
       - go-nomads-network
 
@@ -219,9 +189,6 @@ services:
       - ConnectionStrings__SupabaseDb=Host=postgres;Port=5432;Database=aiservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
       - ConnectionStrings__QianWenApiKey=${QIANWEN_API_KEY:-your-qianwen-api-key-here}
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-ai-service
-      - Consul__ServicePort=8009
       - RabbitMQ__HostName=go-nomads-rabbitmq
       - Redis__ConnectionString=go-nomads-redis:6379,abortConnect=false
     networks:
@@ -243,14 +210,11 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-message-service
-      - Consul__ServicePort=8080
       - ConnectionStrings__Redis=go-nomads-redis:6379
       - RabbitMQ__HostName=go-nomads-rabbitmq
       - RabbitMQ__Port=5672
-      - RabbitMQ__UserName=guest
-      - RabbitMQ__Password=guest
+      - RabbitMQ__UserName=walden
+      - RabbitMQ__Password=walden
     networks:
       - go-nomads-network
 
@@ -264,9 +228,6 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8011
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-innovation-service
-      - Consul__ServicePort=8011
     networks:
       - go-nomads-network
 
@@ -280,9 +241,6 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8007
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-travel-planning-service
-      - Consul__ServicePort=8007
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=travelplanningservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
       - OpenAI__ApiKey=${OPENAI_API_KEY}
@@ -301,9 +259,6 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8008
-      - Consul__Address=http://go-nomads-consul:7500
-      - Consul__ServiceAddress=go-nomads-ecommerce-service
-      - Consul__ServicePort=8008
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=ecommerceservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
     networks:

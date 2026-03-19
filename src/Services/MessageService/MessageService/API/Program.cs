@@ -1,4 +1,3 @@
-using Consul;
 using MassTransit;
 using MessageService.API.Hubs;
 using MessageService.API.Services;
@@ -16,6 +15,8 @@ using GoNomads.Shared.Extensions;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
+
+Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);
 
 // 配置 Serilog
 Log.Logger = new LoggerConfiguration()
@@ -49,13 +50,6 @@ builder.Services.AddSupabase(builder.Configuration);
 
 // 添加当前用户服务（统一的用户身份和权限检查）
 builder.Services.AddCurrentUserService();
-
-// 注册 Consul 客户端
-builder.Services.AddSingleton<IConsulClient, ConsulClient>(p => new ConsulClient(consulConfig =>
-{
-    var address = builder.Configuration["Consul:Address"] ?? "http://localhost:7500";
-    consulConfig.Address = new Uri(address);
-}));
 
 // 注册 SignalRNotifier 接口实现
 builder.Services.AddSingleton<ISignalRNotifier, SignalRNotifierImpl>();
@@ -128,8 +122,8 @@ builder.Services.AddMassTransit(x =>
 
         cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
         {
-            h.Username(rabbitMqConfig["Username"] ?? "guest");
-            h.Password(rabbitMqConfig["Password"] ?? "guest");
+            h.Username(rabbitMqConfig["Username"] ?? "walden");
+            h.Password(rabbitMqConfig["Password"] ?? "walden");
         });
 
         // 配置 Exchange 和队列
@@ -271,72 +265,6 @@ app.MapControllers();
 app.MapHub<AIProgressHub>("/hubs/ai-progress");
 app.MapHub<NotificationHub>("/hubs/notifications");
 app.MapHub<ChatHub>("/hubs/chat");
-
-// 注册到 Consul
-var consulClient = app.Services.GetRequiredService<IConsulClient>();
-var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
-
-var serviceId = $"message-service-{Guid.NewGuid()}";
-var consulServiceName = builder.Configuration["Consul:ServiceName"] ?? "message-service";
-
-// 优先使用 POD_IP 环境变量（K8s 部署），否则使用配置的 ServiceAddress
-var podIp = Environment.GetEnvironmentVariable("POD_IP");
-var serviceAddress = !string.IsNullOrEmpty(podIp) 
-    ? podIp
-    : builder.Configuration["Consul:ServiceAddress"] ?? "localhost";
-var servicePort = int.Parse(builder.Configuration["Consul:ServicePort"] ?? "8080");
-
-Log.Information("Consul 服务注册: ServiceName={ServiceName}, Address={Address}, Port={Port}, POD_IP={PodIp}", 
-    consulServiceName, serviceAddress, servicePort, podIp ?? "N/A");
-
-var registration = new AgentServiceRegistration
-{
-    ID = serviceId,
-    Name = consulServiceName,
-    Address = serviceAddress,
-    Port = servicePort,
-    Tags = new[] { "message-service", "signalr", "rabbitmq", "api" },
-    Meta = new Dictionary<string, string>
-    {
-        { "version", "1.0.0" },
-        { "protocol", "http" },
-        { "api_path", "/scalar/v1" },
-        { "signalr_hubs", "/hubs/ai-progress,/hubs/notifications" }
-    },
-    Check = new AgentServiceCheck
-    {
-        HTTP = $"http://{serviceAddress}:{servicePort}/health",
-        Interval = TimeSpan.FromSeconds(10),
-        Timeout = TimeSpan.FromSeconds(5),
-        DeregisterCriticalServiceAfter = TimeSpan.FromMinutes(1)
-    }
-};
-
-lifetime.ApplicationStarted.Register(async () =>
-{
-    try
-    {
-        await consulClient.Agent.ServiceRegister(registration);
-        Log.Information("服务已注册到 Consul: {ServiceId}", serviceId);
-    }
-    catch (Exception ex)
-    {
-        Log.Error(ex, "注册到 Consul 失败");
-    }
-});
-
-lifetime.ApplicationStopping.Register(async () =>
-{
-    try
-    {
-        await consulClient.Agent.ServiceDeregister(serviceId);
-        Log.Information("服务已从 Consul 注销: {ServiceId}", serviceId);
-    }
-    catch (Exception ex)
-    {
-        Log.Error(ex, "从 Consul 注销失败");
-    }
-});
 
 Log.Information("MessageService 启动成功，监听端口: {Port}",
     builder.Configuration["ASPNETCORE_URLS"] ?? "http://+:8080");

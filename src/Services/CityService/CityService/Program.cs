@@ -22,6 +22,8 @@ using IUserCityContentService = CityService.Application.Services.IUserCityConten
 
 var builder = WebApplication.CreateBuilder(args);
 
+Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);
+
 // 配置端口 - 容器内监听 8080，外部通过 docker-compose 映射到 8002
 // builder.WebHost.UseUrls("http://localhost:8002"); // 注释掉，使用环境变量 ASPNETCORE_URLS
 
@@ -165,8 +167,8 @@ builder.Services.AddMassTransit(x =>
 
         cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
         {
-            h.Username(rabbitMqConfig["Username"] ?? "guest");
-            h.Password(rabbitMqConfig["Password"] ?? "guest");
+            h.Username(rabbitMqConfig["Username"] ?? "walden");
+            h.Password(rabbitMqConfig["Password"] ?? "walden");
         });
 
         // 配置城市图片生成完成消息队列
@@ -214,8 +216,5 @@ app.MapGet("/health",
 Log.Information("Weather cache refresh service enabled (refresh every 30 minutes)");
 
 Log.Information("City Service starting on port 8002...");
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 app.Run();

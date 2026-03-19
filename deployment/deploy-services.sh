@@ -242,7 +242,7 @@ main() {
     echo -e "  ${GREEN}Message Swagger:  http://localhost:5005/swagger${NC}"
     echo ""
     echo -e "${BLUE}基础设施:${NC}"
-    echo -e "  ${GREEN}RabbitMQ UI:      http://localhost:15672 (guest/guest)${NC}"
+    echo -e "  ${GREEN}RabbitMQ UI:      http://localhost:15672 (walden/walden)${NC}"
     echo ""
     echo -e "${BLUE}常用命令:${NC}"
     echo -e "  查看运行中的容器:  ${YELLOW}$CONTAINER_RUNTIME ps${NC}"

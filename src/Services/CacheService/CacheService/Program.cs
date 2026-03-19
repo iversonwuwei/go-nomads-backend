@@ -14,6 +14,8 @@ const string serviceName = "CacheService";
 
 var builder = WebApplication.CreateBuilder(args);
 
+Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);
+
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
@@ -104,8 +106,5 @@ app.MapGet("/health",
     () => Results.Ok(new { status = "healthy", service = "CacheService", timestamp = DateTime.UtcNow }));
 
 Log.Information("Cache Service starting on port 8010...");
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 app.Run();

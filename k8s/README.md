@@ -11,8 +11,7 @@ k8s/
 ├── infrastructure/             # 基础设施服务
 │   ├── redis.yaml              # Redis 缓存
 │   ├── rabbitmq.yaml           # RabbitMQ 消息队列
-│   ├── elasticsearch.yaml      # Elasticsearch 搜索
-│   └── consul.yaml             # Consul 服务发现
+│   └── elasticsearch.yaml      # Elasticsearch 搜索
 ├── services/                   # 业务服务
 │   ├── gateway.yaml            # API 网关
 │   ├── user-service.yaml       # 用户服务
@@ -119,7 +118,7 @@ cd k8s
 
 - Kubernetes 内部服务通过 `Service` + DNS 互相访问
 - 对外统一经由 Gateway 暴露 API
-- 运行时服务发现与健康状态由 Consul 维护
+- 运行时服务通过 Kubernetes Service DNS 与 Gateway 路由配置协同发现
 
 ### 服务间调用
 
@@ -210,7 +209,6 @@ kubectl apply -k overlays/prod/
 | Redis | 6379 | 6379 |
 | RabbitMQ | 5672, 15672 | 5672, 15672 |
 | Elasticsearch | 9200, 9300 | 9200, 9300 |
-| Consul | 8500 | 8500 |
 
 ## 资源配额
 
@@ -262,9 +260,6 @@ kubectl apply -k overlays/prod/
 ```bash
 # RabbitMQ 管理界面
 kubectl port-forward svc/rabbitmq-service 15672:15672 -n go-nomads
-
-# Consul UI
-kubectl port-forward svc/consul-service 8500:8500 -n go-nomads
 ```
 
 ## 故障排查

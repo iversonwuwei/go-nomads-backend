@@ -9,23 +9,21 @@ set -euo pipefail
 # ============================================================
 # 配置区域
 # ============================================================
-SWR_REGISTRY="${SWR_REGISTRY:-swr.ap-southeast-3.myhuaweicloud.com}"
+SWR_REGISTRY="${SWR_LOGIN_SERVER:-${SWR_REGISTRY:-swr.cn-north-4.myhuaweicloud.com}}"
 SWR_ORGANIZATION="${SWR_ORGANIZATION:-go-nomads}"
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 
-REDIS_SOURCE_IMAGE="${REDIS_SOURCE_IMAGE:-redis:7-alpine}"
+REDIS_SOURCE_IMAGE="${REDIS_SOURCE_IMAGE:-redis:7.2-alpine}"
 RABBITMQ_SOURCE_IMAGE="${RABBITMQ_SOURCE_IMAGE:-rabbitmq:3-management-alpine}"
-ELASTICSEARCH_SOURCE_IMAGE="${ELASTICSEARCH_SOURCE_IMAGE:-docker.elastic.co/elasticsearch/elasticsearch:8.11.0}"
-CONSUL_SOURCE_IMAGE="${CONSUL_SOURCE_IMAGE:-hashicorp/consul:latest}"
-NGINX_SOURCE_IMAGE="${NGINX_SOURCE_IMAGE:-nginx:latest}"
+ELASTICSEARCH_SOURCE_IMAGE="${ELASTICSEARCH_SOURCE_IMAGE:-docker.elastic.co/elasticsearch/elasticsearch:8.17.4}"
+NGINX_SOURCE_IMAGE="${NGINX_SOURCE_IMAGE:-nginx:1.29.6}"
 
 # 基础设施镜像列表 - 源镜像|目标名称|目标标签
 INFRA_IMAGES="
-${REDIS_SOURCE_IMAGE}|redis|7-alpine
+${REDIS_SOURCE_IMAGE}|redis|7.2-alpine
 ${RABBITMQ_SOURCE_IMAGE}|rabbitmq|3-management-alpine
-${ELASTICSEARCH_SOURCE_IMAGE}|elasticsearch|8.11.0
-${CONSUL_SOURCE_IMAGE}|consul|latest
-${NGINX_SOURCE_IMAGE}|nginx|latest
+${ELASTICSEARCH_SOURCE_IMAGE}|elasticsearch|8.17.4
+${NGINX_SOURCE_IMAGE}|nginx|1.29.6
 "
 
 # ============================================================
@@ -43,19 +41,18 @@ print_help() {
     echo "  --platforms     指定同步的平台列表 (默认: linux/amd64,linux/arm64)"
     echo ""
     echo "环境变量:"
-    echo "  SWR_REGISTRY      SWR 仓库地址 (默认: swr.ap-southeast-3.myhuaweicloud.com)"
+    echo "  SWR_REGISTRY      SWR 仓库地址 (默认: swr.cn-north-4.myhuaweicloud.com)"
     echo "  SWR_ORGANIZATION  SWR 组织名称 (默认: go-nomads)"
     echo "  PLATFORMS         多架构平台列表 (默认: linux/amd64,linux/arm64)"
     echo "  REDIS_SOURCE_IMAGE          Redis 源镜像"
     echo "  RABBITMQ_SOURCE_IMAGE       RabbitMQ 源镜像"
     echo "  ELASTICSEARCH_SOURCE_IMAGE  Elasticsearch 源镜像"
-    echo "  CONSUL_SOURCE_IMAGE         Consul 源镜像"
     echo "  NGINX_SOURCE_IMAGE          Nginx 源镜像"
     echo ""
     echo "示例:"
     echo "  $0 --login      # 登录到 SWR"
     echo "  $0 --all        # 上传所有镜像"
-    echo "  REDIS_SOURCE_IMAGE=swr.cn-north-4.myhuaweicloud.com/library/redis:7-alpine $0 --all"
+    echo "  REDIS_SOURCE_IMAGE=swr.cn-north-4.myhuaweicloud.com/library/redis:7.2-alpine $0 --all"
 }
 
 list_images() {
@@ -104,11 +101,33 @@ push_all_images() {
         echo "处理镜像: $src -> $dest"
         echo "----------------------------------------"
 
-        echo "同步多架构 manifest: $PLATFORMS"
-        docker buildx imagetools create \
-            "${platform_args[@]}" \
-            --tag "$dest" \
-            "$src"
+        if docker image inspect "$src" >/dev/null 2>&1; then
+            echo "检测到本地镜像，使用 docker tag + push 回退路径: $src"
+            local local_platform
+            local local_arch
+            local local_os
+            local temp_dest
+            local_platform="$(docker image inspect "$src" --format '{{.Os}}/{{.Architecture}}')"
+            local_os="${local_platform%%/*}"
+            local_arch="${local_platform##*/}"
+            docker tag "$src" "$dest"
+            if ! docker push --platform "$local_platform" "$dest"; then
+                echo "目标标签平台不兼容，回退为临时架构标签 + manifest: $dest"
+                temp_dest="${dest}-${local_arch}-$(date +%s)"
+                docker tag "$src" "$temp_dest"
+                docker push "$temp_dest"
+                docker manifest rm "$dest" >/dev/null 2>&1 || true
+                docker manifest create "$dest" "$temp_dest"
+                docker manifest annotate "$dest" "$temp_dest" --os "$local_os" --arch "$local_arch"
+                docker manifest push --purge "$dest"
+            fi
+        else
+            echo "未检测到本地镜像，使用 buildx imagetools 同步多架构 manifest: $PLATFORMS"
+            docker buildx imagetools create \
+                "${platform_args[@]}" \
+                --tag "$dest" \
+                "$src"
+        fi
 
         echo "校验目标 manifest: $dest"
         docker buildx imagetools inspect "$dest" >/dev/null

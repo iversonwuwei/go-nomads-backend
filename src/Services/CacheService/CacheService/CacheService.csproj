@@ -18,7 +18,10 @@
         <PackageReference Include="Polly" Version="8.5.0"/>
         <PackageReference Include="Polly.Extensions.Http" Version="3.0.0"/>
 </ItemGroup>
+
     <ItemGroup>
+<ProjectReference Include="../../../GoNomads.ServiceDefaults/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults.csproj" />
+
         <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj"/>
     </ItemGroup>
 

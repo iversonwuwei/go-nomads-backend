@@ -4,13 +4,45 @@
 param(
     [Parameter(Position=0)]
     [ValidateSet('start', 'stop', 'restart', 'status', 'clean', 'help')]
-    [string]$Action = 'start'
+    [string]$Action = 'start',
+    [switch]$UseSwr,
+    [switch]$UseMirror,
+    [switch]$UseOfficial
 )
 
 $ErrorActionPreference = 'Stop'
 
 $NETWORK_NAME = "go-nomads-network"
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
+$SWR_REGISTRY = if ($env:SWR_LOGIN_SERVER) { $env:SWR_LOGIN_SERVER } elseif ($env:SWR_REGISTRY) { $env:SWR_REGISTRY } else { "swr.ap-southeast-3.myhuaweicloud.com" }
+$SWR_ORGANIZATION = if ($env:SWR_ORGANIZATION) { $env:SWR_ORGANIZATION } else { "go-nomads" }
+$MIRROR_PREFIX = if ($env:MIRROR_PREFIX) { $env:MIRROR_PREFIX } else { "docker.1ms.run" }
+$REDIS_IMAGE = if ($env:REDIS_IMAGE) { $env:REDIS_IMAGE } else { "redis:7.2-alpine" }
+$RABBITMQ_IMAGE = if ($env:RABBITMQ_IMAGE) { $env:RABBITMQ_IMAGE } else { "rabbitmq:3-management-alpine" }
+$ELASTICSEARCH_IMAGE = if ($env:ELASTICSEARCH_IMAGE) { $env:ELASTICSEARCH_IMAGE } else { "docker.elastic.co/elasticsearch/elasticsearch:8.17.4" }
+$NGINX_IMAGE = if ($env:NGINX_IMAGE) { $env:NGINX_IMAGE } else { "nginx:1.29.6" }
+$RABBITMQ_DEFAULT_USER = if ($env:RABBITMQ_DEFAULT_USER) { $env:RABBITMQ_DEFAULT_USER } else { "walden" }
+$RABBITMQ_DEFAULT_PASS = if ($env:RABBITMQ_DEFAULT_PASS) { $env:RABBITMQ_DEFAULT_PASS } else { "walden" }
+
+function Set-SwrImages {
+    $script:REDIS_IMAGE = "$SWR_REGISTRY/$SWR_ORGANIZATION/redis:7.2-alpine"
+    $script:RABBITMQ_IMAGE = "$SWR_REGISTRY/$SWR_ORGANIZATION/rabbitmq:3-management-alpine"
+    $script:ELASTICSEARCH_IMAGE = "$SWR_REGISTRY/$SWR_ORGANIZATION/elasticsearch:8.17.4"
+    $script:NGINX_IMAGE = "$SWR_REGISTRY/$SWR_ORGANIZATION/nginx:1.29.6"
+}
+
+function Set-MirrorImages {
+    $script:REDIS_IMAGE = "$MIRROR_PREFIX/library/redis:7.2-alpine"
+    $script:RABBITMQ_IMAGE = "$MIRROR_PREFIX/library/rabbitmq:3-management-alpine"
+    $script:ELASTICSEARCH_IMAGE = "$SWR_REGISTRY/$SWR_ORGANIZATION/elasticsearch:8.17.4"
+    $script:NGINX_IMAGE = "$MIRROR_PREFIX/library/nginx:1.29.6"
+}
+
+if ($UseSwr -and -not $UseOfficial) {
+    Set-SwrImages
+} elseif ($UseMirror -and -not $UseOfficial) {
+    Set-MirrorImages
+}
 
 # Require Docker
 function Require-Docker {
@@ -83,7 +115,7 @@ function Start-Redis {
         --label "com.docker.compose.project=go-nomads-infras" `
         --label "com.docker.compose.service=redis" `
         -p 6379:6379 `
-        redis:latest redis-server --appendonly yes | Out-Null
+        $REDIS_IMAGE redis-server --appendonly yes | Out-Null
     
     Write-Host "Redis running at: redis://localhost:6379" -ForegroundColor Green
 }
@@ -102,7 +134,7 @@ function Start-Elasticsearch {
         -e "discovery.type=single-node" `
         -e "xpack.security.enabled=false" `
         -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" `
-        docker.elastic.co/elasticsearch/elasticsearch:8.16.1 | Out-Null
+        $ELASTICSEARCH_IMAGE | Out-Null
     
     Write-Host "Elasticsearch available at: http://localhost:9200" -ForegroundColor Green
 }
@@ -118,12 +150,12 @@ function Start-RabbitMQ {
         --label "com.docker.compose.service=rabbitmq" `
         -p 5672:5672 `
         -p 15672:15672 `
-        -e RABBITMQ_DEFAULT_USER=walden `
-        -e RABBITMQ_DEFAULT_PASS=walden `
-        rabbitmq:3-management-alpine | Out-Null
+        -e "RABBITMQ_DEFAULT_USER=$RABBITMQ_DEFAULT_USER" `
+        -e "RABBITMQ_DEFAULT_PASS=$RABBITMQ_DEFAULT_PASS" `
+        $RABBITMQ_IMAGE | Out-Null
     
     Write-Host "RabbitMQ running at: amqp://localhost:5672" -ForegroundColor Green
-    Write-Host "RabbitMQ Management UI: http://localhost:15672 (walden/walden)" -ForegroundColor Green
+    Write-Host "RabbitMQ Management UI: http://localhost:15672 ($RABBITMQ_DEFAULT_USER/$RABBITMQ_DEFAULT_PASS)" -ForegroundColor Green
 }
 
 function Start-Nginx {
@@ -148,7 +180,7 @@ function Start-Nginx {
         -p 443:443 `
         -v "${nginxConfPath}:/etc/nginx/conf.d/default.conf:ro" `
         --restart unless-stopped `
-        nginx:latest | Out-Null
+        $NGINX_IMAGE | Out-Null
     
     Write-Host "Nginx running at: http://localhost" -ForegroundColor Green
 }
@@ -235,7 +267,7 @@ function Show-Help {
     Write-Host "Go-Nomads Local Infrastructure Deployment (Windows PowerShell)" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Usage:" -ForegroundColor Cyan
-    Write-Host "  .\deploy-infrastructure-local.ps1 [command]" -ForegroundColor Cyan
+    Write-Host "  .\deploy-infrastructure-local.ps1 [command] [-UseSwr] [-UseOfficial]" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Commands:" -ForegroundColor Cyan
     Write-Host "  start    Deploy all infrastructure containers (default)" -ForegroundColor Cyan
@@ -246,9 +278,9 @@ function Show-Help {
     Write-Host "  help     Show this help message" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Examples:" -ForegroundColor Cyan
-    Write-Host "  .\deploy-infrastructure-local.ps1" -ForegroundColor Cyan
+    Write-Host "  .\deploy-infrastructure-local.ps1 -UseSwr" -ForegroundColor Cyan
     Write-Host "  .\deploy-infrastructure-local.ps1 status" -ForegroundColor Cyan
-    Write-Host "  .\deploy-infrastructure-local.ps1 clean" -ForegroundColor Cyan
+    Write-Host "  .\deploy-infrastructure-local.ps1 clean -UseOfficial" -ForegroundColor Cyan
     Write-Host ""
 }
 

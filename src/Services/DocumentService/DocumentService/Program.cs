@@ -12,6 +12,8 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);
+
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
@@ -554,7 +556,7 @@ systemGroup.MapGet("/specs", async (IHttpClientFactory httpClientFactory) =>
     .WithDescription("聚合所有微服务的 OpenAPI 文档 (用于高级集成)")
     .WithOpenApi();
 
-// Add health check endpoint for Consul
+// Add health check endpoint
 app.MapGet("/health", () => Results.Ok(new
     {
         status = "healthy",
@@ -564,13 +566,10 @@ app.MapGet("/health", () => Results.Ok(new
     }))
     .WithTags("System")
     .WithName("HealthCheckRoot")
-    .WithSummary("Consul 健康检查端点")
-    .WithDescription("用于 Consul 服务发现的健康检查")
+    .WithSummary("服务健康检查端点")
+    .WithDescription("用于服务运行状态检测的健康检查")
     .WithOpenApi();
 
 app.MapControllers();
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 app.Run();

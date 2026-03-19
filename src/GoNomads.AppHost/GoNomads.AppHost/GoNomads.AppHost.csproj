@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>c8bf69d8-ad7c-4973-9698-01b874b7b97a</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Gateway\Gateway\Gateway.csproj" />
+    <ProjectReference Include="..\..\Services\AccommodationService\AccommodationService\AccommodationService.csproj" />
+    <ProjectReference Include="..\..\Services\AIService\AIService\AIService.csproj" />
+    <ProjectReference Include="..\..\Services\CacheService\CacheService\CacheService.csproj" />
+    <ProjectReference Include="..\..\Services\CityService\CityService\CityService.csproj" />
+    <ProjectReference Include="..\..\Services\CoworkingService\CoworkingService\CoworkingService.csproj" />
+    <ProjectReference Include="..\..\Services\DocumentService\DocumentService\DocumentService.csproj" />
+    <ProjectReference Include="..\..\Services\EventService\EventService\EventService.csproj" />
+    <ProjectReference Include="..\..\Services\InnovationService\InnovationService\InnovationService.csproj" />
+    <ProjectReference Include="..\..\Services\MessageService\MessageService\API\MessageService.csproj" />
+    <ProjectReference Include="..\..\Services\ProductService\ProductService\ProductService.csproj" />
+    <ProjectReference Include="..\..\Services\SearchService\SearchService\SearchService.csproj" />
+    <ProjectReference Include="..\..\Services\UserService\UserService\UserService.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="8.2.2" />
+  </ItemGroup>
+
+</Project>

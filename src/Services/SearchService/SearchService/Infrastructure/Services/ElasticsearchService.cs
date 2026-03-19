@@ -17,6 +17,12 @@ using EsIndexSettings = Elastic.Clients.Elasticsearch.IndexManagement.IndexSetti
 
 namespace SearchService.Infrastructure.Services;
 
+internal static class ElasticsearchAnalyzerNames
+{
+    public const string Text = "standard";
+    public const string Suggest = "standard";
+}
+
 /// <summary>
 /// Elasticsearch服务实现
 /// </summary>
@@ -126,7 +132,7 @@ public class ElasticsearchService : IElasticsearchService
                     { "countryId", new KeywordProperty() },
                     { "provinceId", new KeywordProperty() },
                     { "region", CreateTextWithKeyword() },
-                    { "description", new TextProperty { Analyzer = "search_text" } },
+                    { "description", new TextProperty { Analyzer = ElasticsearchAnalyzerNames.Text } },
                     { "latitude", new DoubleNumberProperty() },
                     { "longitude", new DoubleNumberProperty() },
                     { "location", new GeoPointProperty() },
@@ -154,7 +160,7 @@ public class ElasticsearchService : IElasticsearchService
                     { "coworkingCount", new IntegerNumberProperty() },
                     { "meetupCount", new IntegerNumberProperty() },
                     { "reviewCount", new IntegerNumberProperty() },
-                    { "suggest", new CompletionProperty { Analyzer = "edge_ngram", SearchAnalyzer = "search_text" } },
+                    { "suggest", new CompletionProperty { Analyzer = ElasticsearchAnalyzerNames.Suggest, SearchAnalyzer = ElasticsearchAnalyzerNames.Text } },
                     { "documentType", new KeywordProperty() }
                 }
             }
@@ -178,7 +184,7 @@ public class ElasticsearchService : IElasticsearchService
                     { "cityName", CreateTextWithKeyword() },
                     { "countryName", CreateTextWithKeyword() },
                     { "address", CreateTextWithKeyword() },
-                    { "description", new TextProperty { Analyzer = "search_text" } },
+                    { "description", new TextProperty { Analyzer = ElasticsearchAnalyzerNames.Text } },
                     { "imageUrl", new KeywordProperty { IgnoreAbove = 512 } },
                     { "pricePerDay", new DoubleNumberProperty() },
                     { "pricePerMonth", new DoubleNumberProperty() },
@@ -201,12 +207,12 @@ public class ElasticsearchService : IElasticsearchService
                     { "phone", new KeywordProperty { IgnoreAbove = 128 } },
                     { "email", new KeywordProperty { IgnoreAbove = 256 } },
                     { "website", new KeywordProperty { IgnoreAbove = 256 } },
-                    { "openingHours", new TextProperty { Analyzer = "search_text" } },
+                    { "openingHours", new TextProperty { Analyzer = ElasticsearchAnalyzerNames.Text } },
                     { "isActive", new BooleanProperty() },
                     { "verificationStatus", new KeywordProperty() },
                     { "createdAt", new DateProperty() },
                     { "updatedAt", new DateProperty() },
-                    { "suggest", new CompletionProperty { Analyzer = "edge_ngram", SearchAnalyzer = "search_text" } },
+                    { "suggest", new CompletionProperty { Analyzer = ElasticsearchAnalyzerNames.Suggest, SearchAnalyzer = ElasticsearchAnalyzerNames.Text } },
                     { "documentType", new KeywordProperty() }
                 }
             }
@@ -228,7 +234,7 @@ public class ElasticsearchService : IElasticsearchService
     {
         return new TextProperty
         {
-            Analyzer = "search_text",
+            Analyzer = ElasticsearchAnalyzerNames.Text,
             Fields = new Properties
             {
                 { "keyword", new KeywordProperty { IgnoreAbove = 256 } }

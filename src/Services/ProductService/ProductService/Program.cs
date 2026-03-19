@@ -5,6 +5,8 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);
+
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
@@ -42,8 +44,5 @@ app.MapControllers();
 // Add health check endpoint
 app.MapGet("/health",
     () => Results.Ok(new { status = "healthy", service = "ProductService", timestamp = DateTime.UtcNow }));
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 app.Run();

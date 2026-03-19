@@ -10,6 +10,8 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
+Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);
+
 // 配置 Serilog
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
@@ -61,8 +63,8 @@ builder.Services.AddMassTransit(x =>
         var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
         cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
         {
-            h.Username(rabbitMqConfig["Username"] ?? "guest");
-            h.Password(rabbitMqConfig["Password"] ?? "guest");
+            h.Username(rabbitMqConfig["Username"] ?? "walden");
+            h.Password(rabbitMqConfig["Password"] ?? "walden");
         });
 
         // 配置接收端点用于消费事件
@@ -125,9 +127,6 @@ app.MapControllers();
 app.MapHealthChecks("/health");
 
 Log.Information("CoworkingService 正在启动...");
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 try
 {

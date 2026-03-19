@@ -1,22 +1,15 @@
 using System.Text;
-using Consul;
 using Gateway.Middleware;
 using Gateway.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
-using GoNomads.Shared.Extensions;
 using Yarp.ReverseProxy.Configuration;
 using RouteConfig = Yarp.ReverseProxy.Configuration.RouteConfig;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add Consul client
-builder.Services.AddSingleton<IConsulClient>(sp =>
-{
-    var consulAddress = builder.Configuration["Consul:Address"] ?? "http://go-nomads-consul:7500";
-    return new ConsulClient(config => config.Address = new Uri(consulAddress));
-});
+Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);
 
 // Configure JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"];
@@ -80,8 +73,8 @@ builder.Services.AddAuthorization();
 // Configure Rate Limiting
 builder.Services.AddRateLimiter(RateLimitConfig.ConfigureRateLimiter);
 
-// Add YARP with Consul-based service discovery
-builder.Services.AddSingleton<IProxyConfigProvider, ConsulProxyConfigProvider>();
+// Add YARP with ServiceUrls-based routing configuration
+builder.Services.AddSingleton<IProxyConfigProvider, ServiceUrlProxyConfigProvider>();
 builder.Services.AddSingleton<JwtAuthenticationTransform>();
 builder.Services.AddReverseProxy()
     .LoadFromMemory(Array.Empty<RouteConfig>(), Array.Empty<ClusterConfig>())
@@ -138,8 +131,5 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
 
 // Map the reverse proxy routes (this should be LAST as it's a catch-all)
 app.MapReverseProxy();
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 app.Run();

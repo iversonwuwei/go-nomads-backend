@@ -2,18 +2,23 @@
 
 # ============================================================
 # Go-Nomads Services Deployment Script (Local Build + Container)
-# Usage: bash deploy-services-local.sh [--skip-build] [--help]
+# Usage: bash deploy-services-local.sh [--skip-build] [--use-mirror] [--help]
 # ============================================================
 
 set -e
 
 # 参数解析
 SKIP_BUILD=false
+USE_MIRROR=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --skip-build)
             SKIP_BUILD=true
+            shift
+            ;;
+        --use-mirror)
+            USE_MIRROR=true
             shift
             ;;
         --help|-h)
@@ -22,6 +27,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --skip-build    Skip the build step and use existing published binaries"
+            echo "  --use-mirror    Force domestic mirror for container base images"
             echo "  --help, -h      Show this help message"
             echo ""
             exit 0
@@ -44,6 +50,14 @@ NC='\033[0m' # No Color
 # 脚本目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+RABBITMQ_USERNAME="${RABBITMQ_USERNAME:-walden}"
+RABBITMQ_PASSWORD="${RABBITMQ_PASSWORD:-walden}"
+MCR_MIRROR_PREFIX="${MCR_MIRROR_PREFIX:-m.daocloud.io}"
+ASPNET_RUNTIME_IMAGE="${ASPNET_RUNTIME_IMAGE:-mcr.microsoft.com/dotnet/aspnet:9.0}"
+
+if [[ "$USE_MIRROR" == true ]]; then
+    ASPNET_RUNTIME_IMAGE="${MCR_MIRROR_PREFIX}/mcr.microsoft.com/dotnet/aspnet:9.0"
+fi
 
 # 容器运行时检测
 CONTAINER_RUNTIME=""
@@ -201,8 +215,40 @@ deploy_service_local() {
         extra_env+=(
             "-e" "ConnectionStrings__Elasticsearch=http://go-nomads-elasticsearch:9200"
             "-e" "RabbitMQ__Host=go-nomads-rabbitmq"
-            "-e" "RabbitMQ__Username=walden"
-            "-e" "RabbitMQ__Password=walden"
+            "-e" "RabbitMQ__Username=${RABBITMQ_USERNAME}"
+            "-e" "RabbitMQ__Password=${RABBITMQ_PASSWORD}"
+        )
+    fi
+
+    if [[ "$service_name" == "coworking-service" ]]; then
+        extra_env+=(
+            "-e" "RabbitMQ__Host=go-nomads-rabbitmq"
+            "-e" "RabbitMQ__Username=${RABBITMQ_USERNAME}"
+            "-e" "RabbitMQ__Password=${RABBITMQ_PASSWORD}"
+        )
+    fi
+
+    if [[ "$service_name" == "user-service" ]]; then
+        extra_env+=(
+            "-e" "RabbitMQ__Host=go-nomads-rabbitmq"
+            "-e" "RabbitMQ__Username=${RABBITMQ_USERNAME}"
+            "-e" "RabbitMQ__Password=${RABBITMQ_PASSWORD}"
+        )
+    fi
+
+    if [[ "$service_name" == "event-service" ]]; then
+        extra_env+=(
+            "-e" "RabbitMQ__Host=go-nomads-rabbitmq"
+            "-e" "RabbitMQ__Username=${RABBITMQ_USERNAME}"
+            "-e" "RabbitMQ__Password=${RABBITMQ_PASSWORD}"
+        )
+    fi
+
+    if [[ "$service_name" == "ai-service" ]]; then
+        extra_env+=(
+            "-e" "RabbitMQ__HostName=go-nomads-rabbitmq"
+            "-e" "RabbitMQ__UserName=${RABBITMQ_USERNAME}"
+            "-e" "RabbitMQ__Password=${RABBITMQ_PASSWORD}"
         )
     fi
     
@@ -211,8 +257,16 @@ deploy_service_local() {
         extra_env+=(
             "-e" "RabbitMQ__HostName=go-nomads-rabbitmq"
             "-e" "RabbitMQ__Port=5672"
-            "-e" "RabbitMQ__UserName=walden"
-            "-e" "RabbitMQ__Password=walden"
+            "-e" "RabbitMQ__UserName=${RABBITMQ_USERNAME}"
+            "-e" "RabbitMQ__Password=${RABBITMQ_PASSWORD}"
+        )
+    fi
+
+    if [[ "$service_name" == "innovation-service" ]]; then
+        extra_env+=(
+            "-e" "RabbitMQ__Host=go-nomads-rabbitmq"
+            "-e" "RabbitMQ__Username=${RABBITMQ_USERNAME}"
+            "-e" "RabbitMQ__Password=${RABBITMQ_PASSWORD}"
         )
     fi
 
@@ -223,8 +277,8 @@ deploy_service_local() {
             "-e" "ServiceUrls__CityService=http://go-nomads-city-service:8080"
             "-e" "ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080"
             "-e" "RabbitMQ__Host=go-nomads-rabbitmq"
-            "-e" "RabbitMQ__Username=walden"
-            "-e" "RabbitMQ__Password=walden"
+            "-e" "RabbitMQ__Username=${RABBITMQ_USERNAME}"
+            "-e" "RabbitMQ__Password=${RABBITMQ_PASSWORD}"
         )
     fi
 
@@ -235,6 +289,19 @@ deploy_service_local() {
     # 其他服务使用 Development 环境
     local env_config=()
     if [[ "$service_name" == "gateway" ]]; then
+        extra_env+=(
+            "-e" "ServiceUrls__UserService=http://go-nomads-user-service:8080"
+            "-e" "ServiceUrls__CityService=http://go-nomads-city-service:8080"
+            "-e" "ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080"
+            "-e" "ServiceUrls__EventService=http://go-nomads-event-service:8080"
+            "-e" "ServiceUrls__AIService=http://go-nomads-ai-service:8080"
+            "-e" "ServiceUrls__CacheService=http://go-nomads-cache-service:8080"
+            "-e" "ServiceUrls__MessageService=http://go-nomads-message-service:8080"
+            "-e" "ServiceUrls__InnovationService=http://go-nomads-innovation-service:8080"
+            "-e" "ServiceUrls__SearchService=http://go-nomads-search-service:8080"
+            "-e" "ServiceUrls__AccommodationService=http://go-nomads-accommodation-service:8080"
+            "-e" "ServiceUrls__ProductService=http://go-nomads-product-service:8080"
+        )
         # Gateway 使用生产配置
         env_config+=("-e" "ASPNETCORE_ENVIRONMENT=Production")
     else
@@ -257,7 +324,7 @@ deploy_service_local() {
             "${extra_env[@]}" \
             -v "${publish_dir}:/app:ro" \
             -w /app \
-            mcr.microsoft.com/dotnet/aspnet:9.0 \
+            "$ASPNET_RUNTIME_IMAGE" \
             dotnet "$dll_name" > /dev/null
     else
         $CONTAINER_RUNTIME run -d \
@@ -274,7 +341,7 @@ deploy_service_local() {
             "${extra_env[@]}" \
             -v "${publish_dir}:/app:ro" \
             -w /app \
-            mcr.microsoft.com/dotnet/aspnet:9.0 \
+            "$ASPNET_RUNTIME_IMAGE" \
             dotnet "$dll_name" > /dev/null
     fi
     
@@ -332,6 +399,7 @@ main() {
     
     echo -e "${BLUE}使用容器运行时: $(basename "$CONTAINER_RUNTIME")${NC}"
     echo -e "${BLUE}根目录: $ROOT_DIR${NC}"
+    echo -e "${BLUE}运行时镜像: $ASPNET_RUNTIME_IMAGE${NC}"
     if [ "$SKIP_BUILD" = true ]; then
         echo -e "${YELLOW}构建模式: 跳过构建${NC}"
     else
@@ -498,7 +566,7 @@ main() {
     echo -e "  ${GREEN}Message Swagger:     http://localhost:5005/swagger${NC}"
     echo ""
     echo -e "${BLUE}基础设施:${NC}"
-    echo -e "  ${GREEN}RabbitMQ UI:      http://localhost:15672 (guest/guest)${NC}"
+    echo -e "  ${GREEN}RabbitMQ UI:      http://localhost:15672 (${RABBITMQ_USERNAME}/${RABBITMQ_PASSWORD})${NC}"
     echo ""
     echo -e "${BLUE}常用命令:${NC}"
     echo -e "  查看运行中的容器:  ${YELLOW}$CONTAINER_RUNTIME ps${NC}"

@@ -9,10 +9,8 @@ name: go-nomads-infras
 #   - 本地开发默认使用官方多架构镜像，避免 macOS ARM 上因 SWR 中缺少 arm64 manifest 导致拉取失败
 #   - Linux 服务器可通过包装脚本自动切换到 SWR，或显式传入 --use-swr
 #
-# 包装脚本默认启动 redis/rabbitmq/elasticsearch:
+# 包装脚本默认启动 redis/rabbitmq/elasticsearch/nginx:
 #   ./docker-compose-infras-swr.sh up -d
-# 如需显式带上 consul:
-#   ./docker-compose-infras-swr.sh --with-consul
 # 如需显式强制使用 SWR:
 #   ./docker-compose-infras-swr.sh --use-swr up -d
 #
@@ -20,13 +18,13 @@ name: go-nomads-infras
 #   REDIS_IMAGE=...
 #   RABBITMQ_IMAGE=...
 #   ELASTICSEARCH_IMAGE=...
-#   CONSUL_IMAGE=...
+#   NGINX_IMAGE=...
 # ============================================================
 
 services:
   # Infrastructure Services
   redis:
-    image: ${REDIS_IMAGE:-redis:7-alpine}
+    image: ${REDIS_IMAGE:-redis:7.4}
     container_name: go-nomads-redis
     ports:
       - "6379:6379"
@@ -43,8 +41,8 @@ services:
       - "5672:5672"    # AMQP protocol port
       - "15672:15672"  # Management UI
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_DEFAULT_USER=walden
+      - RABBITMQ_DEFAULT_PASS=walden
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
@@ -56,7 +54,7 @@ services:
       retries: 5
 
   elasticsearch:
-    image: ${ELASTICSEARCH_IMAGE:-docker.elastic.co/elasticsearch/elasticsearch:8.11.0}
+    image: ${ELASTICSEARCH_IMAGE:-docker.elastic.co/elasticsearch/elasticsearch:8.17.4}
     container_name: go-nomads-elasticsearch
     environment:
       - discovery.type=single-node
@@ -70,30 +68,21 @@ services:
     networks:
       - gonomads-network
 
-  consul:
-    image: ${CONSUL_IMAGE:-hashicorp/consul:latest}
-    container_name: go-nomads-consul
+  nginx:
+    image: ${NGINX_IMAGE:-nginx:1.29.6}
+    container_name: go-nomads-nginx
     ports:
-      - "7500:7500"
-      - "7502:7502"
-      - "7600:7600/udp"
-    volumes:
-      - ./deployment/consul/consul-local.json:/consul/config/consul.json
-      - consul_data:/consul/data
-    environment:
-      - CONSUL_DATA_DIR=/consul/data
-    # Bind to all interfaces so the single server can bootstrap and be reachable
-    command: ["consul", "agent", "-config-file=/consul/config/consul.json", "-data-dir=/consul/data", "-bind=0.0.0.0", "-client=0.0.0.0"]
+      - "80:80"
+      - "443:443"
     networks:
       - gonomads-network
 
 networks:
   gonomads-network:
+    external: true
     name: go-nomads-network
-    driver: bridge
 
 volumes:
   redis_data:
   rabbitmq_data:
   elasticsearch_data:
-  consul_data:

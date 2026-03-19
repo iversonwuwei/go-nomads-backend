@@ -13,6 +13,8 @@ const string serviceName = "SearchService";
 
 var builder = WebApplication.CreateBuilder(args);
 
+Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);
+
 // 配置 Serilog
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
@@ -96,9 +98,6 @@ app.MapControllers();
 app.MapHealthChecks("/health");
 
 Log.Information("SearchService 正在启动...");
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 // 启动时初始化索引
 using (var scope = app.Services.CreateScope())

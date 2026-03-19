@@ -25,7 +25,7 @@
 - **主语言**: C# (.NET 8+) - 已有 UserService, ProductService, DocumentService
 - **辅助语言**: Node.js (实时服务), Go (高性能服务), Python (AI 服务)
 - **统一框架**: ASP.NET Core Web API
-- **服务通信**: HTTP/gRPC + RabbitMQ + Consul
+- **服务通信**: HTTP/gRPC + RabbitMQ + Aspire Service Discovery
 - **数据存储**: PostgreSQL + Supabase
 
 ---
@@ -107,8 +107,8 @@
 | 服务名称 | 端口 | 技术栈 | 状态 | 说明 |
 |---------|------|--------|------|------|
 | API Gateway | 5000 | C# + Ocelot/YARP | ✅ 已实现 | 路由、认证、限流 |
-| Config Service | 8888 | Consul/Nacos | 🔵 待部署 | 配置中心 |
-| Registry Service | 8500 | Consul | ✅ 已部署 | 服务注册发现 |
+| Config Service | 8888 | Azure App Configuration / Nacos | 🔵 待部署 | 配置中心 |
+| Registry / Discovery | - | Aspire Service Discovery | ✅ 已采用 | 服务发现 |
 
 ---
 
@@ -283,7 +283,7 @@ docker-compose up
 - ...
 - postgres: localhost:5432
 - redis: localhost:6379
-- consul: http://localhost:8500
+- service discovery: Aspire AppHost managed
 ```
 
 ### 生产环境

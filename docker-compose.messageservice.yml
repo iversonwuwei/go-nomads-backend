@@ -26,8 +26,8 @@ services:
       - "5672:5672"    # AMQP 协议端口
       - "15672:15672"  # 管理界面
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_DEFAULT_USER=walden
+      - RABBITMQ_DEFAULT_PASS=walden
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
@@ -54,8 +54,8 @@ services:
       - ASPNETCORE_URLS=http://+:5005
       - ConnectionStrings__Redis=redis:6379
       - RabbitMQ__Host=rabbitmq
-      - RabbitMQ__Username=guest
-      - RabbitMQ__Password=guest
+      - RabbitMQ__Username=walden
+      - RabbitMQ__Password=walden
     networks:
       - gonomads-network
     healthcheck:

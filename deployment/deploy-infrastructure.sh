@@ -9,6 +9,29 @@ set -e
 NETWORK_NAME="go-nomads-network"
 REDIS_CONFIG_COUNT=21
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SWR_REGISTRY="${SWR_LOGIN_SERVER:-${SWR_REGISTRY:-swr.ap-southeast-3.myhuaweicloud.com}}"
+SWR_ORGANIZATION="${SWR_ORGANIZATION:-go-nomads}"
+USE_SWR=""
+USE_MIRROR=""
+MIRROR_PREFIX="${MIRROR_PREFIX:-docker.1ms.run}"
+REDIS_IMAGE="${REDIS_IMAGE:-redis:7.4}"
+RABBITMQ_IMAGE="${RABBITMQ_IMAGE:-rabbitmq:3-management-alpine}"
+ELASTICSEARCH_IMAGE="${ELASTICSEARCH_IMAGE:-docker.elastic.co/elasticsearch/elasticsearch:8.17.4}"
+NGINX_IMAGE="${NGINX_IMAGE:-nginx:1.29.6}"
+
+set_swr_images() {
+    REDIS_IMAGE="${SWR_REGISTRY}/${SWR_ORGANIZATION}/redis:7.4"
+    RABBITMQ_IMAGE="${SWR_REGISTRY}/${SWR_ORGANIZATION}/rabbitmq:3-management-alpine"
+    ELASTICSEARCH_IMAGE="${SWR_REGISTRY}/${SWR_ORGANIZATION}/elasticsearch:8.17.4"
+    NGINX_IMAGE="${SWR_REGISTRY}/${SWR_ORGANIZATION}/nginx:1.29.6"
+}
+
+set_mirror_images() {
+    REDIS_IMAGE="${MIRROR_PREFIX}/library/redis:7.4"
+    RABBITMQ_IMAGE="${MIRROR_PREFIX}/library/rabbitmq:3-management-alpine"
+    ELASTICSEARCH_IMAGE="${SWR_REGISTRY}/${SWR_ORGANIZATION}/elasticsearch:8.17.4"
+    NGINX_IMAGE="${MIRROR_PREFIX}/library/nginx:1.29.6"
+}
 
 # Colors
 RED='\033[0;31m'
@@ -30,6 +53,39 @@ else
 fi
 
 echo -e "${CYAN}Using container runtime: $CONTAINER_RUNTIME${NC}"
+
+if [[ "$(uname -s)" == "Linux" ]]; then
+    USE_SWR="1"
+fi
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --use-swr)
+            USE_SWR="1"
+            USE_MIRROR=""
+            shift
+            ;;
+        --use-mirror)
+            USE_MIRROR="1"
+            USE_SWR=""
+            shift
+            ;;
+        --use-official)
+            USE_SWR=""
+            USE_MIRROR=""
+            shift
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+if [[ -n "$USE_SWR" ]]; then
+    set_swr_images
+elif [[ -n "$USE_MIRROR" ]]; then
+    set_mirror_images
+fi
 
 # Helper Functions
 show_header() {
@@ -96,7 +152,7 @@ deploy_redis() {
         --name go-nomads-redis \
         --network "$NETWORK_NAME" \
         -p 6379:6379 \
-        redis:latest > /dev/null
+        "$REDIS_IMAGE" > /dev/null
     
     if container_running "go-nomads-redis"; then
         echo -e "${GREEN}  Redis deployed successfully!${NC}"
@@ -156,9 +212,9 @@ deploy_rabbitmq() {
         --network "$NETWORK_NAME" \
         -p 5672:5672 \
         -p 15672:15672 \
-        -e RABBITMQ_DEFAULT_USER=guest \
-        -e RABBITMQ_DEFAULT_PASS=guest \
-        rabbitmq:3-management-alpine > /dev/null
+        -e RABBITMQ_DEFAULT_USER=walden \
+        -e RABBITMQ_DEFAULT_PASS=walden \
+        "$RABBITMQ_IMAGE" > /dev/null
     
     if container_running "go-nomads-rabbitmq"; then
         echo -e "${GREEN}  RabbitMQ deployed successfully!${NC}"
@@ -209,7 +265,7 @@ deploy_elasticsearch() {
         -e "discovery.type=single-node" \
         -e "xpack.security.enabled=false" \
         -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" \
-        elasticsearch:8.11.0 > /dev/null
+        "$ELASTICSEARCH_IMAGE" > /dev/null
     
     if container_running "go-nomads-elasticsearch"; then
         echo -e "${GREEN}  Elasticsearch deployed successfully!${NC}"
@@ -232,7 +288,7 @@ deploy_nginx() {
         --network "$NETWORK_NAME" \
         -p 80:80 \
         -p 443:443 \
-        nginx:latest > /dev/null
+        "$NGINX_IMAGE" > /dev/null
     
     if container_running "go-nomads-nginx"; then
         echo -e "${GREEN}  Nginx deployed successfully!${NC}"
@@ -260,7 +316,7 @@ show_status() {
     
     echo -e "${YELLOW}Access URLs:${NC}"
     echo -e "${CYAN}  - Nginx:          http://localhost${NC}"
-    echo -e "${CYAN}  - RabbitMQ UI:    http://localhost:15672 (guest/guest)${NC}"
+    echo -e "${CYAN}  - RabbitMQ UI:    http://localhost:15672 (walden/walden)${NC}"
     echo -e "${CYAN}  - PostgreSQL:     localhost:5432 (postgres/postgres)${NC}"
     echo -e "${CYAN}  - Elasticsearch:  http://localhost:9200${NC}"
     echo ""

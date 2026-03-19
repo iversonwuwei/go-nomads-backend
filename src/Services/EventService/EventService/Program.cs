@@ -14,6 +14,8 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);
+
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
@@ -63,8 +65,8 @@ builder.Services.AddMassTransit(x =>
         var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ");
         cfg.Host(rabbitMqConfig["Host"] ?? "localhost", "/", h =>
         {
-            h.Username(rabbitMqConfig["Username"] ?? "guest");
-            h.Password(rabbitMqConfig["Password"] ?? "guest");
+            h.Username(rabbitMqConfig["Username"] ?? "walden");
+            h.Password(rabbitMqConfig["Password"] ?? "walden");
         });
 
         // 配置接收端点用于消费事件
@@ -167,8 +169,5 @@ app.MapGet("/health",
     () => Results.Ok(new { status = "healthy", service = "EventService", timestamp = DateTime.UtcNow }));
 
 Log.Information("Event Service starting on port 8005...");
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 app.Run();

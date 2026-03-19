@@ -95,7 +95,6 @@ helm_install() {
     print_info "  - Redis"
     print_info "  - RabbitMQ"
     print_info "  - Elasticsearch (可选)"
-    print_info "  - Consul (可选)"
     print_info "  - Zipkin (可选)"
     print_info "  - Prometheus (可选)"
     print_info "  - Grafana (可选)"

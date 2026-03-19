@@ -6,12 +6,36 @@
 param(
     [Parameter(Position=0)]
     [ValidateSet('start', 'stop', 'restart', 'status', 'clean', 'help')]
-    [string]$Action = 'start'
+    [string]$Action = 'start',
+    [switch]$UseSwr,
+    [switch]$UseMirror,
+    [switch]$UseOfficial
 )
 
 # Configuration
 $NETWORK_NAME = "go-nomads-network"
 $REDIS_CONFIG_COUNT = 21
+$SWR_REGISTRY = if ($env:SWR_LOGIN_SERVER) { $env:SWR_LOGIN_SERVER } elseif ($env:SWR_REGISTRY) { $env:SWR_REGISTRY } else { "swr.ap-southeast-3.myhuaweicloud.com" }
+$SWR_ORGANIZATION = if ($env:SWR_ORGANIZATION) { $env:SWR_ORGANIZATION } else { "go-nomads" }
+$MIRROR_PREFIX = if ($env:MIRROR_PREFIX) { $env:MIRROR_PREFIX } else { "docker.1ms.run" }
+$REDIS_IMAGE = if ($env:REDIS_IMAGE) { $env:REDIS_IMAGE } else { "redis:7.4" }
+$RABBITMQ_IMAGE = if ($env:RABBITMQ_IMAGE) { $env:RABBITMQ_IMAGE } else { "rabbitmq:3-management-alpine" }
+$ELASTICSEARCH_IMAGE = if ($env:ELASTICSEARCH_IMAGE) { $env:ELASTICSEARCH_IMAGE } else { "docker.elastic.co/elasticsearch/elasticsearch:8.17.4" }
+$NGINX_IMAGE = if ($env:NGINX_IMAGE) { $env:NGINX_IMAGE } else { "nginx:1.29.6" }
+
+function Set-SwrImages {
+    $script:REDIS_IMAGE = "$SWR_REGISTRY/$SWR_ORGANIZATION/redis:7.4"
+    $script:RABBITMQ_IMAGE = "$SWR_REGISTRY/$SWR_ORGANIZATION/rabbitmq:3-management-alpine"
+    $script:ELASTICSEARCH_IMAGE = "$SWR_REGISTRY/$SWR_ORGANIZATION/elasticsearch:8.17.4"
+    $script:NGINX_IMAGE = "$SWR_REGISTRY/$SWR_ORGANIZATION/nginx:1.29.6"
+}
+
+function Set-MirrorImages {
+    $script:REDIS_IMAGE = "$MIRROR_PREFIX/library/redis:7.4"
+    $script:RABBITMQ_IMAGE = "$MIRROR_PREFIX/library/rabbitmq:3-management-alpine"
+    $script:ELASTICSEARCH_IMAGE = "$SWR_REGISTRY/$SWR_ORGANIZATION/elasticsearch:8.17.4"
+    $script:NGINX_IMAGE = "$MIRROR_PREFIX/library/nginx:1.29.6"
+}
 
 # Detect container runtime
 $CONTAINER_RUNTIME = ""
@@ -25,6 +49,12 @@ if (Get-Command podman -ErrorAction SilentlyContinue) {
 }
 
 Write-Host "Using container runtime: $CONTAINER_RUNTIME" -ForegroundColor Cyan
+
+if ($UseSwr -and -not $UseOfficial) {
+    Set-SwrImages
+} elseif ($UseMirror -and -not $UseOfficial) {
+    Set-MirrorImages
+}
 
 # Helper Functions
 function Show-Header {
@@ -97,7 +127,7 @@ function Deploy-Redis {
         --name go-nomads-redis `
         --network $NETWORK_NAME `
         -p 6379:6379 `
-        redis:latest | Out-Null
+        $REDIS_IMAGE | Out-Null
     
     if (Test-ContainerRunning "go-nomads-redis") {
         Write-Host "  Redis deployed successfully!" -ForegroundColor Green
@@ -154,9 +184,9 @@ function Deploy-RabbitMQ {
         --network $NETWORK_NAME `
         -p 5672:5672 `
         -p 15672:15672 `
-        -e RABBITMQ_DEFAULT_USER=guest `
-        -e RABBITMQ_DEFAULT_PASS=guest `
-        rabbitmq:3-management-alpine | Out-Null
+        -e RABBITMQ_DEFAULT_USER=walden `
+        -e RABBITMQ_DEFAULT_PASS=walden `
+        $RABBITMQ_IMAGE | Out-Null
     
     if (Test-ContainerRunning "go-nomads-rabbitmq") {
         Write-Host "  RabbitMQ deployed successfully!" -ForegroundColor Green
@@ -207,7 +237,7 @@ function Deploy-Elasticsearch {
         -e "discovery.type=single-node" `
         -e "xpack.security.enabled=false" `
         -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" `
-        elasticsearch:8.11.0 | Out-Null
+        $ELASTICSEARCH_IMAGE | Out-Null
     
     if (Test-ContainerRunning "go-nomads-elasticsearch") {
         Write-Host "  Elasticsearch deployed successfully!" -ForegroundColor Green
@@ -230,7 +260,7 @@ function Deploy-Nginx {
         --network $NETWORK_NAME `
         -p 80:80 `
         -p 443:443 `
-        nginx:latest | Out-Null
+        $NGINX_IMAGE | Out-Null
     
     if (Test-ContainerRunning "go-nomads-nginx") {
         Write-Host "  Nginx deployed successfully!" -ForegroundColor Green
@@ -258,7 +288,7 @@ function Show-Status {
     
     Write-Host "Access URLs:" -ForegroundColor Yellow
     Write-Host "  - Nginx:        http://localhost" -ForegroundColor Cyan
-    Write-Host "  - RabbitMQ UI:  http://localhost:15672 (guest/guest)" -ForegroundColor Cyan
+    Write-Host "  - RabbitMQ UI:  http://localhost:15672 (walden/walden)" -ForegroundColor Cyan
     Write-Host "  - PostgreSQL:   localhost:5432 (postgres/postgres)" -ForegroundColor Cyan
     Write-Host "  - Elasticsearch: http://localhost:9200" -ForegroundColor Cyan
     Write-Host ""

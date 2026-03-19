@@ -14,6 +14,8 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);
+
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
@@ -121,8 +123,8 @@ builder.Services.AddMassTransit(x =>
     {
         cfg.Host(rabbitMqConfig["HostName"] ?? "localhost", "/", h =>
         {
-            h.Username(rabbitMqConfig["UserName"] ?? "guest");
-            h.Password(rabbitMqConfig["Password"] ?? "guest");
+            h.Username(rabbitMqConfig["UserName"] ?? "walden");
+            h.Password(rabbitMqConfig["Password"] ?? "walden");
         });
 
         cfg.ConfigureEndpoints(context);
@@ -191,9 +193,6 @@ builder.Services.AddOpenApi(options =>
 });
 
 var app = builder.Build();
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 // Configure the HTTP request pipeline
 app.MapOpenApi();

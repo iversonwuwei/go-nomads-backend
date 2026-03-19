@@ -47,23 +47,6 @@ services:
     networks:
       - go-nomads-network
 
-  consul:
-    image: hashicorp/consul:latest
-    container_name: go-nomads-consul
-    ports:
-      - "7500:7500"
-      - "7502:7502"
-      - "7600:7600/udp"
-    volumes:
-      - ./deployment/consul/consul-local.json:/consul/config/consul.json
-      - consul_data:/consul/data
-    environment:
-      - CONSUL_DATA_DIR=/consul/data
-    # Bind to all interfaces so the single server can bootstrap and be reachable
-    command: ["consul", "agent", "-config-file=/consul/config/consul.json", "-data-dir=/consul/data", "-bind=0.0.0.0", "-client=0.0.0.0"]
-    networks:
-      - go-nomads-network
-
   nginx:
     image: nginx:alpine
     container_name: go-nomads-nginx
@@ -85,4 +68,3 @@ volumes:
   redis_data:
   rabbitmq_data:
   elasticsearch_data:
-  consul_data:

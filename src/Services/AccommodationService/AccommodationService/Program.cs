@@ -9,6 +9,8 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
+Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);
+
 // 配置 Serilog
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
@@ -86,8 +88,5 @@ app.MapControllers();
 
 // 健康检查端点
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "accommodation-service", timestamp = DateTime.UtcNow }));
-
-// 自动注册到 Consul
-await app.RegisterWithConsulAsync();
 
 app.Run();

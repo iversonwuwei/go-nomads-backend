@@ -79,9 +79,9 @@ spec:
               name: management
           env:
             - name: RABBITMQ_DEFAULT_USER
-              value: "guest"
+              value: "walden"
             - name: RABBITMQ_DEFAULT_PASS
-              value: "guest"
+              value: "walden"
           resources:
             limits:
               cpu: 200m

@@ -1,6 +1,5 @@
 # 本地开发环境 - 业务服务部署配置
 # 使用本地构建的 Docker 镜像
-# 支持动态 Consul 服务发现（使用 Pod IP 进行健康检查）
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -40,12 +39,6 @@ spec:
               value: "http://+:8080"
             - name: ConnectionStrings__Redis
               value: "redis-service:6379,abortConnect=false"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "gateway"
-            - name: Consul__ServicePort
-              value: "8080"
           resources:
             requests:
               memory: "128Mi"
@@ -106,12 +99,6 @@ spec:
               value: "http://+:8080"
             - name: ConnectionStrings__Redis
               value: "redis-service:6379,abortConnect=false"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "user-service"
-            - name: Consul__ServicePort
-              value: "8080"
             - name: Kestrel__Endpoints__Grpc__Url
               value: "http://0.0.0.0:50003"
           resources:
@@ -178,15 +165,9 @@ spec:
             - name: RabbitMQ__Host
               value: "rabbitmq-service"
             - name: RabbitMQ__Username
-              value: "guest"
+              value: "walden"
             - name: RabbitMQ__Password
-              value: "guest"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "city-service"
-            - name: Consul__ServicePort
-              value: "8002"
+              value: "walden"
           resources:
             requests:
               memory: "128Mi"
@@ -246,12 +227,6 @@ spec:
               value: "http://+:8003"
             - name: ConnectionStrings__Redis
               value: "redis-service:6379,abortConnect=false"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "coworking-service"
-            - name: Consul__ServicePort
-              value: "8003"
           resources:
             requests:
               memory: "128Mi"
@@ -313,12 +288,6 @@ spec:
               value: "redis-service:6379,abortConnect=false"
             - name: MessageBroker__Host
               value: "rabbitmq-service"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "event-service"
-            - name: Consul__ServicePort
-              value: "8005"
           resources:
             requests:
               memory: "128Mi"
@@ -380,12 +349,6 @@ spec:
               value: "redis-service:6379,abortConnect=false"
             - name: Redis__ConnectionString
               value: "redis-service:6379,abortConnect=false"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "ai-service"
-            - name: Consul__ServicePort
-              value: "8080"
             - name: RabbitMQ__HostName
               value: "rabbitmq-service"
           resources:
@@ -447,12 +410,6 @@ spec:
               value: "http://+:8011"
             - name: ConnectionStrings__Redis
               value: "redis-service:6379,abortConnect=false"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "cache-service"
-            - name: Consul__ServicePort
-              value: "8011"
           resources:
             requests:
               memory: "64Mi"
@@ -516,15 +473,9 @@ spec:
             - name: RabbitMQ__Host
               value: "rabbitmq-service"
             - name: RabbitMQ__Username
-              value: "guest"
+              value: "walden"
             - name: RabbitMQ__Password
-              value: "guest"
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceName
-              value: "message-service"
-            - name: Consul__ServicePort
-              value: "8010"
+              value: "walden"
           resources:
             requests:
               memory: "128Mi"

@@ -70,7 +70,7 @@ Go Nomads 是一个基于 **ASP.NET Core 8.0** 的微服务架构系统,采用 *
 
 ### 📅 计划中
 - 基础服务 (定位、通知、文件、搜索、支付、国际化)
-- 服务注册与发现 (Consul/Nacos)
+- 服务发现与路由治理 (Aspire Service Discovery)
 - 熔断降级 (Polly)
 - Kubernetes 部署
 - CI/CD 流水线
@@ -146,7 +146,6 @@ docker-compose logs -f
 - Ecommerce Service: <http://localhost:8008/swagger>
 
 **基础设施**:
-- Consul UI: <http://localhost:7500>
 - RabbitMQ 管理: <http://localhost:15672> (admin/admin)
 - Grafana 监控: <http://localhost:3000> (admin/admin)
 - Prometheus: <http://localhost:9090>

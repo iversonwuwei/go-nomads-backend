@@ -7,6 +7,35 @@ set -euo pipefail
 NETWORK_NAME="go-nomads-network"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNTIME="docker"
+SWR_REGISTRY="${SWR_LOGIN_SERVER:-${SWR_REGISTRY:-swr.ap-southeast-3.myhuaweicloud.com}}"
+SWR_ORGANIZATION="${SWR_ORGANIZATION:-go-nomads}"
+USE_SWR=""
+USE_MIRROR=""
+MIRROR_PREFIX="${MIRROR_PREFIX:-docker.1ms.run}"
+REDIS_IMAGE="${REDIS_IMAGE:-redis:7.2-alpine}"
+RABBITMQ_IMAGE="${RABBITMQ_IMAGE:-rabbitmq:3-management-alpine}"
+ELASTICSEARCH_IMAGE="${ELASTICSEARCH_IMAGE:-docker.elastic.co/elasticsearch/elasticsearch:8.17.4}"
+NGINX_IMAGE="${NGINX_IMAGE:-nginx:1.29.6}"
+RABBITMQ_DEFAULT_USER="${RABBITMQ_DEFAULT_USER:-walden}"
+RABBITMQ_DEFAULT_PASS="${RABBITMQ_DEFAULT_PASS:-walden}"
+
+set_swr_images() {
+    REDIS_IMAGE="${SWR_REGISTRY}/${SWR_ORGANIZATION}/redis:7.2-alpine"
+    RABBITMQ_IMAGE="${SWR_REGISTRY}/${SWR_ORGANIZATION}/rabbitmq:3-management-alpine"
+    ELASTICSEARCH_IMAGE="${SWR_REGISTRY}/${SWR_ORGANIZATION}/elasticsearch:8.17.4"
+    NGINX_IMAGE="${SWR_REGISTRY}/${SWR_ORGANIZATION}/nginx:1.29.6"
+}
+
+set_mirror_images() {
+    REDIS_IMAGE="${MIRROR_PREFIX}/library/redis:7.2-alpine"
+    RABBITMQ_IMAGE="${MIRROR_PREFIX}/library/rabbitmq:3-management-alpine"
+    ELASTICSEARCH_IMAGE="${SWR_REGISTRY}/${SWR_ORGANIZATION}/elasticsearch:8.17.4"
+    NGINX_IMAGE="${MIRROR_PREFIX}/library/nginx:1.29.6"
+}
+
+if [[ "$(uname -s)" == "Linux" ]]; then
+    USE_SWR="1"
+fi
 
 require_docker() {
     if ! command -v docker >/dev/null 2>&1; then
@@ -62,7 +91,7 @@ start_redis() {
         --label "com.docker.compose.project=go-nomads-infras" \
         --label "com.docker.compose.service=redis" \
         -p 6379:6379 \
-        redis:latest redis-server --appendonly yes >/dev/null
+        "${REDIS_IMAGE}" redis-server --appendonly yes >/dev/null
     echo "Redis running at redis://localhost:6379"
 }
 
@@ -79,7 +108,7 @@ start_elasticsearch() {
         -e "discovery.type=single-node" \
         -e "xpack.security.enabled=false" \
         -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" \
-        docker.elastic.co/elasticsearch/elasticsearch:8.16.1 >/dev/null
+        "${ELASTICSEARCH_IMAGE}" >/dev/null
     echo "Elasticsearch available at http://localhost:9200"
 }
 
@@ -93,11 +122,11 @@ start_rabbitmq() {
         --label "com.docker.compose.service=rabbitmq" \
         -p 5672:5672 \
         -p 15672:15672 \
-        -e RABBITMQ_DEFAULT_USER=walden \
-        -e RABBITMQ_DEFAULT_PASS=walden \
-        rabbitmq:3-management-alpine >/dev/null
+        -e RABBITMQ_DEFAULT_USER="${RABBITMQ_DEFAULT_USER}" \
+        -e RABBITMQ_DEFAULT_PASS="${RABBITMQ_DEFAULT_PASS}" \
+        "${RABBITMQ_IMAGE}" >/dev/null
     echo "RabbitMQ running at amqp://localhost:5672"
-    echo "RabbitMQ Management UI: http://localhost:15672 (walden/walden)"
+    echo "RabbitMQ Management UI: http://localhost:15672 (${RABBITMQ_DEFAULT_USER}/${RABBITMQ_DEFAULT_PASS})"
 }
 
 start_nginx() {
@@ -118,7 +147,7 @@ start_nginx() {
         -p 443:443 \
         -v "${nginx_conf}:/etc/nginx/conf.d/default.conf:ro" \
         --restart unless-stopped \
-        nginx:latest >/dev/null
+        "${NGINX_IMAGE}" >/dev/null
     echo "Nginx running at http://localhost"
 }
 
@@ -200,6 +229,41 @@ EOF
 }
 
 ACTION="${1:-start}"
+if [[ "$ACTION" == "--use-swr" || "$ACTION" == "--use-mirror" || "$ACTION" == "--use-official" ]]; then
+    ACTION="start"
+fi
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --use-swr)
+            USE_SWR="1"
+            USE_MIRROR=""
+            shift
+            ;;
+        --use-mirror)
+            USE_MIRROR="1"
+            USE_SWR=""
+            shift
+            ;;
+        --use-official)
+            USE_SWR=""
+            USE_MIRROR=""
+            shift
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+ACTION="${1:-start}"
+
+if [[ -n "$USE_SWR" ]]; then
+    set_swr_images
+elif [[ -n "$USE_MIRROR" ]]; then
+    set_mirror_images
+fi
+
 case "$ACTION" in
     start)
         start_all

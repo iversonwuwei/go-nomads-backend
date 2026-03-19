@@ -48,12 +48,6 @@ spec:
                 secretKeyRef:
                   name: go-nomads-secrets
                   key: QIANWEN_API_KEY
-            - name: Consul__Address
-              value: "http://consul-service:8500"
-            - name: Consul__ServiceAddress
-              value: "ai-service"
-            - name: Consul__ServicePort
-              value: "8080"
             - name: RabbitMQ__HostName
               valueFrom:
                 configMapKeyRef:
