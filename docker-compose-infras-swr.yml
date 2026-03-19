@@ -1,23 +1,32 @@
 name: go-nomads-infras
 
 # ============================================================
-# 基础设施服务 - 默认从华为云 SWR 拉取镜像
+# 基础设施服务
 # 使用方法:
 #   docker compose -f docker-compose-infras-swr.yml up -d
-# 或使用包装脚本默认启动 redis/rabbitmq/elasticsearch:
+#
+# 镜像策略:
+#   - 本地开发默认使用官方多架构镜像，避免 macOS ARM 上因 SWR 中缺少 arm64 manifest 导致拉取失败
+#   - Linux 服务器可通过包装脚本自动切换到 SWR，或显式传入 --use-swr
+#
+# 包装脚本默认启动 redis/rabbitmq/elasticsearch:
 #   ./docker-compose-infras-swr.sh up -d
 # 如需显式带上 consul:
 #   ./docker-compose-infras-swr.sh --with-consul
+# 如需显式强制使用 SWR:
+#   ./docker-compose-infras-swr.sh --use-swr up -d
 #
-# 可通过环境变量覆盖镜像源:
-#   SWR_REGISTRY=swr.ap-southeast-3.myhuaweicloud.com
-#   SWR_ORGANIZATION=go-nomads
+# 可通过环境变量覆盖完整镜像:
+#   REDIS_IMAGE=...
+#   RABBITMQ_IMAGE=...
+#   ELASTICSEARCH_IMAGE=...
+#   CONSUL_IMAGE=...
 # ============================================================
 
 services:
   # Infrastructure Services
   redis:
-    image: ${SWR_REGISTRY:-swr.ap-southeast-3.myhuaweicloud.com}/${SWR_ORGANIZATION:-go-nomads}/redis:7-alpine
+    image: ${REDIS_IMAGE:-redis:7-alpine}
     container_name: go-nomads-redis
     ports:
       - "6379:6379"
@@ -28,7 +37,7 @@ services:
       - gonomads-network
 
   rabbitmq:
-    image: ${SWR_REGISTRY:-swr.ap-southeast-3.myhuaweicloud.com}/${SWR_ORGANIZATION:-go-nomads}/rabbitmq:3-management-alpine
+    image: ${RABBITMQ_IMAGE:-rabbitmq:3-management-alpine}
     container_name: go-nomads-rabbitmq
     ports:
       - "5672:5672"    # AMQP protocol port
@@ -47,7 +56,7 @@ services:
       retries: 5
 
   elasticsearch:
-    image: ${SWR_REGISTRY:-swr.ap-southeast-3.myhuaweicloud.com}/${SWR_ORGANIZATION:-go-nomads}/elasticsearch:8.11.0
+    image: ${ELASTICSEARCH_IMAGE:-docker.elastic.co/elasticsearch/elasticsearch:8.11.0}
     container_name: go-nomads-elasticsearch
     environment:
       - discovery.type=single-node
@@ -62,7 +71,7 @@ services:
       - gonomads-network
 
   consul:
-    image: ${SWR_REGISTRY:-swr.ap-southeast-3.myhuaweicloud.com}/${SWR_ORGANIZATION:-go-nomads}/consul:latest
+    image: ${CONSUL_IMAGE:-hashicorp/consul:latest}
     container_name: go-nomads-consul
     ports:
       - "7500:7500"
