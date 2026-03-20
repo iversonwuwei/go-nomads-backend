@@ -538,3 +538,14 @@ public class AiTravelPlanSummary
     /// </summary>
     public DateTime CreatedAt { get; set; }
 }
+
+/// <summary>
+///     OpenClaw 自动化统一响应
+/// </summary>
+public class OpenClawAutomationResponse
+{
+    public bool Success { get; set; }
+    public string? Data { get; set; }
+    public string? Message { get; set; }
+    public string? Error { get; set; }
+}

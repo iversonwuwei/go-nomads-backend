@@ -319,3 +319,78 @@ public class GenerateCityImagesRequest
     /// </summary>
     public string? UserId { get; set; }
 }
+
+/// <summary>
+///     OpenClaw 执行自然语言指令请求
+/// </summary>
+public class OpenClawExecuteRequest
+{
+    [Required(ErrorMessage = "指令内容不能为空")]
+    [StringLength(2000, ErrorMessage = "指令内容不能超过2000个字符")]
+    public string Command { get; set; } = string.Empty;
+
+    public string? SessionId { get; set; }
+}
+
+/// <summary>
+///     OpenClaw 设置提醒请求
+/// </summary>
+public class OpenClawReminderRequest
+{
+    [Required(ErrorMessage = "提醒内容不能为空")]
+    [StringLength(500, ErrorMessage = "提醒内容不能超过500个字符")]
+    public string Text { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "触发时间不能为空")]
+    public DateTime TriggerTime { get; set; }
+}
+
+/// <summary>
+///     OpenClaw 设置签证到期提醒请求
+/// </summary>
+public class OpenClawVisaReminderRequest
+{
+    [Required(ErrorMessage = "国家不能为空")]
+    [StringLength(100, ErrorMessage = "国家名称不能超过100个字符")]
+    public string Country { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "签证到期日不能为空")]
+    public DateTime ExpiryDate { get; set; }
+}
+
+/// <summary>
+///     OpenClaw 执行预设自动化场景请求
+/// </summary>
+public class OpenClawAutomationRequest
+{
+    /// <summary>
+    ///     场景参数键值对
+    /// </summary>
+    public Dictionary<string, string> Params { get; set; } = new();
+}
+
+/// <summary>
+///     OpenClaw 整理发票请求
+/// </summary>
+public class OpenClawInvoiceOrganizeRequest
+{
+    [Required(ErrorMessage = "邮箱不能为空")]
+    [EmailAddress(ErrorMessage = "邮箱格式不正确")]
+    public string Email { get; set; } = string.Empty;
+}
+
+/// <summary>
+///     OpenClaw 创建定时自动化脚本请求
+/// </summary>
+public class OpenClawScriptRequest
+{
+    [Required(ErrorMessage = "脚本指令不能为空")]
+    [StringLength(2000, ErrorMessage = "脚本指令不能超过2000个字符")]
+    public string Command { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     Cron 表达式或自然语言调度描述（可选）
+    /// </summary>
+    [StringLength(200, ErrorMessage = "调度描述不能超过200个字符")]
+    public string? Schedule { get; set; }
+}

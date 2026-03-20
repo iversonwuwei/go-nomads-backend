@@ -98,6 +98,7 @@ catch (Exception ex)
 builder.Services.AddScoped<IAIChatService, AIChatApplicationService>();
 builder.Services.Configure<OpenClawOptions>(builder.Configuration.GetSection(OpenClawOptions.SectionName));
 builder.Services.AddScoped<IOpenClawResearchService, OpenClawResearchService>();
+builder.Services.AddScoped<IOpenClawAutomationService, OpenClawAutomationService>();
 builder.Services.AddScoped<IMembershipAccessService, MembershipAccessService>();
 
 // 注册图片生成服务 (通义万象)
