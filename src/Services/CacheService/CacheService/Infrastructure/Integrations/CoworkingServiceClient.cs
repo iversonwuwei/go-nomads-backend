@@ -30,6 +30,11 @@ public class CoworkingServiceClient : ICoworkingServiceClient
                 $"api/coworkings/{coworkingId}"
             );
 
+            if (response is null)
+            {
+                throw new InvalidOperationException($"CoworkingService returned null response for coworking {coworkingId}");
+            }
+
             return new CoworkingScoreDto
             {
                 Id = coworkingId,

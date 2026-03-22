@@ -10,8 +10,6 @@ using Scalar.AspNetCore;
 using Serilog;
 using StackExchange.Redis;
 
-const string serviceName = "CacheService";
-
 var builder = WebApplication.CreateBuilder(args);
 
 Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);

@@ -9,8 +9,6 @@ using SearchService.Infrastructure.Services;
 using Serilog;
 using System.Text.Json.Serialization;
 
-const string serviceName = "SearchService";
-
 var builder = WebApplication.CreateBuilder(args);
 
 Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);
