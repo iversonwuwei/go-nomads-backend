@@ -85,7 +85,12 @@ builder.Services.AddMassTransit(x =>
 builder.Services.AddServiceInvocationClient();
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.Converters.Add(new EventService.Infrastructure.Converters.UtcDateTimeConverter());
+    });
 
 // 添加 SignalR
 builder.Services.AddSignalR(options =>
