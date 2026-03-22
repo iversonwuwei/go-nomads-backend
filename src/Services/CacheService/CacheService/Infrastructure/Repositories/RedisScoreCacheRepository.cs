@@ -178,7 +178,7 @@ public class RedisScoreCacheRepository : IScoreCacheRepository
         }
     }
 
-    public async Task<List<string>> GetAllKeysAsync(ScoreEntityType entityType)
+    public Task<List<string>> GetAllKeysAsync(ScoreEntityType entityType)
     {
         try
         {
@@ -187,12 +187,12 @@ public class RedisScoreCacheRepository : IScoreCacheRepository
             var keys = server.Keys(pattern: pattern).ToList();
             
             _logger.LogInformation("Found {Count} keys matching pattern {Pattern}", keys.Count, pattern);
-            return keys.Select(k => k.ToString()).ToList();
+            return Task.FromResult(keys.Select(k => k.ToString()).ToList());
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting all keys for {EntityType}", entityType);
-            return new List<string>();
+            return Task.FromResult(new List<string>());
         }
     }
 }
