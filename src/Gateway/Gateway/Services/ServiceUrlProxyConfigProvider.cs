@@ -16,16 +16,16 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
     private static readonly Dictionary<string, string> DefaultServiceUrls = new()
     {
         ["user-service"] = "http://user-service:8080",
-        ["city-service"] = "http://city-service:8002",
-        ["coworking-service"] = "http://coworking-service:8006",
-        ["event-service"] = "http://event-service:8005",
-        ["ai-service"] = "http://ai-service:8009",
-        ["cache-service"] = "http://cache-service:8010",
+        ["city-service"] = "http://city-service:8080",
+        ["coworking-service"] = "http://coworking-service:8080",
+        ["event-service"] = "http://event-service:8080",
+        ["ai-service"] = "http://ai-service:8080",
+        ["cache-service"] = "http://cache-service:8080",
         ["message-service"] = "http://message-service:8080",
-        ["innovation-service"] = "http://innovation-service:8011",
+        ["innovation-service"] = "http://innovation-service:8080",
         ["search-service"] = "http://search-service:8080",
-        ["accommodation-service"] = "http://accommodation-service:8012",
-        ["product-service"] = "http://product-service:5002"
+        ["accommodation-service"] = "http://accommodation-service:8080",
+        ["product-service"] = "http://product-service:8080"
     };
 
     public ServiceUrlProxyConfigProvider(
