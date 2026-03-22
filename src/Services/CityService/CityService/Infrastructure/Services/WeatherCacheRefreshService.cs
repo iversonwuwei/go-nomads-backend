@@ -14,28 +14,55 @@ public class WeatherCacheRefreshService : BackgroundService
     private readonly ILogger<WeatherCacheRefreshService> _logger;
     private readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(30); // 每30分钟刷新一次
     private readonly TimeSpan _cleanupInterval = TimeSpan.FromHours(24); // 每24小时清理一次
+    private readonly bool _runWarmupOnStartup;
     private DateTime _lastCleanupTime = DateTime.UtcNow;
 
     public WeatherCacheRefreshService(
         IServiceProvider serviceProvider,
+        IConfiguration configuration,
         ILogger<WeatherCacheRefreshService> logger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _runWarmupOnStartup = configuration.GetValue("Weather:RunWarmupOnStartup", false);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Weather cache refresh service started");
         _logger.LogInformation("Refresh interval: {Interval} minutes", _refreshInterval.TotalMinutes);
+        _logger.LogInformation("Startup warmup enabled: {Enabled}", _runWarmupOnStartup);
 
         // 等待应用完全启动
         await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+
+        if (_runWarmupOnStartup)
+        {
+            try
+            {
+                await RefreshWeatherCacheAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Weather cache refresh service is stopping during startup warmup...");
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Startup weather cache warmup failed");
+            }
+        }
+        else
+        {
+            _logger.LogInformation("Startup weather cache warmup skipped by configuration");
+        }
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                await Task.Delay(_refreshInterval, stoppingToken);
+
                 await RefreshWeatherCacheAsync(stoppingToken);
 
                 // 检查是否需要清理过期缓存
@@ -45,7 +72,6 @@ public class WeatherCacheRefreshService : BackgroundService
                     _lastCleanupTime = DateTime.UtcNow;
                 }
 
-                await Task.Delay(_refreshInterval, stoppingToken);
             }
             catch (OperationCanceledException)
             {

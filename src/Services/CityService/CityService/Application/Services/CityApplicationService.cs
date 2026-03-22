@@ -855,7 +855,7 @@ public class CityApplicationService : ICityService
         }
     }
 
-    public async Task<IEnumerable<CityDto>> GetCitiesByIdsAsync(IEnumerable<Guid> cityIds, bool includeWeather = true)
+    public async Task<IEnumerable<CityDto>> GetCitiesByIdsAsync(IEnumerable<Guid> cityIds)
     {
         var normalized = cityIds?
             .Where(id => id != Guid.Empty)
@@ -1455,125 +1455,6 @@ public class CityApplicationService : ICityService
         public string EntityId { get; set; } = string.Empty;
         public decimal AverageCost { get; set; }
         public bool FromCache { get; set; }
-    }
-
-    /// <summary>
-    ///     批量填充城市天气信息（优化版：使用批量API和缓存）
-    /// </summary>
-    private async Task EnrichCitiesWithWeatherAsync(List<CityDto> cities)
-    {
-        if (cities.Count == 0) return;
-
-        try
-        {
-            _logger.LogInformation("🌦️ 开始批量填充天气信息: {TotalCities} 个城市", cities.Count);
-            var stopwatch = Stopwatch.StartNew();
-
-            // 准备坐标字典（优先使用坐标，更精确）
-            var cityCoordinates = cities
-                .Where(c => c.Latitude.HasValue && c.Longitude.HasValue)
-                .ToDictionary(
-                    c => c.Id,
-                    c => (c.Latitude!.Value, c.Longitude!.Value, c.Name)
-                );
-
-            // 批量获取有坐标的城市天气
-            Dictionary<Guid, WeatherDto?> weatherByCoord = new();
-            if (cityCoordinates.Count > 0)
-            {
-                weatherByCoord = await _weatherService.GetWeatherForCitiesByCoordinatesAsync(cityCoordinates);
-            }
-
-            // 填充有坐标的城市
-            foreach (var city in cities.Where(c => cityCoordinates.ContainsKey(c.Id)))
-            {
-                if (weatherByCoord.TryGetValue(city.Id, out var weather))
-                {
-                    city.Weather = weather;
-                }
-            }
-
-            // 处理没有坐标的城市（使用城市名称）
-            var citiesWithoutCoords = cities
-                .Where(c => !c.Latitude.HasValue || !c.Longitude.HasValue)
-                .ToList();
-
-            if (citiesWithoutCoords.Count > 0)
-            {
-                var cityNames = citiesWithoutCoords
-                    .Select(c => !string.IsNullOrWhiteSpace(c.NameEn) ? c.NameEn : c.Name)
-                    .ToList();
-
-                var weatherByName = await _weatherService.GetWeatherForCitiesAsync(cityNames);
-
-                // 收集需要更新经纬度的城市
-                var citiesToUpdate = new List<(Guid Id, double Lat, double Lng, string Name)>();
-
-                for (int i = 0; i < citiesWithoutCoords.Count; i++)
-                {
-                    var city = citiesWithoutCoords[i];
-                    var cityName = !string.IsNullOrWhiteSpace(city.NameEn) ? city.NameEn : city.Name;
-
-                    if (weatherByName.TryGetValue(cityName, out var weather))
-                    {
-                        city.Weather = weather;
-
-                        // 如果天气API返回了经纬度，收集起来批量更新
-                        if (weather?.Latitude.HasValue == true && weather?.Longitude.HasValue == true)
-                        {
-                            citiesToUpdate.Add((city.Id, weather.Latitude.Value, weather.Longitude.Value, city.Name));
-                            // 同时更新 DTO 以便前端立即可用
-                            city.Latitude = weather.Latitude.Value;
-                            city.Longitude = weather.Longitude.Value;
-                        }
-                    }
-                }
-
-                // 批量更新城市经纬度到数据库（异步执行，不阻塞返回）
-                if (citiesToUpdate.Count > 0)
-                {
-                    _ = Task.Run(async () =>
-                    {
-                        foreach (var (cityId, lat, lng, name) in citiesToUpdate)
-                        {
-                            try
-                            {
-                                // 使用直接 HTTP API 更新，绕过 ORM
-                                var success = await _cityRepository.UpdateCoordinatesDirectAsync(cityId, lat, lng);
-                                if (success)
-                                {
-                                    _logger.LogInformation(
-                                        "已从天气API更新城市经纬度: CityId={CityId}, CityName={CityName}, Lat={Latitude}, Lng={Longitude}",
-                                        cityId, name, lat, lng);
-                                }
-                                else
-                                {
-                                    _logger.LogWarning(
-                                        "更新城市经纬度返回失败: CityId={CityId}, CityName={CityName}",
-                                        cityId, name);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogWarning(ex, "更新城市经纬度失败: CityId={CityId}, CityName={CityName}", cityId, name);
-                            }
-                        }
-                    });
-                }
-            }
-
-            stopwatch.Stop();
-            var successCount = cities.Count(c => c.Weather != null);
-
-            _logger.LogInformation(
-                "✅ 天气信息填充完成: {SuccessCount}/{TotalCount} 成功, 耗时 {ElapsedMs}ms",
-                successCount, cities.Count, stopwatch.ElapsedMilliseconds);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "批量获取天气信息失败");
-            // 优雅降级：失败时不影响其他数据
-        }
     }
 
     /// <summary>
