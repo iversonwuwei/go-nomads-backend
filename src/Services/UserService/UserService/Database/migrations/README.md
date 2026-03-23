@@ -18,6 +18,26 @@
 - 创建 `role` 字段的索引以提高查询性能
 - 为已存在的用户设置默认角色
 
+### 004_create_legal_documents_table.sql
+
+**描述**: 创建法律文档表，存储隐私政策、用户协议等公开文档。
+
+### 005_seed_legal_documents.sql
+
+**描述**: 初始化中英文隐私政策与用户协议文案。
+
+### 006_add_legal_consents_to_user_preferences.sql
+
+**描述**: 为 user_preferences 增加隐私政策与用户协议同意状态及时间。
+
+### 007_add_legal_consent_versions_to_user_preferences.sql
+
+**描述**: 为 user_preferences 增加已接受法律文档版本字段，用于版本升级后强制重签。
+
+### 008_legal_document_version_rollout_template.sql
+
+**描述**: 法律文档新版本发布模板。插入新的 current 版本后，App 会在下次启动时根据 accepted version 与 current version 的差异触发重新确认。
+
 ## 如何执行迁移
 
 ### 方法 1: 使用 Supabase Dashboard (推荐)
@@ -101,6 +121,21 @@ DROP INDEX IF EXISTS idx_users_role;
 2. 测试用户注册功能 (POST /api/users/register)
 3. 测试用户创建功能 (POST /api/users)
 4. 测试用户登录功能 (POST /api/users/login)
+
+## 法律文档版本发布流程
+
+当隐私政策或用户协议需要更新时，不要直接覆盖旧版本内容，按下面流程执行：
+
+1. 保留旧版本记录，作为历史文档。
+2. 插入一个新的 version 记录，并将它标记为 is_current = true。
+3. 将旧的当前版本更新为 is_current = false。
+4. 发布后，移动端会在下次启动时比较：
+    - legal_documents 当前 version
+    - user_preferences 中用户已接受的 version
+5. 如果版本不一致，应用会强制重新弹窗要求用户重新确认。
+
+可直接参考并复制执行：
+[008_legal_document_version_rollout_template.sql](008_legal_document_version_rollout_template.sql)
 
 ## 数据库连接信息
 

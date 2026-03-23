@@ -65,6 +65,24 @@ public class UserPreferences : BaseModel
     [Column("language")]
     public string Language { get; set; } = "en";
 
+    [Column("privacy_policy_accepted")]
+    public bool PrivacyPolicyAccepted { get; set; }
+
+    [Column("privacy_policy_accepted_at")]
+    public DateTime? PrivacyPolicyAcceptedAt { get; set; }
+
+    [Column("privacy_policy_accepted_version")]
+    public string PrivacyPolicyAcceptedVersion { get; set; } = string.Empty;
+
+    [Column("terms_of_service_accepted")]
+    public bool TermsOfServiceAccepted { get; set; }
+
+    [Column("terms_of_service_accepted_at")]
+    public DateTime? TermsOfServiceAcceptedAt { get; set; }
+
+    [Column("terms_of_service_accepted_version")]
+    public string TermsOfServiceAcceptedVersion { get; set; } = string.Empty;
+
     [Column("created_at")]
     public DateTime CreatedAt { get; set; }
 
@@ -92,6 +110,12 @@ public class UserPreferences : BaseModel
             Currency = "USD",
             TemperatureUnit = "Celsius",
             Language = "en",
+            PrivacyPolicyAccepted = false,
+            PrivacyPolicyAcceptedAt = null,
+            PrivacyPolicyAcceptedVersion = string.Empty,
+            TermsOfServiceAccepted = false,
+            TermsOfServiceAcceptedAt = null,
+            TermsOfServiceAcceptedVersion = string.Empty,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -134,6 +158,22 @@ public class UserPreferences : BaseModel
         if (!string.IsNullOrWhiteSpace(language))
             Language = language;
 
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void AcceptPrivacyPolicy(string version)
+    {
+        PrivacyPolicyAccepted = true;
+        PrivacyPolicyAcceptedAt = DateTime.UtcNow;
+        PrivacyPolicyAcceptedVersion = version;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void AcceptTermsOfService(string version)
+    {
+        TermsOfServiceAccepted = true;
+        TermsOfServiceAcceptedAt = DateTime.UtcNow;
+        TermsOfServiceAcceptedVersion = version;
         UpdatedAt = DateTime.UtcNow;
     }
 

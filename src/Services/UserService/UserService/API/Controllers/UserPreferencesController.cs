@@ -13,14 +13,17 @@ namespace UserService.API.Controllers;
 [Route("api/v1/users")]
 public class UserPreferencesController : ControllerBase
 {
+    private readonly ILegalDocumentRepository _legalDocumentRepository;
     private readonly ILogger<UserPreferencesController> _logger;
     private readonly IUserPreferencesRepository _userPreferencesRepository;
 
     public UserPreferencesController(
         IUserPreferencesRepository userPreferencesRepository,
+        ILegalDocumentRepository legalDocumentRepository,
         ILogger<UserPreferencesController> logger)
     {
         _userPreferencesRepository = userPreferencesRepository;
+        _legalDocumentRepository = legalDocumentRepository;
         _logger = logger;
     }
 
@@ -168,6 +171,90 @@ public class UserPreferencesController : ControllerBase
         }
     }
 
+    /// <summary>
+    ///     接受隐私政策
+    /// </summary>
+    [HttpPost("me/accept-privacy-policy")]
+    public async Task<ActionResult<ApiResponse<UserPreferencesDto>>> AcceptPrivacyPolicy(
+        CancellationToken cancellationToken = default)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+        {
+            return Unauthorized(new ApiResponse<UserPreferencesDto>
+            {
+                Success = false,
+                Message = "未认证用户"
+            });
+        }
+
+        try
+        {
+            var preferences = await _userPreferencesRepository.GetOrCreateAsync(userContext.UserId, cancellationToken);
+            var currentVersion = await GetCurrentDocumentVersionAsync("privacy-policy", preferences.Language, cancellationToken);
+            preferences.AcceptPrivacyPolicy(currentVersion);
+            var updatedPreferences = await _userPreferencesRepository.UpdateAsync(preferences, cancellationToken);
+
+            return Ok(new ApiResponse<UserPreferencesDto>
+            {
+                Success = true,
+                Message = "Privacy policy accepted successfully",
+                Data = MapToDto(updatedPreferences)
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 接受隐私政策失败: {UserId}", userContext.UserId);
+            return StatusCode(500, new ApiResponse<UserPreferencesDto>
+            {
+                Success = false,
+                Message = "接受隐私政策失败"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     接受用户协议
+    /// </summary>
+    [HttpPost("me/accept-terms-of-service")]
+    public async Task<ActionResult<ApiResponse<UserPreferencesDto>>> AcceptTermsOfService(
+        CancellationToken cancellationToken = default)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+        {
+            return Unauthorized(new ApiResponse<UserPreferencesDto>
+            {
+                Success = false,
+                Message = "未认证用户"
+            });
+        }
+
+        try
+        {
+            var preferences = await _userPreferencesRepository.GetOrCreateAsync(userContext.UserId, cancellationToken);
+            var currentVersion = await GetCurrentDocumentVersionAsync("terms-of-service", preferences.Language, cancellationToken);
+            preferences.AcceptTermsOfService(currentVersion);
+            var updatedPreferences = await _userPreferencesRepository.UpdateAsync(preferences, cancellationToken);
+
+            return Ok(new ApiResponse<UserPreferencesDto>
+            {
+                Success = true,
+                Message = "Terms of service accepted successfully",
+                Data = MapToDto(updatedPreferences)
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 接受用户协议失败: {UserId}", userContext.UserId);
+            return StatusCode(500, new ApiResponse<UserPreferencesDto>
+            {
+                Success = false,
+                Message = "接受用户协议失败"
+            });
+        }
+    }
+
     #region Private Methods
 
     private static UserPreferencesDto MapToDto(Domain.Entities.UserPreferences preferences)
@@ -183,9 +270,27 @@ public class UserPreferencesController : ControllerBase
             Currency = preferences.Currency,
             TemperatureUnit = preferences.TemperatureUnit,
             Language = preferences.Language,
+            PrivacyPolicyAccepted = preferences.PrivacyPolicyAccepted,
+            PrivacyPolicyAcceptedAt = preferences.PrivacyPolicyAcceptedAt,
+            PrivacyPolicyAcceptedVersion = preferences.PrivacyPolicyAcceptedVersion,
+            TermsOfServiceAccepted = preferences.TermsOfServiceAccepted,
+            TermsOfServiceAcceptedAt = preferences.TermsOfServiceAcceptedAt,
+            TermsOfServiceAcceptedVersion = preferences.TermsOfServiceAcceptedVersion,
             CreatedAt = preferences.CreatedAt,
             UpdatedAt = preferences.UpdatedAt
         };
+    }
+
+    private async Task<string> GetCurrentDocumentVersionAsync(
+        string documentType,
+        string language,
+        CancellationToken cancellationToken)
+    {
+        var document = await _legalDocumentRepository.GetCurrentAsync(documentType, language, cancellationToken);
+        if (document == null && language != "zh")
+            document = await _legalDocumentRepository.GetCurrentAsync(documentType, "zh", cancellationToken);
+
+        return document?.Version ?? "1.0.0";
     }
 
     #endregion

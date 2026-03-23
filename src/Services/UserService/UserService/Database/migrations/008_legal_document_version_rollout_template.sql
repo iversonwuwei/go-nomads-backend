@@ -1,0 +1,78 @@
+-- 法律文档版本发布模板
+-- 用途：发布新的隐私政策 / 用户协议版本，并触发客户端下次启动重新确认。
+-- 使用方式：
+-- 1. 复制对应 INSERT 段
+-- 2. 修改 version / effective_date / title / sections / summary / sdk_list
+-- 3. 先将旧 current 置为 false，再插入新 current 版本
+
+BEGIN;
+
+-- 示例 1：发布新的隐私政策中文版本
+-- UPDATE public.legal_documents
+-- SET is_current = false,
+--     updated_at = now()
+-- WHERE document_type = 'privacy-policy'
+--   AND language = 'zh'
+--   AND is_current = true;
+--
+-- INSERT INTO public.legal_documents (
+--     document_type,
+--     version,
+--     language,
+--     title,
+--     effective_date,
+--     is_current,
+--     sections,
+--     summary,
+--     sdk_list,
+--     created_at,
+--     updated_at
+-- ) VALUES (
+--     'privacy-policy',
+--     '1.1.0',
+--     'zh',
+--     '隐私政策',
+--     now(),
+--     true,
+--     '[]'::jsonb,
+--     '[]'::jsonb,
+--     '[]'::jsonb,
+--     now(),
+--     now()
+-- );
+
+-- 示例 2：发布新的用户协议英文版本
+-- UPDATE public.legal_documents
+-- SET is_current = false,
+--     updated_at = now()
+-- WHERE document_type = 'terms-of-service'
+--   AND language = 'en'
+--   AND is_current = true;
+--
+-- INSERT INTO public.legal_documents (
+--     document_type,
+--     version,
+--     language,
+--     title,
+--     effective_date,
+--     is_current,
+--     sections,
+--     summary,
+--     sdk_list,
+--     created_at,
+--     updated_at
+-- ) VALUES (
+--     'terms-of-service',
+--     '1.1.0',
+--     'en',
+--     'Terms of Service',
+--     now(),
+--     true,
+--     '[]'::jsonb,
+--     '[]'::jsonb,
+--     '[]'::jsonb,
+--     now(),
+--     now()
+-- );
+
+COMMIT;
