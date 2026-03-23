@@ -14,6 +14,12 @@ public class UserPreferencesDto
     public string Currency { get; set; } = "USD";
     public string TemperatureUnit { get; set; } = "Celsius";
     public string Language { get; set; } = "en";
+    public bool PrivacyPolicyAccepted { get; set; }
+    public DateTime? PrivacyPolicyAcceptedAt { get; set; }
+    public string PrivacyPolicyAcceptedVersion { get; set; } = string.Empty;
+    public bool TermsOfServiceAccepted { get; set; }
+    public DateTime? TermsOfServiceAcceptedAt { get; set; }
+    public string TermsOfServiceAcceptedVersion { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
