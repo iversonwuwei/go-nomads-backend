@@ -456,20 +456,26 @@ public class EventRepository : IEventRepository
             // 如果查询的是活动中的状态（upcoming, ongoing），在应用层过滤掉实际上已经过期的活动
             if (isQueryingActiveEvents && events.Count > 0)
             {
-                // 使用 Unix 时间戳进行比较，避免时区问题
-                var nowTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var utcNow = DateTime.UtcNow;
                 var originalCount = events.Count;
                 
                 events = events.Where(e => {
-                    // 将 StartTime 和 EndTime 转为时间戳（假设数据库存储的是北京时间 UTC+8）
-                    var startTimestamp = new DateTimeOffset(e.StartTime, TimeSpan.FromHours(8)).ToUnixTimeSeconds();
-                    var endTimestamp = e.EndTime.HasValue 
-                        ? new DateTimeOffset(e.EndTime.Value, TimeSpan.FromHours(8)).ToUnixTimeSeconds() 
-                        : (long?)null;
-                    
-                    // 判断活动是否还有效（未过期）
-                    if (startTimestamp > nowTimestamp) return true;
-                    if (endTimestamp.HasValue && endTimestamp.Value > nowTimestamp) return true;
+                    // 数据库存储的是 UTC 时间，直接用 UTC 比较
+                    var startTime = DateTime.SpecifyKind(e.StartTime, DateTimeKind.Utc);
+                    var endTime = e.EndTime.HasValue
+                        ? DateTime.SpecifyKind(e.EndTime.Value, DateTimeKind.Utc)
+                        : (DateTime?)null;
+
+                    // 判断活动是否还有效（未过期）：
+                    // 1. 如果还没开始（start_time > now），肯定有效
+                    if (startTime > utcNow) return true;
+                    // 2. 如果已经开始，但有 end_time 且 end_time > now，说明还在进行中
+                    if (endTime.HasValue && endTime.Value > utcNow) return true;
+                    // 3. 如果已经开始但没有 end_time，默认活动持续 24 小时
+                    if (!endTime.HasValue && startTime.AddHours(24) > utcNow) return true;
+
+                    _logger.LogInformation("🔍 已加入列表过滤掉已过期活动: {Title}, StartTime: {Start}, EndTime: {End}",
+                        e.Title, e.StartTime, e.EndTime);
                     return false;
                 }).ToList();
                 
