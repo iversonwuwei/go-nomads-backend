@@ -205,27 +205,29 @@ public class EventRepository : IEventRepository
             // 这是为了确保即使状态更新服务还没来得及更新，也不会显示已过期的活动
             if (isQueryingActiveEvents)
             {
-                // 使用 Unix 时间戳进行比较，避免时区问题
-                var nowTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var utcNow = DateTime.UtcNow;
                 var originalCount = events.Count;
                 
-                _logger.LogInformation("🕒 当前 UTC 时间戳: {Timestamp}", nowTimestamp);
+                _logger.LogInformation("🕒 当前 UTC 时间: {UtcNow}", utcNow);
                 
                 events = events.Where(e => {
-                    // 将 StartTime 和 EndTime 转为时间戳（假设数据库存储的是本地时间，需要转为 UTC）
-                    var startTimestamp = new DateTimeOffset(e.StartTime, TimeSpan.FromHours(8)).ToUnixTimeSeconds();
-                    var endTimestamp = e.EndTime.HasValue 
-                        ? new DateTimeOffset(e.EndTime.Value, TimeSpan.FromHours(8)).ToUnixTimeSeconds() 
-                        : (long?)null;
+                    // 数据库存储的是 UTC 时间，直接用 UTC 比较
+                    var startTime = DateTime.SpecifyKind(e.StartTime, DateTimeKind.Utc);
+                    var endTime = e.EndTime.HasValue 
+                        ? DateTime.SpecifyKind(e.EndTime.Value, DateTimeKind.Utc) 
+                        : (DateTime?)null;
                     
                     // 判断活动是否还有效（未过期）：
                     // 1. 如果还没开始（start_time > now），肯定有效
-                    if (startTimestamp > nowTimestamp) return true;
+                    if (startTime > utcNow) return true;
                     
                     // 2. 如果已经开始，但有 end_time 且 end_time > now，说明还在进行中
-                    if (endTimestamp.HasValue && endTimestamp.Value > nowTimestamp) return true;
+                    if (endTime.HasValue && endTime.Value > utcNow) return true;
                     
-                    // 3. 其他情况（已开始且没有end_time，或end_time已过）都认为已过期
+                    // 3. 如果已经开始但没有 end_time，默认活动持续 24 小时
+                    if (!endTime.HasValue && startTime.AddHours(24) > utcNow) return true;
+                    
+                    // 4. 其他情况（已开始且 end_time 已过，或已开始超过24小时且无 end_time）认为已过期
                     _logger.LogInformation("🔍 过滤掉已过期活动: {Title}, StartTime: {Start}, EndTime: {End}", 
                         e.Title, e.StartTime, e.EndTime);
                     return false;
