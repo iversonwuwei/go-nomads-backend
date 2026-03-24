@@ -204,7 +204,7 @@ app.MapScalarApiReference("/scalar", options =>
         .WithTitle("AI Service API")
         .WithTheme(ScalarTheme.Mars)
         .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient)
-        .WithModels(false); // 简化文档显示
+        .HideModels();
 });
 
 app.UseSerilogRequestLogging();

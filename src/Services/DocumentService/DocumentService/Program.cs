@@ -85,16 +85,13 @@ app.MapScalarApiReference(options =>
         .WithTitle("Go-Nomads API Documentation Hub")
         .WithTheme(ScalarTheme.Purple)
         .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient)
-        .WithModels(true)
-        .WithDownloadButton(true)
         .WithSearchHotKey("k");
 });
 
 
 // ==================== Product Service Group ====================
 var productsGroup = app.MapGroup("/api/products")
-    .WithTags("Products")
-    .WithOpenApi();
+    .WithTags("Products");
 
 // GET /api/products - 获取产品列表
 productsGroup.MapGet("/",
@@ -115,8 +112,7 @@ productsGroup.MapGet("/",
         })
     .WithName("GetProducts")
     .WithSummary("获取产品列表")
-    .WithDescription("分页获取所有产品信息")
-    .WithOpenApi();
+    .WithDescription("分页获取所有产品信息");
 
 // GET /api/products/{id} - 获取单个产品
 productsGroup.MapGet("/{id}", async (ServiceInvocationClient serviceClient, string id) =>
@@ -136,8 +132,7 @@ productsGroup.MapGet("/{id}", async (ServiceInvocationClient serviceClient, stri
     })
     .WithName("GetProductById")
     .WithSummary("获取产品详情")
-    .WithDescription("根据 ID 获取单个产品的详细信息")
-    .WithOpenApi();
+    .WithDescription("根据 ID 获取单个产品的详细信息");
 
 // GET /api/products/user/{userId} - 获取用户的产品
 productsGroup.MapGet("/user/{userId}",
@@ -159,8 +154,7 @@ productsGroup.MapGet("/user/{userId}",
         })
     .WithName("GetProductsByUserId")
     .WithSummary("获取用户的产品")
-    .WithDescription("根据用户 ID 获取该用户的所有产品")
-    .WithOpenApi();
+    .WithDescription("根据用户 ID 获取该用户的所有产品");
 
 // POST /api/products - 创建产品
 productsGroup.MapPost("/", async (ServiceInvocationClient serviceClient, HttpRequest request) =>
@@ -185,8 +179,7 @@ productsGroup.MapPost("/", async (ServiceInvocationClient serviceClient, HttpReq
     })
     .WithName("CreateProduct")
     .WithSummary("创建新产品")
-    .WithDescription("创建一个新的产品记录")
-    .WithOpenApi();
+    .WithDescription("创建一个新的产品记录");
 
 // PUT /api/products/{id} - 更新产品
 productsGroup.MapPut("/{id}", async (ServiceInvocationClient serviceClient, string id, HttpRequest request) =>
@@ -211,8 +204,7 @@ productsGroup.MapPut("/{id}", async (ServiceInvocationClient serviceClient, stri
     })
     .WithName("UpdateProduct")
     .WithSummary("更新产品")
-    .WithDescription("根据 ID 更新产品信息")
-    .WithOpenApi();
+    .WithDescription("根据 ID 更新产品信息");
 
 // DELETE /api/products/{id} - 删除产品
 productsGroup.MapDelete("/{id}", async (ServiceInvocationClient serviceClient, string id) =>
@@ -232,13 +224,11 @@ productsGroup.MapDelete("/{id}", async (ServiceInvocationClient serviceClient, s
     })
     .WithName("DeleteProduct")
     .WithSummary("删除产品")
-    .WithDescription("根据 ID 删除产品")
-    .WithOpenApi();
+    .WithDescription("根据 ID 删除产品");
 
 // ==================== User Service Group ====================
 var usersGroup = app.MapGroup("/api/users")
-    .WithTags("Users")
-    .WithOpenApi();
+    .WithTags("Users");
 
 // GET /api/users - 获取用户列表
 usersGroup.MapGet("/", async (
@@ -272,8 +262,7 @@ usersGroup.MapGet("/", async (
     })
     .WithName("GetUsers")
     .WithSummary("获取用户列表")
-    .WithDescription("分页获取所有用户信息 - 返回 ApiResponse<PaginatedResponse<User>> 格式")
-    .WithOpenApi();
+    .WithDescription("分页获取所有用户信息 - 返回 ApiResponse<PaginatedResponse<User>> 格式");
 
 // GET /api/users/{id} - 获取单个用户
 usersGroup.MapGet("/{id}", async (
@@ -310,8 +299,7 @@ usersGroup.MapGet("/{id}", async (
     })
     .WithName("GetUserById")
     .WithSummary("获取用户详情")
-    .WithDescription("根据 ID 获取单个用户的详细信息 - 返回 ApiResponse<User> 格式")
-    .WithOpenApi();
+    .WithDescription("根据 ID 获取单个用户的详细信息 - 返回 ApiResponse<User> 格式");
 
 // POST /api/users - 创建用户
 usersGroup.MapPost("/", async (
@@ -353,8 +341,7 @@ usersGroup.MapPost("/", async (
     })
     .WithName("CreateUser")
     .WithSummary("创建新用户")
-    .WithDescription("创建一个新的用户记录 - 需要提供 name, email, phone(可选) - 返回 ApiResponse<User> 格式")
-    .WithOpenApi();
+    .WithDescription("创建一个新的用户记录 - 需要提供 name, email, phone(可选) - 返回 ApiResponse<User> 格式");
 
 // PUT /api/users/{id} - 更新用户
 usersGroup.MapPut("/{id}", async (
@@ -401,8 +388,7 @@ usersGroup.MapPut("/{id}", async (
     })
     .WithName("UpdateUser")
     .WithSummary("更新用户")
-    .WithDescription("根据 ID 更新用户信息 - 需要提供 name, email, phone(可选) - 返回 ApiResponse<User> 格式")
-    .WithOpenApi();
+    .WithDescription("根据 ID 更新用户信息 - 需要提供 name, email, phone(可选) - 返回 ApiResponse<User> 格式");
 
 // DELETE /api/users/{id} - 删除用户
 usersGroup.MapDelete("/{id}", async (
@@ -440,13 +426,11 @@ usersGroup.MapDelete("/{id}", async (
     })
     .WithName("DeleteUser")
     .WithSummary("删除用户")
-    .WithDescription("根据 ID 删除用户 - 返回 ApiResponse<object> 格式")
-    .WithOpenApi();
+    .WithDescription("根据 ID 删除用户 - 返回 ApiResponse<object> 格式");
 
 // ==================== System Group ====================
 var systemGroup = app.MapGroup("/api/system")
-    .WithTags("System")
-    .WithOpenApi();
+    .WithTags("System");
 
 // GET /api/system/health - 健康检查
 systemGroup.MapGet("/health", () => Results.Ok(new
@@ -458,8 +442,7 @@ systemGroup.MapGet("/health", () => Results.Ok(new
     }))
     .WithName("HealthCheck")
     .WithSummary("健康检查")
-    .WithDescription("检查 DocumentService 服务健康状态")
-    .WithOpenApi();
+    .WithDescription("检查 DocumentService 服务健康状态");
 
 // GET /api/system/services - 获取服务列表
 systemGroup.MapGet("/services", () =>
@@ -522,8 +505,7 @@ systemGroup.MapGet("/services", () =>
     })
     .WithName("GetServices")
     .WithSummary("获取服务列表")
-    .WithDescription("返回所有已注册的微服务及其文档地址")
-    .WithOpenApi();
+    .WithDescription("返回所有已注册的微服务及其文档地址");
 
 // GET /api/system/specs - 获取聚合的 OpenAPI 规范
 systemGroup.MapGet("/specs", async (IHttpClientFactory httpClientFactory) =>
@@ -553,8 +535,7 @@ systemGroup.MapGet("/specs", async (IHttpClientFactory httpClientFactory) =>
     })
     .WithName("GetAggregatedSpecs")
     .WithSummary("获取所有服务的 OpenAPI 规范")
-    .WithDescription("聚合所有微服务的 OpenAPI 文档 (用于高级集成)")
-    .WithOpenApi();
+    .WithDescription("聚合所有微服务的 OpenAPI 文档 (用于高级集成)");
 
 // Add health check endpoint
 app.MapGet("/health", () => Results.Ok(new
@@ -567,8 +548,7 @@ app.MapGet("/health", () => Results.Ok(new
     .WithTags("System")
     .WithName("HealthCheckRoot")
     .WithSummary("服务健康检查端点")
-    .WithDescription("用于服务运行状态检测的健康检查")
-    .WithOpenApi();
+    .WithDescription("用于服务运行状态检测的健康检查");
 
 app.MapControllers();
 
