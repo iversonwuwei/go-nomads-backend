@@ -4,7 +4,7 @@ using InnovationService.Infrastructure.Consumers;
 using InnovationService.Repositories;
 using InnovationService.Services;
 using MassTransit;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 using Serilog;
 

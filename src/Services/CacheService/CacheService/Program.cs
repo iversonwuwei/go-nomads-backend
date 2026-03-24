@@ -5,7 +5,7 @@ using CacheService.Infrastructure.Integrations;
 using CacheService.Infrastructure.Repositories;
 using GoNomads.Shared.Communication;
 using GoNomads.Shared.Extensions;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 using Serilog;
 using StackExchange.Redis;
@@ -81,13 +81,12 @@ var app = builder.Build();
 
 // Configure the HTTP request pipeline
 app.MapOpenApi();
-app.MapScalarApiReference(options =>
+app.MapScalarApiReference("/scalar", options =>
 {
     options
         .WithTitle("Cache Service API")
         .WithTheme(ScalarTheme.BluePlanet)
-        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient)
-        .WithEndpointPrefix("/scalar/{documentName}");
+        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
 });
 
 app.UseSerilogRequestLogging();

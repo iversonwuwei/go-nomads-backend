@@ -7,7 +7,7 @@ using AIService.Infrastructure.Repositories;
 using GoNomads.Shared.Communication;
 using GoNomads.Shared.Extensions;
 using MassTransit;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Microsoft.SemanticKernel;
 using Scalar.AspNetCore;
 using Serilog;
@@ -198,13 +198,12 @@ var app = builder.Build();
 app.MapOpenApi();
 
 // Configure Scalar UI
-app.MapScalarApiReference(options =>
+app.MapScalarApiReference("/scalar", options =>
 {
     options
         .WithTitle("AI Service API")
         .WithTheme(ScalarTheme.Mars)
         .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient)
-        .WithEndpointPrefix("/scalar/{documentName}")
         .WithModels(false); // 简化文档显示
 });
 

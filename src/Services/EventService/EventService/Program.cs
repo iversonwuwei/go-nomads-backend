@@ -8,7 +8,7 @@ using EventService.Infrastructure.Repositories;
 using GoNomads.Shared.Communication;
 using GoNomads.Shared.Extensions;
 using MassTransit;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 using Serilog;
 
@@ -144,13 +144,12 @@ var app = builder.Build();
 app.MapOpenApi();
 
 // Configure Scalar UI
-app.MapScalarApiReference(options =>
+app.MapScalarApiReference("/scalar", options =>
 {
     options
         .WithTitle("Event Service API")
         .WithTheme(ScalarTheme.BluePlanet)
-        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient)
-        .WithEndpointPrefix("/scalar/{documentName}");
+        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
 });
 
 app.UseSerilogRequestLogging();

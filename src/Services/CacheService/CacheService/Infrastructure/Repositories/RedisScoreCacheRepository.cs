@@ -35,7 +35,7 @@ public class RedisScoreCacheRepository : IScoreCacheRepository
                 return null;
             }
 
-            return JsonSerializer.Deserialize<ScoreCacheData>(value!)?.ToEntity(entityType, entityId);
+            return JsonSerializer.Deserialize<ScoreCacheData>((string)value!)?.ToEntity(entityType, entityId);
         }
         catch (Exception ex)
         {
@@ -58,7 +58,7 @@ public class RedisScoreCacheRepository : IScoreCacheRepository
             {
                 if (!values[i].IsNullOrEmpty)
                 {
-                    var cache = JsonSerializer.Deserialize<ScoreCacheData>(values[i]!)?.ToEntity(entityType, entityIdList[i]);
+                    var cache = JsonSerializer.Deserialize<ScoreCacheData>((string)values[i]!)?.ToEntity(entityType, entityIdList[i]);
                     if (cache != null)
                     {
                         result[entityIdList[i]] = cache;

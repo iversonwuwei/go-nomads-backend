@@ -38,10 +38,13 @@ function Set-MirrorImages {
     $script:NGINX_IMAGE = "$MIRROR_PREFIX/library/nginx:1.29.6"
 }
 
-if ($UseSwr -and -not $UseOfficial) {
-    Set-SwrImages
-} elseif ($UseMirror -and -not $UseOfficial) {
+if ($UseOfficial) {
+    # Use official Docker Hub images (explicit override)
+} elseif ($UseMirror) {
     Set-MirrorImages
+} else {
+    # Default: use SWR images (same as -UseSwr)
+    Set-SwrImages
 }
 
 # Require Docker

@@ -1,15 +1,17 @@
 # 使用 .NET 9.0 运行时作为基础镜像
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 8009
 
 # 使用 .NET 9.0 SDK 镜像进行构建
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
+ENV DOTNET_NUGET_SIGNATURE_VERIFICATION=false
 COPY NuGet.Config .
 
 # 复制 .csproj 文件并还原依赖
 COPY ["src/Services/AIService/AIService/AIService.csproj", "src/Services/AIService/AIService/"]
+COPY ["src/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults.csproj", "src/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 
 RUN dotnet restore "src/Services/AIService/AIService/AIService.csproj"

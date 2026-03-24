@@ -15,8 +15,20 @@ services:
       - accommodation-service
       - event-service
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:5000
+      - ConnectionStrings__Redis=go-nomads-redis:6379
+      - ServiceUrls__UserService=http://go-nomads-user-service:8080
+      - ServiceUrls__CityService=http://go-nomads-city-service:8002
+      - ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8006
+      - ServiceUrls__EventService=http://go-nomads-event-service:8005
+      - ServiceUrls__AIService=http://go-nomads-ai-service:8009
+      - ServiceUrls__CacheService=http://go-nomads-cache-service:8010
+      - ServiceUrls__MessageService=http://go-nomads-message-service:8080
+      - ServiceUrls__InnovationService=http://go-nomads-innovation-service:8011
+      - ServiceUrls__SearchService=http://go-nomads-search-service:8080
+      - ServiceUrls__AccommodationService=http://go-nomads-accommodation-service:8012
+      - ServiceUrls__ProductService=http://go-nomads-product-service:5002
     networks:
       - go-nomads-network
 
@@ -26,17 +38,17 @@ services:
     ports:
       - "5003:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
-      - Services__Gateway__Url=http://go-nomads-gateway:8080
-      - Services__Gateway__OpenApiUrl=http://go-nomads-gateway:8080/openapi/v1.json
-      - Services__ProductService__Url=http://go-nomads-product-service:8080
-      - Services__ProductService__OpenApiUrl=http://go-nomads-product-service:8080/openapi/v1.json
+      - ConnectionStrings__Redis=go-nomads-redis:6379
+      - Services__Gateway__Url=http://go-nomads-gateway:5000
+      - Services__Gateway__OpenApiUrl=http://go-nomads-gateway:5000/openapi/v1.json
+      - Services__ProductService__Url=http://go-nomads-product-service:5002
+      - Services__ProductService__OpenApiUrl=http://go-nomads-product-service:5002/openapi/v1.json
       - Services__UserService__Url=http://go-nomads-user-service:8080
       - Services__UserService__OpenApiUrl=http://go-nomads-user-service:8080/openapi/v1.json
     networks:
       - go-nomads-network
-    depends_on:
 
   user-service:
     image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/user-service:latest
@@ -45,15 +57,18 @@ services:
       - "5001:8080"
       - "50002:50002"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=userservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
+      - RabbitMQ__Host=go-nomads-rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__Username=walden
+      - RabbitMQ__Password=walden
       # 阿里云短信服务 - 通过环境变量注入密钥，请勿明文写入配置文件
       - AliyunSms__AccessKeyId=${ALIYUN_SMS_ACCESS_KEY_ID}
       - AliyunSms__AccessKeySecret=${ALIYUN_SMS_ACCESS_KEY_SECRET}
     networks:
       - go-nomads-network
-    depends_on:
 
   city-service:
     image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/city-service:latest
@@ -61,7 +76,7 @@ services:
     ports:
       - "8002:8002"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8002
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=cityservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
@@ -71,7 +86,6 @@ services:
       - RabbitMQ__Password=walden
     networks:
       - go-nomads-network
-    depends_on:
 
   coworking-service:
     image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/coworking-service:latest
@@ -79,13 +93,16 @@ services:
     ports:
       - "8006:8006"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8006
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=coworkingservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
+      - RabbitMQ__Host=go-nomads-rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__Username=walden
+      - RabbitMQ__Password=walden
     networks:
       - go-nomads-network
-    depends_on:
 
   cache-service:
     image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/cache-service:latest
@@ -93,12 +110,11 @@ services:
     ports:
       - "8010:8010"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8010
       - ConnectionStrings__Redis=go-nomads-redis:6379
     networks:
       - go-nomads-network
-    depends_on:
 
   accommodation-service:
     image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/accommodation-service:latest
@@ -106,13 +122,12 @@ services:
     ports:
       - "8012:8012"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8012
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=accommodationservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
     networks:
       - go-nomads-network
-    depends_on:
 
   event-service:
     image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/event-service:latest
@@ -121,14 +136,16 @@ services:
       - "8005:8005"
     environment:
       - TZ=Asia/Shanghai
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8005
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=eventservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
-      - MessageBroker__Host=go-nomads-rabbitmq
+      - RabbitMQ__Host=go-nomads-rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__Username=walden
+      - RabbitMQ__Password=walden
     networks:
       - go-nomads-network
-    depends_on:
 
   product-service:
     image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/product-service:latest
@@ -138,7 +155,7 @@ services:
     depends_on:
       - user-service
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:5002
     networks:
       - go-nomads-network
@@ -149,7 +166,7 @@ services:
     ports:
       - "8009:8009"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8009
       - ConnectionStrings__SupabaseDb=Host=postgres;Port=5432;Database=aiservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
@@ -158,14 +175,12 @@ services:
       - Redis__ConnectionString=go-nomads-redis:6379,abortConnect=false
     networks:
       - go-nomads-network
-    labels:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8009/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    depends_on:
 
   message-service:
     image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/message-service:latest
@@ -173,7 +188,7 @@ services:
     ports:
       - "5005:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__Redis=go-nomads-redis:6379
       - RabbitMQ__HostName=go-nomads-rabbitmq
@@ -182,7 +197,6 @@ services:
       - RabbitMQ__Password=walden
     networks:
       - go-nomads-network
-    depends_on:
 
   innovation-service:
     image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/innovation-service:latest
@@ -190,11 +204,14 @@ services:
     ports:
       - "8011:8011"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8011
+      - RabbitMQ__Host=go-nomads-rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__Username=walden
+      - RabbitMQ__Password=walden
     networks:
       - go-nomads-network
-    depends_on:
 
   search-service:
     image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/search-service:latest
@@ -202,7 +219,7 @@ services:
     ports:
       - "8015:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
       - Elasticsearch__Url=http://go-nomads-elasticsearch:9200
       - ServiceUrls__CityService=http://go-nomads-city-service:8002
@@ -216,6 +233,7 @@ services:
       - city-service
       - coworking-service
 
+networks:
   go-nomads-network:
     external: true
     name: go-nomads-network
