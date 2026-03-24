@@ -35,7 +35,7 @@ public class RedisCostCacheRepository : ICostCacheRepository
                 return null;
             }
 
-            return JsonSerializer.Deserialize<CostCacheData>(value!)?.ToEntity(entityType, entityId);
+            return JsonSerializer.Deserialize<CostCacheData>((string)value!)?.ToEntity(entityType, entityId);
         }
         catch (Exception ex)
         {
@@ -58,7 +58,7 @@ public class RedisCostCacheRepository : ICostCacheRepository
             {
                 if (!values[i].IsNullOrEmpty)
                 {
-                    var cache = JsonSerializer.Deserialize<CostCacheData>(values[i]!)?.ToEntity(entityType, entityIdList[i]);
+                    var cache = JsonSerializer.Deserialize<CostCacheData>((string)values[i]!)?.ToEntity(entityType, entityIdList[i]);
                     if (cache != null)
                     {
                         result[entityIdList[i]] = cache;

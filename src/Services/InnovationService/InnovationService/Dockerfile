@@ -1,11 +1,13 @@
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 8011
 
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ENV DOTNET_NUGET_SIGNATURE_VERIFICATION=false
 WORKDIR /src
 COPY NuGet.Config .
 COPY ["src/Services/InnovationService/InnovationService/InnovationService.csproj", "src/Services/InnovationService/InnovationService/"]
+COPY ["src/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults.csproj", "src/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 RUN dotnet restore "src/Services/InnovationService/InnovationService/InnovationService.csproj"
 COPY . .

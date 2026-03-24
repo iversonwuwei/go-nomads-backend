@@ -5,7 +5,7 @@ using DocumentService.Configuration;
 using GoNomads.Shared.Communication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 using GoNomads.Shared.Extensions;
 using Serilog;

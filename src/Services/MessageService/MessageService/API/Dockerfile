@@ -1,10 +1,11 @@
 # 构建阶段
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 8080
 
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
+ENV DOTNET_NUGET_SIGNATURE_VERIFICATION=false
 COPY NuGet.Config .
 
 # 复制项目文件（保持目录结构）
@@ -12,6 +13,7 @@ COPY ["src/Services/MessageService/MessageService/API/MessageService.csproj", "s
 COPY ["src/Services/MessageService/MessageService/Application/MessageService.Application.csproj", "src/Services/MessageService/MessageService/Application/"]
 COPY ["src/Services/MessageService/MessageService/Infrastructure/MessageService.Infrastructure.csproj", "src/Services/MessageService/MessageService/Infrastructure/"]
 COPY ["src/Services/MessageService/MessageService/Domain/MessageService.Domain.csproj", "src/Services/MessageService/MessageService/Domain/"]
+COPY ["src/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults.csproj", "src/GoNomads.ServiceDefaults/GoNomads.ServiceDefaults/"]
 COPY ["src/Shared/Shared/Shared.csproj", "src/Shared/Shared/"]
 
 # 还原依赖

@@ -1,0 +1,511 @@
+{
+  "resources": {
+    "redis": {
+      "type": "container.v0",
+      "connectionString": "{redis.bindings.tcp.host}:{redis.bindings.tcp.port},password={redis-password.value}{cond-redis-bindings-tcp-tlsenabled-d148d83a.connectionString}",
+      "image": "docker.io/library/redis:8.6",
+      "entrypoint": "/bin/sh",
+      "args": [
+        "-c",
+        "redis-server --requirepass $REDIS_PASSWORD"
+      ],
+      "env": {
+        "REDIS_PASSWORD": "{redis-password.value}"
+      },
+      "bindings": {
+        "tcp": {
+          "scheme": "redis",
+          "protocol": "tcp",
+          "transport": "tcp",
+          "targetPort": 6379
+        }
+      }
+    },
+    "rabbitmq-username": {
+      "type": "parameter.v0",
+      "value": "{rabbitmq-username.inputs.value}",
+      "inputs": {
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "rabbitmq-password": {
+      "type": "parameter.v0",
+      "value": "{rabbitmq-password.inputs.value}",
+      "inputs": {
+        "value": {
+          "type": "string",
+          "secret": true
+        }
+      }
+    },
+    "rabbitmq": {
+      "type": "container.v0",
+      "connectionString": "amqp://{rabbitmq-username-uri-encoded.value}:{rabbitmq-password-uri-encoded.value}@{rabbitmq.bindings.tcp.host}:{rabbitmq.bindings.tcp.port}",
+      "image": "docker.io/library/rabbitmq:4.2-management",
+      "env": {
+        "RABBITMQ_DEFAULT_USER": "{rabbitmq-username.value}",
+        "RABBITMQ_DEFAULT_PASS": "{rabbitmq-password.value}"
+      },
+      "bindings": {
+        "tcp": {
+          "scheme": "tcp",
+          "protocol": "tcp",
+          "transport": "tcp",
+          "targetPort": 5672
+        },
+        "management": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "targetPort": 15672
+        }
+      }
+    },
+    "elasticsearch": {
+      "type": "container.v0",
+      "connectionString": "http://elastic:{elasticsearch-password.value}@{elasticsearch.bindings.http.host}:{elasticsearch.bindings.http.port}",
+      "image": "docker.io/library/elasticsearch:8.17.3",
+      "env": {
+        "discovery.type": "single-node",
+        "xpack.security.enabled": "true",
+        "ELASTIC_PASSWORD": "{elasticsearch-password.value}"
+      },
+      "bindings": {
+        "http": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "targetPort": 9200
+        },
+        "internal": {
+          "scheme": "tcp",
+          "protocol": "tcp",
+          "transport": "tcp",
+          "targetPort": 9300
+        }
+      }
+    },
+    "user-service": {
+      "type": "project.v0",
+      "path": "../../Services/UserService/UserService/UserService.csproj",
+      "env": {
+        "OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY": "in_memory",
+        "ASPNETCORE_FORWARDEDHEADERS_ENABLED": "true",
+        "HTTP_PORTS": "{user-service.bindings.http.targetPort}",
+        "ConnectionStrings__rabbitmq": "{rabbitmq.connectionString}",
+        "RABBITMQ_HOST": "{rabbitmq.bindings.tcp.host}",
+        "RABBITMQ_PORT": "{rabbitmq.bindings.tcp.port}",
+        "RABBITMQ_USERNAME": "{rabbitmq-username.value}",
+        "RABBITMQ_PASSWORD": "{rabbitmq-password.value}",
+        "RABBITMQ_URI": "amqp://{rabbitmq-username-uri-encoded.value}:{rabbitmq-password-uri-encoded.value}@{rabbitmq.bindings.tcp.host}:{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__Host": "{rabbitmq.bindings.tcp.host}",
+        "RabbitMQ__Port": "{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__Username": "{rabbitmq-username.value}",
+        "RabbitMQ__Password": "{rabbitmq-password.value}"
+      },
+      "bindings": {
+        "http": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "port": 5001
+        }
+      }
+    },
+    "product-service": {
+      "type": "project.v0",
+      "path": "../../Services/ProductService/ProductService/ProductService.csproj",
+      "env": {
+        "OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY": "in_memory",
+        "ASPNETCORE_FORWARDEDHEADERS_ENABLED": "true",
+        "HTTP_PORTS": "{product-service.bindings.http.targetPort}"
+      },
+      "bindings": {
+        "http": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "port": 5002
+        }
+      }
+    },
+    "document-service": {
+      "type": "project.v0",
+      "path": "../../Services/DocumentService/DocumentService/DocumentService.csproj",
+      "env": {
+        "OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY": "in_memory",
+        "ASPNETCORE_FORWARDEDHEADERS_ENABLED": "true",
+        "HTTP_PORTS": "{document-service.bindings.http.targetPort}",
+        "ConnectionStrings__redis": "{redis.connectionString}",
+        "REDIS_HOST": "{redis.bindings.tcp.host}",
+        "REDIS_PORT": "{redis.bindings.tcp.port}",
+        "REDIS_PASSWORD": "{redis-password.value}",
+        "REDIS_URI": "{redis.bindings.tcp.scheme}://:{redis-password-uri-encoded.value}@{redis.bindings.tcp.host}:{redis.bindings.tcp.port}",
+        "Services__Gateway__Url": "{gateway.bindings.http.url}",
+        "Services__Gateway__OpenApiUrl": "{gateway.bindings.http.url}/openapi/v1.json",
+        "Services__ProductService__Url": "{product-service.bindings.http.url}",
+        "Services__ProductService__OpenApiUrl": "{product-service.bindings.http.url}/openapi/v1.json",
+        "Services__UserService__Url": "{user-service.bindings.http.url}",
+        "Services__UserService__OpenApiUrl": "{user-service.bindings.http.url}/openapi/v1.json"
+      },
+      "bindings": {
+        "http": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "port": 5003
+        }
+      }
+    },
+    "city-service": {
+      "type": "project.v0",
+      "path": "../../Services/CityService/CityService/CityService.csproj",
+      "env": {
+        "OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY": "in_memory",
+        "ASPNETCORE_FORWARDEDHEADERS_ENABLED": "true",
+        "HTTP_PORTS": "{city-service.bindings.http.targetPort}",
+        "ConnectionStrings__redis": "{redis.connectionString}",
+        "REDIS_HOST": "{redis.bindings.tcp.host}",
+        "REDIS_PORT": "{redis.bindings.tcp.port}",
+        "REDIS_PASSWORD": "{redis-password.value}",
+        "REDIS_URI": "{redis.bindings.tcp.scheme}://:{redis-password-uri-encoded.value}@{redis.bindings.tcp.host}:{redis.bindings.tcp.port}",
+        "ConnectionStrings__rabbitmq": "{rabbitmq.connectionString}",
+        "RABBITMQ_HOST": "{rabbitmq.bindings.tcp.host}",
+        "RABBITMQ_PORT": "{rabbitmq.bindings.tcp.port}",
+        "RABBITMQ_USERNAME": "{rabbitmq-username.value}",
+        "RABBITMQ_PASSWORD": "{rabbitmq-password.value}",
+        "RABBITMQ_URI": "amqp://{rabbitmq-username-uri-encoded.value}:{rabbitmq-password-uri-encoded.value}@{rabbitmq.bindings.tcp.host}:{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__Host": "{rabbitmq.bindings.tcp.host}",
+        "RabbitMQ__Port": "{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__Username": "{rabbitmq-username.value}",
+        "RabbitMQ__Password": "{rabbitmq-password.value}"
+      },
+      "bindings": {
+        "http": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "port": 8002
+        }
+      }
+    },
+    "event-service": {
+      "type": "project.v0",
+      "path": "../../Services/EventService/EventService/EventService.csproj",
+      "env": {
+        "OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY": "in_memory",
+        "ASPNETCORE_FORWARDEDHEADERS_ENABLED": "true",
+        "HTTP_PORTS": "{event-service.bindings.http.targetPort}",
+        "ConnectionStrings__rabbitmq": "{rabbitmq.connectionString}",
+        "RABBITMQ_HOST": "{rabbitmq.bindings.tcp.host}",
+        "RABBITMQ_PORT": "{rabbitmq.bindings.tcp.port}",
+        "RABBITMQ_USERNAME": "{rabbitmq-username.value}",
+        "RABBITMQ_PASSWORD": "{rabbitmq-password.value}",
+        "RABBITMQ_URI": "amqp://{rabbitmq-username-uri-encoded.value}:{rabbitmq-password-uri-encoded.value}@{rabbitmq.bindings.tcp.host}:{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__Host": "{rabbitmq.bindings.tcp.host}",
+        "RabbitMQ__Port": "{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__Username": "{rabbitmq-username.value}",
+        "RabbitMQ__Password": "{rabbitmq-password.value}"
+      },
+      "bindings": {
+        "http": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "port": 8005
+        }
+      }
+    },
+    "coworking-service": {
+      "type": "project.v0",
+      "path": "../../Services/CoworkingService/CoworkingService/CoworkingService.csproj",
+      "env": {
+        "OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY": "in_memory",
+        "ASPNETCORE_FORWARDEDHEADERS_ENABLED": "true",
+        "HTTP_PORTS": "{coworking-service.bindings.http.targetPort}",
+        "ConnectionStrings__rabbitmq": "{rabbitmq.connectionString}",
+        "RABBITMQ_HOST": "{rabbitmq.bindings.tcp.host}",
+        "RABBITMQ_PORT": "{rabbitmq.bindings.tcp.port}",
+        "RABBITMQ_USERNAME": "{rabbitmq-username.value}",
+        "RABBITMQ_PASSWORD": "{rabbitmq-password.value}",
+        "RABBITMQ_URI": "amqp://{rabbitmq-username-uri-encoded.value}:{rabbitmq-password-uri-encoded.value}@{rabbitmq.bindings.tcp.host}:{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__Host": "{rabbitmq.bindings.tcp.host}",
+        "RabbitMQ__Port": "{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__Username": "{rabbitmq-username.value}",
+        "RabbitMQ__Password": "{rabbitmq-password.value}"
+      },
+      "bindings": {
+        "http": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "port": 8006
+        }
+      }
+    },
+    "ai-service": {
+      "type": "project.v0",
+      "path": "../../Services/AIService/AIService/AIService.csproj",
+      "env": {
+        "OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY": "in_memory",
+        "ASPNETCORE_FORWARDEDHEADERS_ENABLED": "true",
+        "HTTP_PORTS": "{ai-service.bindings.http.targetPort}",
+        "ConnectionStrings__rabbitmq": "{rabbitmq.connectionString}",
+        "RABBITMQ_HOST": "{rabbitmq.bindings.tcp.host}",
+        "RABBITMQ_PORT": "{rabbitmq.bindings.tcp.port}",
+        "RABBITMQ_USERNAME": "{rabbitmq-username.value}",
+        "RABBITMQ_PASSWORD": "{rabbitmq-password.value}",
+        "RABBITMQ_URI": "amqp://{rabbitmq-username-uri-encoded.value}:{rabbitmq-password-uri-encoded.value}@{rabbitmq.bindings.tcp.host}:{rabbitmq.bindings.tcp.port}",
+        "Redis__ConnectionString": "{redis.bindings.tcp.host}:{redis.bindings.tcp.port},abortConnect=false",
+        "RabbitMQ__HostName": "{rabbitmq.bindings.tcp.host}",
+        "RabbitMQ__Port": "{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__UserName": "{rabbitmq-username.value}",
+        "RabbitMQ__Password": "{rabbitmq-password.value}"
+      },
+      "bindings": {
+        "http": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "port": 8009
+        }
+      }
+    },
+    "message-service": {
+      "type": "project.v0",
+      "path": "../../Services/MessageService/MessageService/API/MessageService.csproj",
+      "env": {
+        "OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY": "in_memory",
+        "ASPNETCORE_FORWARDEDHEADERS_ENABLED": "true",
+        "HTTP_PORTS": "{message-service.bindings.http.targetPort}",
+        "ConnectionStrings__redis": "{redis.connectionString}",
+        "REDIS_HOST": "{redis.bindings.tcp.host}",
+        "REDIS_PORT": "{redis.bindings.tcp.port}",
+        "REDIS_PASSWORD": "{redis-password.value}",
+        "REDIS_URI": "{redis.bindings.tcp.scheme}://:{redis-password-uri-encoded.value}@{redis.bindings.tcp.host}:{redis.bindings.tcp.port}",
+        "ConnectionStrings__rabbitmq": "{rabbitmq.connectionString}",
+        "RABBITMQ_HOST": "{rabbitmq.bindings.tcp.host}",
+        "RABBITMQ_PORT": "{rabbitmq.bindings.tcp.port}",
+        "RABBITMQ_USERNAME": "{rabbitmq-username.value}",
+        "RABBITMQ_PASSWORD": "{rabbitmq-password.value}",
+        "RABBITMQ_URI": "amqp://{rabbitmq-username-uri-encoded.value}:{rabbitmq-password-uri-encoded.value}@{rabbitmq.bindings.tcp.host}:{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__Host": "{rabbitmq.bindings.tcp.host}",
+        "RabbitMQ__Port": "{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__Username": "{rabbitmq-username.value}",
+        "RabbitMQ__Password": "{rabbitmq-password.value}"
+      },
+      "bindings": {
+        "http": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "port": 5005
+        }
+      }
+    },
+    "cache-service": {
+      "type": "project.v0",
+      "path": "../../Services/CacheService/CacheService/CacheService.csproj",
+      "env": {
+        "OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY": "in_memory",
+        "ASPNETCORE_FORWARDEDHEADERS_ENABLED": "true",
+        "HTTP_PORTS": "{cache-service.bindings.http.targetPort}",
+        "ConnectionStrings__redis": "{redis.connectionString}",
+        "REDIS_HOST": "{redis.bindings.tcp.host}",
+        "REDIS_PORT": "{redis.bindings.tcp.port}",
+        "REDIS_PASSWORD": "{redis-password.value}",
+        "REDIS_URI": "{redis.bindings.tcp.scheme}://:{redis-password-uri-encoded.value}@{redis.bindings.tcp.host}:{redis.bindings.tcp.port}"
+      },
+      "bindings": {
+        "http": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "port": 8010
+        }
+      }
+    },
+    "innovation-service": {
+      "type": "project.v0",
+      "path": "../../Services/InnovationService/InnovationService/InnovationService.csproj",
+      "env": {
+        "OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY": "in_memory",
+        "ASPNETCORE_FORWARDEDHEADERS_ENABLED": "true",
+        "HTTP_PORTS": "{innovation-service.bindings.http.targetPort}",
+        "ConnectionStrings__rabbitmq": "{rabbitmq.connectionString}",
+        "RABBITMQ_HOST": "{rabbitmq.bindings.tcp.host}",
+        "RABBITMQ_PORT": "{rabbitmq.bindings.tcp.port}",
+        "RABBITMQ_USERNAME": "{rabbitmq-username.value}",
+        "RABBITMQ_PASSWORD": "{rabbitmq-password.value}",
+        "RABBITMQ_URI": "amqp://{rabbitmq-username-uri-encoded.value}:{rabbitmq-password-uri-encoded.value}@{rabbitmq.bindings.tcp.host}:{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__Host": "{rabbitmq.bindings.tcp.host}",
+        "RabbitMQ__Port": "{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__Username": "{rabbitmq-username.value}",
+        "RabbitMQ__Password": "{rabbitmq-password.value}"
+      },
+      "bindings": {
+        "http": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "port": 8011
+        }
+      }
+    },
+    "accommodation-service": {
+      "type": "project.v0",
+      "path": "../../Services/AccommodationService/AccommodationService/AccommodationService.csproj",
+      "env": {
+        "OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY": "in_memory",
+        "ASPNETCORE_FORWARDEDHEADERS_ENABLED": "true",
+        "HTTP_PORTS": "{accommodation-service.bindings.http.targetPort}"
+      },
+      "bindings": {
+        "http": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "port": 8012
+        }
+      }
+    },
+    "search-service": {
+      "type": "project.v0",
+      "path": "../../Services/SearchService/SearchService/SearchService.csproj",
+      "env": {
+        "OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY": "in_memory",
+        "ASPNETCORE_FORWARDEDHEADERS_ENABLED": "true",
+        "HTTP_PORTS": "{search-service.bindings.http.targetPort}",
+        "ConnectionStrings__elasticsearch": "{elasticsearch.connectionString}",
+        "Elasticsearch__Url": "{elasticsearch.bindings.http.url}",
+        "ConnectionStrings__rabbitmq": "{rabbitmq.connectionString}",
+        "RABBITMQ_HOST": "{rabbitmq.bindings.tcp.host}",
+        "RABBITMQ_PORT": "{rabbitmq.bindings.tcp.port}",
+        "RABBITMQ_USERNAME": "{rabbitmq-username.value}",
+        "RABBITMQ_PASSWORD": "{rabbitmq-password.value}",
+        "RABBITMQ_URI": "amqp://{rabbitmq-username-uri-encoded.value}:{rabbitmq-password-uri-encoded.value}@{rabbitmq.bindings.tcp.host}:{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__Host": "{rabbitmq.bindings.tcp.host}",
+        "RabbitMQ__Port": "{rabbitmq.bindings.tcp.port}",
+        "RabbitMQ__Username": "{rabbitmq-username.value}",
+        "RabbitMQ__Password": "{rabbitmq-password.value}",
+        "ServiceUrls__CityService": "{city-service.bindings.http.url}",
+        "ServiceUrls__CoworkingService": "{coworking-service.bindings.http.url}"
+      },
+      "bindings": {
+        "http": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "port": 8015
+        }
+      }
+    },
+    "gateway": {
+      "type": "project.v0",
+      "path": "../../Gateway/Gateway/Gateway.csproj",
+      "env": {
+        "OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY": "in_memory",
+        "ASPNETCORE_FORWARDEDHEADERS_ENABLED": "true",
+        "HTTP_PORTS": "{gateway.bindings.http.targetPort}",
+        "ConnectionStrings__redis": "{redis.connectionString}",
+        "REDIS_HOST": "{redis.bindings.tcp.host}",
+        "REDIS_PORT": "{redis.bindings.tcp.port}",
+        "REDIS_PASSWORD": "{redis-password.value}",
+        "REDIS_URI": "{redis.bindings.tcp.scheme}://:{redis-password-uri-encoded.value}@{redis.bindings.tcp.host}:{redis.bindings.tcp.port}",
+        "USER_SERVICE_HTTP": "{user-service.bindings.http.url}",
+        "services__user-service__http__0": "{user-service.bindings.http.url}",
+        "PRODUCT_SERVICE_HTTP": "{product-service.bindings.http.url}",
+        "services__product-service__http__0": "{product-service.bindings.http.url}",
+        "CITY_SERVICE_HTTP": "{city-service.bindings.http.url}",
+        "services__city-service__http__0": "{city-service.bindings.http.url}",
+        "COWORKING_SERVICE_HTTP": "{coworking-service.bindings.http.url}",
+        "services__coworking-service__http__0": "{coworking-service.bindings.http.url}",
+        "EVENT_SERVICE_HTTP": "{event-service.bindings.http.url}",
+        "services__event-service__http__0": "{event-service.bindings.http.url}",
+        "AI_SERVICE_HTTP": "{ai-service.bindings.http.url}",
+        "services__ai-service__http__0": "{ai-service.bindings.http.url}",
+        "CACHE_SERVICE_HTTP": "{cache-service.bindings.http.url}",
+        "services__cache-service__http__0": "{cache-service.bindings.http.url}",
+        "MESSAGE_SERVICE_HTTP": "{message-service.bindings.http.url}",
+        "services__message-service__http__0": "{message-service.bindings.http.url}",
+        "INNOVATION_SERVICE_HTTP": "{innovation-service.bindings.http.url}",
+        "services__innovation-service__http__0": "{innovation-service.bindings.http.url}",
+        "SEARCH_SERVICE_HTTP": "{search-service.bindings.http.url}",
+        "services__search-service__http__0": "{search-service.bindings.http.url}",
+        "ACCOMMODATION_SERVICE_HTTP": "{accommodation-service.bindings.http.url}",
+        "services__accommodation-service__http__0": "{accommodation-service.bindings.http.url}",
+        "ServiceUrls__UserService": "{user-service.bindings.http.url}",
+        "ServiceUrls__CityService": "{city-service.bindings.http.url}",
+        "ServiceUrls__CoworkingService": "{coworking-service.bindings.http.url}",
+        "ServiceUrls__EventService": "{event-service.bindings.http.url}",
+        "ServiceUrls__AIService": "{ai-service.bindings.http.url}",
+        "ServiceUrls__CacheService": "{cache-service.bindings.http.url}",
+        "ServiceUrls__MessageService": "{message-service.bindings.http.url}",
+        "ServiceUrls__InnovationService": "{innovation-service.bindings.http.url}",
+        "ServiceUrls__SearchService": "{search-service.bindings.http.url}",
+        "ServiceUrls__AccommodationService": "{accommodation-service.bindings.http.url}",
+        "ServiceUrls__ProductService": "{product-service.bindings.http.url}"
+      },
+      "bindings": {
+        "http": {
+          "scheme": "http",
+          "protocol": "tcp",
+          "transport": "http",
+          "port": 5080
+        }
+      }
+    },
+    "redis-password": {
+      "type": "parameter.v0",
+      "value": "{redis-password.inputs.value}",
+      "inputs": {
+        "value": {
+          "type": "string",
+          "secret": true,
+          "default": {
+            "generate": {
+              "minLength": 22,
+              "special": false
+            }
+          }
+        }
+      }
+    },
+    "redis-password-uri-encoded": {
+      "type": "annotated.string",
+      "value": "{redis-password.value}",
+      "filter": "uri"
+    },
+    "elasticsearch-password": {
+      "type": "parameter.v0",
+      "value": "{elasticsearch-password.inputs.value}",
+      "inputs": {
+        "value": {
+          "type": "string",
+          "secret": true,
+          "default": {
+            "generate": {
+              "minLength": 22
+            }
+          }
+        }
+      }
+    },
+    "rabbitmq-username-uri-encoded": {
+      "type": "annotated.string",
+      "value": "{rabbitmq-username.value}",
+      "filter": "uri"
+    },
+    "rabbitmq-password-uri-encoded": {
+      "type": "annotated.string",
+      "value": "{rabbitmq-password.value}",
+      "filter": "uri"
+    },
+    "cond-redis-bindings-tcp-tlsenabled-d148d83a": {
+      "type": "value.v0",
+      "connectionString": ""
+    }
+  }
+}

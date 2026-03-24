@@ -7,7 +7,7 @@ using MessageService.Domain.Repositories;
 using MessageService.Infrastructure.Consumers;
 using MessageService.Infrastructure.Repositories;
 using MessageService.Infrastructure.TencentIM;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 using Serilog;
 using GoNomads.Shared.Communication;

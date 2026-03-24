@@ -15,7 +15,7 @@ using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 using Serilog;
 using Shared.Messages;
@@ -186,13 +186,12 @@ var app = builder.Build();
 
 // Configure the HTTP request pipeline
 app.MapOpenApi();
-app.MapScalarApiReference(options =>
+app.MapScalarApiReference("/scalar", options =>
 {
     options
         .WithTitle("City Service API")
         .WithTheme(ScalarTheme.BluePlanet)
-        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient)
-        .WithEndpointPrefix("/scalar/{documentName}");
+        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
 });
 
 // 后台服务已通过 HostedService 运行
