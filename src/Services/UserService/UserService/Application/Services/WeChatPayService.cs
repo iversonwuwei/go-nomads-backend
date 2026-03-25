@@ -69,13 +69,11 @@ public class WeChatPayService : IWeChatPayService
         _settings = settings.Value;
         _logger = logger;
 
-        if (string.IsNullOrEmpty(_settings.PrivateKeyPath))
-            throw new InvalidOperationException("WeChatPay:PrivateKeyPath is not configured");
-        if (!File.Exists(_settings.PrivateKeyPath))
-            throw new FileNotFoundException($"WeChat Pay private key file not found: {_settings.PrivateKeyPath}");
+        _privateKeyPem = _settings.GetPrivateKeyContent();
+        if (string.IsNullOrEmpty(_privateKeyPem))
+            throw new InvalidOperationException("WeChatPay:PrivateKey is not configured or could not be loaded");
 
-        _privateKeyPem = File.ReadAllText(_settings.PrivateKeyPath);
-        _logger.LogInformation("✅ 已加载微信支付商户私钥: {Path}", _settings.PrivateKeyPath);
+        _logger.LogInformation("✅ 已加载微信支付商户私钥");
     }
 
     /// <inheritdoc />

@@ -15,20 +15,25 @@ services:
       - accommodation-service
       - event-service
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:5000
-      - ConnectionStrings__Redis=go-nomads-redis:6379
-      - ServiceUrls__UserService=http://go-nomads-user-service:8080
-      - ServiceUrls__CityService=http://go-nomads-city-service:8002
-      - ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8006
-      - ServiceUrls__EventService=http://go-nomads-event-service:8005
-      - ServiceUrls__AIService=http://go-nomads-ai-service:8009
-      - ServiceUrls__CacheService=http://go-nomads-cache-service:8010
-      - ServiceUrls__MessageService=http://go-nomads-message-service:8080
-      - ServiceUrls__InnovationService=http://go-nomads-innovation-service:8011
-      - ServiceUrls__SearchService=http://go-nomads-search-service:8080
-      - ServiceUrls__AccommodationService=http://go-nomads-accommodation-service:8012
-      - ServiceUrls__ProductService=http://go-nomads-product-service:5002
+      <<: *common-env
+      ASPNETCORE_URLS: "http://+:8080"
+      OTEL_SERVICE_NAME: user-service
+      ConnectionStrings__redis: *conn-redis
+      ConnectionStrings__rabbitmq: *conn-rabbitmq
+      # 阿里云短信 - 通过 .env 文件注入
+      AliyunSms__AccessKeyId: "${ALIYUN_SMS_ACCESS_KEY_ID}"
+      AliyunSms__AccessKeySecret: "${ALIYUN_SMS_ACCESS_KEY_SECRET}"
+      # 微信支付 - 通过 .env 文件注入
+      WeChatPay__ApiV3Key: "${WECHAT_PAY_API_V3_KEY}"
+      WeChatPay__CertificateSerialNumber: "${WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER}"
+      WeChatPay__PrivateKey: "file:/app/certs/wechat/wechat_pay_private_key.pem"
+      # 服务发现
+      services__city-service__http__0:    *svc-city
+      services__product-service__http__0: *svc-product
+      services__event-service__http__0:   *svc-event
+      services__message-service__http__0: *svc-message
+    volumes:
+      - /root/docker-compose/certs:/app/certs/wechat:ro
     networks:
       - go-nomads-network
 
