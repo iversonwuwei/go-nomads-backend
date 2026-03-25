@@ -1,33 +1,48 @@
 # TOOLS.md - Local Notes
 
-Skills define _how_ tools work. This file is for _your_ specifics — the stuff that's unique to your setup.
+## 服务端口分配
 
-## What Goes Here
+| 服务 | 本地端口 | Docker 端口 |
+|------|----------|------------|
+| Gateway | 5000 | 80 |
+| UserService | 8001 | 8001 |
+| CityService | 8002 | 8002 |
+| CoworkingService | 8003 | 8006 |
+| EventService | 8004 | 8004 |
+| AIService | 8005 | 8005 |
+| MessageService | 8006 | 5005 |
+| CacheService | 8007 | 8007 |
+| SearchService | 8008 | 8008 |
+| InnovationService | 8009 | 8009 |
+| AccommodationService | 8010 | 8010 |
+| ProductService | 8011 | 8011 |
 
-Things like:
+## 基础设施
 
-- Camera names and locations
-- SSH hosts and aliases
-- Preferred voices for TTS
-- Speaker/room names
-- Device nicknames
-- Anything environment-specific
+- Redis: `localhost:6379`
+- RabbitMQ: `localhost:5672`（管理 `15672`）
+- Elasticsearch: `localhost:9200`
+- Supabase PostgreSQL: 外部托管
 
-## Examples
+## Docker 镜像仓库
 
-```markdown
-### Cameras
+- SWR: `swr.ap-southeast-3.myhuaweicloud.com/go-nomads`
 
-- living-room → Main area, 180° wide angle
-- front-door → Entrance, motion-triggered
+## 常用命令
 
-### SSH
+```bash
+# Aspire 启动
+dotnet run --project src/GoNomads.AppHost
 
-- home-server → 192.168.1.100, user: admin
+# 单服务启动
+dotnet run --project src/Services/CityService/CityService
 
-### TTS
+# Docker 基础设施
+docker compose -f docker-compose-infras.yml up -d
 
-- Preferred voice: "Nova" (warm, slightly British)
+# Docker 全部服务
+docker compose -f docker-compose-services-swr.yml up -d
+```
 - Default speaker: Kitchen HomePod
 ```
 
