@@ -73,6 +73,12 @@ services:
       # 阿里云短信服务 - 通过环境变量注入密钥，请勿明文写入配置文件
       - AliyunSms__AccessKeyId=${ALIYUN_SMS_ACCESS_KEY_ID}
       - AliyunSms__AccessKeySecret=${ALIYUN_SMS_ACCESS_KEY_SECRET}
+      # 微信支付 V3
+      - WeChatPay__ApiV3Key=${WECHAT_PAY_API_V3_KEY}
+      - WeChatPay__CertificateSerialNumber=${WECHAT_PAY_CERT_SERIAL_NO}
+      - WeChatPay__PrivateKeyPath=/app/certs/wechat_apiclient_key.pem
+    volumes:
+      - ./certs/wechat_apiclient_key.pem:/app/certs/wechat_apiclient_key.pem:ro
     networks:
       - go-nomads-network
 
