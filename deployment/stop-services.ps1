@@ -36,82 +36,55 @@ if (-not $CONTAINER_RUNTIME) {
 
 Write-Host "Using container runtime: $CONTAINER_RUNTIME" -ForegroundColor Green
 
-# Service definitions
+# Service definitions（与 deploy-services-local.ps1 保持同步）
 $SERVICES = @(
-    @{ Name = "go-nomads-gateway" },
-    @{ Name = "go-nomads-product" },
-    @{ Name = "go-nomads-user" },
-    @{ Name = "go-nomads-document" }
+    "go-nomads-gateway",
+    "go-nomads-user-service",
+    "go-nomads-product-service",
+    "go-nomads-document-service",
+    "go-nomads-city-service",
+    "go-nomads-event-service",
+    "go-nomads-coworking-service",
+    "go-nomads-ai-service",
+    "go-nomads-cache-service",
+    "go-nomads-message-service",
+    "go-nomads-accommodation-service",
+    "go-nomads-innovation-service",
+    "go-nomads-search-service"
 )
 
-function Write-Header {
-    param([string]$Message)
-    Write-Host ""
-    Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host "  $Message" -ForegroundColor Cyan
-    Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host ""
-}
-
 function Stop-Service {
-    param(
-        [string]$ServiceName
-    )
+    param([string]$ServiceName)
     
-    Write-Host "`nStopping service: $ServiceName" -ForegroundColor Yellow
-    
-    try {
-        $running = & $CONTAINER_RUNTIME ps --filter "name=$ServiceName" --filter "status=running" --format '{{.Names}}' 2>$null
-        if ($running -eq $ServiceName) {
-            Write-Host "  Stopping service: $ServiceName..." -ForegroundColor Gray
-            & $CONTAINER_RUNTIME stop $ServiceName 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "    Service stopped" -ForegroundColor Green
-            }
-        }
-    } catch {
-        Write-Host "    Warning: Could not stop service" -ForegroundColor Yellow
-    }
-}
-
-function Remove-Service {
-    param(
-        [string]$ServiceName
-    )
-    
-    Write-Host "`nRemoving service: $ServiceName" -ForegroundColor Yellow
-    
-    try {
-        $exists = & $CONTAINER_RUNTIME ps -a --filter "name=$ServiceName" --format '{{.Names}}' 2>$null
-        if ($exists -eq $ServiceName) {
-            Write-Host "  Removing service: $ServiceName..." -ForegroundColor Gray
-            & $CONTAINER_RUNTIME rm -f $ServiceName 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "    Service removed" -ForegroundColor Green
-            }
-        }
-    } catch {
-        Write-Host "    Warning: Could not remove service" -ForegroundColor Yellow
+    $exists = & $CONTAINER_RUNTIME ps -a --filter "name=$ServiceName" --format '{{.Names}}' 2>$null
+    if ($exists -eq $ServiceName) {
+        Write-Host "  停止容器: $ServiceName..." -ForegroundColor Yellow
+        & $CONTAINER_RUNTIME stop $ServiceName 2>&1 | Out-Null
+        & $CONTAINER_RUNTIME rm $ServiceName 2>&1 | Out-Null
+        Write-Host "  ✓ $ServiceName 已停止并删除" -ForegroundColor Green
+    } else {
+        Write-Host "  - $ServiceName 不存在，跳过" -ForegroundColor Blue
     }
 }
 
 # Main logic
-if ($Clean) {
-    Write-Header "Stopping and Removing All Go-Nomads Services"
-    foreach ($service in $SERVICES) {
-        Stop-Service -ServiceName $service.Name
-        Remove-Service -ServiceName $service.Name
-    }
-    Write-Host "`nAll services stopped and removed!" -ForegroundColor Green
-} else {
-    Write-Header "Stopping All Go-Nomads Services"
-    foreach ($service in $SERVICES) {
-        Stop-Service -ServiceName $service.Name
-    }
-    Write-Host "`nAll services stopped!" -ForegroundColor Green
-    Write-Host "Use 'stop-services.ps1 -Clean' to also remove containers" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "  停止 Go-Nomads 服务 (使用 $CONTAINER_RUNTIME)" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host ""
+
+foreach ($svc in $SERVICES) {
+    Stop-Service -ServiceName $svc
 }
 
+Write-Host ""
+Write-Host "所有服务已停止! ✓" -ForegroundColor Green
+Write-Host ""
+Write-Host "注意: 基础设施服务 (Redis, RabbitMQ, Elasticsearch, etc.) 仍在运行" -ForegroundColor Cyan
+Write-Host "如需停止基础设施，请运行: .\deploy-infrastructure-local.ps1 stop" -ForegroundColor Cyan
+Write-Host ""
+
 # Show status
-Write-Host "`nCurrent service status:" -ForegroundColor Cyan
+Write-Host "当前容器状态:" -ForegroundColor Cyan
 & $CONTAINER_RUNTIME ps --filter "name=go-nomads" --format 'table {{.Names}}`t{{.Status}}`t{{.Ports}}'

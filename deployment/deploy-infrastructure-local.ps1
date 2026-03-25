@@ -153,6 +153,25 @@ function Start-Nginx {
     Write-Host "Nginx running at: http://localhost" -ForegroundColor Green
 }
 
+function Start-AspireDashboard {
+    Write-Header "Deploying Aspire Dashboard"
+    Remove-Container "go-nomads-aspire-dashboard"
+    
+    & $RUNTIME run -d `
+        --name go-nomads-aspire-dashboard `
+        --network $NETWORK_NAME `
+        --label "com.docker.compose.project=go-nomads-infras" `
+        --label "com.docker.compose.service=aspire-dashboard" `
+        -p 18888:18888 `
+        -p 4317:18889 `
+        -e DASHBOARD__FRONTEND__AUTHMODE=Unsecured `
+        -e DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true `
+        mcr.microsoft.com/dotnet/aspire-dashboard:9.0 | Out-Null
+    
+    Write-Host "Aspire Dashboard running at: http://localhost:18888" -ForegroundColor Green
+    Write-Host "OTLP gRPC endpoint: http://localhost:4317 (container: http://go-nomads-aspire-dashboard:18889)" -ForegroundColor Green
+}
+
 function Start-Infrastructure {
     Write-Header "Go-Nomads Local Infrastructure"
     Require-Docker
@@ -162,6 +181,7 @@ function Start-Infrastructure {
     Start-RabbitMQ
     Start-Elasticsearch
     Start-Nginx
+    Start-AspireDashboard
     
     Show-Status
     Write-Host "Infrastructure ready." -ForegroundColor Green
@@ -172,6 +192,7 @@ function Stop-Infrastructure {
     Require-Docker
     
     $containers = @(
+        "go-nomads-aspire-dashboard",
         "go-nomads-nginx",
         "go-nomads-elasticsearch",
         "go-nomads-rabbitmq",
@@ -199,6 +220,7 @@ function Remove-Infrastructure {
     Stop-Infrastructure
     
     $containers = @(
+        "go-nomads-aspire-dashboard",
         "go-nomads-nginx",
         "go-nomads-elasticsearch",
         "go-nomads-rabbitmq",
@@ -230,8 +252,8 @@ function Show-Status {
     Write-Host "  RabbitMQ:       amqp://localhost:5672"
     Write-Host "  RabbitMQ UI:    http://localhost:15672"
     Write-Host "  Elasticsearch:  http://localhost:9200"
-    Write-Host ""
-    Write-Host "  Observability (Aspire Dashboard): 通过 dotnet run --project src/GoNomads.AppHost 启动" -ForegroundColor Yellow
+    Write-Host "  Aspire Dashboard: http://localhost:18888"
+    Write-Host "  OTLP Endpoint:    http://localhost:4317"
 }
 
 function Show-Help {

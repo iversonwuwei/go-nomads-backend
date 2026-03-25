@@ -30,12 +30,21 @@ echo -e "${BLUE}  停止 Go-Nomads 服务 (使用 $CONTAINER_RUNTIME)${NC}"
 echo -e "${BLUE}============================================================${NC}"
 echo ""
 
-# 服务列表
+# 服务列表（与 deploy-services-local.sh 保持同步）
 SERVICES=(
     "go-nomads-gateway"
     "go-nomads-user-service"
     "go-nomads-product-service"
     "go-nomads-document-service"
+    "go-nomads-city-service"
+    "go-nomads-event-service"
+    "go-nomads-coworking-service"
+    "go-nomads-ai-service"
+    "go-nomads-cache-service"
+    "go-nomads-message-service"
+    "go-nomads-accommodation-service"
+    "go-nomads-innovation-service"
+    "go-nomads-search-service"
 )
 
 # 停止服务
@@ -53,5 +62,5 @@ done
 echo ""
 echo -e "${GREEN}所有服务已停止! ✓${NC}"
 echo ""
-echo -e "${BLUE}注意: 基础设施服务 (Redis, etc.) 仍在运行${NC}"
-echo -e "${BLUE}如需停止基础设施，请运行: ./deploy-infrastructure.sh stop${NC}"
+echo -e "${BLUE}注意: 基础设施服务 (Redis, RabbitMQ, Elasticsearch, etc.) 仍在运行${NC}"
+echo -e "${BLUE}如需停止基础设施，请运行: ./deploy-infrastructure-local.sh stop${NC}"
