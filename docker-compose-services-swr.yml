@@ -100,14 +100,14 @@ services:
       # 微信支付 - 通过 .env 文件注入
       WeChatPay__ApiV3Key: "${WECHAT_PAY_API_V3_KEY}"
       WeChatPay__CertificateSerialNumber: "${WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER}"
-      WeChatPay__PrivateKey: "file:/app/certs/wechat/apiclient_key.pem"
+      WeChatPay__PrivateKey: "file:/app/certs/wechat/wechat_pay_private_key.pem"
       # 服务发现
       services__city-service__http__0:    *svc-city
       services__product-service__http__0: *svc-product
       services__event-service__http__0:   *svc-event
       services__message-service__http__0: *svc-message
     volumes:
-      - /root/docker-compose/deployment/wechat/cert:/app/certs/wechat:ro
+      - /root/docker-compose/certs:/app/certs/wechat:ro
     networks:
       - go-nomads-network
     restart: unless-stopped

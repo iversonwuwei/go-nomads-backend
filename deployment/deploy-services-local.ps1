@@ -245,13 +245,18 @@ foreach ($svc in $services) {
         )
     }
 
-    # --- User Service: Redis + RabbitMQ + AliyunSms + 服务发现 ---
+    # --- User Service: Redis + RabbitMQ + AliyunSms + WeChatPay + 服务发现 ---
     if ($svc.Name -eq "user-service") {
         $extraEnvArgs = @(
             "-e", "ConnectionStrings__redis=$CONN_REDIS",
             "-e", "ConnectionStrings__rabbitmq=$CONN_RABBITMQ",
             "-e", "AliyunSms__AccessKeyId=$env:ALIYUN_SMS_ACCESS_KEY_ID",
             "-e", "AliyunSms__AccessKeySecret=$env:ALIYUN_SMS_ACCESS_KEY_SECRET",
+            # 微信支付 - 覆盖容器内私钥路径（挂载到 /certs 避免与 /app:ro 冲突）
+            "-e", "WeChatPay__PrivateKey=file:/certs/wechat_pay_private_key.pem",
+            "-e", "WeChatPay__ApiV3Key=$env:WECHAT_PAY_API_V3_KEY",
+            "-e", "WeChatPay__CertificateSerialNumber=$env:WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER",
+            "-v", "E:/go-nomads/certs:/certs:ro",
             "-e", "services__city-service__http__0=$(SvcUrl 'city-service')",
             "-e", "services__product-service__http__0=$(SvcUrl 'product-service')",
             "-e", "services__event-service__http__0=$(SvcUrl 'event-service')",

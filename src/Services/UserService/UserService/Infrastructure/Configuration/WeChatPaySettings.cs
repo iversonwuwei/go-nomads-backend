@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace UserService.Infrastructure.Configuration;
 
 /// <summary>
@@ -55,12 +57,12 @@ public class WeChatPaySettings
         if (key.StartsWith("file:"))
         {
             var filePath = key[5..].Trim();
-            return File.ReadAllText(filePath);
+            return ConvertPkcs1ToPkcs8(File.ReadAllText(filePath));
         }
 
         // 直接 PEM 内容
         if (key.StartsWith("-----BEGIN"))
-            return key;
+            return ConvertPkcs1ToPkcs8(key);
 
         // Base64 编码的 PEM 内容（Docker 环境变量注入场景）
         try
@@ -71,7 +73,7 @@ public class WeChatPaySettings
 
             var decoded = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(sanitizedBase64));
             if (decoded.StartsWith("-----BEGIN"))
-                return decoded;
+                return ConvertPkcs1ToPkcs8(decoded);
         }
         catch (FormatException)
         {
@@ -79,5 +81,28 @@ public class WeChatPaySettings
         }
 
         return key;
+    }
+
+    /// <summary>
+    ///     将 PKCS#1 (RSA PRIVATE KEY) 格式转为 PKCS#8 (PRIVATE KEY) 格式
+    ///     SKIT SDK 仅支持 PKCS#8
+    /// </summary>
+    private static string ConvertPkcs1ToPkcs8(string pem)
+    {
+        if (!pem.Contains("-----BEGIN RSA PRIVATE KEY-----"))
+            return pem;
+
+        var base64 = pem
+            .Replace("-----BEGIN RSA PRIVATE KEY-----", "")
+            .Replace("-----END RSA PRIVATE KEY-----", "")
+            .Replace("\r", "").Replace("\n", "").Trim();
+
+        var rsaKeyBytes = Convert.FromBase64String(base64);
+        using var rsa = RSA.Create();
+        rsa.ImportRSAPrivateKey(rsaKeyBytes, out _);
+
+        var pkcs8Bytes = rsa.ExportPkcs8PrivateKey();
+        var pkcs8Base64 = Convert.ToBase64String(pkcs8Bytes, Base64FormattingOptions.InsertLineBreaks);
+        return $"-----BEGIN PRIVATE KEY-----\n{pkcs8Base64}\n-----END PRIVATE KEY-----";
     }
 }
