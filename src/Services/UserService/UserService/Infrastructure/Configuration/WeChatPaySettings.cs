@@ -57,14 +57,57 @@ public class WeChatPaySettings
         if (key.StartsWith("file:"))
         {
             var filePath = key[5..].Trim();
-            return ConvertPkcs1ToPkcs8(File.ReadAllText(filePath));
+            return ReadPrivateKeyFromFile(filePath);
         }
+
+        // 兼容旧部署：直接传入裸文件路径（例如 /root/docker-compose/certs/*.pem）
+        if (LooksLikeFilePath(key))
+            return ReadPrivateKeyFromFile(key);
 
         // 直接 PEM 内容
         if (key.StartsWith("-----BEGIN"))
             return ConvertPkcs1ToPkcs8(key);
 
         // Base64 编码的 PEM 内容（Docker 环境变量注入场景）
+        var decodedPem = TryDecodeBase64Pem(key);
+        if (!string.IsNullOrEmpty(decodedPem))
+            return ConvertPkcs1ToPkcs8(decodedPem);
+
+        return key;
+    }
+
+    private static bool LooksLikeFilePath(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        if (Path.IsPathRooted(value))
+            return true;
+
+        if (value.StartsWith("./") || value.StartsWith("../"))
+            return true;
+
+        return value.EndsWith(".pem", StringComparison.OrdinalIgnoreCase)
+               || value.EndsWith(".key", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ReadPrivateKeyFromFile(string filePath)
+    {
+        if (!File.Exists(filePath))
+            throw new InvalidOperationException($"微信支付私钥文件不存在: {filePath}");
+
+        try
+        {
+            return ConvertPkcs1ToPkcs8(File.ReadAllText(filePath));
+        }
+        catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+        {
+            throw new InvalidOperationException($"读取微信支付私钥文件失败: {filePath}", ex);
+        }
+    }
+
+    private static string? TryDecodeBase64Pem(string key)
+    {
         try
         {
             var sanitizedBase64 = new string(key.Where(c =>
@@ -73,14 +116,14 @@ public class WeChatPaySettings
 
             var decoded = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(sanitizedBase64));
             if (decoded.StartsWith("-----BEGIN"))
-                return ConvertPkcs1ToPkcs8(decoded);
+                return decoded;
         }
         catch (FormatException)
         {
-            // 不是合法 Base64，原样返回
+            // 不是合法 Base64，忽略并交由后续逻辑处理
         }
 
-        return key;
+        return null;
     }
 
     /// <summary>

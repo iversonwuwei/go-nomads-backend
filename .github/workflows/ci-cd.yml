@@ -139,6 +139,20 @@ jobs:
             [ -n "${{ secrets.WECHAT_PAY_API_V3_KEY }}" ] || { echo "缺少 GitHub Secret: WECHAT_PAY_API_V3_KEY"; exit 1; }
             [ -n "${{ secrets.WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER }}" ] || { echo "缺少 GitHub Secret: WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER"; exit 1; }
             [ -n "${{ secrets.WECHAT_PAY_PRIVATE_KEY }}" ] || { echo "缺少 GitHub Secret: WECHAT_PAY_PRIVATE_KEY"; exit 1; }
+
+            WECHAT_PAY_PRIVATE_KEY_RAW='${{ secrets.WECHAT_PAY_PRIVATE_KEY }}'
+            case "$WECHAT_PAY_PRIVATE_KEY_RAW" in
+              file:*|/*)
+                echo "WECHAT_PAY_PRIVATE_KEY 不能是文件路径，必须是 PEM 内容或 Base64 PEM"
+                exit 1
+                ;;
+            esac
+
+            if printf '%s' "$WECHAT_PAY_PRIVATE_KEY_RAW" | grep -q '-----BEGIN'; then
+              WECHAT_PAY_PRIVATE_KEY_VALUE=$(printf '%s' "$WECHAT_PAY_PRIVATE_KEY_RAW" | base64 | tr -d '\n')
+            else
+              WECHAT_PAY_PRIVATE_KEY_VALUE=$(printf '%s' "$WECHAT_PAY_PRIVATE_KEY_RAW" | tr -d '\r\n')
+            fi
             
             echo "===== 写入环境变量 ====="
             echo "ALIYUN_SMS_ACCESS_KEY_ID=${{ secrets.ALIYUN_SMS_ACCESS_KEY_ID }}" > .env
@@ -149,7 +163,7 @@ jobs:
             echo "WECHAT_PAY_MCH_ID=${{ secrets.WECHAT_PAY_MCH_ID }}" >> .env
             echo "WECHAT_PAY_API_V3_KEY=${{ secrets.WECHAT_PAY_API_V3_KEY }}" >> .env
             echo "WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER=${{ secrets.WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER }}" >> .env
-            echo "WECHAT_PAY_PRIVATE_KEY=${{ secrets.WECHAT_PAY_PRIVATE_KEY }}" >> .env
+            echo "WECHAT_PAY_PRIVATE_KEY=$WECHAT_PAY_PRIVATE_KEY_VALUE" >> .env
             echo "WECHAT_PAY_NOTIFY_URL=${{ vars.WECHAT_PAY_NOTIFY_URL }}" >> .env
             
             echo "===== 拉取最新镜像 ====="
