@@ -35,7 +35,7 @@ builder.Services.AddSingleton<IAlipayService, AlipayService>();
 
 // 配置微信支付 V3
 builder.Services.Configure<WeChatPaySettings>(builder.Configuration.GetSection(WeChatPaySettings.SectionName));
-builder.Services.AddHttpClient<IWeChatPayService, WeChatPayService>();
+builder.Services.AddSingleton<IWeChatPayService, WeChatPayAppService>();
 
 // 配置阿里云短信
 builder.Services.Configure<AliyunSmsSettings>(builder.Configuration.GetSection(AliyunSmsSettings.SectionName));

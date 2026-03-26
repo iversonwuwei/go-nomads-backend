@@ -519,29 +519,21 @@ public class PaymentController : ControllerBase
 
             var outTradeNo = $"GN{DateTime.UtcNow:yyyyMMddHHmmss}{Guid.NewGuid().ToString("N")[..8].ToUpper()}";
 
-            var result = await _weChatPayService.CreateAppPayOrderAsync(
-                outTradeNo, amountCents, description, cancellationToken);
+            var orderResult = await _weChatPayService.CreateAppOrderAsync(
+                outTradeNo, description, amountCents, cancellationToken);
 
-            if (!result.Success)
-            {
-                _logger.LogError("❌ 微信支付 V3 下单失败: {Error}", result.ErrorMessage);
-                return StatusCode(500, new ApiResponse<WeChatPayOrderDto>
-                {
-                    Success = false,
-                    Message = "微信支付下单失败"
-                });
-            }
+            var appParams = _weChatPayService.GenerateAppPayParams(orderResult.PrepayId);
 
             var order = new WeChatPayOrderDto
             {
                 OrderId = outTradeNo,
-                AppId = result.AppId!,
-                PartnerId = result.PartnerId!,
-                PrepayId = result.PrepayId!,
-                Package = result.Package!,
-                NonceStr = result.NonceStr!,
-                Timestamp = result.Timestamp,
-                Sign = result.Sign!
+                AppId = appParams.AppId,
+                PartnerId = appParams.PartnerId,
+                PrepayId = appParams.PrepayId,
+                Package = appParams.Package,
+                NonceStr = appParams.NonceStr,
+                Timestamp = appParams.Timestamp,
+                Sign = appParams.Sign
             };
 
             return Ok(new ApiResponse<WeChatPayOrderDto>
@@ -664,12 +656,13 @@ public class PaymentController : ControllerBase
             var nonce = Request.Headers["Wechatpay-Nonce"].FirstOrDefault() ?? "";
             var signature = Request.Headers["Wechatpay-Signature"].FirstOrDefault() ?? "";
 
-            var result = _weChatPayService.VerifyAndDecryptNotify(serial, timestamp, nonce, signature, body);
+            var result = await _weChatPayService.VerifyAndDecryptNotificationAsync(
+                timestamp, nonce, signature, serial, body, cancellationToken);
 
-            if (result == null)
+            if (!result.IsValid)
             {
-                _logger.LogWarning("⚠️ 微信支付回调解密失败");
-                return Ok(new { code = "FAIL", message = "解密失败" });
+                _logger.LogWarning("⚠️ 微信支付回调验签/解密失败: {Error}", result.ErrorMessage);
+                return Ok(new { code = "FAIL", message = result.ErrorMessage ?? "解密失败" });
             }
 
             _logger.LogInformation("✅ 微信支付通知: OutTradeNo={OutTradeNo}, State={State}",

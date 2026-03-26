@@ -30,12 +30,16 @@ public class WeChatPaySettings
     public string CertificateSerialNumber { get; set; } = string.Empty;
 
     /// <summary>
-    /// 商户 API 私钥（支持 file: 路径前缀 / 直接 PEM / Base64 编码 PEM）
+    ///     商户 API 证书私钥
+    ///     支持三种格式：
+    ///     1. Base64 编码的 PEM 内容（推荐，用于 Docker 环境变量注入）
+    ///     2. 直接 PEM 内容（以 -----BEGIN 开头）
+    ///     3. 文件路径（以 file: 开头）
     /// </summary>
     public string PrivateKey { get; set; } = string.Empty;
 
     /// <summary>
-    /// 支付结果通知回调地址
+    ///     支付结果通知 URL
     /// </summary>
     public string NotifyUrl { get; set; } = string.Empty;
 
