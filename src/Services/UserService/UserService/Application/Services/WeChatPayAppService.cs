@@ -75,6 +75,12 @@ public class WeChatPayAppService : IWeChatPayService
         int totalAmountInCents,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(_settings.NotifyUrl))
+        {
+            _logger.LogError("❌ 微信支付配置缺失: NotifyUrl 为空（请确认 WeChatPay:NotifyUrl / WeChatPay__NotifyUrl 已配置）");
+            throw new InvalidOperationException("微信支付配置缺失: NotifyUrl 不能为空");
+        }
+
         _logger.LogInformation(
             "📝 创建微信 APP 支付预订单: OutTradeNo={OutTradeNo}, Amount={Amount}分",
             outTradeNo, totalAmountInCents);
@@ -85,6 +91,7 @@ public class WeChatPayAppService : IWeChatPayService
             MerchantId = _settings.MchId,
             OutTradeNumber = outTradeNo,
             Description = description,
+            NotifyUrl = _settings.NotifyUrl.Trim(),
             Amount = new CreatePayTransactionAppRequest.Types.Amount
             {
                 Total = totalAmountInCents,
