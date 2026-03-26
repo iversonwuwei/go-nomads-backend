@@ -134,6 +134,17 @@ jobs:
             echo "===== 写入环境变量 ====="
             echo "ALIYUN_SMS_ACCESS_KEY_ID=${{ secrets.ALIYUN_SMS_ACCESS_KEY_ID }}" > .env
             echo "ALIYUN_SMS_ACCESS_KEY_SECRET=${{ secrets.ALIYUN_SMS_ACCESS_KEY_SECRET }}" >> .env
+            echo "WECHAT_APP_ID=${{ secrets.WECHAT_APP_ID }}" >> .env
+            echo "WECHAT_APP_SECRET=${{ secrets.WECHAT_APP_SECRET }}" >> .env
+            echo "WECHAT_PAY_APP_ID=${{ secrets.WECHAT_PAY_APP_ID }}" >> .env
+            echo "WECHAT_PAY_MCH_ID=${{ secrets.WECHAT_PAY_MCH_ID }}" >> .env
+            echo "WECHAT_PAY_API_V3_KEY=${{ secrets.WECHAT_PAY_API_V3_KEY }}" >> .env
+            echo "WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER=${{ secrets.WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER }}" >> .env
+            
+            # 微信支付私钥写入文件（docker-compose 挂载到容器内）
+            mkdir -p /root/docker-compose/certs
+            echo "${{ secrets.WECHAT_PAY_PRIVATE_KEY }}" > /root/docker-compose/certs/wechat_pay_private_key.pem
+            chmod 600 /root/docker-compose/certs/wechat_pay_private_key.pem
             
             echo "===== 拉取最新镜像 ====="
             docker compose -f docker-compose-services-swr.yml pull

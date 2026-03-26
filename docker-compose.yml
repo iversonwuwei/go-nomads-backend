@@ -21,16 +21,16 @@ services:
       - ASPNETCORE_URLS=http://+:5000
       - ConnectionStrings__Redis=go-nomads-redis:6379
       - ServiceUrls__UserService=http://go-nomads-user-service:8080
-      - ServiceUrls__CityService=http://go-nomads-city-service:8002
-      - ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8006
-      - ServiceUrls__EventService=http://go-nomads-event-service:8005
-      - ServiceUrls__AIService=http://go-nomads-ai-service:8009
-      - ServiceUrls__CacheService=http://go-nomads-cache-service:8010
+      - ServiceUrls__CityService=http://go-nomads-city-service:8080
+      - ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080
+      - ServiceUrls__EventService=http://go-nomads-event-service:8080
+      - ServiceUrls__AIService=http://go-nomads-ai-service:8080
+      - ServiceUrls__CacheService=http://go-nomads-cache-service:8080
       - ServiceUrls__MessageService=http://go-nomads-message-service:8080
-      - ServiceUrls__InnovationService=http://go-nomads-innovation-service:8011
+      - ServiceUrls__InnovationService=http://go-nomads-innovation-service:8080
       - ServiceUrls__SearchService=http://go-nomads-search-service:8080
-      - ServiceUrls__AccommodationService=http://go-nomads-accommodation-service:8012
-      - ServiceUrls__ProductService=http://go-nomads-product-service:5002
+      - ServiceUrls__AccommodationService=http://go-nomads-accommodation-service:8080
+      - ServiceUrls__ProductService=http://go-nomads-product-service:8080
     networks:
       - go-nomads-network
 
@@ -47,8 +47,8 @@ services:
       - ConnectionStrings__Redis=go-nomads-redis:6379
       - Services__Gateway__Url=http://go-nomads-gateway:5000
       - Services__Gateway__OpenApiUrl=http://go-nomads-gateway:5000/openapi/v1.json
-      - Services__ProductService__Url=http://go-nomads-product-service:5002
-      - Services__ProductService__OpenApiUrl=http://go-nomads-product-service:5002/openapi/v1.json
+      - Services__ProductService__Url=http://go-nomads-product-service:8080
+      - Services__ProductService__OpenApiUrl=http://go-nomads-product-service:8080/openapi/v1.json
       - Services__UserService__Url=http://go-nomads-user-service:8080
       - Services__UserService__OpenApiUrl=http://go-nomads-user-service:8080/openapi/v1.json
     networks:
@@ -73,6 +73,15 @@ services:
       # 阿里云短信服务 - 通过环境变量注入密钥，请勿明文写入配置文件
       - AliyunSms__AccessKeyId=${ALIYUN_SMS_ACCESS_KEY_ID}
       - AliyunSms__AccessKeySecret=${ALIYUN_SMS_ACCESS_KEY_SECRET}
+      # 微信支付 V3
+      - WeChatPay__AppId=${WECHAT_PAY_APP_ID}
+      - WeChatPay__MchId=${WECHAT_PAY_MCH_ID}
+      - WeChatPay__ApiV3Key=${WECHAT_PAY_API_V3_KEY}
+      - WeChatPay__CertificateSerialNumber=${WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER}
+      - WeChatPay__PrivateKey=file:/app/certs/wechat_pay_private_key.pem
+      - WeChatPay__NotifyUrl=${WECHAT_PAY_NOTIFY_URL}
+    volumes:
+      - ./certs:/app/certs:ro
     networks:
       - go-nomads-network
 
@@ -82,10 +91,10 @@ services:
       dockerfile: src/Services/CityService/CityService/Dockerfile
     container_name: go-nomads-city-service
     ports:
-      - "8002:8002"
+      - "8002:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:8002
+      - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=cityservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
       - ConnectionStrings__Elasticsearch=http://go-nomads-elasticsearch:9200
@@ -101,10 +110,10 @@ services:
       dockerfile: src/Services/CoworkingService/CoworkingService/Dockerfile
     container_name: go-nomads-coworking-service
     ports:
-      - "8006:8006"
+      - "8006:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:8006
+      - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=coworkingservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
       - RabbitMQ__Host=go-nomads-rabbitmq
@@ -125,8 +134,8 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - Elasticsearch__Url=http://go-nomads-elasticsearch:9200
-      - ServiceUrls__CityService=http://go-nomads-city-service:8002
-      - ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8006
+      - ServiceUrls__CityService=http://go-nomads-city-service:8080
+      - ServiceUrls__CoworkingService=http://go-nomads-coworking-service:8080
       - RabbitMQ__Host=go-nomads-rabbitmq
       - RabbitMQ__Username=walden
       - RabbitMQ__Password=walden
@@ -142,10 +151,10 @@ services:
       dockerfile: src/Services/CacheService/CacheService/Dockerfile
     container_name: go-nomads-cache-service
     ports:
-      - "8010:8010"
+      - "8010:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:8010
+      - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__Redis=go-nomads-redis:6379
     networks:
       - go-nomads-network
@@ -156,10 +165,10 @@ services:
       dockerfile: src/Services/AccommodationService/AccommodationService/Dockerfile
     container_name: go-nomads-accommodation-service
     ports:
-      - "8012:8012"
+      - "8012:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:8012
+      - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=accommodationservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
     networks:
@@ -171,11 +180,11 @@ services:
       dockerfile: src/Services/EventService/EventService/Dockerfile
     container_name: go-nomads-event-service
     ports:
-      - "8005:8005"
+      - "8005:8080"
     environment:
       - TZ=Asia/Shanghai
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:8005
+      - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=eventservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
       - RabbitMQ__Host=go-nomads-rabbitmq
@@ -191,12 +200,12 @@ services:
       dockerfile: src/Services/ProductService/ProductService/Dockerfile
     container_name: go-nomads-product-service
     ports:
-      - "5002:5002"
+      - "5002:8080"
     depends_on:
       - user-service
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:5002
+      - ASPNETCORE_URLS=http://+:8080
     networks:
       - go-nomads-network
 
@@ -206,10 +215,10 @@ services:
       dockerfile: src/Services/AIService/AIService/Dockerfile
     container_name: go-nomads-ai-service
     ports:
-      - "8009:8009"
+      - "8009:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:8009
+      - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__SupabaseDb=Host=postgres;Port=5432;Database=aiservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
       - ConnectionStrings__QianWenApiKey=${QIANWEN_API_KEY:-your-qianwen-api-key-here}
@@ -218,7 +227,7 @@ services:
     networks:
       - go-nomads-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8009/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -248,10 +257,10 @@ services:
       dockerfile: src/Services/InnovationService/InnovationService/Dockerfile
     container_name: go-nomads-innovation-service
     ports:
-      - "8011:8011"
+      - "8011:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:8011
+      - ASPNETCORE_URLS=http://+:8080
       - RabbitMQ__Host=go-nomads-rabbitmq
       - RabbitMQ__Port=5672
       - RabbitMQ__Username=walden

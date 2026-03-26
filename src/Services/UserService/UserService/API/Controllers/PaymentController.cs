@@ -19,18 +19,21 @@ public class PaymentController : ControllerBase
     private readonly IPaymentService _paymentService;
     private readonly IPayPalService _payPalService;
     private readonly IAlipayService _alipayService;
+    private readonly IWeChatPayService _weChatPayService;
     private readonly PayPalSettings _payPalSettings;
 
     public PaymentController(
         IPaymentService paymentService,
         IPayPalService payPalService,
         IAlipayService alipayService,
+        IWeChatPayService weChatPayService,
         IOptions<PayPalSettings> payPalSettings,
         ILogger<PaymentController> logger)
     {
         _paymentService = paymentService;
         _payPalService = payPalService;
         _alipayService = alipayService;
+        _weChatPayService = weChatPayService;
         _payPalSettings = payPalSettings.Value;
         _logger = logger;
     }
@@ -473,7 +476,7 @@ public class PaymentController : ControllerBase
     ///     创建微信支付订单，返回调用微信 SDK 所需的参数
     /// </remarks>
     [HttpPost("orders/wechat")]
-    public ActionResult<ApiResponse<WeChatPayOrderDto>> CreateWeChatPayOrder(
+    public async Task<ActionResult<ApiResponse<WeChatPayOrderDto>>> CreateWeChatPayOrder(
         [FromBody] CreateWeChatPayOrderRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -492,28 +495,52 @@ public class PaymentController : ControllerBase
 
         try
         {
-            // TODO: 实现真正的微信支付订单创建
-            // 需要配置微信商户号、API密钥等
-            // 调用微信统一下单接口获取 prepay_id
-
-            // 模拟返回 (实际需要对接微信支付 API)
-            var mockOrder = new WeChatPayOrderDto
+            // 根据订单类型确定金额（单位：分）和商品描述
+            var (amountCents, description) = request.OrderType switch
             {
-                OrderId = Guid.NewGuid().ToString(),
-                AppId = "wx_your_app_id",  // 微信开放平台 AppId
-                PartnerId = "your_mch_id", // 商户号
-                PrepayId = $"wx_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}",
-                Package = "Sign=WXPay",
-                NonceStr = Guid.NewGuid().ToString("N"),
-                Timestamp = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                Sign = "mock_sign_value" // 实际需要使用商户私钥签名
+                "membership_upgrade" => request.MembershipLevel switch
+                {
+                    1 => (2900, "Go Nomads 探索者会员"),
+                    2 => (9900, "Go Nomads 旅行家会员"),
+                    3 => (29900, "Go Nomads 数字游民会员"),
+                    _ => (2900, "Go Nomads 会员")
+                },
+                _ => (0, "Go Nomads 订单")
+            };
+
+            if (amountCents <= 0)
+            {
+                return BadRequest(new ApiResponse<WeChatPayOrderDto>
+                {
+                    Success = false,
+                    Message = "无效的订单类型或等级"
+                });
+            }
+
+            var outTradeNo = $"GN{DateTime.UtcNow:yyyyMMddHHmmss}{Guid.NewGuid().ToString("N")[..8].ToUpper()}";
+
+            var orderResult = await _weChatPayService.CreateAppOrderAsync(
+                outTradeNo, description, amountCents, cancellationToken);
+
+            var appParams = _weChatPayService.GenerateAppPayParams(orderResult.PrepayId);
+
+            var order = new WeChatPayOrderDto
+            {
+                OrderId = outTradeNo,
+                AppId = appParams.AppId,
+                PartnerId = appParams.PartnerId,
+                PrepayId = appParams.PrepayId,
+                Package = appParams.Package,
+                NonceStr = appParams.NonceStr,
+                Timestamp = appParams.Timestamp,
+                Sign = appParams.Sign
             };
 
             return Ok(new ApiResponse<WeChatPayOrderDto>
             {
                 Success = true,
                 Message = "微信支付订单创建成功",
-                Data = mockOrder
+                Data = order
             });
         }
         catch (Exception ex)
@@ -623,10 +650,30 @@ public class PaymentController : ControllerBase
             using var reader = new StreamReader(Request.Body);
             var body = await reader.ReadToEndAsync(cancellationToken);
 
-            // TODO: 验证微信支付签名
-            // TODO: 解析通知内容并更新订单状态
+            // 从请求头获取签名验证所需信息
+            var serial = Request.Headers["Wechatpay-Serial"].FirstOrDefault() ?? "";
+            var timestamp = Request.Headers["Wechatpay-Timestamp"].FirstOrDefault() ?? "";
+            var nonce = Request.Headers["Wechatpay-Nonce"].FirstOrDefault() ?? "";
+            var signature = Request.Headers["Wechatpay-Signature"].FirstOrDefault() ?? "";
 
-            _logger.LogInformation("微信支付通知: {Body}", body);
+            var result = await _weChatPayService.VerifyAndDecryptNotificationAsync(
+                timestamp, nonce, signature, serial, body, cancellationToken);
+
+            if (!result.IsValid)
+            {
+                _logger.LogWarning("⚠️ 微信支付回调验签/解密失败: {Error}", result.ErrorMessage);
+                return Ok(new { code = "FAIL", message = result.ErrorMessage ?? "解密失败" });
+            }
+
+            _logger.LogInformation("✅ 微信支付通知: OutTradeNo={OutTradeNo}, State={State}",
+                result.OutTradeNo, result.TradeState);
+
+            if (result.TradeState == "SUCCESS")
+            {
+                // TODO: 根据 OutTradeNo 更新订单状态为已支付
+                _logger.LogInformation("💰 微信支付成功: TransactionId={TransactionId}",
+                    result.TransactionId);
+            }
 
             // 返回微信要求的格式
             return Ok(new { code = "SUCCESS", message = "成功" });

@@ -99,11 +99,22 @@ function Main {
     Show-Header "停止旧容器"
     Write-Host "  停止并移除旧的服务容器..." -ForegroundColor Yellow
     Push-Location $ROOT_DIR
-    try {
-        docker compose -f $COMPOSE_FILE down --remove-orphans 2>$null
-    } catch {
-        # 忽略 down 错误（容器可能不存在）
+
+    # docker compose down（临时降低错误级别，避免 Docker 警告被 PowerShell 当作异常）
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    docker compose -f $COMPOSE_FILE down --remove-orphans 2>&1 | Out-Null
+    $ErrorActionPreference = $prevEAP
+
+    # 强制清理残留的同名容器（防止 down 未能完全清理）
+    # 注意：只清理后端服务容器，不要误删 web/nginx 等其他项目的容器
+    $staleContainers = docker ps -a --filter "name=go-nomads-" --format "{{.Names}}" 2>$null |
+        Where-Object { $_ -match "^go-nomads-(gateway|.*-service|aspire-dashboard)$" }
+    if ($staleContainers) {
+        Write-Host "  发现残留容器，强制移除: $($staleContainers -join ', ')" -ForegroundColor Yellow
+        docker rm -f $staleContainers 2>&1 | Out-Null
     }
+
     Write-Host "  旧容器已清理" -ForegroundColor Green
     Write-Host ""
 

@@ -21,6 +21,10 @@ $REDIS_IMAGE = if ($env:REDIS_IMAGE) { $env:REDIS_IMAGE } else { "redis:7.2-alpi
 $RABBITMQ_IMAGE = if ($env:RABBITMQ_IMAGE) { $env:RABBITMQ_IMAGE } else { "rabbitmq:3-management-alpine" }
 $ELASTICSEARCH_IMAGE = if ($env:ELASTICSEARCH_IMAGE) { $env:ELASTICSEARCH_IMAGE } else { "docker.elastic.co/elasticsearch/elasticsearch:8.17.4" }
 $NGINX_IMAGE = if ($env:NGINX_IMAGE) { $env:NGINX_IMAGE } else { "nginx:1.29.6" }
+$OFFICIAL_REDIS_IMAGE = "redis:7.2-alpine"
+$OFFICIAL_RABBITMQ_IMAGE = "rabbitmq:3-management-alpine"
+$OFFICIAL_ELASTICSEARCH_IMAGE = "docker.elastic.co/elasticsearch/elasticsearch:8.17.4"
+$OFFICIAL_NGINX_IMAGE = "nginx:1.29.6"
 $RABBITMQ_DEFAULT_USER = if ($env:RABBITMQ_DEFAULT_USER) { $env:RABBITMQ_DEFAULT_USER } else { "walden" }
 $RABBITMQ_DEFAULT_PASS = if ($env:RABBITMQ_DEFAULT_PASS) { $env:RABBITMQ_DEFAULT_PASS } else { "walden" }
 
@@ -108,17 +112,75 @@ function Remove-Container {
     }
 }
 
+function Invoke-ContainerRun {
+    param(
+        [Parameter(Mandatory=$true)][string[]]$PrimaryArgs,
+        [string[]]$FallbackArgs,
+        [string]$ServiceName
+    )
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $output = & $RUNTIME @PrimaryArgs 2>&1
+    $primaryExitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorActionPreference
+
+    if ($primaryExitCode -eq 0) {
+        return
+    }
+
+    $errorText = ($output | Out-String).Trim()
+    $platformMismatch =
+        ($errorText -match "does not match the specified\s+platform") -or
+        ($errorText -match "platform\s*\([^)]+\)\s*does not match") -or
+        ($errorText -match "no matching manifest")
+    if ($platformMismatch -and $FallbackArgs) {
+        Write-Host "[WARNING] $ServiceName image platform mismatch. Retrying with official image..." -ForegroundColor Yellow
+        $ErrorActionPreference = 'Continue'
+        $fallbackOutput = & $RUNTIME @FallbackArgs 2>&1
+        $fallbackExitCode = $LASTEXITCODE
+        $ErrorActionPreference = $previousErrorActionPreference
+        if ($fallbackExitCode -eq 0) {
+            return
+        }
+
+        $fallbackError = ($fallbackOutput | Out-String).Trim()
+        throw "[ERROR] Failed to start $ServiceName with fallback image.`n$fallbackError"
+    }
+
+    if ($platformMismatch) {
+        throw "[ERROR] Failed to start $ServiceName due to platform mismatch. Try -UseOfficial or set DOCKER_DEFAULT_PLATFORM to match image architecture.`n$errorText"
+    }
+
+    throw "[ERROR] Failed to start $ServiceName.`n$errorText"
+}
+
 function Start-Redis {
     Write-Header "Deploying Redis"
     Remove-Container "go-nomads-redis"
-    
-    & $RUNTIME run -d `
-        --name go-nomads-redis `
-        --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads-infras" `
-        --label "com.docker.compose.service=redis" `
-        -p 6379:6379 `
-        $REDIS_IMAGE redis-server --appendonly yes | Out-Null
+
+    Invoke-ContainerRun `
+        -ServiceName "Redis" `
+        -PrimaryArgs @(
+            "run", "-d",
+            "--name", "go-nomads-redis",
+            "--network", $NETWORK_NAME,
+            "--label", "com.docker.compose.project=go-nomads-infras",
+            "--label", "com.docker.compose.service=redis",
+            "-p", "6379:6379",
+            $REDIS_IMAGE,
+            "redis-server", "--appendonly", "yes"
+        ) `
+        -FallbackArgs @(
+            "run", "-d",
+            "--name", "go-nomads-redis",
+            "--network", $NETWORK_NAME,
+            "--label", "com.docker.compose.project=go-nomads-infras",
+            "--label", "com.docker.compose.service=redis",
+            "-p", "6379:6379",
+            $OFFICIAL_REDIS_IMAGE,
+            "redis-server", "--appendonly", "yes"
+        )
     
     Write-Host "Redis running at: redis://localhost:6379" -ForegroundColor Green
 }
@@ -126,18 +188,35 @@ function Start-Redis {
 function Start-Elasticsearch {
     Write-Header "Deploying Elasticsearch"
     Remove-Container "go-nomads-elasticsearch"
-    
-    & $RUNTIME run -d `
-        --name go-nomads-elasticsearch `
-        --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads-infras" `
-        --label "com.docker.compose.service=elasticsearch" `
-        -p 9200:9200 `
-        -p 9300:9300 `
-        -e "discovery.type=single-node" `
-        -e "xpack.security.enabled=false" `
-        -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" `
-        $ELASTICSEARCH_IMAGE | Out-Null
+
+    Invoke-ContainerRun `
+        -ServiceName "Elasticsearch" `
+        -PrimaryArgs @(
+            "run", "-d",
+            "--name", "go-nomads-elasticsearch",
+            "--network", $NETWORK_NAME,
+            "--label", "com.docker.compose.project=go-nomads-infras",
+            "--label", "com.docker.compose.service=elasticsearch",
+            "-p", "9200:9200",
+            "-p", "9300:9300",
+            "-e", "discovery.type=single-node",
+            "-e", "xpack.security.enabled=false",
+            "-e", "ES_JAVA_OPTS=-Xms512m -Xmx512m",
+            $ELASTICSEARCH_IMAGE
+        ) `
+        -FallbackArgs @(
+            "run", "-d",
+            "--name", "go-nomads-elasticsearch",
+            "--network", $NETWORK_NAME,
+            "--label", "com.docker.compose.project=go-nomads-infras",
+            "--label", "com.docker.compose.service=elasticsearch",
+            "-p", "9200:9200",
+            "-p", "9300:9300",
+            "-e", "discovery.type=single-node",
+            "-e", "xpack.security.enabled=false",
+            "-e", "ES_JAVA_OPTS=-Xms512m -Xmx512m",
+            $OFFICIAL_ELASTICSEARCH_IMAGE
+        )
     
     Write-Host "Elasticsearch available at: http://localhost:9200" -ForegroundColor Green
 }
@@ -145,17 +224,33 @@ function Start-Elasticsearch {
 function Start-RabbitMQ {
     Write-Header "Deploying RabbitMQ"
     Remove-Container "go-nomads-rabbitmq"
-    
-    & $RUNTIME run -d `
-        --name go-nomads-rabbitmq `
-        --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads-infras" `
-        --label "com.docker.compose.service=rabbitmq" `
-        -p 5672:5672 `
-        -p 15672:15672 `
-        -e "RABBITMQ_DEFAULT_USER=$RABBITMQ_DEFAULT_USER" `
-        -e "RABBITMQ_DEFAULT_PASS=$RABBITMQ_DEFAULT_PASS" `
-        $RABBITMQ_IMAGE | Out-Null
+
+    Invoke-ContainerRun `
+        -ServiceName "RabbitMQ" `
+        -PrimaryArgs @(
+            "run", "-d",
+            "--name", "go-nomads-rabbitmq",
+            "--network", $NETWORK_NAME,
+            "--label", "com.docker.compose.project=go-nomads-infras",
+            "--label", "com.docker.compose.service=rabbitmq",
+            "-p", "5672:5672",
+            "-p", "15672:15672",
+            "-e", "RABBITMQ_DEFAULT_USER=$RABBITMQ_DEFAULT_USER",
+            "-e", "RABBITMQ_DEFAULT_PASS=$RABBITMQ_DEFAULT_PASS",
+            $RABBITMQ_IMAGE
+        ) `
+        -FallbackArgs @(
+            "run", "-d",
+            "--name", "go-nomads-rabbitmq",
+            "--network", $NETWORK_NAME,
+            "--label", "com.docker.compose.project=go-nomads-infras",
+            "--label", "com.docker.compose.service=rabbitmq",
+            "-p", "5672:5672",
+            "-p", "15672:15672",
+            "-e", "RABBITMQ_DEFAULT_USER=$RABBITMQ_DEFAULT_USER",
+            "-e", "RABBITMQ_DEFAULT_PASS=$RABBITMQ_DEFAULT_PASS",
+            $OFFICIAL_RABBITMQ_IMAGE
+        )
     
     Write-Host "RabbitMQ running at: amqp://localhost:5672" -ForegroundColor Green
     Write-Host "RabbitMQ Management UI: http://localhost:15672 ($RABBITMQ_DEFAULT_USER/$RABBITMQ_DEFAULT_PASS)" -ForegroundColor Green
@@ -174,16 +269,32 @@ function Start-Nginx {
     
     $nginxConfPath = $nginxConf -replace '\\', '/'
     
-    & $RUNTIME run -d `
-        --name go-nomads-nginx `
-        --network $NETWORK_NAME `
-        --label "com.docker.compose.project=go-nomads-infras" `
-        --label "com.docker.compose.service=nginx" `
-        -p 80:80 `
-        -p 443:443 `
-        -v "${nginxConfPath}:/etc/nginx/conf.d/default.conf:ro" `
-        --restart unless-stopped `
-        $NGINX_IMAGE | Out-Null
+    Invoke-ContainerRun `
+        -ServiceName "Nginx" `
+        -PrimaryArgs @(
+            "run", "-d",
+            "--name", "go-nomads-nginx",
+            "--network", $NETWORK_NAME,
+            "--label", "com.docker.compose.project=go-nomads-infras",
+            "--label", "com.docker.compose.service=nginx",
+            "-p", "80:80",
+            "-p", "443:443",
+            "-v", "${nginxConfPath}:/etc/nginx/conf.d/default.conf:ro",
+            "--restart", "unless-stopped",
+            $NGINX_IMAGE
+        ) `
+        -FallbackArgs @(
+            "run", "-d",
+            "--name", "go-nomads-nginx",
+            "--network", $NETWORK_NAME,
+            "--label", "com.docker.compose.project=go-nomads-infras",
+            "--label", "com.docker.compose.service=nginx",
+            "-p", "80:80",
+            "-p", "443:443",
+            "-v", "${nginxConfPath}:/etc/nginx/conf.d/default.conf:ro",
+            "--restart", "unless-stopped",
+            $OFFICIAL_NGINX_IMAGE
+        )
     
     Write-Host "Nginx running at: http://localhost" -ForegroundColor Green
 }
@@ -255,8 +366,8 @@ function Remove-Infrastructure {
 function Show-Status {
     Write-Header "Infrastructure status"
     Require-Docker
-    
-    & $RUNTIME ps --filter "name=go-nomads" --format 'table {{.Names}}`t{{.Status}}`t{{.Ports}}'
+
+    & $RUNTIME ps --filter "name=go-nomads" --format "table {{.Names}}`t{{.Status}}`t{{.Ports}}"
     
     Write-Host ""
     Write-Host "Access URLs:" -ForegroundColor Cyan
