@@ -7,7 +7,7 @@ services:
     image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/gateway:latest
     container_name: go-nomads-gateway
     ports:
-      - "5080:8080"
+      - "5080:5000"
     depends_on:
       - user-service
       - city-service
@@ -16,7 +16,7 @@ services:
       - event-service
     environment:
       ASPNETCORE_ENVIRONMENT: "Production"
-      ASPNETCORE_URLS: "http://+:8080"
+      ASPNETCORE_URLS: "http://+:5000"
       OTEL_SERVICE_NAME: "gateway"
       ConnectionStrings__Redis: "go-nomads-redis:6379"
       ServiceUrls__UserService: "http://go-nomads-user-service:8080"
