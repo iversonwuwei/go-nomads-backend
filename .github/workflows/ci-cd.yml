@@ -149,12 +149,8 @@ jobs:
             echo "WECHAT_PAY_MCH_ID=${{ secrets.WECHAT_PAY_MCH_ID }}" >> .env
             echo "WECHAT_PAY_API_V3_KEY=${{ secrets.WECHAT_PAY_API_V3_KEY }}" >> .env
             echo "WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER=${{ secrets.WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER }}" >> .env
+            echo "WECHAT_PAY_PRIVATE_KEY=${{ secrets.WECHAT_PAY_PRIVATE_KEY }}" >> .env
             echo "WECHAT_PAY_NOTIFY_URL=${{ vars.WECHAT_PAY_NOTIFY_URL }}" >> .env
-            
-            # 微信支付私钥写入文件（docker-compose 挂载到容器内）
-            mkdir -p /root/docker-compose/certs
-            echo "${{ secrets.WECHAT_PAY_PRIVATE_KEY }}" > /root/docker-compose/certs/wechat_pay_private_key.pem
-            chmod 600 /root/docker-compose/certs/wechat_pay_private_key.pem
             
             echo "===== 拉取最新镜像 ====="
             docker compose --env-file .env -f docker-compose-services-swr.yml pull
