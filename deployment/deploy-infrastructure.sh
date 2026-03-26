@@ -281,6 +281,12 @@ deploy_nginx() {
     show_header "Deploying Nginx"
     
     remove_container_if_exists "go-nomads-nginx"
+    local nginx_conf="$SCRIPT_DIR/nginx/nginx.conf"
+
+    if [[ ! -f "$nginx_conf" ]]; then
+        echo -e "${RED}  [ERROR] Nginx config not found: $nginx_conf${NC}"
+        exit 1
+    fi
     
     echo -e "${YELLOW}  Starting Nginx container...${NC}"
     $CONTAINER_RUNTIME run -d \
@@ -288,11 +294,11 @@ deploy_nginx() {
         --network "$NETWORK_NAME" \
         -p 80:80 \
         -p 443:443 \
+        -v "$nginx_conf:/etc/nginx/conf.d/default.conf:ro" \
         "$NGINX_IMAGE" > /dev/null
     
     if container_running "go-nomads-nginx"; then
         echo -e "${GREEN}  Nginx deployed successfully!${NC}"
-        echo -e "${CYAN}  Note: You can mount custom nginx.conf using volumes${NC}"
     else
         echo -e "${RED}  [ERROR] Failed to start Nginx${NC}"
         exit 1

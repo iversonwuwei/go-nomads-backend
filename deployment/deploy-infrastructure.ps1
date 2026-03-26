@@ -253,6 +253,14 @@ function Deploy-Nginx {
     Show-Header "Deploying Nginx"
     
     Remove-ContainerIfExists "go-nomads-nginx"
+
+    $nginxConf = Join-Path $SCRIPT_DIR "nginx\nginx.conf"
+    if (-not (Test-Path $nginxConf)) {
+        Write-Host "  [ERROR] Nginx config not found: $nginxConf" -ForegroundColor Red
+        exit 1
+    }
+
+    $nginxConfPath = $nginxConf -replace '\\', '/'
     
     Write-Host "  Starting Nginx container..." -ForegroundColor Yellow
     & $CONTAINER_RUNTIME run -d `
@@ -260,11 +268,11 @@ function Deploy-Nginx {
         --network $NETWORK_NAME `
         -p 80:80 `
         -p 443:443 `
+        -v "${nginxConfPath}:/etc/nginx/conf.d/default.conf:ro" `
         $NGINX_IMAGE | Out-Null
     
     if (Test-ContainerRunning "go-nomads-nginx") {
         Write-Host "  Nginx deployed successfully!" -ForegroundColor Green
-        Write-Host "  Note: You can mount custom nginx.conf using volumes" -ForegroundColor Cyan
     } else {
         Write-Host "  [ERROR] Failed to start Nginx" -ForegroundColor Red
         exit 1
