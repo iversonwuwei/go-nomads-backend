@@ -7,7 +7,7 @@ services:
     image: swr.ap-southeast-3.myhuaweicloud.com/go-nomads/gateway:latest
     container_name: go-nomads-gateway
     ports:
-      - "5080:5000"
+      - "5080:8080"
     depends_on:
       - user-service
       - city-service
@@ -15,31 +15,21 @@ services:
       - accommodation-service
       - event-service
     environment:
-      <<: *common-env
+      ASPNETCORE_ENVIRONMENT: "Production"
       ASPNETCORE_URLS: "http://+:8080"
-      OTEL_SERVICE_NAME: user-service
-      ConnectionStrings__redis: *conn-redis
-      ConnectionStrings__rabbitmq: *conn-rabbitmq
-      # 阿里云短信 - 通过 .env 文件注入
-      AliyunSms__AccessKeyId: "${ALIYUN_SMS_ACCESS_KEY_ID}"
-      AliyunSms__AccessKeySecret: "${ALIYUN_SMS_ACCESS_KEY_SECRET}"
-      # 微信 OAuth 登录
-      WeChat__AppId: "${WECHAT_APP_ID}"
-      WeChat__AppSecret: "${WECHAT_APP_SECRET}"
-      # 微信支付 V3
-      WeChatPay__AppId: "${WECHAT_PAY_APP_ID}"
-      WeChatPay__MchId: "${WECHAT_PAY_MCH_ID}"
-      WeChatPay__ApiV3Key: "${WECHAT_PAY_API_V3_KEY}"
-      WeChatPay__CertificateSerialNumber: "${WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER}"
-      WeChatPay__PrivateKey: "file:/app/certs/wechat/wechat_pay_private_key.pem"
-      WeChatPay__NotifyUrl: "${WECHAT_PAY_NOTIFY_URL}"
-      # 服务发现
-      services__city-service__http__0:    *svc-city
-      services__product-service__http__0: *svc-product
-      services__event-service__http__0:   *svc-event
-      services__message-service__http__0: *svc-message
-    volumes:
-      - /root/docker-compose/certs:/app/certs/wechat:ro
+      OTEL_SERVICE_NAME: "gateway"
+      ConnectionStrings__Redis: "go-nomads-redis:6379"
+      ServiceUrls__UserService: "http://go-nomads-user-service:8080"
+      ServiceUrls__CityService: "http://go-nomads-city-service:8080"
+      ServiceUrls__CoworkingService: "http://go-nomads-coworking-service:8080"
+      ServiceUrls__EventService: "http://go-nomads-event-service:8080"
+      ServiceUrls__AIService: "http://go-nomads-ai-service:8080"
+      ServiceUrls__CacheService: "http://go-nomads-cache-service:8080"
+      ServiceUrls__MessageService: "http://go-nomads-message-service:8080"
+      ServiceUrls__InnovationService: "http://go-nomads-innovation-service:8080"
+      ServiceUrls__SearchService: "http://go-nomads-search-service:8080"
+      ServiceUrls__AccommodationService: "http://go-nomads-accommodation-service:8080"
+      ServiceUrls__ProductService: "http://go-nomads-product-service:8080"
     networks:
       - go-nomads-network
 
@@ -69,6 +59,7 @@ services:
       - "50002:50002"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=userservice_db;Username=postgres;Password=postgres
       - ConnectionStrings__Redis=go-nomads-redis:6379
       - RabbitMQ__Host=go-nomads-rabbitmq
@@ -87,6 +78,7 @@ services:
       - WeChatPay__ApiV3Key=${WECHAT_PAY_API_V3_KEY}
       - WeChatPay__CertificateSerialNumber=${WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER}
       - WeChatPay__PrivateKey=file:/app/certs/wechat/wechat_pay_private_key.pem
+      - WeChatPay__NotifyUrl=${WECHAT_PAY_NOTIFY_URL}
     volumes:
       - /root/docker-compose/certs:/app/certs/wechat:ro
     networks:
