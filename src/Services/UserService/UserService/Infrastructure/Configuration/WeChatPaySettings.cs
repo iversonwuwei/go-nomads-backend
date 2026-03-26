@@ -39,11 +39,6 @@ public class WeChatPaySettings
     public string PrivateKey { get; set; } = string.Empty;
 
     /// <summary>
-    ///     支付结果通知 URL
-    /// </summary>
-    public string NotifyUrl { get; set; } = string.Empty;
-
-    /// <summary>
     ///     获取私钥 PEM 内容（自动识别 Base64 编码 / 直接 PEM / 文件路径）
     /// </summary>
     public string GetPrivateKeyContent()
