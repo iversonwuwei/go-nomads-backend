@@ -77,7 +77,7 @@ services:
       - WeChatPay__MchId=${WECHAT_PAY_MCH_ID}
       - WeChatPay__ApiV3Key=${WECHAT_PAY_API_V3_KEY}
       - WeChatPay__CertificateSerialNumber=${WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER}
-        - WeChatPay__PrivateKey=${WECHAT_PAY_PRIVATE_KEY}
+      - WeChatPay__PrivateKey=${WECHAT_PAY_PRIVATE_KEY}
       - WeChatPay__NotifyUrl=${WECHAT_PAY_NOTIFY_URL}
     networks:
       - go-nomads-network
