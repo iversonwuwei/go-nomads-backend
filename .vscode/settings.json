@@ -1,0 +1,5 @@
+{
+  "dotnet.server.path": "/Users/walden/.dotnet/dotnet",
+  "omnisharp.dotnetPath": "/Users/walden/.dotnet/dotnet",
+  "dotnetAcquisitionExtension.sharedExistingDotnetPath": "/Users/walden/.dotnet/dotnet"
+}
