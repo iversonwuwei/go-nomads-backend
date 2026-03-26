@@ -32,7 +32,17 @@ public class WeChatPayAppService : IWeChatPayService
         if (string.IsNullOrWhiteSpace(_settings.CertificateSerialNumber))
             _logger.LogError("❌ 微信支付配置缺失: CertificateSerialNumber 为空（请确认 GitHub Secret WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER 已设置）");
 
-        var privateKeyPem = _settings.GetPrivateKeyContent();
+        string privateKeyPem;
+        try
+        {
+            privateKeyPem = _settings.GetPrivateKeyContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 微信支付 PrivateKey 加载失败");
+            throw;
+        }
+
         if (string.IsNullOrWhiteSpace(privateKeyPem))
             _logger.LogError("❌ 微信支付配置缺失: PrivateKey 为空（请确认 GitHub Secret WECHAT_PAY_PRIVATE_KEY 已设置）");
         else if (!privateKeyPem.Contains("-----BEGIN"))
