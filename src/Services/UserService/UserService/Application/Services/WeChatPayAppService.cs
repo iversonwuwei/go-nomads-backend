@@ -85,7 +85,6 @@ public class WeChatPayAppService : IWeChatPayService
             MerchantId = _settings.MchId,
             OutTradeNumber = outTradeNo,
             Description = description,
-            NotifyUrl = _settings.NotifyUrl,
             Amount = new CreatePayTransactionAppRequest.Types.Amount
             {
                 Total = totalAmountInCents,
