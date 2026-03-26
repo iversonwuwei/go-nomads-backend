@@ -188,7 +188,7 @@ public class Order : BaseModel
         UpdatedAt = DateTime.UtcNow;
     }
 
-    public void MarkAsCompleted(string captureId, string? payerId = null, string? payerEmail = null)
+    public void MarkAsCompleted(string? captureId, string? payerId = null, string? payerEmail = null)
     {
         Status = "completed";
         PayPalCaptureId = captureId;
