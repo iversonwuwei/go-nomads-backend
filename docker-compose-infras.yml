@@ -3,7 +3,7 @@ name: go-nomads-infras
 services:
   # Infrastructure Services
   redis:
-    image: redis:latest
+    image: ${REDIS_IMAGE:-redis:7.4}
     container_name: go-nomads-redis
     ports:
       - "6379:6379"
