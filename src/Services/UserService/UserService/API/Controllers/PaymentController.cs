@@ -495,46 +495,10 @@ public class PaymentController : ControllerBase
 
         try
         {
-            // 根据订单类型确定金额（单位：分）和商品描述
-            var (amountCents, description) = request.OrderType switch
-            {
-                "membership_upgrade" => request.MembershipLevel switch
-                {
-                    1 => (2900, "Go Nomads 探索者会员"),
-                    2 => (9900, "Go Nomads 旅行家会员"),
-                    3 => (29900, "Go Nomads 数字游民会员"),
-                    _ => (2900, "Go Nomads 会员")
-                },
-                _ => (0, "Go Nomads 订单")
-            };
-
-            if (amountCents <= 0)
-            {
-                return BadRequest(new ApiResponse<WeChatPayOrderDto>
-                {
-                    Success = false,
-                    Message = "无效的订单类型或等级"
-                });
-            }
-
-            var outTradeNo = $"GN{DateTime.UtcNow:yyyyMMddHHmmss}{Guid.NewGuid().ToString("N")[..8].ToUpper()}";
-
-            var orderResult = await _weChatPayService.CreateAppOrderAsync(
-                outTradeNo, description, amountCents, cancellationToken);
-
-            var appParams = _weChatPayService.GenerateAppPayParams(orderResult.PrepayId);
-
-            var order = new WeChatPayOrderDto
-            {
-                OrderId = outTradeNo,
-                AppId = appParams.AppId,
-                PartnerId = appParams.PartnerId,
-                PrepayId = appParams.PrepayId,
-                Package = appParams.Package,
-                NonceStr = appParams.NonceStr,
-                Timestamp = appParams.Timestamp,
-                Sign = appParams.Sign
-            };
+            var order = await _paymentService.CreateWeChatPayOrderAsync(
+                userContext.UserId,
+                request,
+                cancellationToken);
 
             return Ok(new ApiResponse<WeChatPayOrderDto>
             {
@@ -550,6 +514,49 @@ public class PaymentController : ControllerBase
             {
                 Success = false,
                 Message = "创建微信支付订单失败"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     确认微信支付结果
+    /// </summary>
+    [HttpPost("orders/{orderId}/wechat-confirm")]
+    public async Task<ActionResult<ApiResponse<PaymentResultDto>>> ConfirmWeChatPayment(
+        string orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var userContext = UserContextMiddleware.GetUserContext(HttpContext);
+        if (userContext?.IsAuthenticated != true || string.IsNullOrEmpty(userContext.UserId))
+        {
+            return Unauthorized(new ApiResponse<PaymentResultDto>
+            {
+                Success = false,
+                Message = "未认证用户"
+            });
+        }
+
+        try
+        {
+            var result = await _paymentService.ConfirmWeChatPaymentAsync(
+                userContext.UserId,
+                orderId,
+                cancellationToken);
+
+            return Ok(new ApiResponse<PaymentResultDto>
+            {
+                Success = result.Success,
+                Message = result.Message ?? (result.Success ? "支付成功" : "确认失败"),
+                Data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 确认微信支付失败");
+            return StatusCode(500, new ApiResponse<PaymentResultDto>
+            {
+                Success = false,
+                Message = "确认微信支付失败"
             });
         }
     }
@@ -670,7 +677,19 @@ public class PaymentController : ControllerBase
 
             if (result.TradeState == "SUCCESS")
             {
-                // TODO: 根据 OutTradeNo 更新订单状态为已支付
+                var paymentResult = await _paymentService.HandleWeChatWebhookAsync(
+                    result.OutTradeNo ?? string.Empty,
+                    result.TransactionId,
+                    body,
+                    cancellationToken);
+
+                if (!paymentResult.Success)
+                {
+                    _logger.LogWarning("⚠️ 微信支付回调处理失败: OutTradeNo={OutTradeNo}, Message={Message}",
+                        result.OutTradeNo, paymentResult.Message);
+                    return Ok(new { code = "FAIL", message = paymentResult.Message ?? "订单处理失败" });
+                }
+
                 _logger.LogInformation("💰 微信支付成功: TransactionId={TransactionId}",
                     result.TransactionId);
             }

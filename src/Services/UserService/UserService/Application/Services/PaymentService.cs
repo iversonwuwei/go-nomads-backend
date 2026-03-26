@@ -1,6 +1,7 @@
 using UserService.Application.DTOs;
 using UserService.Domain.Entities;
 using UserService.Domain.Repositories;
+using System.Text.Json;
 
 namespace UserService.Application.Services;
 
@@ -15,11 +16,13 @@ public class PaymentService : IPaymentService
     private readonly IOrderRepository _orderRepository;
     private readonly IPaymentTransactionRepository _transactionRepository;
     private readonly IPayPalService _payPalService;
+    private readonly IWeChatPayService _weChatPayService;
 
     public PaymentService(
         IOrderRepository orderRepository,
         IPaymentTransactionRepository transactionRepository,
         IPayPalService payPalService,
+        IWeChatPayService weChatPayService,
         IMembershipRepository membershipRepository,
         IMembershipPlanRepository membershipPlanRepository,
         ILogger<PaymentService> logger)
@@ -27,6 +30,7 @@ public class PaymentService : IPaymentService
         _orderRepository = orderRepository;
         _transactionRepository = transactionRepository;
         _payPalService = payPalService;
+        _weChatPayService = weChatPayService;
         _membershipRepository = membershipRepository;
         _membershipPlanRepository = membershipPlanRepository;
         _logger = logger;
@@ -344,7 +348,265 @@ public class PaymentService : IPaymentService
         }
     }
 
+    public async Task<WeChatPayOrderDto> CreateWeChatPayOrderAsync(
+        string userId,
+        CreateWeChatPayOrderRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var (amountCents, description) = ResolveWeChatOrderPricing(request);
+        if (amountCents <= 0)
+        {
+            throw new ArgumentException("无效的订单类型或等级");
+        }
+
+        var order = new Order
+        {
+            UserId = userId,
+            OrderType = request.OrderType.ToLowerInvariant(),
+            Amount = amountCents / 100m,
+            TotalAmount = amountCents / 100m,
+            Currency = "CNY",
+            MembershipLevel = request.MembershipLevel,
+            DurationDays = request.DurationDays ?? 365
+        };
+
+        order = await _orderRepository.CreateAsync(order, cancellationToken);
+
+        var transaction = PaymentTransaction.CreatePayment(order.Id, order.Amount, order.Currency, "wechatpay");
+        transaction = await _transactionRepository.CreateAsync(transaction, cancellationToken);
+
+        try
+        {
+            var orderResult = await _weChatPayService.CreateAppOrderAsync(
+                order.OrderNumber,
+                description,
+                amountCents,
+                cancellationToken);
+
+            var appParams = _weChatPayService.GenerateAppPayParams(orderResult.PrepayId);
+
+            _logger.LogInformation("✅ 微信支付订单创建成功: OrderId={OrderId}, OrderNumber={OrderNumber}",
+                order.Id, order.OrderNumber);
+
+            return new WeChatPayOrderDto
+            {
+                OrderId = order.Id,
+                AppId = appParams.AppId,
+                PartnerId = appParams.PartnerId,
+                PrepayId = appParams.PrepayId,
+                Package = appParams.Package,
+                NonceStr = appParams.NonceStr,
+                Timestamp = appParams.Timestamp,
+                Sign = appParams.Sign
+            };
+        }
+        catch (Exception ex)
+        {
+            order.MarkAsFailed(ex.Message);
+            await _orderRepository.UpdateAsync(order, cancellationToken);
+
+            transaction.MarkAsFailed("WECHAT_CREATE_FAILED", ex.Message);
+            await _transactionRepository.UpdateAsync(transaction, cancellationToken);
+
+            throw;
+        }
+    }
+
+    public async Task<PaymentResultDto> ConfirmWeChatPaymentAsync(
+        string userId,
+        string orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await _orderRepository.GetByIdAsync(orderId, cancellationToken);
+        if (order == null)
+        {
+            return new PaymentResultDto
+            {
+                Success = false,
+                Message = "订单不存在"
+            };
+        }
+
+        if (order.UserId != userId)
+        {
+            return new PaymentResultDto
+            {
+                Success = false,
+                Message = "无权操作此订单"
+            };
+        }
+
+        if (order.IsCompleted)
+        {
+            return new PaymentResultDto
+            {
+                Success = true,
+                OrderId = order.Id,
+                OrderNumber = order.OrderNumber,
+                Status = order.Status,
+                Message = "订单已完成"
+            };
+        }
+
+        if (order.IsExpired)
+        {
+            order.MarkAsCancelled();
+            await _orderRepository.UpdateAsync(order, cancellationToken);
+
+            return new PaymentResultDto
+            {
+                Success = false,
+                OrderId = order.Id,
+                OrderNumber = order.OrderNumber,
+                Status = order.Status,
+                Message = "订单已过期"
+            };
+        }
+
+        var queryResult = await _weChatPayService.QueryOrderAsync(order.OrderNumber, cancellationToken);
+
+        if (queryResult.TradeState == "SUCCESS")
+        {
+            return await CompleteExternalPaymentAsync(
+                order,
+                "wechatpay",
+                queryResult.TransactionId,
+                queryResult.RawResponse,
+                cancellationToken);
+        }
+
+        if (!string.IsNullOrWhiteSpace(queryResult.ErrorMessage))
+        {
+            return new PaymentResultDto
+            {
+                Success = false,
+                OrderId = order.Id,
+                OrderNumber = order.OrderNumber,
+                Status = order.Status,
+                Message = queryResult.ErrorMessage
+            };
+        }
+
+        return new PaymentResultDto
+        {
+            Success = false,
+            OrderId = order.Id,
+            OrderNumber = order.OrderNumber,
+            Status = order.Status,
+            Message = queryResult.TradeState switch
+            {
+                "USERPAYING" => "支付处理中",
+                "NOTPAY" => "订单待支付",
+                "CLOSED" => "订单已关闭",
+                "PAYERROR" => "支付失败",
+                _ => $"当前支付状态: {queryResult.TradeState}"
+            }
+        };
+    }
+
+    public async Task<PaymentResultDto> HandleWeChatWebhookAsync(
+        string outTradeNo,
+        string? transactionId,
+        string rawBody,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await _orderRepository.GetByOrderNumberAsync(outTradeNo, cancellationToken);
+        if (order == null)
+        {
+            _logger.LogWarning("⚠️ 微信支付回调未找到订单: OutTradeNo={OutTradeNo}", outTradeNo);
+            return new PaymentResultDto
+            {
+                Success = false,
+                OrderNumber = outTradeNo,
+                Message = "订单不存在"
+            };
+        }
+
+        return await CompleteExternalPaymentAsync(order, "wechatpay", transactionId, rawBody, cancellationToken);
+    }
+
     #region 私有方法
+
+    private static (int AmountCents, string Description) ResolveWeChatOrderPricing(CreateWeChatPayOrderRequest request)
+    {
+        return request.OrderType.ToLowerInvariant() switch
+        {
+            "membership_upgrade" or "membership_renew" => request.MembershipLevel switch
+            {
+                1 => (2900, "Go Nomads 探索者会员"),
+                2 => (9900, "Go Nomads 旅行家会员"),
+                3 => (29900, "Go Nomads 数字游民会员"),
+                _ => (0, "Go Nomads 会员")
+            },
+            "moderator_deposit" => ((int)Math.Round((request.DepositAmount ?? 50m) * 100m), "Go Nomads 版主保证金"),
+            _ => (0, "Go Nomads 订单")
+        };
+    }
+
+    private async Task<PaymentResultDto> CompleteExternalPaymentAsync(
+        Order order,
+        string paymentMethod,
+        string? transactionId,
+        string? rawResponse,
+        CancellationToken cancellationToken)
+    {
+        if (order.IsCompleted)
+        {
+            return new PaymentResultDto
+            {
+                Success = true,
+                OrderId = order.Id,
+                OrderNumber = order.OrderNumber,
+                Status = order.Status,
+                Message = "订单已完成"
+            };
+        }
+
+        var transactions = await _transactionRepository.GetByOrderIdAsync(order.Id, cancellationToken);
+        var transaction = transactions.FirstOrDefault(t =>
+                              t.TransactionType == "payment" &&
+                              t.PaymentMethod == paymentMethod) ??
+                          PaymentTransaction.CreatePayment(order.Id, order.Amount, order.Currency, paymentMethod);
+
+        if (string.IsNullOrEmpty(transaction.Id))
+        {
+            transaction = await _transactionRepository.CreateAsync(transaction, cancellationToken);
+        }
+
+        order.MarkAsCompleted(transactionId);
+        await _orderRepository.UpdateAsync(order, cancellationToken);
+
+        transaction.MarkAsCompleted(transactionId, null, rawResponse ?? JsonSerializer.Serialize(new
+        {
+            order.OrderNumber,
+            paymentMethod,
+            transactionId
+        }));
+
+        if (transactions.All(t => t.Id != transaction.Id))
+        {
+            transaction = await _transactionRepository.CreateAsync(transaction, cancellationToken);
+        }
+        else
+        {
+            transaction = await _transactionRepository.UpdateAsync(transaction, cancellationToken);
+        }
+
+        var membership = await ProcessOrderCompletionAsync(order, cancellationToken);
+
+        _logger.LogInformation("✅ 外部支付完成: OrderNumber={OrderNumber}, Method={PaymentMethod}, TransactionId={TransactionId}",
+            order.OrderNumber, paymentMethod, transactionId);
+
+        return new PaymentResultDto
+        {
+            Success = true,
+            OrderId = order.Id,
+            OrderNumber = order.OrderNumber,
+            Status = order.Status,
+            Message = "支付成功",
+            Membership = membership != null ? MapToMembershipDto(membership) : null
+        };
+    }
 
     private async Task<Membership?> ProcessOrderCompletionAsync(Order order, CancellationToken cancellationToken)
     {

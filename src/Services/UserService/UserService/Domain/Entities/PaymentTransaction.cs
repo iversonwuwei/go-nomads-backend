@@ -81,14 +81,19 @@ public class PaymentTransaction : BaseModel
 
     #region 工厂方法
 
-    public static PaymentTransaction CreatePayment(string orderId, decimal amount, string currency = "USD")
+    public static PaymentTransaction CreatePayment(
+        string orderId,
+        decimal amount,
+        string currency = "USD",
+        string paymentMethod = "paypal")
     {
         return new PaymentTransaction
         {
             OrderId = orderId,
             TransactionType = "payment",
             Amount = amount,
-            Currency = currency
+            Currency = currency,
+            PaymentMethod = paymentMethod
         };
     }
 
