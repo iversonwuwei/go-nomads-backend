@@ -15,7 +15,7 @@ on:
       - master
 
 env:
-  DOTNET_VERSION: '9.0.x'
+  DOTNET_VERSION: '10.0.x'
 
 jobs:
   # ============================================================
@@ -130,6 +130,15 @@ jobs:
             
             echo "===== 进入部署目录 ====="
             cd ${{ vars.ALIYUN_DEPLOY_PATH }}
+
+            echo "===== 校验关键配置 ====="
+            [ -n "${{ secrets.WECHAT_APP_ID }}" ] || { echo "缺少 GitHub Secret: WECHAT_APP_ID"; exit 1; }
+            [ -n "${{ secrets.WECHAT_APP_SECRET }}" ] || { echo "缺少 GitHub Secret: WECHAT_APP_SECRET"; exit 1; }
+            [ -n "${{ secrets.WECHAT_PAY_APP_ID }}" ] || { echo "缺少 GitHub Secret: WECHAT_PAY_APP_ID"; exit 1; }
+            [ -n "${{ secrets.WECHAT_PAY_MCH_ID }}" ] || { echo "缺少 GitHub Secret: WECHAT_PAY_MCH_ID"; exit 1; }
+            [ -n "${{ secrets.WECHAT_PAY_API_V3_KEY }}" ] || { echo "缺少 GitHub Secret: WECHAT_PAY_API_V3_KEY"; exit 1; }
+            [ -n "${{ secrets.WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER }}" ] || { echo "缺少 GitHub Secret: WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER"; exit 1; }
+            [ -n "${{ secrets.WECHAT_PAY_PRIVATE_KEY }}" ] || { echo "缺少 GitHub Secret: WECHAT_PAY_PRIVATE_KEY"; exit 1; }
             
             echo "===== 写入环境变量 ====="
             echo "ALIYUN_SMS_ACCESS_KEY_ID=${{ secrets.ALIYUN_SMS_ACCESS_KEY_ID }}" > .env
@@ -140,6 +149,7 @@ jobs:
             echo "WECHAT_PAY_MCH_ID=${{ secrets.WECHAT_PAY_MCH_ID }}" >> .env
             echo "WECHAT_PAY_API_V3_KEY=${{ secrets.WECHAT_PAY_API_V3_KEY }}" >> .env
             echo "WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER=${{ secrets.WECHAT_PAY_CERTIFICATE_SERIAL_NUMBER }}" >> .env
+            echo "WECHAT_PAY_NOTIFY_URL=${{ vars.WECHAT_PAY_NOTIFY_URL }}" >> .env
             
             # 微信支付私钥写入文件（docker-compose 挂载到容器内）
             mkdir -p /root/docker-compose/certs
@@ -147,7 +157,7 @@ jobs:
             chmod 600 /root/docker-compose/certs/wechat_pay_private_key.pem
             
             echo "===== 拉取最新镜像 ====="
-            docker compose -f docker-compose-services-swr.yml pull
+            docker compose --env-file .env -f docker-compose-services-swr.yml pull
             
             echo "===== 停止旧服务 ====="
             docker compose -f docker-compose-services-swr.yml down --remove-orphans || true
@@ -159,7 +169,7 @@ jobs:
             docker image prune -f
             
             echo "===== 检查服务状态 ====="
-            docker compose -f docker-compose-services-swr.yml ps
+            docker compose --env-file .env -f docker-compose-services-swr.yml ps
             
             echo "✓ 部署完成"
 
