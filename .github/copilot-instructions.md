@@ -3,6 +3,8 @@
 ## Scope
 - This file applies to the entire go-nomads-backend workspace.
 - Keep instructions minimal and actionable. Link to existing docs instead of copying long sections.
+- Default engineering execution should follow `docs/HARNESS_ENGINEERING_CHECKLIST.md` for requirement framing, validation closure, observability, and rollback safety.
+- Delivery summaries should follow `docs/HARNESS_DELIVERY_TEMPLATE.md`.
 
 ## Build And Test
 - Restore/build all services: `dotnet restore && dotnet build go-nomads-backend.sln`

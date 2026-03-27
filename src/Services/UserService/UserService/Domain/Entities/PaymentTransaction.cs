@@ -55,11 +55,11 @@ public class PaymentTransaction : BaseModel
     [Column("currency")]
     public string Currency { get; set; } = "USD";
 
-    [Column("paypal_transaction_id")]
-    public string? PayPalTransactionId { get; set; }
+    [Column("external_transaction_id")]
+    public string? ExternalTransactionId { get; set; }
 
-    [Column("paypal_capture_id")]
-    public string? PayPalCaptureId { get; set; }
+    [Column("external_reference_id")]
+    public string? ExternalReferenceId { get; set; }
 
     [Column("payment_method")]
     public string PaymentMethod { get; set; } = "paypal";
@@ -112,11 +112,11 @@ public class PaymentTransaction : BaseModel
 
     #region 领域方法
 
-    public void MarkAsCompleted(string? transactionId = null, string? captureId = null, string? rawResponse = null)
+    public void MarkAsCompleted(string? externalTransactionId = null, string? externalReferenceId = null, string? rawResponse = null)
     {
         Status = "completed";
-        PayPalTransactionId = transactionId;
-        PayPalCaptureId = captureId;
+        ExternalTransactionId = externalTransactionId;
+        ExternalReferenceId = externalReferenceId;
         RawResponse = rawResponse;
         UpdatedAt = DateTime.UtcNow;
     }

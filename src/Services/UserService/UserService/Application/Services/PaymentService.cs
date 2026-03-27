@@ -114,8 +114,8 @@ public class PaymentService : IPaymentService
             order.OrderNumber,
             cancellationToken);
 
-        // 更新订单的 PayPal 订单 ID
-        order.SetPayPalOrderId(paypalOrder.OrderId);
+        // 记录外部支付订单 ID，供后续 capture / webhook 查询
+        order.SetExternalPaymentOrderId(paypalOrder.OrderId);
         await _orderRepository.UpdateAsync(order, cancellationToken);
 
         _logger.LogInformation("✅ 订单创建成功: OrderNumber={OrderNumber}, PayPalOrderId={PayPalOrderId}",
@@ -147,7 +147,7 @@ public class PaymentService : IPaymentService
             userId, request.PayPalOrderId);
 
         // 查找订单
-        var order = await _orderRepository.GetByPayPalOrderIdAsync(request.PayPalOrderId, cancellationToken);
+        var order = await _orderRepository.GetByExternalPaymentOrderIdAsync(request.PayPalOrderId, cancellationToken);
         if (order == null)
         {
             return new PaymentResultDto
@@ -329,7 +329,7 @@ public class PaymentService : IPaymentService
 
             case "PAYMENT.CAPTURE.COMPLETED":
                 // 支付已完成
-                var order = await _orderRepository.GetByPayPalOrderIdAsync(resourceId, cancellationToken);
+                var order = await _orderRepository.GetByExternalPaymentOrderIdAsync(resourceId, cancellationToken);
                 if (order != null && !order.IsCompleted)
                 {
                     // 如果订单还没完成，这里处理
@@ -475,6 +475,40 @@ public class PaymentService : IPaymentService
                 cancellationToken);
         }
 
+        if (queryResult.TradeState == "CLOSED")
+        {
+            order.MarkAsCancelled();
+            await _orderRepository.UpdateAsync(order, cancellationToken);
+
+            return new PaymentResultDto
+            {
+                Success = false,
+                OrderId = order.Id,
+                OrderNumber = order.OrderNumber,
+                Status = order.Status,
+                Message = "订单已关闭"
+            };
+        }
+
+        if (queryResult.TradeState == "PAYERROR")
+        {
+            await FailExternalPaymentAsync(
+                order,
+                "wechatpay",
+                queryResult.ErrorMessage ?? "微信支付失败",
+                queryResult.RawResponse,
+                cancellationToken);
+
+            return new PaymentResultDto
+            {
+                Success = false,
+                OrderId = order.Id,
+                OrderNumber = order.OrderNumber,
+                Status = order.Status,
+                Message = queryResult.ErrorMessage ?? "支付失败"
+            };
+        }
+
         if (!string.IsNullOrWhiteSpace(queryResult.ErrorMessage))
         {
             return new PaymentResultDto
@@ -606,6 +640,34 @@ public class PaymentService : IPaymentService
             Message = "支付成功",
             Membership = membership != null ? MapToMembershipDto(membership) : null
         };
+    }
+
+    private async Task FailExternalPaymentAsync(
+        Order order,
+        string paymentMethod,
+        string errorMessage,
+        string? rawResponse,
+        CancellationToken cancellationToken)
+    {
+        order.MarkAsFailed(errorMessage);
+        await _orderRepository.UpdateAsync(order, cancellationToken);
+
+        var transactions = await _transactionRepository.GetByOrderIdAsync(order.Id, cancellationToken);
+        var transaction = transactions.FirstOrDefault(t =>
+                              t.TransactionType == "payment" &&
+                              t.PaymentMethod == paymentMethod) ??
+                          PaymentTransaction.CreatePayment(order.Id, order.Amount, order.Currency, paymentMethod);
+
+        transaction.MarkAsFailed("PAYMENT_FAILED", errorMessage, rawResponse);
+
+        if (transactions.All(t => t.Id != transaction.Id))
+        {
+            await _transactionRepository.CreateAsync(transaction, cancellationToken);
+        }
+        else
+        {
+            await _transactionRepository.UpdateAsync(transaction, cancellationToken);
+        }
     }
 
     private async Task<Membership?> ProcessOrderCompletionAsync(Order order, CancellationToken cancellationToken)

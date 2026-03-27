@@ -507,6 +507,14 @@ public class PaymentController : ControllerBase
                 Data = order
             });
         }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ApiResponse<WeChatPayOrderDto>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ 创建微信支付订单失败");

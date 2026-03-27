@@ -4,6 +4,32 @@
 
 本文档说明如何将所有 *Service 项目从 Entity Framework Core 模式迁移到 Supabase 直接集成模式。
 
+## 支付字段通用化与旧字段退役计划
+
+### 背景
+
+- UserService 支付链路已不再只服务 PayPal，同一套订单与交易表需要兼容 WeChat Pay 等第三方支付方式。
+- 新代码已切换到 `external_*` 通用字段，避免继续把支付语义绑定到 `paypal_*` 列名。
+
+### 当前状态
+
+- 新建库脚本已使用通用字段，见 `migrations/create_payment_tables.sql`。
+- 存量库需执行 `migrations/add_generic_external_payment_columns.sql`，为 `orders` 与 `payment_transactions` 添加 `external_*` 字段并从旧 `paypal_*` 字段回填数据。
+- 现阶段旧 `paypal_*` 字段保留，仅用于历史兼容与安全回滚。
+
+### 退役阶段
+
+1. 阶段一：新增并回填通用字段，应用代码全部切到 `external_*`。
+2. 阶段二：验证生产流量与历史订单读写均不再依赖 `paypal_*` 字段。
+3. 阶段三：补充最终迁移脚本，移除旧索引、旧列和旧注释。
+
+### 退役前检查
+
+- 确认所有服务、后台任务和报表查询都不再读取 `paypal_*` 字段。
+- 确认所有支付方式的 webhook、主动确认、退款查询都以通用字段为准。
+- 确认至少完成一轮生产数据抽样核对，检查新旧字段值一致。
+- 确认有可回滚脚本或完整备份，再执行旧字段删除。
+
 ## 已完成的服务
 
 ### ✅ UserService

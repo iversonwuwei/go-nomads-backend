@@ -73,17 +73,17 @@ public class Order : BaseModel
     [Column("duration_days")]
     public int? DurationDays { get; set; }
 
-    [Column("paypal_order_id")]
-    public string? PayPalOrderId { get; set; }
+    [Column("external_payment_order_id")]
+    public string? ExternalPaymentOrderId { get; set; }
 
-    [Column("paypal_capture_id")]
-    public string? PayPalCaptureId { get; set; }
+    [Column("external_payment_id")]
+    public string? ExternalPaymentId { get; set; }
 
-    [Column("paypal_payer_id")]
-    public string? PayPalPayerId { get; set; }
+    [Column("external_payer_id")]
+    public string? ExternalPayerId { get; set; }
 
-    [Column("paypal_payer_email")]
-    public string? PayPalPayerEmail { get; set; }
+    [Column("external_payer_email")]
+    public string? ExternalPayerEmail { get; set; }
 
     [Column("error_message")]
     public string? ErrorMessage { get; set; }
@@ -176,9 +176,9 @@ public class Order : BaseModel
 
     #region 领域方法
 
-    public void SetPayPalOrderId(string paypalOrderId)
+    public void SetExternalPaymentOrderId(string externalPaymentOrderId)
     {
-        PayPalOrderId = paypalOrderId;
+        ExternalPaymentOrderId = externalPaymentOrderId;
         UpdatedAt = DateTime.UtcNow;
     }
 
@@ -188,12 +188,12 @@ public class Order : BaseModel
         UpdatedAt = DateTime.UtcNow;
     }
 
-    public void MarkAsCompleted(string? captureId, string? payerId = null, string? payerEmail = null)
+    public void MarkAsCompleted(string? externalPaymentId, string? externalPayerId = null, string? externalPayerEmail = null)
     {
         Status = "completed";
-        PayPalCaptureId = captureId;
-        PayPalPayerId = payerId;
-        PayPalPayerEmail = payerEmail;
+        ExternalPaymentId = externalPaymentId;
+        ExternalPayerId = externalPayerId;
+        ExternalPayerEmail = externalPayerEmail;
         CompletedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }

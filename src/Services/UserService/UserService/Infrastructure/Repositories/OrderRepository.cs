@@ -54,20 +54,20 @@ public class OrderRepository : IOrderRepository
         }
     }
 
-    public async Task<Order?> GetByPayPalOrderIdAsync(string paypalOrderId, CancellationToken cancellationToken = default)
+    public async Task<Order?> GetByExternalPaymentOrderIdAsync(string externalPaymentOrderId, CancellationToken cancellationToken = default)
     {
         try
         {
             var response = await _supabaseClient
                 .From<Order>()
-                .Filter("paypal_order_id", Postgrest.Constants.Operator.Equals, paypalOrderId)
+                .Filter("external_payment_order_id", Postgrest.Constants.Operator.Equals, externalPaymentOrderId)
                 .Single(cancellationToken);
 
             return response;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "⚠️ 未找到 PayPal 订单: {PayPalOrderId}", paypalOrderId);
+            _logger.LogWarning(ex, "⚠️ 未找到外部支付订单: {ExternalPaymentOrderId}", externalPaymentOrderId);
             return null;
         }
     }

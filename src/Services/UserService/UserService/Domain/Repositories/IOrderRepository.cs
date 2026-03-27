@@ -18,9 +18,9 @@ public interface IOrderRepository
     Task<Order?> GetByOrderNumberAsync(string orderNumber, CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     根据 PayPal 订单 ID 获取订单
+    ///     根据外部支付订单 ID 获取订单
     /// </summary>
-    Task<Order?> GetByPayPalOrderIdAsync(string paypalOrderId, CancellationToken cancellationToken = default);
+    Task<Order?> GetByExternalPaymentOrderIdAsync(string externalPaymentOrderId, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     获取用户的订单列表
