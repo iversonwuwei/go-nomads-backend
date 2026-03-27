@@ -112,15 +112,18 @@ ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payment_transactions ENABLE ROW LEVEL SECURITY;
 
 -- 用户只能查看自己的订单
+DROP POLICY IF EXISTS "Users can view own orders" ON public.orders;
 CREATE POLICY "Users can view own orders"
     ON public.orders FOR SELECT
     USING (auth.uid()::text = user_id::text);
 
 -- 服务角色可以访问所有记录
+DROP POLICY IF EXISTS "Service role has full access to orders" ON public.orders;
 CREATE POLICY "Service role has full access to orders"
     ON public.orders
     USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Service role has full access to transactions" ON public.payment_transactions;
 CREATE POLICY "Service role has full access to transactions"
     ON public.payment_transactions
     USING (auth.role() = 'service_role');
