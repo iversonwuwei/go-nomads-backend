@@ -44,9 +44,11 @@ public class OpenClawController : ControllerBase
             _logger.LogInformation("用户 {UserId} 执行 OpenClaw 指令: {Command}",
                 userId, request.Command);
 
+            var sessionId = OpenClawSessionKeyFactory.BuildUserScopedSessionKey(userId, request.SessionId, "chat");
+
             var result = await _openClawService.ExecuteCommandAsync(
                 request.Command,
-                request.SessionId);
+                sessionId);
 
             return Ok(ApiResponse<string>.SuccessResponse(result, "指令执行成功"));
         }
@@ -81,9 +83,12 @@ public class OpenClawController : ControllerBase
             _logger.LogInformation("用户 {UserId} 设置提醒: {Text} @ {Time}",
                 userId, request.Text, request.TriggerTime);
 
+            var sessionId = OpenClawSessionKeyFactory.BuildUserScopedSessionKey(userId, scope: "reminder");
+
             var result = await _openClawService.SetReminderAsync(
                 request.Text,
-                request.TriggerTime);
+                request.TriggerTime,
+                sessionId);
 
             return Ok(ApiResponse<string>.SuccessResponse(result, "提醒设置成功"));
         }
@@ -118,9 +123,12 @@ public class OpenClawController : ControllerBase
             _logger.LogInformation("用户 {UserId} 设置签证提醒: {Country} 到期 {Date}",
                 userId, request.Country, request.ExpiryDate);
 
+            var sessionId = OpenClawSessionKeyFactory.BuildUserScopedSessionKey(userId, scope: "visa-reminder");
+
             var result = await _openClawService.SetVisaReminderAsync(
                 request.Country,
-                request.ExpiryDate);
+                request.ExpiryDate,
+                sessionId);
 
             return Ok(ApiResponse<string>.SuccessResponse(result, "签证提醒设置成功"));
         }
@@ -156,9 +164,12 @@ public class OpenClawController : ControllerBase
             _logger.LogInformation("用户 {UserId} 执行自动化场景: {Scenario}",
                 userId, scenario);
 
+            var sessionId = OpenClawSessionKeyFactory.BuildUserScopedSessionKey(userId, scope: $"automation-{scenario}");
+
             var result = await _openClawService.RunAutomationAsync(
                 scenario,
-                parameters);
+                parameters,
+                sessionId);
 
             return Ok(ApiResponse<string>.SuccessResponse(result, "自动化场景执行成功"));
         }
@@ -171,6 +182,51 @@ public class OpenClawController : ControllerBase
         {
             _logger.LogError(ex, "执行自动化场景失败: {Scenario}", scenario);
             return StatusCode(500, ApiResponse<string>.ErrorResponse("自动化场景执行失败"));
+        }
+    }
+
+    /// <summary>
+    ///     为旅行规划执行 OpenClaw 预研究
+    /// </summary>
+    [HttpPost("research")]
+    public async Task<ActionResult<ApiResponse<OpenClawResearchResponse>>> Research(
+        [FromBody] OpenClawResearchRequest request)
+    {
+        try
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty)
+                return Unauthorized(ApiResponse<OpenClawResearchResponse>.ErrorResponse("用户未认证"));
+
+            if (string.IsNullOrWhiteSpace(request.CityName))
+                return BadRequest(ApiResponse<OpenClawResearchResponse>.ErrorResponse("目的地不能为空"));
+
+            if (request.Duration <= 0)
+                return BadRequest(ApiResponse<OpenClawResearchResponse>.ErrorResponse("行程天数必须大于 0"));
+
+            _logger.LogInformation(
+                "用户 {UserId} 执行 OpenClaw 旅行研究: City={CityName}, Mode={PlanningMode}, Objective={PlanningObjective}",
+                userId,
+                request.CityName,
+                request.PlanningMode,
+                request.PlanningObjective);
+
+            var scope = $"travel-research-{request.CityName}-{request.PlanningMode}-{request.PlanningObjective}";
+            var sessionId = OpenClawSessionKeyFactory.BuildUserScopedSessionKey(userId, request.SessionId, scope);
+
+            var result = await _openClawService.ResearchTravelPlanAsync(request, sessionId);
+
+            return Ok(ApiResponse<OpenClawResearchResponse>.SuccessResponse(result, "研究完成"));
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "OpenClaw Gateway 通信失败");
+            return StatusCode(502, ApiResponse<OpenClawResearchResponse>.ErrorResponse("OpenClaw 服务暂不可用"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "执行 OpenClaw 旅行研究失败");
+            return StatusCode(500, ApiResponse<OpenClawResearchResponse>.ErrorResponse("旅行研究失败"));
         }
     }
 

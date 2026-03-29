@@ -54,6 +54,98 @@ public class OpenClawVisaReminderRequest
     public DateTime ExpiryDate { get; set; }
 }
 
+/// <summary>
+///     旅行规划预研究请求
+/// </summary>
+public class OpenClawResearchRequest
+{
+    /// <summary>
+    ///     目的地城市
+    /// </summary>
+    public string CityName { get; set; } = "";
+
+    /// <summary>
+    ///     行程天数
+    /// </summary>
+    public int Duration { get; set; } = 7;
+
+    /// <summary>
+    ///     预算档位
+    /// </summary>
+    public string Budget { get; set; } = "";
+
+    /// <summary>
+    ///     旅行风格
+    /// </summary>
+    public string TravelStyle { get; set; } = "";
+
+    /// <summary>
+    ///     规划模式
+    /// </summary>
+    public string PlanningMode { get; set; } = "";
+
+    /// <summary>
+    ///     规划目标
+    /// </summary>
+    public string PlanningObjective { get; set; } = "";
+
+    /// <summary>
+    ///     研究信号
+    /// </summary>
+    public List<string> ResearchSignals { get; set; } = new();
+
+    /// <summary>
+    ///     兴趣点
+    /// </summary>
+    public List<string> Interests { get; set; } = new();
+
+    /// <summary>
+    ///     出发地
+    /// </summary>
+    public string? DepartureLocation { get; set; }
+
+    /// <summary>
+    ///     出发日期
+    /// </summary>
+    public DateTime? DepartureDate { get; set; }
+
+    /// <summary>
+    ///     会话 ID（可选）
+    /// </summary>
+    public string? SessionId { get; set; }
+}
+
+/// <summary>
+///     旅行规划预研究结果
+/// </summary>
+public class OpenClawResearchResponse
+{
+    /// <summary>
+    ///     后端生成的 session key
+    /// </summary>
+    public string SessionKey { get; set; } = "";
+
+    /// <summary>
+    ///     研究摘要
+    /// </summary>
+    public string Summary { get; set; } = "";
+
+    /// <summary>
+    ///     关键洞察
+    /// </summary>
+    public List<string> Insights { get; set; } = new();
+
+    /// <summary>
+    ///     建议核查项
+    /// </summary>
+    public List<string> Checks { get; set; } = new();
+
+    /// <summary>
+    ///     OpenClaw 原始响应
+    /// </summary>
+    public string RawResponse { get; set; } = "";
+}
+
 // ============================================================
 // OpenClaw 内部通信 DTOs（与 OpenClaw Gateway 交互）
 // ============================================================
@@ -65,6 +157,9 @@ public class OpenClawChatRequest
 {
     [JsonPropertyName("model")]
     public string Model { get; set; } = "openclaw:main";
+
+    [JsonPropertyName("session_id")]
+    public string? SessionId { get; set; }
 
     [JsonPropertyName("messages")]
     public List<OpenClawChatMessage> Messages { get; set; } = new();
