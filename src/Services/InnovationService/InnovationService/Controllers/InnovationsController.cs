@@ -13,6 +13,7 @@ namespace InnovationService.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Route("api/v1/[controller]")]
+[Route("api/v1/innovation-projects")]
 public class InnovationsController : ControllerBase
 {
     private readonly IInnovationRepository _repository;

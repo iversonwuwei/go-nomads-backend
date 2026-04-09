@@ -19,6 +19,18 @@ namespace CityService.Application.Services;
 /// </summary>
 public class CityApplicationService : ICityService
 {
+    private static readonly Dictionary<string, int> RegionDisplayOrders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Asia"] = 1,
+        ["Europe"] = 2,
+        ["North America"] = 3,
+        ["South America"] = 4,
+        ["Oceania"] = 5,
+        ["Africa"] = 6,
+        ["Middle East"] = 7,
+        ["Other"] = 998
+    };
+
     private readonly IMemoryCache _cache;
     private readonly ICityRepository _cityRepository;
     private readonly ICountryRepository _countryRepository;
@@ -105,17 +117,17 @@ public class CityApplicationService : ICityService
     /// 获取城市列表（轻量级版本，不包含天气数据）
     /// 用于城市列表页面，提升加载性能
     /// </summary>
-    public async Task<IEnumerable<CityListItemDto>> GetCityListAsync(int pageNumber, int pageSize, string? search = null, Guid? userId = null, string? userRole = null)
+    public async Task<IEnumerable<CityListItemDto>> GetCityListAsync(int pageNumber, int pageSize, string? search = null, string? region = null, Guid? userId = null, string? userRole = null)
     {
-        _logger.LogInformation("🚀 [GetCityList] 开始获取轻量级城市列表: page={Page}, size={Size}, search={Search}",
-            pageNumber, pageSize, search);
+        _logger.LogInformation("🚀 [GetCityList] 开始获取轻量级城市列表: page={Page}, size={Size}, search={Search}, region={Region}",
+            pageNumber, pageSize, search, region);
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         // 获取当前缓存版本号
         var cacheVersion = _cache.GetOrCreate("city_list:version", entry => DateTime.UtcNow.Ticks);
 
         // 尝试从缓存获取基础城市列表数据（不包含用户相关数据）
-        var baseCacheKey = $"city_list:v{cacheVersion}:p{pageNumber}:s{pageSize}:q{search ?? "all"}";
+        var baseCacheKey = $"city_list:v{cacheVersion}:p{pageNumber}:s{pageSize}:q{search ?? "all"}:r{NormalizeRegionCacheKey(region)}";
         List<CityListItemDto> cityListItems;
         bool fromCache = false;
 
@@ -128,23 +140,7 @@ public class CityApplicationService : ICityService
         }
         else
         {
-            // 缓存未命中，从数据库获取
-            IEnumerable<Domain.Entities.City> cities;
-
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                var criteria = new Domain.ValueObjects.CitySearchCriteria
-                {
-                    Name = search,
-                    PageNumber = pageNumber,
-                    PageSize = pageSize
-                };
-                cities = await _cityRepository.SearchAsync(criteria);
-            }
-            else
-            {
-                cities = await _cityRepository.GetAllAsync(pageNumber, pageSize);
-            }
+            var cities = await LoadCitiesForListAsync(pageNumber, pageSize, search, region);
 
             cityListItems = cities.Select(city => new CityListItemDto
             {
@@ -226,29 +222,13 @@ public class CityApplicationService : ICityService
     /// 获取城市列表（基础版本，不包含聚合数据）
     /// 用于快速首屏加载，聚合数据（MeetupCount, CoworkingCount等）后续异步加载
     /// </summary>
-    public async Task<IEnumerable<CityListItemDto>> GetCityListBasicAsync(int pageNumber, int pageSize, string? search = null, Guid? userId = null, string? userRole = null)
+    public async Task<IEnumerable<CityListItemDto>> GetCityListBasicAsync(int pageNumber, int pageSize, string? search = null, string? region = null, Guid? userId = null, string? userRole = null)
     {
-        _logger.LogInformation("🚀 [GetCityListBasic] 开始获取基础城市列表: page={Page}, size={Size}, search={Search}",
-            pageNumber, pageSize, search);
+        _logger.LogInformation("🚀 [GetCityListBasic] 开始获取基础城市列表: page={Page}, size={Size}, search={Search}, region={Region}",
+            pageNumber, pageSize, search, region);
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-        // 从数据库获取基础数据
-        IEnumerable<Domain.Entities.City> cities;
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var criteria = new Domain.ValueObjects.CitySearchCriteria
-            {
-                Name = search,
-                PageNumber = pageNumber,
-                PageSize = pageSize
-            };
-            cities = await _cityRepository.SearchAsync(criteria);
-        }
-        else
-        {
-            cities = await _cityRepository.GetAllAsync(pageNumber, pageSize);
-        }
+        var cities = await LoadCitiesForListAsync(pageNumber, pageSize, search, region);
 
         var cityListItems = cities.Select(city => new CityListItemDto
         {
@@ -304,6 +284,153 @@ public class CityApplicationService : ICityService
         return cityListItems;
     }
 
+    public async Task<IEnumerable<CityRegionTabDto>> GetRegionTabsAsync()
+    {
+        var cacheVersion = _cache.GetOrCreate("city_list:version", _ => DateTime.UtcNow.Ticks);
+        var cacheKey = $"city_region_tabs:v{cacheVersion}";
+
+        if (_cache.TryGetValue(cacheKey, out List<CityRegionTabDto>? cachedTabs) && cachedTabs != null)
+        {
+            _logger.LogInformation("📦 [GetRegionTabs] 命中缓存，返回 {Count} 个区域标签", cachedTabs.Count);
+            return cachedTabs;
+        }
+
+        var totalCount = await _cityRepository.GetTotalCountAsync();
+        if (totalCount <= 0)
+        {
+            return Array.Empty<CityRegionTabDto>();
+        }
+
+        var cities = await _cityRepository.GetAllAsync(1, totalCount);
+        var countryContinentMap = await GetCountryContinentMapAsync();
+        var tabs = cities
+            .Select(city => ResolveRegionBucket(city, countryContinentMap))
+            .Where(region => !string.IsNullOrWhiteSpace(region))
+            .Cast<string>()
+            .GroupBy(region => region, StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
+            {
+                var region = group.First();
+                return new CityRegionTabDto
+                {
+                    Key = region,
+                    Label = NormalizeRegionLabel(region),
+                    CityCount = group.Count(),
+                    DisplayOrder = GetRegionDisplayOrder(region)
+                };
+            })
+            .OrderBy(tab => tab.DisplayOrder)
+            .ThenBy(tab => tab.Label, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var cacheOptions = new MemoryCacheEntryOptions()
+            .SetAbsoluteExpiration(TimeSpan.FromMinutes(10))
+            .SetSlidingExpiration(TimeSpan.FromMinutes(5));
+        _cache.Set(cacheKey, tabs, cacheOptions);
+
+        _logger.LogInformation("✅ [GetRegionTabs] 生成 {Count} 个区域标签", tabs.Count);
+        return tabs;
+    }
+
+    private async Task<IEnumerable<Domain.Entities.City>> LoadCitiesForListAsync(int pageNumber, int pageSize, string? search, string? region)
+    {
+        if (string.IsNullOrWhiteSpace(region))
+        {
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var criteria = new Domain.ValueObjects.CitySearchCriteria
+                {
+                    Name = search,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                };
+                return await _cityRepository.SearchAsync(criteria);
+            }
+
+            return await _cityRepository.GetAllAsync(pageNumber, pageSize);
+        }
+
+        var totalCount = await _cityRepository.GetTotalCountAsync();
+        if (totalCount <= 0)
+        {
+            return Array.Empty<Domain.Entities.City>();
+        }
+
+        IEnumerable<Domain.Entities.City> candidateCities;
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var criteria = new Domain.ValueObjects.CitySearchCriteria
+            {
+                Name = search,
+                PageNumber = 1,
+                PageSize = totalCount
+            };
+            candidateCities = await _cityRepository.SearchAsync(criteria);
+        }
+        else
+        {
+            candidateCities = await _cityRepository.GetAllAsync(1, totalCount);
+        }
+
+        var countryContinentMap = await GetCountryContinentMapAsync();
+        var normalizedRegion = NormalizeRegionLabel(region);
+        var skip = Math.Max(0, (pageNumber - 1) * pageSize);
+
+        return candidateCities
+            .Where(city => string.Equals(ResolveRegionBucket(city, countryContinentMap), normalizedRegion, StringComparison.OrdinalIgnoreCase))
+            .Skip(skip)
+            .Take(pageSize)
+            .ToList();
+    }
+
+    private async Task<Dictionary<Guid, string>> GetCountryContinentMapAsync()
+    {
+        const string cacheKey = "country_continent_map";
+        if (_cache.TryGetValue(cacheKey, out Dictionary<Guid, string>? cachedMap) && cachedMap != null)
+        {
+            return cachedMap;
+        }
+
+        var countries = await _countryRepository.GetAllCountriesAsync();
+        var countryMap = countries
+            .Where(country => !string.IsNullOrWhiteSpace(country.Continent))
+            .ToDictionary(
+                country => country.Id,
+                country => NormalizeRegionLabel(country.Continent!),
+                EqualityComparer<Guid>.Default);
+
+        var cacheOptions = new MemoryCacheEntryOptions()
+            .SetAbsoluteExpiration(TimeSpan.FromMinutes(30))
+            .SetSlidingExpiration(TimeSpan.FromMinutes(10));
+        _cache.Set(cacheKey, countryMap, cacheOptions);
+
+        return countryMap;
+    }
+
+    private static string ResolveRegionBucket(Domain.Entities.City city, IReadOnlyDictionary<Guid, string> countryContinentMap)
+    {
+        if (city.CountryId.HasValue && countryContinentMap.TryGetValue(city.CountryId.Value, out var continent))
+        {
+            return continent;
+        }
+
+        if (!string.IsNullOrWhiteSpace(city.Region))
+        {
+            var normalizedRegion = NormalizeRegionLabel(city.Region);
+            if (RegionDisplayOrders.ContainsKey(normalizedRegion))
+            {
+                return normalizedRegion;
+            }
+        }
+
+        return "Other";
+    }
+
+    private static string NormalizeRegionCacheKey(string? region)
+    {
+        return string.IsNullOrWhiteSpace(region) ? "all" : NormalizeRegionLabel(region);
+    }
+
     /// <summary>
     /// 批量获取城市聚合数据（MeetupCount, CoworkingCount, ReviewCount, AverageCost）
     /// </summary>
@@ -354,6 +481,35 @@ public class CityApplicationService : ICityService
             result.Count, stopwatch.ElapsedMilliseconds);
 
         return result;
+    }
+
+    private static int GetRegionDisplayOrder(string region)
+    {
+        return RegionDisplayOrders.TryGetValue(region, out var order) ? order : 999;
+    }
+
+    private static string NormalizeRegionLabel(string region)
+    {
+        var cleaned = region.Trim();
+        if (string.IsNullOrWhiteSpace(cleaned))
+        {
+            return string.Empty;
+        }
+
+        var parts = cleaned
+            .Replace('_', ' ')
+            .Replace('-', ' ')
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (parts.Length == 0)
+        {
+            return cleaned;
+        }
+
+        return string.Join(" ", parts.Select(part =>
+            part.Length > 1
+                ? char.ToUpperInvariant(part[0]) + part[1..].ToLowerInvariant()
+                : part.ToUpperInvariant()));
     }
 
     /// <summary>

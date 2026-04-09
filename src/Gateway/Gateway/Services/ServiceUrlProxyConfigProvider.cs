@@ -222,7 +222,9 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
                 ("/api/v1/skills", 23),
                 ("/api/v1/skills/{**catch-all}", 24),
                 ("/api/v1/interests", 25),
-                ("/api/v1/interests/{**catch-all}", 26)
+                ("/api/v1/interests/{**catch-all}", 26),
+                ("/api/v1/profile-snapshot", 27),
+                ("/api/v1/profile-snapshot/{**catch-all}", 28)
             },
             "event-service" => new List<(string, int)>
             {
@@ -242,12 +244,28 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
                 ("/api/v1/admin/ai", 5),
                 ("/api/v1/admin/ai/{**catch-all}", 6),
                 ("/api/v1/ai", 7),
-                ("/api/v1/ai/{**catch-all}", 8)
+                ("/api/v1/ai/{**catch-all}", 8),
+                ("/api/v1/migration-workspace", 9),
+                ("/api/v1/migration-workspace/{**catch-all}", 10),
+                ("/api/v1/explore-dashboard", 11),
+                ("/api/v1/explore-dashboard/{**catch-all}", 12),
+                ("/api/v1/land-hub", 13),
+                ("/api/v1/land-hub/{**catch-all}", 14),
+                ("/api/v1/community-snapshot", 15),
+                ("/api/v1/community-snapshot/{**catch-all}", 16),
+                ("/api/v1/community", 17),
+                ("/api/v1/community/{**catch-all}", 18),
+                ("/api/v1/budgets", 19),
+                ("/api/v1/budgets/{**catch-all}", 20),
+                ("/api/v1/visa", 21),
+                ("/api/v1/visa/{**catch-all}", 22)
             },
             "coworking-service" => new List<(string, int)>
             {
                 ("/api/v1/coworking", 1),
-                ("/api/v1/coworking/{**catch-all}", 2)
+                ("/api/v1/coworking/{**catch-all}", 2),
+                ("/api/v1/coworking-spaces", 3),
+                ("/api/v1/coworking-spaces/{**catch-all}", 4)
             },
             "search-service" => new List<(string, int)>
             {
@@ -285,14 +303,18 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
                 ("/hubs/notifications", 13),
                 ("/hubs/notifications/{**catch-all}", 14),
                 ("/hubs/ai-progress", 15),
-                ("/hubs/ai-progress/{**catch-all}", 16)
+                ("/hubs/ai-progress/{**catch-all}", 16),
+                ("/api/v1/inbox", 17),
+                ("/api/v1/inbox/{**catch-all}", 18)
             },
             "innovation-service" => new List<(string, int)>
             {
                 ("/api/innovations", 1),
                 ("/api/innovations/{**catch-all}", 2),
                 ("/api/v1/innovations", 3),
-                ("/api/v1/innovations/{**catch-all}", 4)
+                ("/api/v1/innovations/{**catch-all}", 4),
+                ("/api/v1/innovation-projects", 5),
+                ("/api/v1/innovation-projects/{**catch-all}", 6)
             },
             "config-service" => new List<(string, int)>
             {

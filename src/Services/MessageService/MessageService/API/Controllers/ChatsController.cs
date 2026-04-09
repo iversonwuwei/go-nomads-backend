@@ -36,14 +36,19 @@ public class ChatsController : ControllerBase
     #region 聊天室管理
 
     /// <summary>
-    ///     获取公开聊天室列表
+    ///     获取聊天室列表
+    ///     已认证用户优先返回其加入的聊天室，否则返回公开聊天室
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetPublicRooms([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         try
         {
-            var rooms = await _chatService.GetPublicRoomsAsync(page, pageSize);
+            var currentUserId = _currentUser.GetUserIdString();
+            var rooms = string.IsNullOrWhiteSpace(currentUserId)
+                ? await _chatService.GetPublicRoomsAsync(page, pageSize)
+                : await _chatService.GetUserRoomsAsync(currentUserId, page, pageSize);
+
             return Ok(rooms);
         }
         catch (Exception ex)
@@ -430,6 +435,25 @@ public class ChatsController : ControllerBase
     {
         try
         {
+            var currentUserId = _currentUser.GetUserIdString();
+            var currentUserName = _currentUser.GetUserEmail() ?? request.UserName;
+            var currentUserAvatar = request.UserAvatar;
+
+            if (string.IsNullOrWhiteSpace(request.UserId) && !string.IsNullOrWhiteSpace(currentUserId))
+            {
+                request.UserId = currentUserId;
+            }
+
+            if (string.IsNullOrWhiteSpace(request.UserName) && !string.IsNullOrWhiteSpace(currentUserName))
+            {
+                request.UserName = currentUserName;
+            }
+
+            if (string.IsNullOrWhiteSpace(request.UserId))
+            {
+                return BadRequest(new { error = "用户ID不能为空，请确保已登录" });
+            }
+
             // 处理 meetup_ 格式的 roomId，获取实际的数据库 roomId
             var actualRoomId = roomId;
             if (roomId.StartsWith("meetup_"))
@@ -447,7 +471,7 @@ public class ChatsController : ControllerBase
                 RoomId = actualRoomId,
                 UserId = request.UserId,
                 UserName = request.UserName,
-                UserAvatar = request.UserAvatar,
+                UserAvatar = currentUserAvatar,
                 Message = request.Message,
                 MessageType = request.MessageType ?? "text",
                 ReplyToId = request.ReplyToId,
@@ -463,7 +487,7 @@ public class ChatsController : ControllerBase
                 {
                     UserId = request.UserId,
                     UserName = request.UserName,
-                    UserAvatar = request.UserAvatar
+                    UserAvatar = currentUserAvatar
                 },
                 Message = request.Message,
                 MessageType = request.MessageType ?? "text",
@@ -491,7 +515,7 @@ public class ChatsController : ControllerBase
                 }
             }
 
-            return Ok(savedMessage);
+            return Ok(messageResponse);
         }
         catch (Exception ex)
         {

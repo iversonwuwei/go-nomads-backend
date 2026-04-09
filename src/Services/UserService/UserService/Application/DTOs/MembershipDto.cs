@@ -11,6 +11,7 @@ public class MembershipResponse
     public string UserId { get; set; } = string.Empty;
     public int Level { get; set; }
     public string LevelName { get; set; } = string.Empty;
+    public string BillingCycle { get; set; } = "yearly";
     public DateTime StartDate { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public bool AutoRenew { get; set; }
@@ -32,6 +33,7 @@ public class MembershipResponse
             UserId = entity.UserId,
             Level = entity.Level,
             LevelName = entity.MembershipLevel.ToString(),
+            BillingCycle = InferBillingCycle(entity.StartDate, entity.ExpiryDate),
             StartDate = entity.StartDate,
             ExpiryDate = entity.ExpiryDate,
             AutoRenew = entity.AutoRenew,
@@ -45,6 +47,17 @@ public class MembershipResponse
             CanUseAI = entity.CanUseAI,
             CanApplyModerator = entity.CanApplyModerator
         };
+    }
+
+    private static string InferBillingCycle(DateTime startDate, DateTime? expiryDate)
+    {
+        if (!expiryDate.HasValue)
+        {
+            return "yearly";
+        }
+
+        var durationDays = Math.Max(0, (expiryDate.Value - startDate).Days);
+        return durationDays <= 31 ? "monthly" : "yearly";
     }
 }
 

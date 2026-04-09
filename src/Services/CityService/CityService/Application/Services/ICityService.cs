@@ -14,13 +14,18 @@ public interface ICityService
     /// 获取城市列表（轻量级版本，不包含天气数据）
     /// 用于城市列表页面，提升加载性能
     /// </summary>
-    Task<IEnumerable<CityListItemDto>> GetCityListAsync(int pageNumber, int pageSize, string? search = null, Guid? userId = null, string? userRole = null);
+    Task<IEnumerable<CityListItemDto>> GetCityListAsync(int pageNumber, int pageSize, string? search = null, string? region = null, Guid? userId = null, string? userRole = null);
 
     /// <summary>
     /// 获取城市列表（基础版本，不包含聚合数据如 MeetupCount, CoworkingCount 等）
     /// 用于快速首屏加载
     /// </summary>
-    Task<IEnumerable<CityListItemDto>> GetCityListBasicAsync(int pageNumber, int pageSize, string? search = null, Guid? userId = null, string? userRole = null);
+    Task<IEnumerable<CityListItemDto>> GetCityListBasicAsync(int pageNumber, int pageSize, string? search = null, string? region = null, Guid? userId = null, string? userRole = null);
+
+    /// <summary>
+    /// 获取城市区域标签列表（用于城市列表页 Tab 展示）
+    /// </summary>
+    Task<IEnumerable<CityRegionTabDto>> GetRegionTabsAsync();
 
     /// <summary>
     /// 批量获取城市聚合数据（MeetupCount, CoworkingCount, ReviewCount, AverageCost）

@@ -15,6 +15,7 @@ namespace CoworkingService.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/coworking")]
+[Route("api/v1/coworking-spaces")]
 public class CoworkingController : ControllerBase
 {
     private readonly ICoworkingService _coworkingService;
@@ -710,6 +711,31 @@ public class CoworkingController : ControllerBase
     #endregion
     
     #region 城市统计 API
+
+    /// <summary>
+    ///     获取单个城市的 Coworking 空间数量
+    /// </summary>
+    [HttpGet("cities/{cityId}/count")]
+    [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<int>>> GetCityCoworkingCount(string cityId)
+    {
+        try
+        {
+            _logger.LogInformation("📊 获取城市 Coworking 数量: CityId={CityId}", cityId);
+
+            var counts = await _coworkingService.GetCitiesCoworkingCountsAsync(new List<string> { cityId });
+            var count = counts.TryGetValue(cityId, out var value) ? value : 0;
+
+            return Ok(ApiResponse<int>.SuccessResponse(count, "成功获取城市 Coworking 数量"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取城市 Coworking 数量失败: CityId={CityId}", cityId);
+            return StatusCode(500, ApiResponse<int>.ErrorResponse(
+                "获取城市 Coworking 数量失败",
+                new List<string> { ex.Message }));
+        }
+    }
 
     /// <summary>
     ///     批量获取城市 Coworking 空间数量（供 CityService 调用）
