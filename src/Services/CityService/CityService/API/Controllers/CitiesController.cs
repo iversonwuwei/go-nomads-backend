@@ -584,6 +584,46 @@ public class CitiesController : ControllerBase
     }
 
     /// <summary>
+    ///     Get city nomad summary for the decision panel
+    /// </summary>
+    [HttpGet("{id:guid}/nomad-summary")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<CityNomadSummaryDto>>> GetCityNomadSummary(Guid id)
+    {
+        try
+        {
+            var userId = _currentUser.TryGetUserId();
+            var userRole = _currentUser.GetUserRole();
+            var summary = await _cityService.GetCityNomadSummaryAsync(id, userId, userRole);
+
+            if (summary == null)
+                return NotFound(new ApiResponse<CityNomadSummaryDto>
+                {
+                    Success = false,
+                    Message = $"City with ID {id} not found",
+                    Errors = new List<string> { "City not found" }
+                });
+
+            return Ok(new ApiResponse<CityNomadSummaryDto>
+            {
+                Success = true,
+                Message = "City nomad summary retrieved successfully",
+                Data = summary
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting city nomad summary {CityId}", id);
+            return StatusCode(500, new ApiResponse<CityNomadSummaryDto>
+            {
+                Success = false,
+                Message = "An error occurred while retrieving the city nomad summary",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    /// <summary>
     ///     Get city statistics
     /// </summary>
     [HttpGet("{id:guid}/statistics")]

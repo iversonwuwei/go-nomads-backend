@@ -12,8 +12,11 @@ public interface IUserCityContentService
     Task<UserCityPhotoDto> AddPhotoAsync(Guid userId, AddCityPhotoRequest request);
     Task<IEnumerable<UserCityPhotoDto>> SubmitPhotoCollectionAsync(Guid userId, SubmitCityPhotoBatchRequest request);
     Task<IEnumerable<UserCityPhotoDto>> GetCityPhotosAsync(string cityId, Guid? userId = null);
+    Task<IEnumerable<UserCityPhotoDto>> GetApprovedCityPhotosAsync(string cityId);
     Task<IEnumerable<UserCityPhotoDto>> GetUserPhotosAsync(Guid userId);
     Task<bool> DeletePhotoAsync(Guid userId, Guid photoId);
+    Task<UserCityPhotoDto> ApprovePhotoAsync(Guid reviewerUserId, string cityId, Guid photoId, string? reason = null);
+    Task<UserCityPhotoDto> RejectPhotoAsync(Guid reviewerUserId, string cityId, Guid photoId, string reason);
 
     #endregion
 

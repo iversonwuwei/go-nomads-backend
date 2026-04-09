@@ -8,6 +8,11 @@ namespace UserService.Application.Services;
 public interface IUserService
 {
     /// <summary>
+    ///     获取管理后台概览
+    /// </summary>
+    Task<DashboardOverviewDto> GetDashboardOverviewAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     获取用户列表（分页）
     /// </summary>
     Task<(List<UserDto> Users, int Total)> GetUsersAsync(

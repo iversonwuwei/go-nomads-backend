@@ -56,10 +56,16 @@ builder.Services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepo
 builder.Services.AddScoped<ITravelHistoryRepository, TravelHistoryRepository>();
 builder.Services.AddScoped<IVisitedPlaceRepository, VisitedPlaceRepository>();
 builder.Services.AddScoped<ILegalDocumentRepository, LegalDocumentRepository>();
+builder.Services.AddScoped<IReportRepository, ReportRepository>();
+builder.Services.AddScoped<IAdminAuditEventRepository, AdminAuditEventRepository>();
 
 // Register Application Services
 builder.Services.AddScoped<IUserService, UserApplicationService>();
+builder.Services.AddScoped<ILegalDocumentService, LegalDocumentApplicationService>();
+builder.Services.AddScoped<IProfileSnapshotService, ProfileSnapshotService>();
 builder.Services.AddScoped<IAuthService, AuthApplicationService>();
+builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<IAdminAuditEventService, AdminAuditEventService>();
 builder.Services.AddScoped<ISkillService, SkillService>();
 builder.Services.AddScoped<IInterestService, InterestService>();
 builder.Services.AddScoped<IMembershipService, MembershipService>();

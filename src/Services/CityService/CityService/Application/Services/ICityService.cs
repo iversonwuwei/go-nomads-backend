@@ -44,6 +44,7 @@ public interface ICityService
     Task<IEnumerable<CityDto>> GetRecommendedCitiesAsync(int count, Guid? userId = null);
     Task<IEnumerable<CityDto>> GetPopularCitiesAsync(int limit, Guid? userId = null);
     Task<CityStatisticsDto?> GetCityStatisticsAsync(Guid id);
+    Task<CityNomadSummaryDto?> GetCityNomadSummaryAsync(Guid id, Guid? userId = null, string? userRole = null);
     Task<IEnumerable<CountryCitiesDto>> GetCitiesGroupedByCountryAsync();
     Task<IEnumerable<CitySummaryDto>> GetCitiesByCountryIdAsync(Guid countryId);
     Task<IEnumerable<CountryDto>> GetAllCountriesAsync();

@@ -1,5 +1,6 @@
 using CityService.Application.DTOs;
 using CityService.Application.Services;
+using GoNomads.Shared.Services;
 using GoNomads.Shared.Middleware;
 using GoNomads.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -15,13 +16,16 @@ namespace CityService.API.Controllers;
 public class UserCityContentController : ControllerBase
 {
     private readonly IUserCityContentService _contentService;
+    private readonly ICurrentUserService _currentUser;
     private readonly ILogger<UserCityContentController> _logger;
 
     public UserCityContentController(
         IUserCityContentService contentService,
+        ICurrentUserService currentUser,
         ILogger<UserCityContentController> logger)
     {
         _contentService = contentService;
+        _currentUser = currentUser;
         _logger = logger;
     }
 
@@ -35,6 +39,11 @@ public class UserCityContentController : ControllerBase
             throw new UnauthorizedAccessException("用户未认证");
 
         return Guid.Parse(userContext.UserId);
+    }
+
+    private bool IsAdmin()
+    {
+        return _currentUser.IsAdmin();
     }
 
     #region 照片 API
@@ -151,10 +160,20 @@ public class UserCityContentController : ControllerBase
     {
         try
         {
-            Guid? userId = null;
-            if (onlyMine) userId = GetUserId();
-
-            var photos = await _contentService.GetCityPhotosAsync(cityId, userId);
+            IEnumerable<UserCityPhotoDto> photos;
+            if (onlyMine)
+            {
+                var userId = GetUserId();
+                photos = await _contentService.GetCityPhotosAsync(cityId, userId);
+            }
+            else if (IsAdmin())
+            {
+                photos = await _contentService.GetCityPhotosAsync(cityId);
+            }
+            else
+            {
+                photos = await _contentService.GetApprovedCityPhotosAsync(cityId);
+            }
 
             return Ok(new ApiResponse<IEnumerable<UserCityPhotoDto>>
             {
@@ -170,6 +189,99 @@ public class UserCityContentController : ControllerBase
             {
                 Success = false,
                 Message = "获取照片失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    [HttpPost("photos/{photoId}/approve")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<UserCityPhotoDto>>> ApprovePhoto(
+        string cityId,
+        Guid photoId,
+        [FromBody] ReviewCityPhotoRequest request)
+    {
+        if (!IsAdmin())
+            return Forbid();
+
+        try
+        {
+            var reviewerId = GetUserId();
+            var photo = await _contentService.ApprovePhotoAsync(reviewerId, cityId, photoId, request.Reason);
+
+            return Ok(new ApiResponse<UserCityPhotoDto>
+            {
+                Success = true,
+                Message = "照片审核通过",
+                Data = photo
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<UserCityPhotoDto>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "审核通过照片失败: {CityId}, {PhotoId}", cityId, photoId);
+            return StatusCode(500, new ApiResponse<UserCityPhotoDto>
+            {
+                Success = false,
+                Message = "审核通过照片失败",
+                Errors = new List<string> { ex.Message }
+            });
+        }
+    }
+
+    [HttpPost("photos/{photoId}/reject")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<UserCityPhotoDto>>> RejectPhoto(
+        string cityId,
+        Guid photoId,
+        [FromBody] ReviewCityPhotoRequest request)
+    {
+        if (!IsAdmin())
+            return Forbid();
+
+        try
+        {
+            var reviewerId = GetUserId();
+            var photo = await _contentService.RejectPhotoAsync(reviewerId, cityId, photoId, request.Reason ?? string.Empty);
+
+            return Ok(new ApiResponse<UserCityPhotoDto>
+            {
+                Success = true,
+                Message = "照片已驳回",
+                Data = photo
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ApiResponse<UserCityPhotoDto>
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new List<string> { ex.Message }
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<UserCityPhotoDto>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "驳回照片失败: {CityId}, {PhotoId}", cityId, photoId);
+            return StatusCode(500, new ApiResponse<UserCityPhotoDto>
+            {
+                Success = false,
+                Message = "驳回照片失败",
                 Errors = new List<string> { ex.Message }
             });
         }

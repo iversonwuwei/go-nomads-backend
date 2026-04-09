@@ -183,6 +183,35 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    ///     获取管理后台概览
+    /// </summary>
+    [HttpGet("dashboard/overview")]
+    public async Task<ActionResult<ApiResponse<DashboardOverviewDto>>> GetDashboardOverview(
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var overview = await _userService.GetDashboardOverviewAsync(cancellationToken);
+
+            return Ok(new ApiResponse<DashboardOverviewDto>
+            {
+                Success = true,
+                Message = "OK",
+                Data = overview
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取管理后台概览失败");
+            return StatusCode(500, new ApiResponse<DashboardOverviewDto>
+            {
+                Success = false,
+                Message = "获取管理后台概览失败"
+            });
+        }
+    }
+
+    /// <summary>
     ///     根据 ID 获取用户
     /// </summary>
     [HttpGet("{id}")]

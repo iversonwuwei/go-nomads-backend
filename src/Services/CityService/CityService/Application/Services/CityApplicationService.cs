@@ -23,7 +23,9 @@ public class CityApplicationService : ICityService
     private readonly ICityRepository _cityRepository;
     private readonly ICountryRepository _countryRepository;
     private readonly ICityRatingRepository _ratingRepository;
+    private readonly IDigitalNomadGuideService _digitalNomadGuideService;
     private readonly IUserFavoriteCityService _favoriteCityService;
+    private readonly IUserCityContentService _userCityContentService;
     private readonly ILogger<CityApplicationService> _logger;
     private readonly ICityModeratorRepository _moderatorRepository;
     private readonly IPublishEndpoint _publishEndpoint;
@@ -36,6 +38,8 @@ public class CityApplicationService : ICityService
         ICountryRepository countryRepository,
         ICityRatingRepository ratingRepository,
         IWeatherService weatherService,
+        IDigitalNomadGuideService digitalNomadGuideService,
+        IUserCityContentService userCityContentService,
         IUserFavoriteCityService favoriteCityService,
         ICityModeratorRepository moderatorRepository,
         ServiceInvocationClient serviceInvocationClient,
@@ -48,6 +52,8 @@ public class CityApplicationService : ICityService
         _countryRepository = countryRepository;
         _ratingRepository = ratingRepository;
         _weatherService = weatherService;
+        _digitalNomadGuideService = digitalNomadGuideService;
+        _userCityContentService = userCityContentService;
         _favoriteCityService = favoriteCityService;
         _moderatorRepository = moderatorRepository;
         _serviceInvocationClient = serviceInvocationClient;
@@ -585,6 +591,69 @@ public class CityApplicationService : ICityService
         return cityDto;
     }
 
+    public async Task<CityNomadSummaryDto?> GetCityNomadSummaryAsync(Guid id, Guid? userId = null,
+        string? userRole = null)
+    {
+        var cityTask = GetCityByIdAsync(id, userId, userRole);
+        var costSummaryTask = GetCityCostSummarySafeAsync(id);
+        var guideTask = GetDigitalNomadGuideSafeAsync(id);
+        var coworkingsTask = GetCityCoworkingPreviewsAsync(id);
+        var staysTask = GetCityStayPreviewsAsync(id);
+        var meetupsTask = GetCityMeetupPreviewsAsync(id);
+
+        await Task.WhenAll(cityTask, costSummaryTask, guideTask, coworkingsTask, staysTask, meetupsTask);
+
+        var city = await cityTask;
+        if (city == null)
+            return null;
+
+        var costSummary = await costSummaryTask;
+        var guide = await guideTask;
+        var coworkings = await coworkingsTask;
+        var stays = await staysTask;
+        var meetups = await meetupsTask;
+
+        var networkQualityScore = NormalizeFivePointScore(city.InternetQualityScore);
+        var safetyScore = NormalizeFivePointScore(city.SafetyScore);
+        var communityActivityScore = NormalizeFivePointScore(city.CommunityScore)
+                                     ?? BuildCommunityFallback(city, meetups.Count);
+        var climateStabilityScore = NormalizeFivePointScore(city.WeatherScore)
+                                    ?? BuildClimateFallback(city);
+        var visaFriendlinessScore = BuildVisaFriendlinessScore(guide);
+        var timezoneOverlapScore = BuildTimezoneOverlapScore(city.TimeZone);
+        var videoCallFriendlinessScore = BuildVideoCallFriendlinessScore(networkQualityScore, coworkings.Count);
+
+        return new CityNomadSummaryDto
+        {
+            CityId = city.Id,
+            CityName = city.Name,
+            Country = city.Country,
+            Timezone = city.TimeZone,
+            MonthlyBudgetRange = BuildBudgetRange(city, costSummary),
+            DecisionSignals = new CityDecisionSignalsDto
+            {
+                NetworkQualityScore = networkQualityScore,
+                VideoCallFriendlinessScore = videoCallFriendlinessScore,
+                VisaFriendlinessScore = visaFriendlinessScore,
+                TimezoneOverlapScore = timezoneOverlapScore,
+                CommunityActivityScore = communityActivityScore,
+                ClimateStabilityScore = climateStabilityScore,
+                SafetyScore = safetyScore
+            },
+            RecommendedCoworkings = coworkings,
+            RecommendedStays = stays,
+            UpcomingMeetups = meetups,
+            LastUpdatedAt = GetMostRecentTimestamp(
+                city.UpdatedAt,
+                costSummary?.UpdatedAt,
+                guide?.UpdatedAt,
+                coworkings.Count > 0 ? DateTime.UtcNow : null,
+                stays.Count > 0 ? DateTime.UtcNow : null,
+                meetups.Select(static meetup => (DateTime?)meetup.StartTime).OrderByDescending(static time => time)
+                    .FirstOrDefault())
+        };
+    }
+
     public async Task<IEnumerable<CityDto>> SearchCitiesAsync(CitySearchDto searchDto, Guid? userId = null,
         string? userRole = null)
     {
@@ -1115,6 +1184,266 @@ public class CityApplicationService : ICityService
             UpdatedAt = city.UpdatedAt,
             ModeratorId = city.ModeratorId
         };
+    }
+
+    private async Task<CityCostSummaryDto?> GetCityCostSummarySafeAsync(Guid cityId)
+    {
+        try
+        {
+            return await _userCityContentService.GetCityCostSummaryAsync(cityId.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "获取 City Nomad Summary 费用摘要失败: {CityId}", cityId);
+            return null;
+        }
+    }
+
+    private async Task<DigitalNomadGuide?> GetDigitalNomadGuideSafeAsync(Guid cityId)
+    {
+        try
+        {
+            return await _digitalNomadGuideService.GetByCityIdAsync(cityId.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "获取 City Nomad Summary guide 失败: {CityId}", cityId);
+            return null;
+        }
+    }
+
+    private async Task<List<CityCoworkingPreviewDto>> GetCityCoworkingPreviewsAsync(Guid cityId)
+    {
+        try
+        {
+            var response = await _serviceInvocationClient.InvokeAsync<ApiResponse<PaginatedCoworkingPreviewEnvelope>>(
+                HttpMethod.Get,
+                "coworking-service",
+                $"api/v1/coworking/city/{cityId}?page=1&pageSize=3");
+
+            return response?.Data?.Items?
+                .OrderByDescending(space => space.Rating)
+                .ThenBy(space => space.PricePerDay ?? decimal.MaxValue)
+                .Select(space => new CityCoworkingPreviewDto
+                {
+                    Id = space.Id.ToString(),
+                    Name = space.Name,
+                    Rating = space.Rating,
+                    DayPassPrice = space.PricePerDay,
+                    Currency = string.IsNullOrWhiteSpace(space.Currency) ? "USD" : space.Currency
+                })
+                .ToList() ?? new List<CityCoworkingPreviewDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "获取 City Nomad Summary coworking 预览失败: {CityId}", cityId);
+            return new List<CityCoworkingPreviewDto>();
+        }
+    }
+
+    private async Task<List<CityStayPreviewDto>> GetCityStayPreviewsAsync(Guid cityId)
+    {
+        try
+        {
+            var response = await _serviceInvocationClient.InvokeAsync<List<HotelPreviewContract>>(
+                HttpMethod.Get,
+                "accommodation-service",
+                $"api/v1/hotels/city/{cityId}");
+
+            return response?
+                .OrderByDescending(hotel => hotel.NomadScore)
+                .ThenByDescending(hotel => hotel.Rating)
+                .ThenBy(hotel => hotel.PricePerNight)
+                .Take(3)
+                .Select(hotel => new CityStayPreviewDto
+                {
+                    Id = hotel.Id.ToString(),
+                    Name = hotel.Name,
+                    Rating = hotel.Rating,
+                    PricePerNight = hotel.PricePerNight,
+                    Currency = string.IsNullOrWhiteSpace(hotel.Currency) ? "USD" : hotel.Currency
+                })
+                .ToList() ?? new List<CityStayPreviewDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "获取 City Nomad Summary 酒店预览失败: {CityId}", cityId);
+            return new List<CityStayPreviewDto>();
+        }
+    }
+
+    private async Task<List<CityMeetupPreviewDto>> GetCityMeetupPreviewsAsync(Guid cityId)
+    {
+        try
+        {
+            var response = await _serviceInvocationClient.InvokeAsync<ApiResponse<PaginatedMeetupPreviewEnvelope>>(
+                HttpMethod.Get,
+                "event-service",
+                $"api/v1/events?cityId={cityId}&status=upcoming&page=1&pageSize=3");
+
+            return response?.Data?.Items?
+                .OrderBy(meetup => meetup.StartTime)
+                .Select(meetup => new CityMeetupPreviewDto
+                {
+                    Id = meetup.Id.ToString(),
+                    Title = meetup.Title,
+                    StartTime = meetup.StartTime,
+                    Venue = meetup.Location,
+                    ParticipantCount = meetup.ParticipantCount
+                })
+                .ToList() ?? new List<CityMeetupPreviewDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "获取 City Nomad Summary meetup 预览失败: {CityId}", cityId);
+            return new List<CityMeetupPreviewDto>();
+        }
+    }
+
+    private static CityBudgetRangeDto? BuildBudgetRange(CityDto city, CityCostSummaryDto? costSummary)
+    {
+        var baseCost = costSummary?.Total;
+        if (!baseCost.HasValue || baseCost.Value <= 0)
+            baseCost = city.AverageCost > 0 ? city.AverageCost : city.AverageCostOfLiving;
+
+        if (!baseCost.HasValue || baseCost.Value <= 0)
+            return null;
+
+        var min = decimal.Round(baseCost.Value * 0.85m, 0, MidpointRounding.AwayFromZero);
+        var max = decimal.Round(baseCost.Value * 1.15m, 0, MidpointRounding.AwayFromZero);
+
+        return new CityBudgetRangeDto
+        {
+            Currency = !string.IsNullOrWhiteSpace(costSummary?.Currency)
+                ? costSummary!.Currency
+                : (city.Currency ?? "USD"),
+            Min = min,
+            Max = max
+        };
+    }
+
+    private static int? NormalizeFivePointScore(decimal? score)
+    {
+        if (!score.HasValue || score.Value <= 0)
+            return null;
+
+        return (int)Math.Round(decimal.Clamp(score.Value, 0, 5) / 5 * 100, MidpointRounding.AwayFromZero);
+    }
+
+    private static int BuildCommunityFallback(CityDto city, int meetupPreviewCount)
+    {
+        var meetupCount = Math.Max(city.MeetupCount, meetupPreviewCount);
+        if (meetupCount >= 10)
+            return 90;
+        if (meetupCount >= 5)
+            return 80;
+        if (meetupCount >= 2)
+            return 70;
+        if (city.ReviewCount >= 10)
+            return 68;
+        return 60;
+    }
+
+    private static int BuildClimateFallback(CityDto city)
+    {
+        if (!string.IsNullOrWhiteSpace(city.Climate) &&
+            city.Climate.Contains("temperate", StringComparison.OrdinalIgnoreCase))
+            return 82;
+
+        return 60;
+    }
+
+    private static int BuildVisaFriendlinessScore(DigitalNomadGuide? guide)
+    {
+        var duration = guide?.VisaInfo?.Duration ?? 0;
+        if (duration >= 180)
+            return 92;
+        if (duration >= 90)
+            return 82;
+        if (duration >= 60)
+            return 72;
+        if (duration >= 30)
+            return 60;
+        return 45;
+    }
+
+    private static int? BuildTimezoneOverlapScore(string? timezone)
+    {
+        if (string.IsNullOrWhiteSpace(timezone))
+            return null;
+
+        var normalized = timezone.ToUpperInvariant();
+        var match = System.Text.RegularExpressions.Regex.Match(normalized, "([+-]\\d{1,2})");
+        if (!match.Success)
+            return 65;
+
+        var offset = int.TryParse(match.Groups[1].Value, out var parsedOffset) ? parsedOffset : 0;
+        var distanceFromUtc8 = Math.Abs(offset - 8);
+        return Math.Clamp(92 - distanceFromUtc8 * 8, 40, 92);
+    }
+
+    private static int? BuildVideoCallFriendlinessScore(int? networkQualityScore, int coworkingPreviewCount)
+    {
+        if (!networkQualityScore.HasValue)
+            return null;
+
+        var coworkingBoost = coworkingPreviewCount >= 3
+            ? 95
+            : coworkingPreviewCount >= 2
+                ? 84
+                : coworkingPreviewCount >= 1
+                    ? 72
+                    : 58;
+
+        return (int)Math.Round(networkQualityScore.Value * 0.7 + coworkingBoost * 0.3,
+            MidpointRounding.AwayFromZero);
+    }
+
+    private static DateTime? GetMostRecentTimestamp(params DateTime?[] timestamps)
+    {
+        return timestamps
+            .Where(static timestamp => timestamp.HasValue)
+            .Select(static timestamp => timestamp!.Value)
+            .DefaultIfEmpty()
+            .Max();
+    }
+
+    private sealed class PaginatedCoworkingPreviewEnvelope
+    {
+        public List<CoworkingPreviewContract> Items { get; set; } = new();
+    }
+
+    private sealed class CoworkingPreviewContract
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public decimal Rating { get; set; }
+        public decimal? PricePerDay { get; set; }
+        public string Currency { get; set; } = "USD";
+    }
+
+    private sealed class HotelPreviewContract
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public decimal Rating { get; set; }
+        public decimal PricePerNight { get; set; }
+        public string Currency { get; set; } = "USD";
+        public int NomadScore { get; set; }
+    }
+
+    private sealed class PaginatedMeetupPreviewEnvelope
+    {
+        public List<MeetupPreviewContract> Items { get; set; } = new();
+    }
+
+    private sealed class MeetupPreviewContract
+    {
+        public Guid Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public DateTime StartTime { get; set; }
+        public string? Location { get; set; }
+        public int ParticipantCount { get; set; }
     }
 
     private static CountryDto MapToCountryDto(Country country)

@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using AIService.Application.DTOs;
@@ -8,7 +10,10 @@ using MassTransit;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
+using GoNomads.Shared.Communication;
+using GoNomads.Shared.DTOs;
 using Shared.Messages;
+using AIService.Infrastructure.GrpcClients;
 
 namespace AIService.Application.Services;
 
@@ -21,25 +26,37 @@ public class AIChatApplicationService : IAIChatService
     private readonly IConfiguration _configuration;
     private readonly IAIConversationRepository _conversationRepository;
     private readonly Kernel _kernel;
+    private readonly ICommunityQaService _communityQaService;
     private readonly ILogger<AIChatApplicationService> _logger;
+    private readonly IMigrationCentersService _migrationCentersService;
     private readonly IAIMessageRepository _messageRepository;
     private readonly IPublishEndpoint _publishEndpoint;
+    private readonly ServiceInvocationClient _serviceInvocationClient;
+    private readonly ITravelPlanRepository _travelPlanRepository;
 
     public AIChatApplicationService(
         IAIConversationRepository conversationRepository,
         IAIMessageRepository messageRepository,
+        ITravelPlanRepository travelPlanRepository,
+        IMigrationCentersService migrationCentersService,
+        ICommunityQaService communityQaService,
         Kernel kernel,
         ILogger<AIChatApplicationService> logger,
         IConfiguration configuration,
-        IPublishEndpoint publishEndpoint)
+        IPublishEndpoint publishEndpoint,
+        ServiceInvocationClient serviceInvocationClient)
     {
         _conversationRepository = conversationRepository;
         _messageRepository = messageRepository;
+        _travelPlanRepository = travelPlanRepository;
+        _migrationCentersService = migrationCentersService;
+        _communityQaService = communityQaService;
         _kernel = kernel;
         _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
         _logger = logger;
         _configuration = configuration;
         _publishEndpoint = publishEndpoint;
+        _serviceInvocationClient = serviceInvocationClient;
     }
 
     public async Task<ConversationResponse> CreateConversationAsync(CreateConversationRequest request, Guid userId)
@@ -559,6 +576,137 @@ public class AIChatApplicationService : IAIChatService
         }
     }
 
+    public async Task<MigrationWorkspaceResponse> GetMigrationWorkspaceAsync(Guid userId, int page = 1,
+        int pageSize = 20)
+    {
+        return await _migrationCentersService.GetMigrationWorkspaceAsync(userId, page, pageSize);
+    }
+
+    public async Task<BudgetCenterResponse> GetBudgetCenterAsync(Guid userId)
+    {
+        return await _migrationCentersService.GetBudgetCenterAsync(userId);
+    }
+
+    public async Task<VisaCenterResponse> GetVisaCenterAsync(Guid userId)
+    {
+        return await _migrationCentersService.GetVisaCenterAsync(userId);
+    }
+
+    public async Task<LandHubResponse> GetLandHubAsync(Guid userId)
+    {
+        var plans = await _travelPlanRepository.GetByUserIdAsync(userId, 1, 20);
+        var migrationWorkspace = await _migrationCentersService.GetMigrationWorkspaceAsync(userId);
+        var budgetCenter = await _migrationCentersService.GetBudgetCenterAsync(userId);
+        var visaCenter = await _migrationCentersService.GetVisaCenterAsync(userId);
+
+        var focusPlanEntity = migrationWorkspace.LatestPlan == null
+            ? null
+            : plans.FirstOrDefault(plan => plan.Id == migrationWorkspace.LatestPlan.Id);
+        focusPlanEntity ??= SelectBudgetFocusPlan(plans);
+
+        return new LandHubResponse
+        {
+            MigrationWorkspace = migrationWorkspace,
+            BudgetCenter = budgetCenter,
+            VisaCenter = visaCenter,
+            FocusTravelPlan = TryMapToTravelPlanResponse(focusPlanEntity),
+            LastUpdatedAt = GetLastUpdatedAt(plans)
+        };
+    }
+
+    public async Task<ExploreDashboardResponse> GetExploreDashboardAsync(Guid userId)
+    {
+        var plansTask = _travelPlanRepository.GetByUserIdAsync(userId, 1, 20);
+        var migrationTask = _migrationCentersService.GetMigrationWorkspaceAsync(userId);
+        var budgetTask = _migrationCentersService.GetBudgetCenterAsync(userId);
+        var visaTask = _migrationCentersService.GetVisaCenterAsync(userId);
+        var inboxSummaryTask = GetExploreInboxSummaryAsync(userId);
+
+        await Task.WhenAll(plansTask, migrationTask, budgetTask, visaTask, inboxSummaryTask);
+
+        var plans = await plansTask;
+        var migrationWorkspace = await migrationTask;
+        var budgetCenter = await budgetTask;
+        var visaCenter = await visaTask;
+        var inboxSummary = await inboxSummaryTask;
+        var plansUpdatedAt = GetLastUpdatedAt(plans);
+
+        return new ExploreDashboardResponse
+        {
+            MigrationWorkspace = migrationWorkspace,
+            BudgetCenter = budgetCenter,
+            VisaCenter = visaCenter,
+            InboxSummary = inboxSummary,
+            LastUpdatedAt = GetMostRecentTimestamp(plansUpdatedAt, inboxSummary?.LatestNotificationAt)
+        };
+    }
+
+    public async Task<CommunitySnapshotResponse> GetCommunitySnapshotAsync(Guid userId)
+    {
+        var plansTask = _travelPlanRepository.GetByUserIdAsync(userId, 1, 20);
+        var meetupsTask = GetCommunityMeetupsAsync(userId);
+
+        await Task.WhenAll(plansTask, meetupsTask);
+
+        var plans = await plansTask;
+        var meetups = await meetupsTask;
+        var focusPlan = SelectCommunityFocusPlan(plans);
+        var focusCityId = focusPlan?.CityId;
+        var focusCity = focusPlan?.CityName;
+
+        if (string.IsNullOrWhiteSpace(focusCityId))
+            focusCityId = meetups.Select(meetup => meetup.CityId).FirstOrDefault(id => !string.IsNullOrWhiteSpace(id));
+
+        if (string.IsNullOrWhiteSpace(focusCity))
+            focusCity = meetups.Select(meetup => meetup.CityName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
+
+        var fieldNotes = string.IsNullOrWhiteSpace(focusCityId)
+            ? new List<CommunityFieldNoteResponse>()
+            : await GetCommunityFieldNotesAsync(userId, focusCityId!, focusCity ?? string.Empty);
+        var prosCons = string.IsNullOrWhiteSpace(focusCityId)
+            ? new List<CommunityProsConsSignal>()
+            : await GetCommunityProsConsAsync(userId, focusCityId!);
+        var questions = await _communityQaService.GetQuestionsForSnapshotAsync(userId, focusCity);
+        var recommendations = BuildCommunityRecommendations(fieldNotes, prosCons, focusCity ?? string.Empty);
+
+        var meetupsUpdatedAt = meetups
+            .OrderByDescending(meetup => meetup.CreatedAt)
+            .Select(meetup => (DateTime?)meetup.CreatedAt)
+            .FirstOrDefault();
+        var fieldNotesUpdatedAt = fieldNotes
+            .OrderByDescending(note => note.CreatedAt)
+            .Select(note => (DateTime?)note.CreatedAt)
+            .FirstOrDefault();
+        var questionsUpdatedAt = questions
+            .OrderByDescending(question => question.CreatedAt)
+            .Select(question => (DateTime?)question.CreatedAt)
+            .FirstOrDefault();
+        var prosConsUpdatedAt = prosCons
+            .OrderByDescending(signal => signal.CreatedAt)
+            .Select(signal => (DateTime?)signal.CreatedAt)
+            .FirstOrDefault();
+        var recommendationsUpdatedAt = recommendations.Count > 0
+            ? GetMostRecentTimestamp(fieldNotesUpdatedAt, prosConsUpdatedAt)
+            : null;
+
+        return new CommunitySnapshotResponse
+        {
+            FocusCity = focusCity ?? string.Empty,
+            NextCoordinationCity = !string.IsNullOrWhiteSpace(focusPlan?.CityName)
+                ? focusPlan!.CityName
+                : focusCity,
+            UpcomingMeetups = meetups,
+            FieldNotes = fieldNotes,
+            Questions = questions,
+            Recommendations = recommendations,
+            LastUpdatedAt = GetMostRecentTimestamp(
+                GetMostRecentTimestamp(
+                    GetMostRecentTimestamp(GetLastUpdatedAt(plans), meetupsUpdatedAt),
+                    GetMostRecentTimestamp(fieldNotesUpdatedAt, prosConsUpdatedAt)),
+                GetMostRecentTimestamp(questionsUpdatedAt, recommendationsUpdatedAt))
+        };
+    }
+
     public async Task<UserStatsResponse> GetUserStatsAsync(Guid userId)
     {
         try
@@ -950,6 +1098,1043 @@ public class AIChatApplicationService : IAIChatService
             IsError = message.IsError,
             CreatedAt = message.CreatedAt
         };
+    }
+
+    private static AiTravelPlanSummary MapToTravelPlanSummary(AiTravelPlan plan)
+    {
+        return new AiTravelPlanSummary
+        {
+            Id = plan.Id,
+            CityId = plan.CityId,
+            CityName = plan.CityName,
+            CityImage = plan.CityImage,
+            Duration = plan.Duration,
+            BudgetLevel = plan.BudgetLevel,
+            TravelStyle = plan.TravelStyle,
+            Status = plan.Status,
+            DepartureDate = plan.DepartureDate,
+            CreatedAt = plan.CreatedAt
+        };
+    }
+
+    private static MigrationWorkspaceResponse BuildMigrationWorkspaceResponse(IReadOnlyCollection<AiTravelPlan> plans)
+    {
+        var summaries = plans.Select(MapToTravelPlanSummary).ToList();
+        var latestPlan = summaries.FirstOrDefault();
+        var today = DateTime.UtcNow.Date;
+
+        return new MigrationWorkspaceResponse
+        {
+            TotalPlans = summaries.Count,
+            ActivePlans = summaries.Count(plan =>
+                !string.Equals(plan.Status, "archived", StringComparison.OrdinalIgnoreCase)),
+            DraftPlans = summaries.Count(plan =>
+                string.Equals(plan.Status, "draft", StringComparison.OrdinalIgnoreCase)),
+            UpcomingDepartures = summaries.Count(plan =>
+                plan.DepartureDate.HasValue && plan.DepartureDate.Value.Date >= today),
+            RecommendedAction = BuildMigrationWorkspaceAction(latestPlan, summaries),
+            LastUpdatedAt = GetLastUpdatedAt(plans),
+            LatestPlan = latestPlan,
+            Plans = summaries
+        };
+    }
+
+    private static string BuildMigrationWorkspaceAction(AiTravelPlanSummary? latestPlan,
+        IReadOnlyCollection<AiTravelPlanSummary> plans)
+    {
+        if (plans.Count == 0)
+            return "create-first-plan";
+
+        var hasUpcomingDeparture = plans.Any(plan =>
+            plan.DepartureDate.HasValue && plan.DepartureDate.Value.Date >= DateTime.UtcNow.Date);
+        if (hasUpcomingDeparture)
+            return "review-upcoming-departure";
+
+        if (plans.Any(plan => string.Equals(plan.Status, "draft", StringComparison.OrdinalIgnoreCase)))
+            return "continue-draft-plan";
+
+        return latestPlan == null ? "create-first-plan" : "review-latest-plan";
+    }
+
+    private static BudgetPlanSnapshot MapToBudgetPlanSnapshot(AiTravelPlan plan)
+    {
+        var declaredBudget = ResolveMonthlyBudgetTargetUsd(plan.BudgetLevel);
+
+        return new BudgetPlanSnapshot
+        {
+            Id = plan.Id,
+            CityId = plan.CityId,
+            CityName = plan.CityName,
+            BudgetLevel = plan.BudgetLevel,
+            TravelStyle = plan.TravelStyle,
+            Status = plan.Status,
+            DepartureDate = plan.DepartureDate,
+            DeclaredMonthlyBudgetUsd = declaredBudget,
+            EstimatedMonthlyCostUsd = EstimateMonthlyCostUsd(plan, declaredBudget)
+        };
+    }
+
+    private static BudgetCenterResponse BuildBudgetCenterResponse(IReadOnlyCollection<AiTravelPlan> plans)
+    {
+        var focusPlanEntity = SelectBudgetFocusPlan(plans);
+        var snapshots = plans.Select(MapToBudgetPlanSnapshot).ToList();
+        var activeSnapshots = snapshots.Where(plan =>
+            !string.Equals(plan.Status, "archived", StringComparison.OrdinalIgnoreCase)).ToList();
+        var focusPlan = focusPlanEntity == null ? null : MapToBudgetPlanSnapshot(focusPlanEntity);
+        var monthlyBudgetTargetUsd = focusPlan?.DeclaredMonthlyBudgetUsd ?? 0m;
+        var forecastMonthlyCostUsd = activeSnapshots.Count > 0
+            ? Math.Round(activeSnapshots.Average(plan => plan.EstimatedMonthlyCostUsd), 2)
+            : focusPlan?.EstimatedMonthlyCostUsd ?? 0m;
+        var deltaUsd = Math.Round(monthlyBudgetTargetUsd - forecastMonthlyCostUsd, 2);
+
+        return new BudgetCenterResponse
+        {
+            MonthlyBudgetTargetUsd = monthlyBudgetTargetUsd,
+            ForecastMonthlyCostUsd = forecastMonthlyCostUsd,
+            DeltaUsd = deltaUsd,
+            ActivePlanCount = activeSnapshots.Count,
+            TrackedCityCount = plans
+                .Where(plan => !string.IsNullOrWhiteSpace(plan.CityId))
+                .Select(plan => plan.CityId)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count(),
+            BudgetHealth = BuildBudgetHealth(monthlyBudgetTargetUsd, forecastMonthlyCostUsd),
+            RecommendedAction = BuildBudgetCenterAction(focusPlan, activeSnapshots.Count),
+            LastUpdatedAt = GetLastUpdatedAt(plans),
+            FocusPlan = focusPlan,
+            Plans = snapshots
+        };
+    }
+
+    private static AiTravelPlan? SelectBudgetFocusPlan(IReadOnlyCollection<AiTravelPlan> plans)
+    {
+        if (plans.Count == 0)
+            return null;
+
+        var today = DateTime.UtcNow.Date;
+
+        return plans
+            .OrderBy(plan => string.Equals(plan.Status, "archived", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+            .ThenBy(plan => plan.DepartureDate.HasValue && plan.DepartureDate.Value.Date >= today ? 0 : 1)
+            .ThenBy(plan => plan.DepartureDate ?? DateTime.MaxValue)
+            .ThenByDescending(plan => plan.UpdatedAt)
+            .FirstOrDefault();
+    }
+
+    private static decimal ResolveMonthlyBudgetTargetUsd(string budgetLevel)
+    {
+        return budgetLevel.ToLowerInvariant() switch
+        {
+            "low" => 1400m,
+            "high" => 3800m,
+            _ => 2400m
+        };
+    }
+
+    private static decimal EstimateMonthlyCostUsd(AiTravelPlan plan, decimal declaredBudget)
+    {
+        var estimate = declaredBudget * ResolveTravelStyleFactor(plan.TravelStyle);
+
+        if (plan.DepartureDate.HasValue)
+        {
+            var daysUntilDeparture = (plan.DepartureDate.Value.Date - DateTime.UtcNow.Date).TotalDays;
+            if (daysUntilDeparture <= 21)
+                estimate *= 1.08m;
+            else if (daysUntilDeparture <= 45)
+                estimate *= 1.04m;
+        }
+
+        return Math.Round(estimate, 2);
+    }
+
+    private static decimal ResolveTravelStyleFactor(string travelStyle)
+    {
+        return travelStyle.ToLowerInvariant() switch
+        {
+            "adventure" => 1.05m,
+            "relaxation" => 1.10m,
+            "nightlife" => 1.15m,
+            _ => 1.00m
+        };
+    }
+
+    private static string BuildBudgetHealth(decimal monthlyBudgetTargetUsd, decimal forecastMonthlyCostUsd)
+    {
+        if (monthlyBudgetTargetUsd <= 0)
+            return "no_data";
+
+        if (forecastMonthlyCostUsd <= monthlyBudgetTargetUsd * 0.90m)
+            return "on_track";
+
+        if (forecastMonthlyCostUsd <= monthlyBudgetTargetUsd * 1.05m)
+            return "watch";
+
+        return "over_budget";
+    }
+
+    private static string BuildBudgetCenterAction(BudgetPlanSnapshot? focusPlan, int activePlanCount)
+    {
+        if (focusPlan == null)
+            return "create-first-plan";
+
+        if (focusPlan.EstimatedMonthlyCostUsd > focusPlan.DeclaredMonthlyBudgetUsd * 1.05m)
+            return "review-over-budget";
+
+        if (focusPlan.DepartureDate.HasValue &&
+            (focusPlan.DepartureDate.Value.Date - DateTime.UtcNow.Date).TotalDays <= 21)
+            return "lock-first-month-budget";
+
+        if (activePlanCount > 1)
+            return "compare-city-budget";
+
+        if (string.Equals(focusPlan.Status, "draft", StringComparison.OrdinalIgnoreCase))
+            return "finalize-budget-baseline";
+
+        return "review-latest-plan";
+    }
+
+    private static VisaProfileSnapshot MapToVisaProfileSnapshot(AiTravelPlan plan)
+    {
+        var stayDurationDays = plan.Duration > 0 ? plan.Duration : 30;
+        var expiryDate = plan.DepartureDate?.Date.AddDays(stayDurationDays);
+        int? daysRemaining = expiryDate == null ? null : (int)Math.Ceiling((expiryDate.Value - DateTime.UtcNow.Date).TotalDays);
+        var visaType = ResolveVisaType(plan.Duration, plan.BudgetLevel);
+        var status = ResolveVisaStatus(plan.Status, daysRemaining, plan.DepartureDate);
+
+        return new VisaProfileSnapshot
+        {
+            Id = plan.Id,
+            CityId = plan.CityId,
+            CityName = plan.CityName,
+            VisaType = visaType,
+            StayDurationDays = stayDurationDays,
+            DaysRemaining = daysRemaining,
+            Status = status,
+            RequirementsSummary = BuildVisaRequirementsSummary(visaType),
+            ProcessSummary = BuildVisaProcessSummary(visaType),
+            EstimatedCostUsd = EstimateVisaCostUsd(visaType, stayDurationDays),
+            ExpiryDate = expiryDate,
+            ReminderSuggestedAt = expiryDate?.AddDays(-7)
+        };
+    }
+
+    private static VisaCenterResponse BuildVisaCenterResponse(IReadOnlyCollection<AiTravelPlan> plans)
+    {
+        var profiles = plans.Select(MapToVisaProfileSnapshot).ToList();
+        var activeProfiles = profiles.Where(profile =>
+            !string.Equals(profile.Status, "archived", StringComparison.OrdinalIgnoreCase)).ToList();
+        var focusProfile = SelectVisaFocusProfile(activeProfiles);
+
+        return new VisaCenterResponse
+        {
+            ActiveProfileCount = activeProfiles.Count,
+            AttentionRequiredCount = activeProfiles.Count(profile =>
+                string.Equals(profile.Status, "attention_required", StringComparison.OrdinalIgnoreCase)),
+            ReminderReadyCount = activeProfiles.Count(profile => profile.ReminderSuggestedAt.HasValue),
+            RecommendedAction = BuildVisaCenterAction(focusProfile, activeProfiles),
+            LastUpdatedAt = GetLastUpdatedAt(plans),
+            FocusProfile = focusProfile,
+            Profiles = profiles
+        };
+    }
+
+    private async Task<ExploreDashboardInboxSummaryResponse?> GetExploreInboxSummaryAsync(
+        Guid userId,
+        int recentLimit = 5,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var request = _serviceInvocationClient.CreateRequest(
+                HttpMethod.Get,
+                "message-service",
+                $"api/v1/inbox/summary?recentLimit={recentLimit}");
+
+            request.Headers.TryAddWithoutValidation("X-User-Id", userId.ToString());
+
+            var envelope = await _serviceInvocationClient.InvokeAsync<ApiResponse<ExploreDashboardInboxSummaryResponse>>(
+                request,
+                cancellationToken);
+
+            if (envelope?.Success == true)
+                return envelope.Data;
+
+            _logger.LogWarning(
+                "Explore Dashboard 拉取 Inbox Summary 未成功，UserId: {UserId}, Message: {Message}",
+                userId,
+                envelope?.Message ?? "unknown");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Explore Dashboard 拉取 Inbox Summary 失败，UserId: {UserId}", userId);
+        }
+
+        return null;
+    }
+
+    private async Task<List<CommunityMeetupResponse>> GetCommunityMeetupsAsync(
+        Guid userId,
+        int page = 1,
+        int pageSize = 3,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var request = _serviceInvocationClient.CreateRequest(
+                HttpMethod.Get,
+                "event-service",
+                $"api/v1/events?status=upcoming&page={page}&pageSize={pageSize}");
+
+            request.Headers.TryAddWithoutValidation("X-User-Id", userId.ToString());
+
+            var envelope = await _serviceInvocationClient.InvokeAsync<JsonElement>(request, cancellationToken);
+
+            if (TryGetPaginatedItems(envelope, out var items))
+                return items
+                    .Select(MapCommunityMeetup)
+                    .Where(meetup => !string.IsNullOrWhiteSpace(meetup.Id))
+                    .ToList();
+
+            _logger.LogWarning("Community Snapshot 拉取 meetups 未返回有效 items，UserId: {UserId}", userId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Community Snapshot 拉取 meetups 失败，UserId: {UserId}", userId);
+        }
+
+        return new List<CommunityMeetupResponse>();
+    }
+
+    private async Task<List<CommunityFieldNoteResponse>> GetCommunityFieldNotesAsync(
+        Guid userId,
+        string cityId,
+        string fallbackCityName,
+        int page = 1,
+        int pageSize = 3,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var request = _serviceInvocationClient.CreateRequest(
+                HttpMethod.Get,
+                "city-service",
+                $"api/v1/cities/{cityId}/user-content/reviews?page={page}&pageSize={pageSize}");
+
+            request.Headers.TryAddWithoutValidation("X-User-Id", userId.ToString());
+
+            var envelope = await _serviceInvocationClient.InvokeAsync<JsonElement>(request, cancellationToken);
+
+            if (TryGetPagedItems(envelope, out var items))
+                return items
+                    .Select(item => MapCommunityFieldNote(item, fallbackCityName))
+                    .Where(note => !string.IsNullOrWhiteSpace(note.Id))
+                    .ToList();
+
+            _logger.LogWarning(
+                "Community Snapshot 拉取 field notes 未返回有效 items，UserId: {UserId}, CityId: {CityId}",
+                userId,
+                cityId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Community Snapshot 拉取 field notes 失败，UserId: {UserId}, CityId: {CityId}",
+                userId,
+                cityId);
+        }
+
+        return new List<CommunityFieldNoteResponse>();
+    }
+
+    private async Task<List<CommunityProsConsSignal>> GetCommunityProsConsAsync(
+        Guid userId,
+        string cityId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var request = _serviceInvocationClient.CreateRequest(
+                HttpMethod.Get,
+                "city-service",
+                $"api/v1/cities/{cityId}/user-content/pros-cons");
+
+            request.Headers.TryAddWithoutValidation("X-User-Id", userId.ToString());
+
+            var envelope = await _serviceInvocationClient.InvokeAsync<JsonElement>(request, cancellationToken);
+
+            if (TryGetDataArray(envelope, out var items))
+                return items
+                    .Select(MapCommunityProsCons)
+                    .Where(signal => !string.IsNullOrWhiteSpace(signal.Id) && !string.IsNullOrWhiteSpace(signal.Text))
+                    .ToList();
+
+            _logger.LogWarning(
+                "Community Snapshot 拉取 pros-cons 未返回有效 data，UserId: {UserId}, CityId: {CityId}",
+                userId,
+                cityId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Community Snapshot 拉取 pros-cons 失败，UserId: {UserId}, CityId: {CityId}",
+                userId,
+                cityId);
+        }
+
+        return new List<CommunityProsConsSignal>();
+    }
+
+    private TravelPlanResponse? TryMapToTravelPlanResponse(AiTravelPlan? plan)
+    {
+        if (plan == null || string.IsNullOrWhiteSpace(plan.PlanData))
+            return null;
+
+        try
+        {
+            var travelPlan = JsonSerializer.Deserialize<TravelPlanResponse>(
+                plan.PlanData,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (travelPlan == null)
+                return null;
+
+            travelPlan.DepartureLocation = plan.DepartureLocation;
+            travelPlan.DepartureDate = plan.DepartureDate;
+
+            if (string.IsNullOrWhiteSpace(travelPlan.Id))
+                travelPlan.Id = plan.Id.ToString();
+
+            if (string.IsNullOrWhiteSpace(travelPlan.CityId))
+                travelPlan.CityId = plan.CityId;
+
+            if (string.IsNullOrWhiteSpace(travelPlan.CityName))
+                travelPlan.CityName = plan.CityName;
+
+            return travelPlan;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "解析 Land Hub 焦点 Travel Plan 失败: {PlanId}", plan.Id);
+            return null;
+        }
+    }
+
+    private static DateTime? GetLastUpdatedAt(IReadOnlyCollection<AiTravelPlan> plans)
+    {
+        return plans
+            .OrderByDescending(plan => plan.UpdatedAt)
+            .Select(plan => (DateTime?)plan.UpdatedAt)
+            .FirstOrDefault();
+    }
+
+    private static DateTime? GetMostRecentTimestamp(DateTime? left, DateTime? right)
+    {
+        if (left == null)
+            return right;
+
+        if (right == null)
+            return left;
+
+        return left >= right ? left : right;
+    }
+
+    private static AiTravelPlan? SelectCommunityFocusPlan(IReadOnlyCollection<AiTravelPlan> plans)
+    {
+        return plans
+            .Where(plan => !string.Equals(plan.Status, "archived", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(plan => plan.DepartureDate ?? DateTime.MinValue)
+            .ThenByDescending(plan => plan.UpdatedAt)
+            .FirstOrDefault();
+    }
+
+    private static CommunityMeetupResponse MapCommunityMeetup(JsonElement element)
+    {
+        var organizer = TryGetObject(element, "organizer");
+        var city = TryGetObject(element, "city");
+        var participantCount = TryGetInt(element, "participantCount")
+                               ?? TryGetInt(element, "currentParticipants")
+                               ?? 0;
+        var isJoined = TryGetBool(element, "isJoined")
+                       ?? TryGetBool(element, "isParticipant")
+                       ?? false;
+
+        return new CommunityMeetupResponse
+        {
+            Id = TryGetString(element, "id") ?? string.Empty,
+            Title = TryGetString(element, "title") ?? string.Empty,
+            Type = TryGetString(element, "type")
+                   ?? TryGetString(element, "category")
+                   ?? string.Empty,
+            Description = TryGetString(element, "description") ?? string.Empty,
+            CityId = TryGetString(city, "id")
+                     ?? TryGetString(element, "cityId")
+                     ?? string.Empty,
+            CityName = TryGetString(city, "name")
+                       ?? TryGetString(element, "cityName")
+                       ?? string.Empty,
+            Country = TryGetString(city, "country")
+                      ?? TryGetString(element, "country")
+                      ?? string.Empty,
+            Venue = TryGetString(element, "location")
+                    ?? TryGetString(element, "venue")
+                    ?? string.Empty,
+            Address = TryGetString(element, "address")
+                      ?? TryGetString(element, "venueAddress")
+                      ?? string.Empty,
+            StartTime = TryGetDateTime(element, "dateTime")
+                        ?? TryGetDateTime(element, "startTime")
+                        ?? DateTime.UtcNow,
+            EndTime = TryGetDateTime(element, "endTime"),
+            MaxParticipants = TryGetInt(element, "maxParticipants")
+                              ?? TryGetInt(element, "maxAttendees")
+                              ?? 0,
+            ParticipantCount = participantCount,
+            OrganizerId = TryGetString(organizer, "id")
+                          ?? TryGetString(element, "organizerId")
+                          ?? string.Empty,
+            OrganizerName = TryGetString(organizer, "name")
+                            ?? TryGetString(element, "organizerName")
+                            ?? string.Empty,
+            OrganizerAvatar = TryGetString(organizer, "avatar")
+                              ?? TryGetString(organizer, "avatarUrl")
+                              ?? TryGetString(element, "organizerAvatar"),
+            IsJoined = isJoined,
+            IsParticipant = isJoined,
+            Status = TryGetString(element, "status") ?? "upcoming",
+            CreatedAt = TryGetDateTime(element, "createdAt") ?? DateTime.UtcNow
+        };
+    }
+
+    private static CommunityFieldNoteResponse MapCommunityFieldNote(JsonElement element, string fallbackCityName)
+    {
+        var createdAt = TryGetDateTime(element, "createdAt") ?? DateTime.UtcNow;
+        var visitDate = TryGetDateTime(element, "visitDate") ?? createdAt;
+        var ratings = new Dictionary<string, double>();
+
+        AddRating(ratings, "internet", TryGetInt(element, "internetQualityScore"));
+        AddRating(ratings, "safety", TryGetInt(element, "safetyScore"));
+        AddRating(ratings, "cost", TryGetInt(element, "costScore"));
+        AddRating(ratings, "community", TryGetInt(element, "communityScore"));
+        AddRating(ratings, "weather", TryGetInt(element, "weatherScore"));
+
+        return new CommunityFieldNoteResponse
+        {
+            Id = TryGetString(element, "id") ?? string.Empty,
+            UserId = TryGetString(element, "userId") ?? string.Empty,
+            UserName = TryGetString(element, "username") ?? "Nomad",
+            UserAvatar = TryGetString(element, "userAvatar"),
+            City = !string.IsNullOrWhiteSpace(fallbackCityName)
+                ? fallbackCityName
+                : (TryGetString(element, "cityId") ?? string.Empty),
+            Country = string.Empty,
+            StartDate = visitDate,
+            EndDate = visitDate,
+            OverallRating = TryGetInt(element, "rating") ?? 0,
+            Ratings = ratings,
+            Title = TryGetString(element, "title") ?? "Field note",
+            Content = TryGetString(element, "content")
+                      ?? TryGetString(element, "reviewText")
+                      ?? string.Empty,
+            Photos = TryGetStringList(element, "photoUrls"),
+            Pros = new List<string>(),
+            Cons = new List<string>(),
+            Likes = 0,
+            Comments = 0,
+            CreatedAt = createdAt,
+            IsLiked = false
+        };
+    }
+
+    private static CommunityProsConsSignal MapCommunityProsCons(JsonElement element)
+    {
+        return new CommunityProsConsSignal
+        {
+            Id = TryGetString(element, "id") ?? string.Empty,
+            UserId = TryGetString(element, "userId") ?? string.Empty,
+            Text = TryGetString(element, "text") ?? string.Empty,
+            IsPro = TryGetBool(element, "isPro") ?? false,
+            Upvotes = TryGetInt(element, "upvotes") ?? 0,
+            Downvotes = TryGetInt(element, "downvotes") ?? 0,
+            CreatedAt = TryGetDateTime(element, "createdAt") ?? DateTime.UtcNow
+        };
+    }
+
+    private static List<CommunityQuestionResponse> BuildCommunityQuestions(
+        List<CommunityFieldNoteResponse> fieldNotes,
+        List<CommunityProsConsSignal> prosCons,
+        string fallbackCityName)
+    {
+        return fieldNotes
+            .Select(note =>
+            {
+                var questionId = $"question-{note.Id}";
+                var answers = BuildCommunityAnswers(questionId, note, prosCons);
+
+                return new CommunityQuestionResponse
+                {
+                    Id = questionId,
+                    UserId = note.UserId,
+                    UserName = note.UserName,
+                    UserAvatar = note.UserAvatar,
+                    City = !string.IsNullOrWhiteSpace(note.City) ? note.City : fallbackCityName,
+                    Title = note.Title,
+                    Content = note.Content,
+                    Tags = BuildCommunityTags(note),
+                    Upvotes = note.Likes,
+                    AnswerCount = answers.Count,
+                    HasAcceptedAnswer = answers.Any(answer => answer.IsAccepted),
+                    CreatedAt = note.CreatedAt,
+                    IsUpvoted = false,
+                    Answers = answers
+                };
+            })
+            .OrderByDescending(question => question.CreatedAt)
+            .ToList();
+    }
+
+    private static List<CommunityAnswerResponse> BuildCommunityAnswers(
+        string questionId,
+        CommunityFieldNoteResponse note,
+        List<CommunityProsConsSignal> prosCons)
+    {
+        var answers = new List<CommunityAnswerResponse>();
+        var bestRatings = note.Ratings
+            .OrderByDescending(entry => entry.Value)
+            .ThenBy(entry => entry.Key)
+            .Take(2)
+            .ToList();
+
+        if (bestRatings.Count > 0)
+        {
+            var strongestSignal = bestRatings[0];
+            answers.Add(new CommunityAnswerResponse
+            {
+                Id = $"{questionId}-rating-{strongestSignal.Key}",
+                QuestionId = questionId,
+                UserId = "system-community-signal",
+                UserName = "Community signal",
+                Content = $"This review highlights {strongestSignal.Key} at {strongestSignal.Value:0.#}/5 for {note.City}. {note.Title} points to a strong local signal for nomads weighing that tradeoff.",
+                Upvotes = Math.Max(note.Likes, 1),
+                IsAccepted = strongestSignal.Value >= 4,
+                CreatedAt = note.CreatedAt,
+                IsUpvoted = false
+            });
+        }
+
+        var cautionSignal = note.Ratings
+            .OrderBy(entry => entry.Value)
+            .ThenBy(entry => entry.Key)
+            .FirstOrDefault();
+
+        if (!string.IsNullOrWhiteSpace(cautionSignal.Key) &&
+            (bestRatings.Count == 0 || cautionSignal.Key != bestRatings[0].Key) &&
+            cautionSignal.Value > 0)
+        {
+            answers.Add(new CommunityAnswerResponse
+            {
+                Id = $"{questionId}-rating-{cautionSignal.Key}-watch",
+                QuestionId = questionId,
+                UserId = "system-community-watch",
+                UserName = "Community watchout",
+                Content = $"The same note scores {cautionSignal.Key} at {cautionSignal.Value:0.#}/5, so this thread should be read as a tradeoff rather than a blanket recommendation.",
+                Upvotes = 0,
+                IsAccepted = false,
+                CreatedAt = note.CreatedAt,
+                IsUpvoted = false
+            });
+        }
+
+        var citySignals = prosCons
+            .OrderByDescending(signal => signal.NetVotes)
+            .ThenByDescending(signal => signal.CreatedAt)
+            .Take(2)
+            .ToList();
+
+        foreach (var signal in citySignals)
+        {
+            answers.Add(new CommunityAnswerResponse
+            {
+                Id = $"{questionId}-signal-{signal.Id}",
+                QuestionId = questionId,
+                UserId = $"system-signal-{signal.Id}",
+                UserName = signal.IsPro ? "Local highlight" : "Community caution",
+                Content = signal.Text,
+                Upvotes = signal.Upvotes,
+                IsAccepted = false,
+                CreatedAt = signal.CreatedAt,
+                IsUpvoted = false
+            });
+        }
+
+        return answers
+            .OrderByDescending(answer => answer.IsAccepted)
+            .ThenByDescending(answer => answer.Upvotes)
+            .ThenByDescending(answer => answer.CreatedAt)
+            .Take(3)
+            .ToList();
+    }
+
+    private static List<CommunityRecommendationResponse> BuildCommunityRecommendations(
+        List<CommunityFieldNoteResponse> fieldNotes,
+        List<CommunityProsConsSignal> prosCons,
+        string fallbackCityName)
+    {
+        var recommendations = new List<CommunityRecommendationResponse>();
+
+        recommendations.AddRange(prosCons
+            .Where(signal => signal.IsPro)
+            .OrderByDescending(signal => signal.NetVotes)
+            .ThenByDescending(signal => signal.CreatedAt)
+            .Take(3)
+            .Select(signal => new CommunityRecommendationResponse
+            {
+                Id = $"recommendation-signal-{signal.Id}",
+                City = fallbackCityName,
+                Name = TrimSummary(signal.Text, 56),
+                Category = "Activity",
+                Description = signal.Text,
+                Rating = NormalizeSignalRating(signal.Upvotes, signal.Downvotes),
+                ReviewCount = Math.Max(signal.Upvotes + signal.Downvotes, 1),
+                PriceRange = null,
+                Address = null,
+                Photos = new List<string>(),
+                Website = null,
+                Tags = new List<string> { "community-signal", "local-tip" },
+                UserId = $"system-signal-{signal.Id}",
+                UserName = "Community signal",
+                UserAvatar = null
+            }));
+
+        recommendations.AddRange(fieldNotes
+            .Where(note => recommendations.All(existing => existing.Id != $"recommendation-note-{note.Id}"))
+            .OrderByDescending(note => note.OverallRating)
+            .ThenByDescending(note => note.CreatedAt)
+            .Take(Math.Max(0, 3 - recommendations.Count))
+            .Select(note => new CommunityRecommendationResponse
+            {
+                Id = $"recommendation-note-{note.Id}",
+                City = !string.IsNullOrWhiteSpace(note.City) ? note.City : fallbackCityName,
+                Name = note.Title,
+                Category = ResolveRecommendationCategory(note),
+                Description = note.Content,
+                Rating = note.OverallRating,
+                ReviewCount = Math.Max(note.Comments, 1),
+                PriceRange = ResolvePriceRange(note.Ratings),
+                Address = null,
+                Photos = note.Photos,
+                Website = null,
+                Tags = BuildCommunityTags(note),
+                UserId = note.UserId,
+                UserName = note.UserName,
+                UserAvatar = note.UserAvatar
+            }));
+
+        return recommendations
+            .Take(3)
+            .ToList();
+    }
+
+    private static List<string> BuildCommunityTags(CommunityFieldNoteResponse note)
+    {
+        var tags = note.Ratings
+            .OrderByDescending(entry => entry.Value)
+            .ThenBy(entry => entry.Key)
+            .Take(3)
+            .Select(entry => entry.Key)
+            .ToList();
+
+        if (!tags.Contains("field-note", StringComparer.OrdinalIgnoreCase))
+            tags.Add("field-note");
+
+        return tags;
+    }
+
+    private static string ResolveRecommendationCategory(CommunityFieldNoteResponse note)
+    {
+        if (note.Ratings.TryGetValue("internet", out var internetScore) && internetScore >= 4)
+            return "Coworking";
+
+        if (note.Ratings.TryGetValue("community", out var communityScore) && communityScore >= 4)
+            return "Activity";
+
+        return "Cafe";
+    }
+
+    private static string? ResolvePriceRange(IReadOnlyDictionary<string, double> ratings)
+    {
+        if (!ratings.TryGetValue("cost", out var costScore) || costScore <= 0)
+            return null;
+
+        if (costScore >= 4)
+            return "$";
+
+        if (costScore >= 3)
+            return "$$";
+
+        return "$$$";
+    }
+
+    private static double NormalizeSignalRating(int upvotes, int downvotes)
+    {
+        var totalVotes = Math.Max(upvotes + downvotes, 1);
+        var score = 3d + ((double)(upvotes - downvotes) / totalVotes);
+        return Math.Round(Math.Clamp(score, 1d, 5d), 1);
+    }
+
+    private static string TrimSummary(string value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length <= maxLength)
+            return value;
+
+        return $"{value[..(maxLength - 3)].TrimEnd()}...";
+    }
+
+    private static bool TryGetPaginatedItems(JsonElement envelope, out List<JsonElement> items)
+    {
+        items = new List<JsonElement>();
+
+        if (envelope.ValueKind != JsonValueKind.Object)
+            return false;
+
+        if (!TryGetBool(envelope, "success").GetValueOrDefault())
+            return false;
+
+        if (!envelope.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+            return false;
+
+        if (!data.TryGetProperty("items", out var array) || array.ValueKind != JsonValueKind.Array)
+            return false;
+
+        items = array.EnumerateArray().ToList();
+        return true;
+    }
+
+    private static bool TryGetPagedItems(JsonElement envelope, out List<JsonElement> items)
+    {
+        return TryGetPaginatedItems(envelope, out items);
+    }
+
+    private static bool TryGetDataArray(JsonElement envelope, out List<JsonElement> items)
+    {
+        items = new List<JsonElement>();
+
+        if (envelope.ValueKind != JsonValueKind.Object)
+            return false;
+
+        if (!TryGetBool(envelope, "success").GetValueOrDefault())
+            return false;
+
+        if (!envelope.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+            return false;
+
+        items = data.EnumerateArray().ToList();
+        return true;
+    }
+
+    private static JsonElement? TryGetObject(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out var property) &&
+            property.ValueKind == JsonValueKind.Object)
+            return property;
+
+        return null;
+    }
+
+    private static string? TryGetString(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out var property) &&
+            property.ValueKind == JsonValueKind.String)
+            return property.GetString();
+
+        return null;
+    }
+
+    private static string? TryGetString(JsonElement? element, string propertyName)
+    {
+        return element.HasValue ? TryGetString(element.Value, propertyName) : null;
+    }
+
+    private static int? TryGetInt(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out var property))
+        {
+            if (property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out var intValue))
+                return intValue;
+
+            if (property.ValueKind == JsonValueKind.String && int.TryParse(property.GetString(), out var parsed))
+                return parsed;
+        }
+
+        return null;
+    }
+
+    private static bool? TryGetBool(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out var property))
+        {
+            if (property.ValueKind == JsonValueKind.True || property.ValueKind == JsonValueKind.False)
+                return property.GetBoolean();
+
+            if (property.ValueKind == JsonValueKind.String && bool.TryParse(property.GetString(), out var parsed))
+                return parsed;
+        }
+
+        return null;
+    }
+
+    private static DateTime? TryGetDateTime(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out var property))
+        {
+            if (property.ValueKind == JsonValueKind.String &&
+                DateTimeOffset.TryParse(
+                    property.GetString(),
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind,
+                    out var parsed))
+                return parsed.UtcDateTime;
+        }
+
+        return null;
+    }
+
+    private static List<string> TryGetStringList(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object ||
+            !element.TryGetProperty(propertyName, out var property) ||
+            property.ValueKind != JsonValueKind.Array)
+            return new List<string>();
+
+        return property
+            .EnumerateArray()
+            .Where(item => item.ValueKind == JsonValueKind.String)
+            .Select(item => item.GetString())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!)
+            .ToList();
+    }
+
+    private static void AddRating(Dictionary<string, double> ratings, string key, int? value)
+    {
+        if (value.HasValue)
+            ratings[key] = value.Value;
+    }
+
+    private static VisaProfileSnapshot? SelectVisaFocusProfile(IReadOnlyCollection<VisaProfileSnapshot> profiles)
+    {
+        if (profiles.Count == 0)
+            return null;
+
+        return profiles
+            .OrderBy(profile => string.Equals(profile.Status, "attention_required", StringComparison.OrdinalIgnoreCase)
+                ? 0
+                : string.Equals(profile.Status, "review_soon", StringComparison.OrdinalIgnoreCase)
+                    ? 1
+                    : 2)
+            .ThenBy(profile => profile.DaysRemaining ?? int.MaxValue)
+            .FirstOrDefault();
+    }
+
+    private sealed class CommunityProsConsSignal
+    {
+        public string Id { get; set; } = string.Empty;
+        public string UserId { get; set; } = string.Empty;
+        public string Text { get; set; } = string.Empty;
+        public bool IsPro { get; set; }
+        public int Upvotes { get; set; }
+        public int Downvotes { get; set; }
+        public DateTime CreatedAt { get; set; }
+
+        public int NetVotes => Upvotes - Downvotes;
+    }
+
+    private static string ResolveVisaType(int duration, string budgetLevel)
+    {
+        if (duration >= 90)
+            return "long_stay_visa";
+
+        if (duration >= 45)
+            return "digital_nomad_entry";
+
+        return string.Equals(budgetLevel, "high", StringComparison.OrdinalIgnoreCase)
+            ? "priority_evisa"
+            : "short_stay_visa";
+    }
+
+    private static string ResolveVisaStatus(string planStatus, int? daysRemaining, DateTime? departureDate)
+    {
+        if (string.Equals(planStatus, "archived", StringComparison.OrdinalIgnoreCase))
+            return "archived";
+
+        if (!departureDate.HasValue)
+            return "planning";
+
+        if (!daysRemaining.HasValue)
+            return "planning";
+
+        if (daysRemaining.Value <= 14)
+            return "attention_required";
+
+        if (daysRemaining.Value <= 30)
+            return "review_soon";
+
+        return "on_track";
+    }
+
+    private static string BuildVisaRequirementsSummary(string visaType)
+    {
+        return visaType switch
+        {
+            "long_stay_visa" => "Passport validity, bank statements, insurance, and background documents.",
+            "digital_nomad_entry" => "Remote income proof, accommodation booking, insurance, and passport validity.",
+            "priority_evisa" => "Passport, onward travel proof, accommodation, and online application details.",
+            _ => "Passport validity, onward ticket, and first-stay confirmation."
+        };
+    }
+
+    private static string BuildVisaProcessSummary(string visaType)
+    {
+        return visaType switch
+        {
+            "long_stay_visa" => "Prepare documents early, validate entry window, and track embassy processing time.",
+            "digital_nomad_entry" => "Confirm remote-work eligibility, submit digital documents, and book insurance before departure.",
+            "priority_evisa" => "Submit e-visa online, keep PDFs ready, and recheck approval before boarding.",
+            _ => "Verify entry rules, keep proof of onward travel ready, and set a renewal reminder in advance."
+        };
+    }
+
+    private static decimal EstimateVisaCostUsd(string visaType, int stayDurationDays)
+    {
+        var baseCost = visaType switch
+        {
+            "long_stay_visa" => 180m,
+            "digital_nomad_entry" => 120m,
+            "priority_evisa" => 75m,
+            _ => 45m
+        };
+
+        if (stayDurationDays >= 90)
+            baseCost += 40m;
+
+        return baseCost;
+    }
+
+    private static string BuildVisaCenterAction(VisaProfileSnapshot? focusProfile,
+        IReadOnlyCollection<VisaProfileSnapshot> profiles)
+    {
+        if (focusProfile == null)
+            return "create-first-plan";
+
+        if (string.Equals(focusProfile.Status, "attention_required", StringComparison.OrdinalIgnoreCase))
+            return "set-reminder-now";
+
+        if (profiles.Count > 1)
+            return "compare-entry-options";
+
+        if (string.Equals(focusProfile.Status, "planning", StringComparison.OrdinalIgnoreCase))
+            return "complete-visa-brief";
+
+        return "review-latest-visa";
     }
 
     private string BuildTravelPlanPrompt(GenerateTravelPlanRequest request)

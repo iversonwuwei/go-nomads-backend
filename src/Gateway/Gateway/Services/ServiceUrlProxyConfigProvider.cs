@@ -25,7 +25,8 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
         ["innovation-service"] = "http://innovation-service:8080",
         ["search-service"] = "http://search-service:8080",
         ["accommodation-service"] = "http://accommodation-service:8080",
-        ["product-service"] = "http://product-service:8080"
+        ["product-service"] = "http://product-service:8080",
+        ["config-service"] = "http://config-service:8080"
     };
 
     public ServiceUrlProxyConfigProvider(
@@ -46,6 +47,7 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
         var serviceUrls = LoadServiceUrls(configuration);
         var routes = new List<YarpRouteConfig>();
         var clusters = new List<YarpClusterConfig>();
+        var routeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (serviceName, serviceUrl) in serviceUrls)
         {
@@ -57,9 +59,22 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
 
             foreach (var (pathPattern, order) in servicePathMappings)
             {
+                var routeId =
+                    $"{serviceName}-{pathPattern.Replace("/", "-").Replace("{", "").Replace("}", "").Replace("*", "")}-route";
+
+                if (!routeIds.Add(routeId))
+                {
+                    _logger.LogWarning(
+                        "Skipping duplicate gateway route {RouteId} for service {ServiceName} and path {PathPattern}",
+                        routeId,
+                        serviceName,
+                        pathPattern);
+                    continue;
+                }
+
                 routes.Add(new YarpRouteConfig
                 {
-                    RouteId = $"{serviceName}-{pathPattern.Replace("/", "-").Replace("{", "").Replace("}", "").Replace("*", "")}-route",
+                    RouteId = routeId,
                     ClusterId = $"{serviceName}-cluster",
                     Match = new YarpRouteMatch
                     {
@@ -136,6 +151,7 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
                 "SearchService" => "search-service",
                 "AccommodationService" => "accommodation-service",
                 "ProductService" => "product-service",
+                "ConfigService" => "config-service",
                 _ => child.Key.ToLowerInvariant().Replace("service", "-service")
             };
 
@@ -154,17 +170,25 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
         {
             "city-service" => new List<(string, int)>
             {
-                ("/api/v1/user-favorite-cities", 1),
-                ("/api/v1/user-favorite-cities/{**catch-all}", 2),
-                ("/api/v1/user-content/pros-cons", 3),
-                ("/api/v1/user-content/pros-cons/{**catch-all}", 4),
-                ("/api/v1/cities/{cityId}/user-content/{**catch-all}", 5),
-                ("/api/v1/cities", 6),
-                ("/api/v1/cities/{**catch-all}", 7),
-                ("/api/v1/countries", 8),
-                ("/api/v1/countries/{**catch-all}", 9),
-                ("/api/v1/provinces", 10),
-                ("/api/v1/provinces/{**catch-all}", 11)
+                ("/api/v1/admin/city-reviews", 1),
+                ("/api/v1/admin/city-reviews/{**catch-all}", 2),
+                ("/api/v1/admin/pros-cons", 3),
+                ("/api/v1/admin/pros-cons/{**catch-all}", 4),
+                ("/api/v1/admin/moderators", 5),
+                ("/api/v1/admin/moderators/{**catch-all}", 6),
+                ("/api/v1/admin/moderator-applications", 7),
+                ("/api/v1/admin/moderator-applications/{**catch-all}", 8),
+                ("/api/v1/user-favorite-cities", 9),
+                ("/api/v1/user-favorite-cities/{**catch-all}", 10),
+                ("/api/v1/user-content/pros-cons", 11),
+                ("/api/v1/user-content/pros-cons/{**catch-all}", 12),
+                ("/api/v1/cities/{cityId}/user-content/{**catch-all}", 13),
+                ("/api/v1/cities", 14),
+                ("/api/v1/cities/{**catch-all}", 15),
+                ("/api/v1/countries", 16),
+                ("/api/v1/countries/{**catch-all}", 17),
+                ("/api/v1/provinces", 18),
+                ("/api/v1/provinces/{**catch-all}", 19)
             },
             "cache-service" => new List<(string, int)>
             {
@@ -173,24 +197,32 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
             },
             "user-service" => new List<(string, int)>
             {
-                ("/api/v1/auth", 1),
-                ("/api/v1/auth/{**catch-all}", 2),
-                ("/api/v1/users", 3),
-                ("/api/v1/users/{**catch-all}", 4),
-                ("/api/v1/travel-history", 5),
-                ("/api/v1/travel-history/{**catch-all}", 6),
-                ("/api/v1/visited-places", 7),
-                ("/api/v1/visited-places/{**catch-all}", 8),
-                ("/api/v1/membership", 9),
-                ("/api/v1/membership/{**catch-all}", 10),
-                ("/api/v1/payments", 11),
-                ("/api/v1/payments/{**catch-all}", 12),
-                ("/api/v1/roles", 13),
-                ("/api/v1/roles/{**catch-all}", 14),
-                ("/api/v1/skills", 15),
-                ("/api/v1/skills/{**catch-all}", 16),
-                ("/api/v1/interests", 17),
-                ("/api/v1/interests/{**catch-all}", 18)
+                ("/api/v1/admin/membership", 1),
+                ("/api/v1/admin/membership/{**catch-all}", 2),
+                ("/api/v1/admin/legal", 3),
+                ("/api/v1/admin/legal/{**catch-all}", 4),
+                ("/api/v1/admin/audit/events", 5),
+                ("/api/v1/admin/audit/events/{**catch-all}", 6),
+                ("/api/v1/auth", 7),
+                ("/api/v1/auth/{**catch-all}", 8),
+                ("/api/v1/reports", 9),
+                ("/api/v1/reports/{**catch-all}", 10),
+                ("/api/v1/users", 11),
+                ("/api/v1/users/{**catch-all}", 12),
+                ("/api/v1/travel-history", 13),
+                ("/api/v1/travel-history/{**catch-all}", 14),
+                ("/api/v1/visited-places", 15),
+                ("/api/v1/visited-places/{**catch-all}", 16),
+                ("/api/v1/membership", 17),
+                ("/api/v1/membership/{**catch-all}", 18),
+                ("/api/v1/payments", 19),
+                ("/api/v1/payments/{**catch-all}", 20),
+                ("/api/v1/roles", 21),
+                ("/api/v1/roles/{**catch-all}", 22),
+                ("/api/v1/skills", 23),
+                ("/api/v1/skills/{**catch-all}", 24),
+                ("/api/v1/interests", 25),
+                ("/api/v1/interests/{**catch-all}", 26)
             },
             "event-service" => new List<(string, int)>
             {
@@ -203,8 +235,14 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
             },
             "ai-service" => new List<(string, int)>
             {
-                ("/api/v1/ai", 1),
-                ("/api/v1/ai/{**catch-all}", 2)
+                ("/api/v1/admin/travel-plans", 1),
+                ("/api/v1/admin/travel-plans/{**catch-all}", 2),
+                ("/api/v1/admin/community", 3),
+                ("/api/v1/admin/community/{**catch-all}", 4),
+                ("/api/v1/admin/ai", 5),
+                ("/api/v1/admin/ai/{**catch-all}", 6),
+                ("/api/v1/ai", 7),
+                ("/api/v1/ai/{**catch-all}", 8)
             },
             "coworking-service" => new List<(string, int)>
             {
@@ -220,8 +258,10 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
             },
             "accommodation-service" => new List<(string, int)>
             {
-                ("/api/v1/hotels", 1),
-                ("/api/v1/hotels/{**catch-all}", 2)
+                ("/api/v1/admin/hotel-reviews", 1),
+                ("/api/v1/admin/hotel-reviews/{**catch-all}", 2),
+                ("/api/v1/hotels", 3),
+                ("/api/v1/hotels/{**catch-all}", 4)
             },
             "product-service" => new List<(string, int)>
             {
@@ -230,18 +270,22 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
             },
             "message-service" => new List<(string, int)>
             {
-                ("/api/v1/im", 1),
-                ("/api/v1/im/{**catch-all}", 2),
-                ("/api/v1/notifications", 3),
-                ("/api/v1/notifications/{**catch-all}", 4),
-                ("/api/v1/chats", 5),
-                ("/api/v1/chats/{**catch-all}", 6),
-                ("/hubs/chat", 7),
-                ("/hubs/chat/{**catch-all}", 8),
-                ("/hubs/notifications", 9),
-                ("/hubs/notifications/{**catch-all}", 10),
-                ("/hubs/ai-progress", 11),
-                ("/hubs/ai-progress/{**catch-all}", 12)
+                ("/api/v1/admin/notifications", 1),
+                ("/api/v1/admin/notifications/{**catch-all}", 2),
+                ("/api/v1/admin/chats", 3),
+                ("/api/v1/admin/chats/{**catch-all}", 4),
+                ("/api/v1/im", 5),
+                ("/api/v1/im/{**catch-all}", 6),
+                ("/api/v1/notifications", 7),
+                ("/api/v1/notifications/{**catch-all}", 8),
+                ("/api/v1/chats", 9),
+                ("/api/v1/chats/{**catch-all}", 10),
+                ("/hubs/chat", 11),
+                ("/hubs/chat/{**catch-all}", 12),
+                ("/hubs/notifications", 13),
+                ("/hubs/notifications/{**catch-all}", 14),
+                ("/hubs/ai-progress", 15),
+                ("/hubs/ai-progress/{**catch-all}", 16)
             },
             "innovation-service" => new List<(string, int)>
             {
@@ -249,6 +293,17 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
                 ("/api/innovations/{**catch-all}", 2),
                 ("/api/v1/innovations", 3),
                 ("/api/v1/innovations/{**catch-all}", 4)
+            },
+            "config-service" => new List<(string, int)>
+            {
+                ("/api/v1/admin/static-texts", 1),
+                ("/api/v1/admin/static-texts/{**catch-all}", 2),
+                ("/api/v1/admin/option-groups", 3),
+                ("/api/v1/admin/option-groups/{**catch-all}", 4),
+                ("/api/v1/admin/config", 5),
+                ("/api/v1/admin/config/{**catch-all}", 6),
+                ("/api/v1/app/config", 7),
+                ("/api/v1/app/config/{**catch-all}", 8)
             },
             _ => new List<(string, int)>()
         };

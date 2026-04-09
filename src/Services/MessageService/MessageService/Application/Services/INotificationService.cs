@@ -23,6 +23,12 @@ public interface INotificationService
     Task<int> GetUnreadCountAsync(string userId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     获取 Inbox Summary 聚合信息
+    /// </summary>
+    Task<InboxSummaryDto> GetInboxSummaryAsync(string userId, int recentLimit = 5,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     创建通知
     /// </summary>
     Task<NotificationDto> CreateNotificationAsync(CreateNotificationDto dto,

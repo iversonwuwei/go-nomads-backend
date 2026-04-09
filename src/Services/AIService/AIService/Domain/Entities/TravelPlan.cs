@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using Newtonsoft.Json.Linq;
 using Postgrest.Attributes;
 using Postgrest.Models;
 
@@ -76,10 +78,21 @@ public class AiTravelPlan : BaseModel
     public DateTime? DepartureDate { get; set; }
 
     /// <summary>
-    ///     完整的旅行计划数据 (JSON 格式)
+    ///     完整的旅行计划数据 (JSONB)
     /// </summary>
     [Column("plan_data")]
-    public string PlanData { get; set; } = "{}";
+    public JToken PlanDataJson { get; set; } = new JObject();
+
+    /// <summary>
+    ///     向现有应用层暴露兼容的 JSON 字符串视图
+    /// </summary>
+    [JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
+    public string PlanData
+    {
+        get => NormalizePlanData(PlanDataJson).ToString(Newtonsoft.Json.Formatting.None);
+        set => PlanDataJson = ParsePlanData(value);
+    }
 
     /// <summary>
     ///     计划状态: draft, published, archived
@@ -104,4 +117,44 @@ public class AiTravelPlan : BaseModel
     /// </summary>
     [Column("updated_at")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    private static JToken ParsePlanData(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return new JObject();
+
+        try
+        {
+            var token = JToken.Parse(value);
+            return NormalizePlanData(token);
+        }
+        catch
+        {
+            return new JObject();
+        }
+    }
+
+    private static JToken NormalizePlanData(JToken? token)
+    {
+        if (token == null || token.Type == JTokenType.Null)
+            return new JObject();
+
+        if (token.Type == JTokenType.String)
+        {
+            var nestedJson = token.Value<string>();
+            if (string.IsNullOrWhiteSpace(nestedJson))
+                return new JObject();
+
+            try
+            {
+                return NormalizePlanData(JToken.Parse(nestedJson));
+            }
+            catch
+            {
+                return new JObject();
+            }
+        }
+
+        return token.Type == JTokenType.Object ? token : new JObject();
+    }
 }

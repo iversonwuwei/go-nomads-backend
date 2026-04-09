@@ -525,4 +525,34 @@ public class AiTravelPlanSummary
     ///     创建时间
     /// </summary>
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    ///     迁移阶段
+    /// </summary>
+    public string MigrationStage { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     当前焦点备注
+    /// </summary>
+    public string? FocusNote { get; set; }
+
+    /// <summary>
+    ///     已完成任务数
+    /// </summary>
+    public int CompletedTaskCount { get; set; }
+
+    /// <summary>
+    ///     总任务数
+    /// </summary>
+    public int TotalTaskCount { get; set; }
+
+    /// <summary>
+    ///     迁移待办清单
+    /// </summary>
+    public List<MigrationChecklistItemResponse> Checklist { get; set; } = new();
+
+    /// <summary>
+    ///     迁移时间轴
+    /// </summary>
+    public List<MigrationTimelineItemResponse> Timeline { get; set; } = new();
 }

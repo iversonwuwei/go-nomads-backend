@@ -30,6 +30,45 @@ public class LegalController : ControllerBase
     }
 
     /// <summary>
+    ///     获取当前生效的法律文档摘要列表
+    /// </summary>
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<List<LegalDocumentSummaryDto>>>> GetCurrentDocumentsAsync(
+        [FromQuery] string lang = "zh",
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("📚 获取当前法律文档摘要列表, lang={Lang}", lang);
+
+        var documents = await _legalDocumentRepository.ListCurrentAsync(lang, cancellationToken);
+
+        if (documents.Count == 0 && lang != "zh")
+        {
+            _logger.LogInformation("⚠️ 未找到 {Lang} 当前法律文档，回退到中文", lang);
+            documents = await _legalDocumentRepository.ListCurrentAsync("zh", cancellationToken);
+        }
+
+        var data = documents
+            .Select(document => new LegalDocumentSummaryDto
+            {
+                Id = document.Id,
+                DocumentType = document.DocumentType,
+                Version = document.Version,
+                Language = document.Language,
+                Title = document.Title,
+                EffectiveDate = document.EffectiveDate,
+                IsCurrent = document.IsCurrent
+            })
+            .ToList();
+
+        return Ok(new ApiResponse<List<LegalDocumentSummaryDto>>
+        {
+            Success = true,
+            Message = "获取成功",
+            Data = data
+        });
+    }
+
+    /// <summary>
     ///     获取隐私政策
     /// </summary>
     [HttpGet("privacy-policy")]

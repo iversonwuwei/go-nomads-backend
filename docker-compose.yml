@@ -31,6 +31,7 @@ services:
       - ServiceUrls__SearchService=http://go-nomads-search-service:8080
       - ServiceUrls__AccommodationService=http://go-nomads-accommodation-service:8080
       - ServiceUrls__ProductService=http://go-nomads-product-service:8080
+      - ServiceUrls__ConfigService=http://go-nomads-config-service:8080
     networks:
       - go-nomads-network
 
@@ -266,6 +267,19 @@ services:
       - RabbitMQ__Port=5672
       - RabbitMQ__Username=walden
       - RabbitMQ__Password=walden
+    networks:
+      - go-nomads-network
+
+  config-service:
+    build:
+      context: .
+      dockerfile: src/Services/ConfigService/ConfigService/Dockerfile
+    container_name: go-nomads-config-service
+    ports:
+      - "8013:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
     networks:
       - go-nomads-network
 

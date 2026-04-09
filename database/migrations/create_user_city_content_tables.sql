@@ -17,6 +17,10 @@ CREATE TABLE IF NOT EXISTS user_city_photos (
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
     taken_at TIMESTAMP WITH TIME ZONE,
+    moderation_status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (moderation_status IN ('pending', 'approved', 'rejected')),
+    moderation_reason TEXT,
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    reviewed_by UUID,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
     CONSTRAINT fk_user_city_photos_user FOREIGN KEY (user_id) 
@@ -27,6 +31,7 @@ CREATE TABLE IF NOT EXISTS user_city_photos (
 CREATE INDEX IF NOT EXISTS idx_user_city_photos_user_id ON user_city_photos(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_city_photos_city_id ON user_city_photos(city_id);
 CREATE INDEX IF NOT EXISTS idx_user_city_photos_user_city ON user_city_photos(user_id, city_id);
+CREATE INDEX IF NOT EXISTS idx_user_city_photos_moderation_status ON user_city_photos(moderation_status);
 CREATE INDEX IF NOT EXISTS idx_user_city_photos_created_at ON user_city_photos(created_at DESC);
 
 

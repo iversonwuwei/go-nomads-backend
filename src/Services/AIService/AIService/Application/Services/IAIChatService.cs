@@ -106,4 +106,34 @@ public interface IAIChatService
         GenerateNearbyCitiesRequest request,
         Guid userId,
         Func<int, string, Task>? onProgress = null);
+
+    /// <summary>
+    ///     获取用户的 Migration Workspace 聚合信息
+    /// </summary>
+    Task<MigrationWorkspaceResponse> GetMigrationWorkspaceAsync(Guid userId, int page = 1, int pageSize = 20);
+
+    /// <summary>
+    ///     获取当前用户的 Budget Center 聚合信息
+    /// </summary>
+    Task<BudgetCenterResponse> GetBudgetCenterAsync(Guid userId);
+
+    /// <summary>
+    ///     获取当前用户的 Visa Center 聚合信息
+    /// </summary>
+    Task<VisaCenterResponse> GetVisaCenterAsync(Guid userId);
+
+    /// <summary>
+    ///     获取当前用户的 Land Hub 聚合信息
+    /// </summary>
+    Task<LandHubResponse> GetLandHubAsync(Guid userId);
+
+    /// <summary>
+    ///     获取当前用户的 Explore Dashboard 聚合信息
+    /// </summary>
+    Task<ExploreDashboardResponse> GetExploreDashboardAsync(Guid userId);
+
+    /// <summary>
+    ///     获取当前用户的 Community Snapshot 聚合信息
+    /// </summary>
+    Task<CommunitySnapshotResponse> GetCommunitySnapshotAsync(Guid userId);
 }

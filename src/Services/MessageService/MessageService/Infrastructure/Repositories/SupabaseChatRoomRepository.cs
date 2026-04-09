@@ -263,6 +263,35 @@ public class SupabaseChatRoomRepository : IChatRoomRepository
         }
     }
 
+    public async Task<(List<ChatRoom> Rooms, int TotalCount)> GetAllRoomsPagedAsync(int page = 1, int pageSize = 20)
+    {
+        try
+        {
+            var skip = (page - 1) * pageSize;
+
+            var countResponse = await _supabaseClient
+                .From<ChatRoomModel>()
+                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
+                .Get();
+            var totalCount = countResponse.Models.Count;
+
+            var response = await _supabaseClient
+                .From<ChatRoomModel>()
+                .Filter("is_deleted", Postgrest.Constants.Operator.NotEqual, "true")
+                .Order("created_at", Postgrest.Constants.Ordering.Descending)
+                .Range(skip, skip + pageSize - 1)
+                .Get();
+
+            var rooms = response.Models.Select(MapToDomain).ToList();
+            return (rooms, totalCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取所有聊天室分页失败");
+            return (new List<ChatRoom>(), 0);
+        }
+    }
+
     #region 映射方法
 
     private ChatRoom MapToDomain(ChatRoomModel model)

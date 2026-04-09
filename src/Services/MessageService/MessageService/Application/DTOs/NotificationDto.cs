@@ -7,11 +7,20 @@ public class NotificationDto
 {
     public string Id { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
+    public string? RecipientUserName { get; set; }
+    public string? RecipientSummary { get; set; }
     public string Title { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
+    public string? Scope { get; set; }
+    public string? ScopeDisplay { get; set; }
     public string? RelatedId { get; set; }
+    public string? RelatedResourceName { get; set; }
     public Dictionary<string, object>? Metadata { get; set; }
+    public string Status { get; set; } = "unread";
+    public int DeliveredCount { get; set; } = 1;
+    public int ReadCount { get; set; }
+    public DateTime? ScheduledAt { get; set; }
     public bool IsRead { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? ReadAt { get; set; }

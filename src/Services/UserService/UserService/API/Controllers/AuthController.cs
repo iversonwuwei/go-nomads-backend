@@ -32,6 +32,54 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    ///     发送注册验证码
+    /// </summary>
+    [HttpPost("register/send-code")]
+    public async Task<ActionResult<ApiResponse<SendVerificationCodeResponse>>> SendRegisterCode(
+        [FromBody] SendRegisterCodeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<SendVerificationCodeResponse>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        try
+        {
+            var result = await _authService.SendRegisterCodeAsync(request, cancellationToken);
+            return Ok(new ApiResponse<SendVerificationCodeResponse>
+            {
+                Success = true,
+                Message = result.Message,
+                Data = result
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<SendVerificationCodeResponse>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 发送注册验证码失败: {Email}", request.Email);
+            return StatusCode(500, new ApiResponse<SendVerificationCodeResponse>
+            {
+                Success = false,
+                Message = "发送验证码失败,请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
     ///     用户注册
     /// </summary>
     [HttpPost("register")]
@@ -305,6 +353,111 @@ public class AuthController : ControllerBase
             {
                 Success = false,
                 Message = "修改密码失败,请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     发送找回密码验证码
+    /// </summary>
+    [HttpPost("forgot-password/send-code")]
+    public async Task<ActionResult<ApiResponse<SendVerificationCodeResponse>>> SendForgotPasswordCode(
+        [FromBody] SendForgotPasswordCodeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<SendVerificationCodeResponse>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        try
+        {
+            var result = await _authService.SendForgotPasswordCodeAsync(request, cancellationToken);
+
+            return Ok(new ApiResponse<SendVerificationCodeResponse>
+            {
+                Success = result.Success,
+                Message = result.Message,
+                Data = result
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<SendVerificationCodeResponse>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 发送找回密码验证码失败: {Identity}", request.EmailOrPhone);
+            return StatusCode(500, new ApiResponse<SendVerificationCodeResponse>
+            {
+                Success = false,
+                Message = "发送验证码失败,请稍后重试"
+            });
+        }
+    }
+
+    /// <summary>
+    ///     使用验证码重置密码
+    /// </summary>
+    [HttpPost("forgot-password/reset")]
+    public async Task<ActionResult<ApiResponse<object>>> ResetForgotPassword(
+        [FromBody] ResetForgotPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "验证失败",
+                Errors = errors
+            });
+        }
+
+        try
+        {
+            await _authService.ResetForgotPasswordAsync(request, cancellationToken);
+
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "密码重置成功"
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 重置忘记的密码失败: {Identity}", request.EmailOrPhone);
+            return StatusCode(500, new ApiResponse<object>
+            {
+                Success = false,
+                Message = "密码重置失败,请稍后重试"
             });
         }
     }

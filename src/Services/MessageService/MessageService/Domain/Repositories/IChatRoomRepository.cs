@@ -54,4 +54,9 @@ public interface IChatRoomRepository
     /// </summary>
     /// <param name="directChatKey">私聊唯一标识 (格式: direct_{userId1}_{userId2})</param>
     Task<ChatRoom?> GetRoomByDirectChatKeyAsync(string directChatKey);
+
+    /// <summary>
+    ///     获取所有聊天室（管理员分页查询）
+    /// </summary>
+    Task<(List<ChatRoom> Rooms, int TotalCount)> GetAllRoomsPagedAsync(int page = 1, int pageSize = 20);
 }

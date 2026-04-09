@@ -19,5 +19,8 @@ public class RegisterDto
     [StringLength(100, MinimumLength = 6, ErrorMessage = "密码长度必须在6-100之间")]
     public string Password { get; set; } = string.Empty;
 
+    [StringLength(6, MinimumLength = 4, ErrorMessage = "验证码长度为 4-6 位")]
+    public string? VerificationCode { get; set; }
+
     [Phone(ErrorMessage = "手机号格式不正确")] public string? Phone { get; set; }
 }

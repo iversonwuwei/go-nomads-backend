@@ -23,6 +23,11 @@ public interface IUserCityPhotoRepository
     Task<IEnumerable<UserCityPhoto>> GetByCityIdAsync(string cityId);
 
     /// <summary>
+    ///     获取城市已审核通过的照片
+    /// </summary>
+    Task<IEnumerable<UserCityPhoto>> GetApprovedByCityIdAsync(string cityId);
+
+    /// <summary>
     ///     获取城市某个用户的照片
     /// </summary>
     Task<IEnumerable<UserCityPhoto>> GetByCityIdAndUserIdAsync(string cityId, Guid userId);
@@ -36,6 +41,11 @@ public interface IUserCityPhotoRepository
     ///     根据 ID 获取照片
     /// </summary>
     Task<UserCityPhoto?> GetByIdAsync(Guid id);
+
+    /// <summary>
+    ///     更新照片
+    /// </summary>
+    Task<UserCityPhoto> UpdateAsync(UserCityPhoto photo);
 
     /// <summary>
     ///     删除照片

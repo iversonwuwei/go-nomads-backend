@@ -10,6 +10,13 @@ namespace CityService.Domain.Entities;
 [Table("user_city_photos")]
 public class UserCityPhoto : BaseModel
 {
+    public static class ModerationStatuses
+    {
+        public const string Pending = "pending";
+        public const string Approved = "approved";
+        public const string Rejected = "rejected";
+    }
+
     [PrimaryKey("id")] public Guid Id { get; set; }
 
     [Required] [Column("user_id")] public Guid UserId { get; set; }
@@ -40,7 +47,36 @@ public class UserCityPhoto : BaseModel
 
     [Column("taken_at")] public DateTime? TakenAt { get; set; }
 
+    [Column("moderation_status")] public string ModerationStatus { get; set; } = ModerationStatuses.Pending;
+
+    [Column("moderation_reason")] public string? ModerationReason { get; set; }
+
+    [Column("reviewed_at")] public DateTime? ReviewedAt { get; set; }
+
+    [Column("reviewed_by")] public Guid? ReviewedBy { get; set; }
+
     [Column("created_at")] public DateTime CreatedAt { get; set; }
 
     [Column("updated_at")] public DateTime? UpdatedAt { get; set; }
+
+    public void Approve(Guid reviewedBy, string? reason = null)
+    {
+        ModerationStatus = ModerationStatuses.Approved;
+        ModerationReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        ReviewedBy = reviewedBy;
+        ReviewedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void Reject(Guid reviewedBy, string reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new ArgumentException("拒绝原因不能为空", nameof(reason));
+
+        ModerationStatus = ModerationStatuses.Rejected;
+        ModerationReason = reason.Trim();
+        ReviewedBy = reviewedBy;
+        ReviewedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
+    }
 }

@@ -19,6 +19,37 @@ public class UserRepository : IUserRepository
         _logger = logger;
     }
 
+    public async Task<int> GetTotalCountAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _supabaseClient
+                .From<User>()
+                .Count(Constants.CountType.Exact);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取用户总数失败");
+            throw;
+        }
+    }
+
+    public async Task<int> GetCreatedSinceCountAsync(DateTime createdSinceUtc, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _supabaseClient
+                .From<User>()
+                .Filter("created_at", Constants.Operator.GreaterThanOrEqual, createdSinceUtc.ToString("O"))
+                .Count(Constants.CountType.Exact);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ 获取新增用户数失败: CreatedSince={CreatedSince}", createdSinceUtc);
+            throw;
+        }
+    }
+
     public async Task<User> CreateAsync(User user, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("📝 创建用户: {Email}", user.Email);
@@ -229,15 +260,15 @@ public class UserRepository : IUserRepository
             var from = (page - 1) * pageSize;
             var to = from + pageSize - 1;
 
-            // 获取分页数据（Supabase 会在响应头中返回总数）
+            var total = await _supabaseClient
+                .From<User>()
+                .Count(Constants.CountType.Exact);
+
             var response = await _supabaseClient
                 .From<User>()
                 .Order(u => u.CreatedAt, Constants.Ordering.Descending)
                 .Range(from, to)
-                .Get();
-
-            // 从响应中获取总数（如果可用），否则使用当前页的数量
-            var total = response.Models.Count;
+                .Get(cancellationToken);
 
             _logger.LogInformation("✅ 成功查询 {Count} 个用户", response.Models.Count);
             return (response.Models.ToList(), total);
@@ -264,61 +295,30 @@ public class UserRepository : IUserRepository
             var from = (page - 1) * pageSize;
             var to = from + pageSize - 1;
 
-            // 根据不同条件组合进行查询
-            if (!string.IsNullOrWhiteSpace(searchTerm) && !string.IsNullOrWhiteSpace(role))
-            {
-                // 同时有搜索词和角色筛选
-                var response = await _supabaseClient
-                    .From<User>()
-                    .Filter("name", Constants.Operator.ILike, $"%{searchTerm}%")
-                    .Filter("role", Constants.Operator.Equals, role)
-                    .Order(u => u.CreatedAt, Constants.Ordering.Descending)
-                    .Range(from, to)
-                    .Get(cancellationToken);
-
-                _logger.LogInformation("✅ 搜索到 {Count} 个用户", response.Models.Count);
-                return (response.Models.ToList(), response.Models.Count);
-            }
+            var countQuery = (Supabase.Interfaces.ISupabaseTable<User, Supabase.Realtime.RealtimeChannel>)_supabaseClient.From<User>();
+            var dataQuery = (Supabase.Interfaces.ISupabaseTable<User, Supabase.Realtime.RealtimeChannel>)_supabaseClient.From<User>();
 
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
-                // 只有搜索词（搜索名称）
-                var response = await _supabaseClient
-                    .From<User>()
-                    .Filter("name", Constants.Operator.ILike, $"%{searchTerm}%")
-                    .Order(u => u.CreatedAt, Constants.Ordering.Descending)
-                    .Range(from, to)
-                    .Get(cancellationToken);
-
-                _logger.LogInformation("✅ 搜索到 {Count} 个用户", response.Models.Count);
-                return (response.Models.ToList(), response.Models.Count);
+                countQuery = (Supabase.Interfaces.ISupabaseTable<User, Supabase.Realtime.RealtimeChannel>)countQuery.Filter("name", Constants.Operator.ILike, $"%{searchTerm}%");
+                dataQuery = (Supabase.Interfaces.ISupabaseTable<User, Supabase.Realtime.RealtimeChannel>)dataQuery.Filter("name", Constants.Operator.ILike, $"%{searchTerm}%");
             }
 
             if (!string.IsNullOrWhiteSpace(role))
             {
-                // 只有角色筛选
-                var response = await _supabaseClient
-                    .From<User>()
-                    .Filter("role", Constants.Operator.Equals, role)
-                    .Order(u => u.CreatedAt, Constants.Ordering.Descending)
-                    .Range(from, to)
-                    .Get(cancellationToken);
-
-                _logger.LogInformation("✅ 搜索到 {Count} 个用户", response.Models.Count);
-                return (response.Models.ToList(), response.Models.Count);
+                countQuery = (Supabase.Interfaces.ISupabaseTable<User, Supabase.Realtime.RealtimeChannel>)countQuery.Filter("role", Constants.Operator.Equals, role);
+                dataQuery = (Supabase.Interfaces.ISupabaseTable<User, Supabase.Realtime.RealtimeChannel>)dataQuery.Filter("role", Constants.Operator.Equals, role);
             }
-            else
-            {
-                // 无筛选条件，返回所有用户
-                var response = await _supabaseClient
-                    .From<User>()
-                    .Order(u => u.CreatedAt, Constants.Ordering.Descending)
-                    .Range(from, to)
-                    .Get(cancellationToken);
 
-                _logger.LogInformation("✅ 搜索到 {Count} 个用户", response.Models.Count);
-                return (response.Models.ToList(), response.Models.Count);
-            }
+            var total = await countQuery.Count(Constants.CountType.Exact);
+
+            var response = await dataQuery
+                .Order(u => u.CreatedAt, Constants.Ordering.Descending)
+                .Range(from, to)
+                .Get(cancellationToken);
+
+            _logger.LogInformation("✅ 搜索到 {Count}/{Total} 个用户", response.Models.Count, total);
+            return (response.Models.ToList(), total);
         }
         catch (Exception ex)
         {

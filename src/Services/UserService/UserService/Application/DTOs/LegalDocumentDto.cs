@@ -17,6 +17,54 @@ public class LegalDocumentDto
     public List<SdkInfoDto> SdkList { get; set; } = new();
 }
 
+public class AdminLegalDocumentListItemDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string DocumentType { get; set; } = string.Empty;
+    public string Slug { get; set; } = string.Empty;
+    public string Version { get; set; } = string.Empty;
+    public string Language { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public DateTime EffectiveDate { get; set; }
+    public bool IsCurrent { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+public class AdminLegalDocumentDto : AdminLegalDocumentListItemDto
+{
+    public List<LegalSectionDto> Sections { get; set; } = new();
+    public List<LegalSummaryDto> Summary { get; set; } = new();
+    public List<SdkInfoDto> SdkList { get; set; } = new();
+}
+
+public class CreateAdminLegalDocumentRequest
+{
+    public string DocumentType { get; set; } = string.Empty;
+    public string Version { get; set; } = string.Empty;
+    public string Language { get; set; } = "zh";
+    public string Title { get; set; } = string.Empty;
+    public DateTime EffectiveDate { get; set; } = DateTime.UtcNow;
+    public bool IsCurrent { get; set; }
+    public List<LegalSectionDto> Sections { get; set; } = new();
+    public List<LegalSummaryDto> Summary { get; set; } = new();
+    public List<SdkInfoDto> SdkList { get; set; } = new();
+}
+
+public class UpdateAdminLegalDocumentRequest
+{
+    public string DocumentType { get; set; } = string.Empty;
+    public string Version { get; set; } = string.Empty;
+    public string Language { get; set; } = "zh";
+    public string Title { get; set; } = string.Empty;
+    public DateTime EffectiveDate { get; set; } = DateTime.UtcNow;
+    public bool IsCurrent { get; set; }
+    public List<LegalSectionDto> Sections { get; set; } = new();
+    public List<LegalSummaryDto> Summary { get; set; } = new();
+    public List<SdkInfoDto> SdkList { get; set; } = new();
+}
+
 public class LegalDocumentVersionDto
 {
     public string Id { get; set; } = string.Empty;
@@ -28,6 +76,17 @@ public class LegalDocumentVersionDto
     public bool IsCurrent { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+}
+
+public class LegalDocumentSummaryDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string DocumentType { get; set; } = string.Empty;
+    public string Version { get; set; } = string.Empty;
+    public string Language { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public DateTime EffectiveDate { get; set; }
+    public bool IsCurrent { get; set; }
 }
 
 public class LegalSectionDto

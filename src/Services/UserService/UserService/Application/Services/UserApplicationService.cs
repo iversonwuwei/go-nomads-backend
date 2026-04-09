@@ -40,6 +40,29 @@ public class UserApplicationService : IUserService
         _logger = logger;
     }
 
+    public async Task<DashboardOverviewDto> GetDashboardOverviewAsync(CancellationToken cancellationToken = default)
+    {
+        var calculatedDate = DateTime.UtcNow;
+        var newUsersSince = calculatedDate.AddDays(-30);
+
+        _logger.LogInformation("📊 获取管理后台概览, NewUsersSince={NewUsersSince}", newUsersSince);
+
+        var totalUsersTask = _userRepository.GetTotalCountAsync(cancellationToken);
+        var newUsersTask = _userRepository.GetCreatedSinceCountAsync(newUsersSince, cancellationToken);
+
+        await Task.WhenAll(totalUsersTask, newUsersTask);
+
+        return new DashboardOverviewDto
+        {
+            CalculatedDate = calculatedDate,
+            Users = new DashboardUserMetricsDto
+            {
+                TotalUsers = await totalUsersTask,
+                NewUsers = await newUsersTask
+            }
+        };
+    }
+
     public async Task<(List<UserDto> Users, int Total)> GetUsersAsync(
         int page = 1,
         int pageSize = 20,
@@ -328,19 +351,33 @@ public class UserApplicationService : IUserService
         _logger.LogInformation("📋 获取所有角色");
 
         var roles = await _roleRepository.GetAllAsync(cancellationToken);
-        return roles.Select(MapRoleToDto).ToList();
+        var roleDtos = await Task.WhenAll(roles.Select(async role =>
+        {
+            var userCount = (await _userRepository.GetUsersByRoleIdAsync(role.Id, cancellationToken)).Count;
+            return MapRoleToDto(role, userCount);
+        }));
+
+        return roleDtos.ToList();
     }
 
     public async Task<RoleDto?> GetRoleByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         var role = await _roleRepository.GetByIdAsync(id, cancellationToken);
-        return role == null ? null : MapRoleToDto(role);
+        if (role == null)
+            return null;
+
+        var userCount = (await _userRepository.GetUsersByRoleIdAsync(role.Id, cancellationToken)).Count;
+        return MapRoleToDto(role, userCount);
     }
 
     public async Task<RoleDto?> GetRoleByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         var role = await _roleRepository.GetByNameAsync(name, cancellationToken);
-        return role == null ? null : MapRoleToDto(role);
+        if (role == null)
+            return null;
+
+        var userCount = (await _userRepository.GetUsersByRoleIdAsync(role.Id, cancellationToken)).Count;
+        return MapRoleToDto(role, userCount);
     }
 
     public async Task<RoleDto> CreateRoleAsync(
@@ -539,13 +576,14 @@ public class UserApplicationService : IUserService
         return userDto;
     }
 
-    private RoleDto MapRoleToDto(Role role)
+    private RoleDto MapRoleToDto(Role role, int userCount = 0)
     {
         return new RoleDto
         {
             Id = role.Id,
             Name = role.Name,
             Description = role.Description,
+            UserCount = userCount,
             CreatedAt = role.CreatedAt,
             UpdatedAt = role.UpdatedAt
         };

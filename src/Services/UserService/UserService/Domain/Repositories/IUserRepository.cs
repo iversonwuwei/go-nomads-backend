@@ -8,6 +8,16 @@ namespace UserService.Domain.Repositories;
 public interface IUserRepository
 {
     /// <summary>
+    ///     获取用户总数
+    /// </summary>
+    Task<int> GetTotalCountAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     获取指定时间以来新增用户数
+    /// </summary>
+    Task<int> GetCreatedSinceCountAsync(DateTime createdSinceUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     创建用户
     /// </summary>
     Task<User> CreateAsync(User user, CancellationToken cancellationToken = default);

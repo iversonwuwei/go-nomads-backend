@@ -39,6 +39,58 @@ CREATE TABLE IF NOT EXISTS ai_messages
     deleted_at TIMESTAMPTZ
 );
 
+-- 2.1 创建 Community Q&A 表
+CREATE TABLE IF NOT EXISTS community_questions
+(
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    city VARCHAR(120) NOT NULL,
+    title VARCHAR(240) NOT NULL,
+    content TEXT NOT NULL,
+    tags_json JSONB DEFAULT '[]'::jsonb,
+    upvotes INTEGER DEFAULT 0,
+    answer_count INTEGER DEFAULT 0,
+    accepted_answer_id UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS community_answers
+(
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    question_id UUID NOT NULL REFERENCES community_questions(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL,
+    content TEXT NOT NULL,
+    upvotes INTEGER DEFAULT 0,
+    is_accepted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS community_question_votes
+(
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    question_id UUID NOT NULL REFERENCES community_questions(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ,
+    CONSTRAINT uq_community_question_votes UNIQUE (question_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS community_answer_votes
+(
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    answer_id UUID NOT NULL REFERENCES community_answers(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ,
+    CONSTRAINT uq_community_answer_votes UNIQUE (answer_id, user_id)
+);
+
 -- 3. 创建索引以提高查询性能
 -- 对话表索引
 CREATE INDEX IF NOT EXISTS idx_ai_conversations_user_id ON ai_conversations(user_id);
@@ -53,6 +105,12 @@ CREATE INDEX IF NOT EXISTS idx_ai_messages_role ON ai_messages(role);
 CREATE INDEX IF NOT EXISTS idx_ai_messages_created_at ON ai_messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_ai_messages_deleted_at ON ai_messages(deleted_at) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation_created ON ai_messages(conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_community_questions_city_created ON community_questions(city, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_community_questions_user_id ON community_questions(user_id);
+CREATE INDEX IF NOT EXISTS idx_community_answers_question_id ON community_answers(question_id);
+CREATE INDEX IF NOT EXISTS idx_community_answers_user_id ON community_answers(user_id);
+CREATE INDEX IF NOT EXISTS idx_community_question_votes_question_id ON community_question_votes(question_id);
+CREATE INDEX IF NOT EXISTS idx_community_answer_votes_answer_id ON community_answer_votes(answer_id);
 
 -- 4. 创建 RLS (Row Level Security) 策略
 -- 启用 RLS
@@ -99,6 +157,30 @@ DROP TRIGGER IF EXISTS update_ai_messages_updated_at ON ai_messages;
 CREATE TRIGGER update_ai_messages_updated_at
     BEFORE UPDATE
     ON ai_messages
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_community_questions_updated_at ON community_questions;
+CREATE TRIGGER update_community_questions_updated_at
+    BEFORE UPDATE
+    ON community_questions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_community_answers_updated_at ON community_answers;
+CREATE TRIGGER update_community_answers_updated_at
+    BEFORE UPDATE
+    ON community_answers
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_community_question_votes_updated_at ON community_question_votes;
+CREATE TRIGGER update_community_question_votes_updated_at
+    BEFORE UPDATE
+    ON community_question_votes
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_community_answer_votes_updated_at ON community_answer_votes;
+CREATE TRIGGER update_community_answer_votes_updated_at
+    BEFORE UPDATE
+    ON community_answer_votes
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- 7. 创建一些有用的视图
@@ -151,6 +233,10 @@ INSERT INTO ai_messages (conversation_id, role, content, token_count) VALUES
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON ai_conversations TO anon, authenticated;
 GRANT ALL ON ai_messages TO anon, authenticated;
+GRANT ALL ON community_questions TO anon, authenticated;
+GRANT ALL ON community_answers TO anon, authenticated;
+GRANT ALL ON community_question_votes TO anon, authenticated;
+GRANT ALL ON community_answer_votes TO anon, authenticated;
 GRANT SELECT ON ai_conversation_stats TO anon, authenticated;
 GRANT SELECT ON ai_user_stats TO anon, authenticated;
 
@@ -187,6 +273,10 @@ $$ LANGUAGE plpgsql;
 
 COMMENT ON TABLE ai_conversations IS 'AI 对话会话表';
 COMMENT ON TABLE ai_messages IS 'AI 消息表';
+COMMENT ON TABLE community_questions IS 'Community 问题线程表';
+COMMENT ON TABLE community_answers IS 'Community 问题回答表';
+COMMENT ON TABLE community_question_votes IS 'Community 问题点赞关系表';
+COMMENT ON TABLE community_answer_votes IS 'Community 回答点赞关系表';
 COMMENT ON FUNCTION cleanup_deleted_ai_records IS '清理软删除的AI记录';
 
 -- 完成脚本

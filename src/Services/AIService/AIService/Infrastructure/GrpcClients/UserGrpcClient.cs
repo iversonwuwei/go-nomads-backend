@@ -23,11 +23,10 @@ public class UserGrpcClient : IUserGrpcClient
         {
             _logger.LogInformation("获取用户信息，用户ID: {UserId}", userId);
 
-            var response = await _serviceClient.InvokeAsync<object, ApiResponse<UserDto>>(
-                HttpMethod.Post,
+            var response = await _serviceClient.InvokeAsync<ApiResponse<UserDto>>(
+                HttpMethod.Get,
                 UserServiceName,
-                $"api/v1/users/{userId}",
-                new { });
+                $"api/v1/users/{userId}");
 
             if (response?.Success == true && response.Data != null)
             {
@@ -115,8 +114,8 @@ public class UserGrpcClient : IUserGrpcClient
     private class UserDto
     {
         public Guid Id { get; set; }
-        public string Name { get; } = string.Empty;
-        public string Email { get; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
         public string? Avatar { get; set; }
         public string? Phone { get; set; }
     }

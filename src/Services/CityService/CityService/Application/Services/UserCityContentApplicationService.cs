@@ -140,6 +140,12 @@ public class UserCityContentApplicationService : IUserCityContentService
         return photos.Select(MapPhotoToDto);
     }
 
+    public async Task<IEnumerable<UserCityPhotoDto>> GetApprovedCityPhotosAsync(string cityId)
+    {
+        var photos = await _photoRepository.GetApprovedByCityIdAsync(cityId);
+        return photos.Select(MapPhotoToDto);
+    }
+
     public async Task<IEnumerable<UserCityPhotoDto>> GetUserPhotosAsync(Guid userId)
     {
         var photos = await _photoRepository.GetByUserIdAsync(userId);
@@ -151,6 +157,32 @@ public class UserCityContentApplicationService : IUserCityContentService
         var deleted = await _photoRepository.DeleteAsync(photoId, userId);
         if (deleted) _logger.LogInformation("用户 {UserId} 删除了照片 {PhotoId}", userId, photoId);
         return deleted;
+    }
+
+    public async Task<UserCityPhotoDto> ApprovePhotoAsync(Guid reviewerUserId, string cityId, Guid photoId, string? reason = null)
+    {
+        var photo = await _photoRepository.GetByIdAsync(photoId);
+        if (photo == null || !string.Equals(photo.CityId, cityId, StringComparison.OrdinalIgnoreCase))
+            throw new KeyNotFoundException("照片不存在");
+
+        photo.Approve(reviewerUserId, reason);
+        var updated = await _photoRepository.UpdateAsync(photo);
+
+        _logger.LogInformation("管理员 {ReviewerUserId} 审核通过照片 {PhotoId}, CityId={CityId}", reviewerUserId, photoId, cityId);
+        return MapPhotoToDto(updated);
+    }
+
+    public async Task<UserCityPhotoDto> RejectPhotoAsync(Guid reviewerUserId, string cityId, Guid photoId, string reason)
+    {
+        var photo = await _photoRepository.GetByIdAsync(photoId);
+        if (photo == null || !string.Equals(photo.CityId, cityId, StringComparison.OrdinalIgnoreCase))
+            throw new KeyNotFoundException("照片不存在");
+
+        photo.Reject(reviewerUserId, reason);
+        var updated = await _photoRepository.UpdateAsync(photo);
+
+        _logger.LogInformation("管理员 {ReviewerUserId} 驳回照片 {PhotoId}, CityId={CityId}, Reason={Reason}", reviewerUserId, photoId, cityId, reason);
+        return MapPhotoToDto(updated);
     }
 
     #endregion
@@ -670,6 +702,10 @@ public class UserCityContentApplicationService : IUserCityContentService
             Latitude = photo.Latitude,
             Longitude = photo.Longitude,
             TakenAt = photo.TakenAt,
+            ModerationStatus = photo.ModerationStatus,
+            ModerationReason = photo.ModerationReason,
+            ReviewedAt = photo.ReviewedAt,
+            ReviewedBy = photo.ReviewedBy,
             CreatedAt = photo.CreatedAt
         };
     }

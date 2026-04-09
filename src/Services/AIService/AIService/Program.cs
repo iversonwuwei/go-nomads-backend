@@ -34,6 +34,9 @@ builder.Services.AddCurrentUserService();
 builder.Services.AddScoped<IAIConversationRepository, AIConversationRepository>();
 builder.Services.AddScoped<IAIMessageRepository, AIMessageRepository>();
 builder.Services.AddScoped<ITravelPlanRepository, TravelPlanRepository>();
+builder.Services.AddScoped<ICommunityQuestionRepository, CommunityQuestionRepository>();
+builder.Services.AddScoped<ICommunityAnswerRepository, CommunityAnswerRepository>();
+builder.Services.AddScoped<ICommunityVoteRepository, CommunityVoteRepository>();
 
 // 注册跨服务客户端
 builder.Services.AddScoped<IUserGrpcClient, UserGrpcClient>();
@@ -90,6 +93,8 @@ catch (Exception ex)
 
 // 注册应用服务 (Application Layer)
 builder.Services.AddScoped<IAIChatService, AIChatApplicationService>();
+builder.Services.AddScoped<IMigrationCentersService, MigrationCentersApplicationService>();
+builder.Services.AddScoped<ICommunityQaService, CommunityQaApplicationService>();
 
 // 注册图片生成服务 (通义万象)
 builder.Services.AddHttpClient("WanxClient", client =>

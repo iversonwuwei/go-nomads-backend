@@ -47,6 +47,53 @@ public class SendSmsCodeResponse
 }
 
 /// <summary>
+///     通用验证码发送响应
+/// </summary>
+public class SendVerificationCodeResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public int ExpiresInSeconds { get; set; }
+    public string? RequestId { get; set; }
+}
+
+/// <summary>
+///     注册验证码请求
+/// </summary>
+public class SendRegisterCodeRequest
+{
+    [Required(ErrorMessage = "邮箱不能为空")]
+    [EmailAddress(ErrorMessage = "邮箱格式不正确")]
+    public string Email { get; set; } = string.Empty;
+}
+
+/// <summary>
+///     找回密码验证码请求
+/// </summary>
+public class SendForgotPasswordCodeRequest
+{
+    [Required(ErrorMessage = "邮箱或手机号不能为空")]
+    public string EmailOrPhone { get; set; } = string.Empty;
+}
+
+/// <summary>
+///     重置忘记的密码请求
+/// </summary>
+public class ResetForgotPasswordRequest
+{
+    [Required(ErrorMessage = "邮箱或手机号不能为空")]
+    public string EmailOrPhone { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "验证码不能为空")]
+    [StringLength(6, MinimumLength = 4, ErrorMessage = "验证码长度为 4-6 位")]
+    public string Code { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "新密码不能为空")]
+    [MinLength(6, ErrorMessage = "新密码至少需要6个字符")]
+    public string NewPassword { get; set; } = string.Empty;
+}
+
+/// <summary>
 ///     手机号登录请求
 /// </summary>
 public class PhoneLoginRequest

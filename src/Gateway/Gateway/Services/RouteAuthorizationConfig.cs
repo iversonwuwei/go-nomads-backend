@@ -13,6 +13,7 @@ public class RouteAuthorizationConfig
         // Authentication endpoints (v1 API)
         "/api/v1/auth/login",
         "/api/v1/auth/register",
+        "/api/v1/auth/forgot-password",
         "/api/v1/auth/refresh",
         "/api/v1/auth/logout",
         "/api/v1/auth/social-login",
@@ -42,7 +43,8 @@ public class RouteAuthorizationConfig
         "/api/v1/cities",        // 城市列表和详情
         "/api/v1/hotels",        // 酒店列表和详情
         "/api/v1/coworking",     // 共享办公空间列表和详情
-        "/api/v1/products"       // 产品列表和详情
+        "/api/v1/products",      // 产品列表和详情
+        "/api/v1/users/legal"    // 法律文档公开读取
     };
 
     /// <summary>
@@ -50,8 +52,9 @@ public class RouteAuthorizationConfig
     /// </summary>
     public static readonly HashSet<string> AdminRoutes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "/api/users/admin"
-        // 可以添加更多管理员路由
+        "/api/users/admin",
+        "/api/v1/admin/",
+        "/api/v1/reports"
     };
 
     /// <summary>

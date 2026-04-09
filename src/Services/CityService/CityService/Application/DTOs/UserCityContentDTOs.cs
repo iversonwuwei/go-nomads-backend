@@ -39,7 +39,16 @@ public class UserCityPhotoDto
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
     public DateTime? TakenAt { get; set; }
+    public string ModerationStatus { get; set; } = string.Empty;
+    public string? ModerationReason { get; set; }
+    public DateTime? ReviewedAt { get; set; }
+    public Guid? ReviewedBy { get; set; }
     public DateTime CreatedAt { get; set; }
+}
+
+public class ReviewCityPhotoRequest
+{
+    [MaxLength(1000)] public string? Reason { get; set; }
 }
 
 /// <summary>

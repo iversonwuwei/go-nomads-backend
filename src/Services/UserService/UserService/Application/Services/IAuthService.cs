@@ -8,9 +8,30 @@ namespace UserService.Application.Services;
 public interface IAuthService
 {
     /// <summary>
+    ///     发送注册验证码
+    /// </summary>
+    Task<SendVerificationCodeResponse> SendRegisterCodeAsync(
+        SendRegisterCodeRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     用户注册
     /// </summary>
     Task<AuthResponseDto> RegisterAsync(RegisterDto request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     发送找回密码验证码
+    /// </summary>
+    Task<SendVerificationCodeResponse> SendForgotPasswordCodeAsync(
+        SendForgotPasswordCodeRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     通过验证码重置密码
+    /// </summary>
+    Task ResetForgotPasswordAsync(
+        ResetForgotPasswordRequest request,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     用户登录

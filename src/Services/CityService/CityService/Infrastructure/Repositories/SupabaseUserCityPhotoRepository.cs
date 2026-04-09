@@ -61,6 +61,17 @@ public class SupabaseUserCityPhotoRepository : SupabaseRepositoryBase<UserCityPh
         return response.Models;
     }
 
+    public async Task<IEnumerable<UserCityPhoto>> GetApprovedByCityIdAsync(string cityId)
+    {
+        var response = await SupabaseClient
+            .From<UserCityPhoto>()
+            .Where(x => x.CityId == cityId && x.ModerationStatus == UserCityPhoto.ModerationStatuses.Approved)
+            .Order(x => x.CreatedAt, Constants.Ordering.Descending)
+            .Get();
+
+        return response.Models;
+    }
+
     public async Task<IEnumerable<UserCityPhoto>> GetByCityIdAndUserIdAsync(string cityId, Guid userId)
     {
         var response = await SupabaseClient
@@ -98,6 +109,18 @@ public class SupabaseUserCityPhotoRepository : SupabaseRepositoryBase<UserCityPh
         {
             return null;
         }
+    }
+
+    public async Task<UserCityPhoto> UpdateAsync(UserCityPhoto photo)
+    {
+        photo.UpdatedAt = DateTime.UtcNow;
+
+        var response = await SupabaseClient
+            .From<UserCityPhoto>()
+            .Where(x => x.Id == photo.Id)
+            .Update(photo);
+
+        return response.Models.First();
     }
 
     public async Task<bool> DeleteAsync(Guid id, Guid userId)

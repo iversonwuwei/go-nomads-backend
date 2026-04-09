@@ -77,6 +77,8 @@ AddRabbitMqEnv(innovationService);
 
 var accommodationService = builder.AddProject<Projects.AccommodationService>("accommodation-service");
 
+var configService = builder.AddProject<Projects.ConfigService>("config-service");
+
 var searchService = builder.AddProject<Projects.SearchService>("search-service")
 	.WithReference(rabbitmq)
 	.WithReference(elasticsearch)
@@ -108,6 +110,7 @@ var gateway = builder.AddProject<Projects.Gateway>("gateway")
 		ctx.EnvironmentVariables["ServiceUrls__SearchService"] = searchService.GetEndpoint("http");
 		ctx.EnvironmentVariables["ServiceUrls__AccommodationService"] = accommodationService.GetEndpoint("http");
 		ctx.EnvironmentVariables["ServiceUrls__ProductService"] = productService.GetEndpoint("http");
+		ctx.EnvironmentVariables["ServiceUrls__ConfigService"] = configService.GetEndpoint("http");
 	});
 
 // DocumentService needs inter-service URLs (defined after gateway)

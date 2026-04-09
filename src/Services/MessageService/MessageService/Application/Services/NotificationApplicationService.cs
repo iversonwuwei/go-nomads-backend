@@ -45,6 +45,30 @@ public class NotificationApplicationService : INotificationService
         return await _repository.GetUnreadCountAsync(userId, cancellationToken);
     }
 
+    public async Task<InboxSummaryDto> GetInboxSummaryAsync(string userId, int recentLimit = 5,
+        CancellationToken cancellationToken = default)
+    {
+        var safeRecentLimit = Math.Clamp(recentLimit, 1, 20);
+        var (notifications, totalCount) = await _repository.GetUserNotificationsAsync(
+            userId,
+            null,
+            1,
+            safeRecentLimit,
+            cancellationToken);
+        var unreadCount = await _repository.GetUnreadCountAsync(userId, cancellationToken);
+
+        return new InboxSummaryDto
+        {
+            UnreadNotifications = unreadCount,
+            TotalNotifications = totalCount,
+            ActionRequiredCount = notifications.Count(RequiresAction),
+            LatestNotificationAt = notifications.OrderByDescending(notification => notification.CreatedAt)
+                .Select(notification => (DateTime?)notification.CreatedAt)
+                .FirstOrDefault(),
+            RecentNotifications = notifications.Select(MapToDto).ToList()
+        };
+    }
+
     public async Task<NotificationDto> CreateNotificationAsync(
         CreateNotificationDto dto,
         CancellationToken cancellationToken = default)
@@ -318,5 +342,22 @@ public class NotificationApplicationService : INotificationService
             CreatedAt = notification.CreatedAt,
             ReadAt = notification.ReadAt
         };
+    }
+
+    private static bool RequiresAction(Notification notification)
+    {
+        if (notification.IsRead)
+            return false;
+
+        var type = notification.Type ?? string.Empty;
+        return type.Contains("approval", StringComparison.OrdinalIgnoreCase)
+               || type.Contains("invite", StringComparison.OrdinalIgnoreCase)
+               || type.Contains("request", StringComparison.OrdinalIgnoreCase)
+               || type.Contains("payment", StringComparison.OrdinalIgnoreCase)
+               || type.Contains("deadline", StringComparison.OrdinalIgnoreCase)
+               || type.Contains("review", StringComparison.OrdinalIgnoreCase)
+               || type.Contains("verify", StringComparison.OrdinalIgnoreCase)
+               || type.Contains("action", StringComparison.OrdinalIgnoreCase)
+               || type.Contains("reminder", StringComparison.OrdinalIgnoreCase);
     }
 }
