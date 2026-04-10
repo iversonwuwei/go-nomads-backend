@@ -7,7 +7,7 @@
 HOST="db.lcfbajrocmjlqndkrsao.supabase.co"
 PORT="6543"
 DATABASE="postgres"
-USER="postgres.lcfbajrocmjlqndkrsao"
+USER="postgres"
 PASSWORD="bwTyaM1eJ1TRIZI3"
 
 # SQL 文件路径

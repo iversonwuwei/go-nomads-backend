@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 DB_HOST="${SUPABASE_DB_HOST:-db.lcfbajrocmjlqndkrsao.supabase.co}"
 DB_PORT="${SUPABASE_DB_PORT:-5432}"
 DB_NAME="${SUPABASE_DB_NAME:-postgres}"
-DB_USER="${SUPABASE_DB_USER:-postgres.lcfbajrocmjlqndkrsao}"
+DB_USER="${SUPABASE_DB_USER:-postgres}"
 DB_PASSWORD="${SUPABASE_DB_PASSWORD}"
 
 # 迁移文件路径

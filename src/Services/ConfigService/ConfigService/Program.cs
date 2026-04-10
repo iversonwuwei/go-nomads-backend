@@ -97,8 +97,22 @@ builder.Services.AddScoped<IStaticTextService, StaticTextApplicationService>();
 builder.Services.AddScoped<IOptionGroupService, OptionGroupApplicationService>();
 builder.Services.AddScoped<IConfigPublishService, ConfigPublishApplicationService>();
 builder.Services.AddScoped<ISystemSettingService, SystemSettingApplicationService>();
+builder.Services.AddScoped<IAppConfigBootstrapService, AppConfigBootstrapApplicationService>();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var bootstrapService = scope.ServiceProvider.GetRequiredService<IAppConfigBootstrapService>();
+        await bootstrapService.BootstrapAsync();
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "app/config bootstrap 执行失败，服务将继续启动并保留现有配置状态");
+    }
+}
 
 // Configure the HTTP request pipeline
 app.MapOpenApi();

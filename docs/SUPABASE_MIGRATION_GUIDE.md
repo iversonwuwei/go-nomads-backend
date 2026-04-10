@@ -4,6 +4,12 @@
 
 本文档说明如何将所有 *Service 项目从 Entity Framework Core 模式迁移到 Supabase 直接集成模式。
 
+## 连接约定
+
+- 当 `ConnectionStrings:SupabaseDb` 使用直连主机 `db.<project-ref>.supabase.co` 时，用户名必须使用 `postgres`，不要混用 pooler 风格的 `postgres.<project-ref>`。
+- `postgres.<project-ref>` 只适用于对应的连接池入口；如果把它写到直连主机连接串里，Npgsql/psql 直连迁移会报 `no such user`。
+- 执行数据库迁移、一次性补库脚本或本地排障时，优先检查 host 与 username 是否属于同一接入方式。
+
 ## 支付字段通用化与旧字段退役计划
 
 ### 背景

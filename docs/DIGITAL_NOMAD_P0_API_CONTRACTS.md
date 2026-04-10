@@ -53,6 +53,7 @@
 
 ### P0 需要的最小接口集合
 
+- GET /api/v1/app/config
 - GET /api/v1/inbox/summary
 - GET /api/v1/cities/{cityId}/nomad-summary
 - GET /api/v1/migration-workspace
@@ -70,7 +71,250 @@
 - POST /api/v1/community/questions/{questionId}/upvote
 - POST /api/v1/community/answers/{answerId}/upvote
 
-## 4. Inbox Summary API
+## 4. App Config API
+
+### GET /api/v1/app/config
+
+#### 用途
+
+- 为 Flutter / Harmony 等客户端提供可发布的静态配置读取入口。
+- 当前最小落地范围: 社区准则正文、首次法律文档同意版本号、首次启动隐私弹窗的外围与交互文案、forgot-password 登录前找回密码流程文案、登录/注册页法律包装文案、登录前品牌/备案壳层文案、位置/日历/通知权限用途说明弹窗文案，以及位置权限请求弹窗/状态卡片文案。
+- 该接口允许匿名 GET 读取，适用于首次启动前或未登录状态下的静态内容展示。
+
+#### Response 200
+
+```json
+{
+  "version": 3,
+  "publishedAt": "2026-04-09T08:00:00Z",
+  "staticTexts": {
+    "legal.community_guidelines.sections_json": "[{\"title\":\"1. 尊重与友善\",\"content\":\"请尊重他人观点与文化差异。\"}]",
+    "legal.first_launch.dialog.title": "服务协议与隐私政策",
+    "legal.first_launch.dialog.intro": "欢迎使用行途（Go-Nomads）！为了继续使用应用，请您阅读并同意《隐私政策》和《用户协议》。",
+    "legal.first_launch.dialog.privacy_checkbox_prefix": "我已阅读并同意",
+    "legal.first_launch.dialog.terms_checkbox_prefix": "我已阅读并同意",
+    "legal.first_launch.dialog.decline_tip_prefix": "如果您不同意上述法律文档，将无法继续使用本应用。您可以随时在设置中查看完整的",
+    "legal.first_launch.dialog.sdk_link_label": "第三方SDK清单",
+    "legal.first_launch.dialog.agree_button": "同意并继续",
+    "legal.first_launch.dialog.reject_button": "不同意并退出",
+    "legal.first_launch.dialog.summary_fallback_title": "法律文档说明",
+    "legal.first_launch.dialog.summary_fallback_content": "我们重视您的隐私与使用权益。请查看完整隐私政策、用户协议和第三方 SDK 清单。",
+    "legal.first_launch.dialog.unchecked_toast_title": "需要同意条款",
+    "legal.first_launch.dialog.unchecked_toast_message": "请先同意隐私政策和用户协议",
+    "legal.first_launch.dialog.decline_confirm_title": "温馨提示",
+    "legal.first_launch.dialog.decline_confirm_message": "如果您不同意隐私政策和用户协议，将无法使用本应用的相关功能。\n\n我们非常重视您的隐私安全，收集的信息仅用于为您提供更好的服务。\n\n您确定不同意吗？",
+    "legal.first_launch.dialog.decline_confirm_cancel": "再想想",
+    "legal.first_launch.dialog.decline_confirm_exit": "确认退出",
+    "auth.forgot_password.step.account.title": "找回密码",
+    "auth.forgot_password.step.account.description": "请输入您的邮箱或手机号\n我们将发送验证码帮助您重置密码",
+    "auth.forgot_password.step.account.input_label": "邮箱或手机号",
+    "auth.forgot_password.step.account.send_code_button": "发送验证码",
+    "auth.forgot_password.step.verify.title": "验证身份",
+    "auth.forgot_password.step.verify.description_template": "验证码已发送至\n{target}",
+    "auth.forgot_password.step.verify.code_label": "验证码",
+    "auth.forgot_password.step.verify.resend_countdown_template": "{seconds}s 后重新发送",
+    "auth.forgot_password.step.verify.resend_button": "重新发送验证码",
+    "auth.forgot_password.step.verify.next_button": "下一步",
+    "auth.forgot_password.step.reset.title": "设置新密码",
+    "auth.forgot_password.step.reset.description": "请设置您的新密码",
+    "auth.forgot_password.step.reset.new_password_label": "新密码",
+    "auth.forgot_password.step.reset.confirm_password_label": "确认密码",
+    "auth.forgot_password.step.reset.submit_button": "重置密码",
+    "auth.forgot_password.toast.account_required": "请输入邮箱或手机号",
+    "auth.forgot_password.toast.code_sent_email": "验证码已发送到邮箱",
+    "auth.forgot_password.toast.code_sent_phone": "验证码已发送到手机",
+    "auth.forgot_password.toast.send_failed_fallback": "发送验证码失败，请稍后重试",
+    "auth.forgot_password.toast.code_required": "请输入验证码",
+    "auth.forgot_password.toast.code_incomplete": "请输入完整的验证码",
+    "auth.forgot_password.toast.new_password_required": "请输入新密码",
+    "auth.forgot_password.toast.password_min_length": "密码至少需要6个字符",
+    "auth.forgot_password.toast.confirm_password_required": "请确认新密码",
+    "auth.forgot_password.toast.password_mismatch": "两次输入的密码不一致",
+    "auth.forgot_password.toast.reset_success": "密码重置成功，请使用新密码登录",
+    "auth.forgot_password.toast.reset_failed_fallback": "重置密码失败，请稍后重试",
+    "auth.login.terms.prefix": "我已阅读并同意 ",
+    "auth.login.terms.connector": " 和 ",
+    "auth.login.terms.suffix": "。",
+    "auth.register.terms.prefix": "我已阅读并同意 ",
+    "auth.register.terms.connector": " 和 ",
+    "auth.register.terms.community_prefix": "，并遵守 ",
+    "auth.register.terms.suffix": "。",
+    "auth.legal_links.prefix": "继续使用即表示您同意 ",
+    "auth.legal_links.connector": " 与 ",
+    "auth.legal_links.suffix": "。",
+    "auth.login.header.title": "欢迎",
+    "auth.login.header.subtitle": "登录",
+    "auth.login.link.register_prefix": "Let's Go",
+    "auth.login.community.title": "加入 38,000+ 游牧者",
+    "auth.login.community.subtitle": "在全球各地生活和工作",
+    "auth.login.community.badge.meetups": "363 场聚会/年",
+    "auth.login.community.badge.messages": "15k+ 消息",
+    "auth.login.community.badge.cities": "100+ 城市",
+    "auth.register.header.title": "成为数字游民",
+    "auth.register.header.subtitle": "加入全球远程工作者社区",
+    "auth.register.link.login_prefix": "已有账号?",
+    "auth.register.highlights.title": "加入 38,000+ 会员并获得:",
+    "auth.register.highlights.meetups.title": "参加 363 场聚会/年",
+    "auth.register.highlights.meetups.subtitle": "在全球 100+ 城市",
+    "auth.register.highlights.people.title": "结识新朋友",
+    "auth.register.highlights.people.subtitle": "用于约会和交友",
+    "auth.register.highlights.destinations.title": "研究目的地",
+    "auth.register.highlights.destinations.subtitle": "找到最适合您的居住地",
+    "auth.register.highlights.chat.title": "加入专属聊天",
+    "auth.register.highlights.chat.subtitle": "本月发送了 15,000+ 条消息",
+    "auth.register.highlights.travels.title": "记录您的旅行",
+    "auth.register.highlights.travels.subtitle": "分享您的旅程",
+    "legal.first_launch.dialog.decline_tip_link_separator": "、",
+    "legal.first_launch.dialog.decline_tip_link_final_connector": "和",
+    "legal.first_launch.dialog.decline_tip_suffix": "。",
+    "auth.login.form.tab.email": "邮箱登录",
+    "auth.login.form.tab.phone": "手机登录",
+    "auth.login.form.email.label": "邮箱",
+    "auth.login.form.email.hint": "邮箱",
+    "auth.login.form.password.label": "密码",
+    "auth.login.form.password.hint": "密码",
+    "auth.login.form.remember_me": "记住我",
+    "auth.login.form.forgot_password": "忘记密码?",
+    "auth.login.form.submit_email_button": "点击登录/注册",
+    "auth.login.form.phone.label": "手机号",
+    "auth.login.form.phone.hint": "请输入手机号",
+    "auth.login.form.sms_code.label": "验证码",
+    "auth.login.form.sms_code.hint": "请输入验证码",
+    "auth.login.form.sms_code.send_button": "获取验证码",
+    "auth.login.form.sms_code.countdown_template": "{seconds}s",
+    "auth.login.form.submit_phone_button": "点击登录/注册",
+    "auth.login.form.error.email_required": "请输入邮箱",
+    "auth.login.form.error.email_invalid": "邮箱格式不正确",
+    "auth.login.form.error.password_required": "请输入密码",
+    "auth.login.form.error.phone_required": "请输入手机号",
+    "auth.login.form.error.phone_invalid": "请输入正确的手机号",
+    "auth.login.form.error.sms_code_required": "请输入验证码",
+    "auth.login.feedback.terms_required_title": "需要同意条款",
+    "auth.login.feedback.terms_required_message": "请先同意服务条款与隐私政策",
+    "auth.login.feedback.phone_required": "请输入手机号",
+    "auth.login.feedback.phone_invalid": "请输入有效的中国大陆手机号",
+    "auth.login.feedback.sms_code_sent": "验证码已发送",
+    "auth.login.feedback.send_failed": "发送失败，请稍后重试",
+    "auth.login.feedback.send_sms_failed": "发送验证码失败，请稍后重试",
+    "auth.login.feedback.welcome_back": "欢迎回来",
+    "auth.login.feedback.login_success_title": "登录成功",
+    "auth.login.feedback.invalid_email_or_password": "邮箱或密码错误",
+    "auth.login.feedback.login_failed_title": "登录失败",
+    "auth.login.feedback.unknown_error_retry": "登录失败，请重试",
+    "auth.login.feedback.login_failed_retry": "登录失败，请重试",
+    "auth.login.feedback.sms_code_invalid_or_expired": "验证码无效或已过期",
+    "auth.login.feedback.social_loading_title_template": "正在使用 {platform} 登录",
+    "auth.login.feedback.please_wait": "请稍候...",
+    "auth.login.feedback.social_failed_template": "{platform} 登录失败，请稍后重试",
+    "auth.login.social.divider": "或使用以下方式继续",
+    "auth.login.social.label.wechat": "微信",
+    "auth.login.social.label.qq": "QQ",
+    "auth.login.social.label.apple": "Apple",
+    "auth.login.social.label.google": "Google",
+    "auth.login.social.label.twitter": "Twitter",
+    "auth.login.social.label.facebook": "Facebook",
+    "auth.login.social.facebook_unavailable_title": "使用 Facebook 继续",
+    "auth.login.social.facebook_unavailable_message": "该登录方式即将开放",
+    "auth.register.form.username.label": "用户名",
+    "auth.register.form.username.hint": "选择您的用户名",
+    "auth.register.form.email.label": "邮箱",
+    "auth.register.form.email.hint": "邮箱",
+    "auth.register.form.verification_code.label": "验证码",
+    "auth.register.form.verification_code.hint": "请输入验证码",
+    "auth.register.form.verification_code.send_button": "获取验证码",
+    "auth.register.form.verification_code.countdown_template": "{seconds}s",
+    "auth.register.form.verification_code.resend_button": "重新发送",
+    "auth.register.form.password.label": "密码",
+    "auth.register.form.password.hint": "创建密码",
+    "auth.register.form.confirm_password.label": "确认密码",
+    "auth.register.form.confirm_password.hint": "重新输入密码",
+    "auth.register.form.submit_button": "加入行途",
+    "auth.register.form.toast.terms_required_title": "需要同意条款",
+    "auth.register.form.toast.terms_required_message": "请同意服务条款和社区准则",
+    "auth.register.form.toast.welcome_message": "欢迎加入 Nomads 社区!",
+    "auth.register.form.toast.success_title": "成功",
+    "auth.register.form.error.username_required": "请输入用户名",
+    "auth.register.form.error.username_min_length": "用户名至少需要3个字符",
+    "auth.register.form.error.email_required": "请输入邮箱",
+    "auth.register.form.error.email_invalid": "邮箱格式不正确",
+    "auth.register.form.error.verification_code_required": "请输入验证码",
+    "auth.register.form.error.verification_code_length": "验证码必须为6位",
+    "auth.register.form.error.password_required": "请输入密码",
+    "auth.register.form.error.password_min_length": "密码至少6位",
+    "auth.register.form.error.confirm_password_required": "请确认您的密码",
+    "auth.register.form.error.passwords_not_match": "密码不匹配",
+    "auth.register.feedback.code_sent_to_email": "验证码已发送到邮箱",
+    "auth.register.feedback.send_failed": "发送失败，请稍后重试",
+    "auth.register.feedback.send_code_failed_retry": "验证码发送失败，请稍后重试",
+    "auth.register.feedback.register_failed_check_input": "注册失败，请检查输入信息",
+    "auth.register.feedback.register_failed_title": "注册失败",
+    "auth.register.feedback.register_failed_process_error": "注册失败，请稍后重试",
+    "brand.loading.title": "行途 Go Nomads",
+    "brand.loading.tagline": "Explore cities, workspaces and community",
+    "brand.footer.copyright": "© 大连素辉软件科技有限公司 All Rights Reserved",
+    "brand.footer.icp_record": "辽ICP备2026001591号",
+    "permission.location.purpose_dialog_json": "{\"title\":\"需要使用您的位置信息\",\"description\":\"行途需要获取您的位置权限，用于以下功能：\",\"purposes\":[\"为您推荐附近的城市和目的地\",\"查找您附近的活动和聚会\",\"发现附近的共享办公空间\",\"提供地图导航和位置选择功能\"],\"note\":\"我们仅在您使用相关功能时获取位置信息，不会在后台持续追踪您的位置。您可以随时在系统设置中关闭位置权限。\",\"confirmText\":\"继续\"}",
+    "permission.calendar.purpose_dialog_json": "{\"title\":\"需要访问您的日历\",\"description\":\"行途需要获取日历权限，用于以下功能：\",\"purposes\":[\"将活动和聚会添加到您的日历中\",\"设置活动提醒，避免错过精彩活动\"],\"note\":\"我们仅在您主动点击\\\"添加到日历\\\"时访问日历，不会读取您的其他日历信息。\",\"confirmText\":\"继续\"}",
+    "permission.notification.purpose_dialog_json": "{\"title\":\"需要发送通知\",\"description\":\"行途需要通知权限，用于以下功能：\",\"purposes\":[\"旅行指南生成完成通知\",\"新消息和互动提醒\",\"活动开始前提醒\"],\"note\":\"您可以随时在应用设置或系统设置中关闭通知。\",\"confirmText\":\"继续\"}",
+    "permission.location.dialog.title": "需要位置权限",
+    "permission.location.dialog.description": "我们需要访问您的位置信息,以便为您推荐附近的城市和提供基于位置的服务",
+    "permission.location.dialog.cancel_button": "取消",
+    "permission.location.dialog.confirm_button": "授予权限",
+    "permission.location.status.loading": "正在获取位置...",
+    "permission.location.status.disabled": "位置未启用",
+    "permission.location.status.enable_action": "启用"
+  },
+  "optionGroups": {},
+  "systemSettings": {
+    "legal_documents": {
+      "privacy_policy_version": {
+        "label": "Privacy Policy Version",
+        "valueType": "string",
+        "value": "2026.04.09",
+        "defaultValue": null,
+        "description": "Current accepted version for first-launch privacy consent"
+      },
+      "terms_of_service_version": {
+        "label": "Terms of Service Version",
+        "valueType": "string",
+        "value": "2026.04.09",
+        "defaultValue": null,
+        "description": "Current accepted version for first-launch terms consent"
+      }
+    }
+  }
+}
+```
+
+#### 说明
+
+- `staticTexts` 为 locale 过滤后的最终结果；客户端不需要再处理多语言字典，只按 key 读取即可。
+- `legal.community_guidelines.sections_json` 由客户端按 JSON 数组解析，数组元素包含 `title` 与 `content`。
+- `legal.first_launch.dialog.*` 用于首次启动隐私弹窗的外围与交互文案，包括摘要兜底、未勾选提示、拒绝确认弹窗按钮以及 decline tip 中三个文档链接之间的连接符/结尾标点；法律文档摘要卡片仍继续读取 `/api/v1/users/legal/privacy-policy` 返回的 `summary`，隐私政策与用户协议链接标题优先读取对应 legal document 的 `title`。
+- `auth.forgot_password.*` 用于登录前找回密码三步流的标题、步骤说明、按钮和 toast 文案；`auth.forgot_password.step.verify.description_template` 必须包含 `{target}` 占位符，`auth.forgot_password.step.verify.resend_countdown_template` 必须包含 `{seconds}` 占位符。
+- `auth.login.terms.*`、`auth.register.terms.*`、`auth.legal_links.*` 用于登录/注册页法律链接外围包装文案；terms / privacy / community 三个链接标题本身不在本轮下沉，继续保持现有来源与跳转。
+- `auth.login.header.*`、`auth.login.link.register_prefix`、`auth.login.community.*`、`auth.register.header.*`、`auth.register.link.login_prefix`、`auth.register.highlights.*` 用于登录/注册第一页的欢迎 header、跨页跳转提示和 marketing/highlight 文案；仅迁移外层展示 copy，不改变登录方式、注册提交流程、图标或布局。
+- `auth.login.form.*`、`auth.register.form.*` 用于登录/注册表单入口中的 tab、字段标题、placeholder、字段级错误提示、验证码发送按钮、倒计时模板、主 CTA 和注册成功前置 toast 文案；不迁移校验规则、接口错误信息或实际提交逻辑。倒计时模板必须包含 `{seconds}` 占位符。
+- `auth.login.feedback.*`、`auth.register.feedback.*` 用于登录/注册入口动作后的公开反馈 copy，包括协议未勾选提醒、验证码发送结果、登录成功/失败 toast、社交登录 loading 文案和注册失败提示；服务端真实报错若已返回 message，客户端仍优先展示接口 message，只在缺省时回退这些静态文案。
+- `auth.login.social.*` 用于登录页社交登录区域中的分隔线、平台按钮标签和暂未开放入口提示；只迁移展示 copy，不改变 provider 可用性、平台分流、图标品牌或真实社交登录调用逻辑。
+- `brand.loading.*`、`brand.footer.*` 用于 loading 页品牌标题/副标题与页面底部版权/备案展示；仅承载公开展示文案，不包含任何内部运营或敏感配置。
+- `permission.location.purpose_dialog_json`、`permission.calendar.purpose_dialog_json`、`permission.notification.purpose_dialog_json` 用于权限申请前用途说明弹窗；客户端按 JSON 解析 `title`、`description`、`purposes[]`、`note`、`confirmText`，图标和配色仍由客户端本地决定。
+- `permission.location.dialog.*`、`permission.location.status.*` 用于位置权限请求弹窗与位置状态卡片的标题、描述、按钮和状态提示；仅迁移文案 ownership，不改变定位申请、刷新或布局行为。
+- `systemSettings.legal_documents.privacy_policy_version` 与 `terms_of_service_version` 用于客户端本地 consent cache 的版本判断；法律文档正文本身仍以 `/api/v1/users/legal/*` 为 source of truth。
+- ConfigService 启动时会自检并补齐最小必需 key：`legal.community_guidelines.sections_json`、`legal.first_launch.dialog.*`、`auth.forgot_password.*`、`auth.login.terms.*`、`auth.register.terms.*`、`auth.legal_links.*`、`auth.login.header.*`、`auth.login.link.register_prefix`、`auth.login.community.*`、`auth.login.form.*`、`auth.login.feedback.*`、`auth.login.social.*`、`auth.register.header.*`、`auth.register.link.login_prefix`、`auth.register.highlights.*`、`auth.register.form.*`、`auth.register.feedback.*`、`brand.loading.*`、`brand.footer.*`、`permission.*.purpose_dialog_json`、`permission.location.dialog.*`、`permission.location.status.*`（均覆盖 `zh-CN`/`en-US`）以及 `legal_documents.privacy_policy_version`、`legal_documents.terms_of_service_version`；若当前已发布快照缺失或与库内当前值不一致，会自动重新发布。对于仍由 bootstrap 持有的默认静态文本，若数据库值与代码种子发生漂移，也会自动纠正；管理员已改写过的文案不会被回写覆盖。
+- Admin 侧修改这些静态文本时，鉴权链路以 Gateway 的 `/api/v1/admin/*` admin 校验为准；ConfigService 仅消费 Gateway 透传的 `X-User-Id` / `X-User-Email` / `X-User-Role` 做权限判断，避免服务内旧 JWT 配置与 Supabase access token 冲突导致后台治理入口失效。
+
+#### 错误语义
+
+- 404: 尚未发布任何配置，客户端应回退到本地默认值。
+- 500: ConfigService 读取失败，客户端应回退到本地默认值。
+
+#### 发布安全与回退
+
+- 新增 key 必须遵循“先发布配置，再上线消费代码”或“消费代码带本地 fallback”的原则，避免发布顺序导致客户端白屏。
+- 对匿名可读的配置项，只允许包含可公开展示的文案和非敏感系统设置；任何 secret 或管理员内部配置不得通过该接口返回。
+
+## 5. Inbox Summary API
 
 ### GET /api/v1/inbox/summary
 

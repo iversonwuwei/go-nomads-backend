@@ -13,9 +13,9 @@ connection_params = {
     "host": "db.lcfbajrocmjlqndkrsao.supabase.co",
     "port": 6543,
     "database": "postgres",
-    "user": "postgres.lcfbajrocmjlqndkrsao",
+    "user": "postgres",
     "password": "bwTyaM1eJ1TRIZI3",
-    "sslmode": "require"
+    "sslmode": "require",
 }
 
 # SQL 文件路径

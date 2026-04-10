@@ -26,6 +26,7 @@
 
 - P0、P1、P2 对应 backend 缺口现已完成实现并通过最小编译验证。
 - Gateway 已同步放开匿名 `forgot-password` 路径与 `GET /api/v1/users/legal*`，并对 `/api/v1/admin/*` 与 `/api/v1/reports*` 施加网关层 admin 校验。
+- ConfigService 的 `/api/v1/admin/static-texts`、`/api/v1/admin/option-groups`、`/api/v1/admin/config/*` 也属于同一条 admin 鉴权链路：Gateway 负责 JWT 校验与 admin 角色收口，服务内通过 `X-User-*` 用户上下文做二次权限判断，不应再叠加一套只识别旧 `JwtSettings` 的 controller 级 JWT 拦截，否则会出现 admin 后台已登录但配置管理页返回 401 的漂移问题。
 - 当前剩余问题已从“backend 缺口”收敛为“admin 工程字段映射与交互语义对齐”：
   - 城市图片审核页需要消费真实审核字段 `moderationStatus` / `reviewedAt`
   - 法律文档列表页需要按 `documentType` / `effectiveDate` / `isCurrent` 映射展示

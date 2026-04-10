@@ -35,7 +35,7 @@ if command -v psql &> /dev/null; then
     PGPASSWORD="bwTyaM1eJ1TRIZI3" psql \
         -h "db.lcfbajrocmjlqndkrsao.supabase.co" \
         -p 6543 \
-        -U "postgres.lcfbajrocmjlqndkrsao" \
+        -U "postgres" \
         -d "postgres" \
         -f "$SQL_FILE"
     

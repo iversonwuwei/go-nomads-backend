@@ -24,7 +24,7 @@ if (-not $env:SUPABASE_DB_URL) {
     Write-Host "❌ 未设置 SUPABASE_DB_URL 环境变量" -ForegroundColor Red
     Write-Host ""
     Write-Host "请设置数据库连接字符串:" -ForegroundColor Yellow
-    Write-Host '  $env:SUPABASE_DB_URL = "postgresql://postgres.xxx:password@host:port/postgres"' -ForegroundColor Gray
+    Write-Host '  $env:SUPABASE_DB_URL = "postgresql://postgres:password@host:port/postgres"' -ForegroundColor Gray
     Write-Host ""
     exit 1
 }

@@ -75,7 +75,7 @@
 export PGHOST="db.lcfbajrocmjlqndkrsao.supabase.co"
 export PGPORT="6543"
 export PGDATABASE="postgres"
-export PGUSER="postgres.lcfbajrocmjlqndkrsao"
+export PGUSER="postgres"
 export PGPASSWORD="bwTyaM1eJ1TRIZI3"
 
 # 执行脚本
@@ -88,7 +88,7 @@ psql -f database/migrations/insert_skills_and_interests.sql
    - Host: `db.lcfbajrocmjlqndkrsao.supabase.co`
    - Port: `6543`
    - Database: `postgres`
-   - User: `postgres.lcfbajrocmjlqndkrsao`
+   - User: `postgres`
    - Password: `bwTyaM1eJ1TRIZI3`
 
 2. 打开 SQL 文件 `insert_skills_and_interests.sql`

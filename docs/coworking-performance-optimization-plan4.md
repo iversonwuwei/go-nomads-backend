@@ -67,7 +67,7 @@
 
 ```bash
 # 连接到 Supabase 数据库执行迁移
-psql "postgresql://postgres.lcfbajrocmjlqndkrsao:PASSWORD@db.lcfbajrocmjlqndkrsao.supabase.co:6543/postgres" \
+psql "postgresql://postgres:PASSWORD@db.lcfbajrocmjlqndkrsao.supabase.co:6543/postgres" \
   -f migrations/20260106_add_redundant_fields_to_coworking_spaces.sql
 ```
 

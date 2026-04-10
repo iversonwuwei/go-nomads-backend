@@ -4,7 +4,7 @@
 DB_HOST="db.lcfbajrocmjlqndkrsao.supabase.co"
 DB_PORT="6543"
 DB_NAME="postgres"
-DB_USER="postgres.lcfbajrocmjlqndkrsao"
+DB_USER="postgres"
 DB_PASSWORD="bwTyaM1eJ1TRIZI3"
 
 # 创建 event_followers 表的 SQL

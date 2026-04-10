@@ -6,7 +6,7 @@
 PGPASSWORD="bwTyaM1eJ1TRIZI3" psql \
   -h db.lcfbajrocmjlqndkrsao.supabase.co \
   -p 6543 \
-  -U postgres.lcfbajrocmjlqndkrsao \
+  -U postgres \
   -d postgres \
   -c "ALTER TABLE public.coworking_spaces DISABLE ROW LEVEL SECURITY;"
 

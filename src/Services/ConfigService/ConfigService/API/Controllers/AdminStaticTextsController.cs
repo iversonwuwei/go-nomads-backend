@@ -2,14 +2,12 @@ using ConfigService.Application.DTOs;
 using ConfigService.Application.Services;
 using GoNomads.Shared.DTOs;
 using GoNomads.Shared.Services;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ConfigService.API.Controllers;
 
 [ApiController]
 [Route("api/v1/admin/static-texts")]
-[Authorize]
 public class AdminStaticTextsController : ControllerBase
 {
     private readonly IStaticTextService _staticTextService;

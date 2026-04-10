@@ -21,7 +21,7 @@
 - Host: `db.lcfbajrocmjlqndkrsao.supabase.co`
 - Port: `6543`
 - Database: `postgres`
-- Username: `postgres.lcfbajrocmjlqndkrsao`
+- Username: `postgres`
 - Password: `bwTyaM1eJ1TRIZI3`
 - SSL: Require
 

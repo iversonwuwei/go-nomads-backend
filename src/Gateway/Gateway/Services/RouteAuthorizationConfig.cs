@@ -44,7 +44,8 @@ public class RouteAuthorizationConfig
         "/api/v1/hotels",        // 酒店列表和详情
         "/api/v1/coworking",     // 共享办公空间列表和详情
         "/api/v1/products",      // 产品列表和详情
-        "/api/v1/users/legal"    // 法律文档公开读取
+        "/api/v1/users/legal",   // 法律文档公开读取
+        "/api/v1/app/config"     // App 发布配置公开读取
     };
 
     /// <summary>

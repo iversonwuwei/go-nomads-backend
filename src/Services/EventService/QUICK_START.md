@@ -14,7 +14,7 @@
 **方式 B - 使用 PowerShell 脚本**
 ```powershell
 # 设置数据库连接
-$env:SUPABASE_DB_URL = "postgresql://postgres.xxx:password@host:port/postgres"
+$env:SUPABASE_DB_URL = "postgresql://postgres:password@host:port/postgres"
 
 # 执行脚本
 ./execute-event-types-migration.ps1
