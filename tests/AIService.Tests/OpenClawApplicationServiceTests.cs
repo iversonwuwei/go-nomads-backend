@@ -55,7 +55,7 @@ public class OpenClawApplicationServiceTests
 
         Assert.NotNull(handler.LastRequest);
         Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
-        Assert.Equal("http://localhost:8080/v1/chat/completions", handler.LastRequest.RequestUri!.ToString());
+        Assert.Equal("http://localhost:5223/v1/chat/completions", handler.LastRequest.RequestUri!.ToString());
 
         using var payloadDocument = JsonDocument.Parse(handler.LastRequestBody!);
         var root = payloadDocument.RootElement;
@@ -107,7 +107,7 @@ public class OpenClawApplicationServiceTests
     {
         var httpClient = new HttpClient(handler)
         {
-            BaseAddress = new Uri("http://localhost:8080")
+            BaseAddress = new Uri("http://localhost:5223")
         };
 
         var httpClientFactory = new Mock<IHttpClientFactory>();
@@ -118,7 +118,7 @@ public class OpenClawApplicationServiceTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["OpenClaw:BaseUrl"] = "http://localhost:8080"
+                ["OpenClaw:BaseUrl"] = "http://localhost:5223"
             })
             .Build();
 

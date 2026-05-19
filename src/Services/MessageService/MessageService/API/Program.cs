@@ -82,7 +82,7 @@ builder.Services.AddSignalR(options =>
         options.StreamBufferCapacity = 20; // 流缓冲区容量
     })
     .AddStackExchangeRedis(builder.Configuration.GetConnectionString("Redis")
-                           ?? "localhost:6379",
+                           ?? "localhost:5300",
         options => { options.Configuration.ChannelPrefix = RedisChannel.Literal("MessageService"); });
 
 // 配置 MassTransit + RabbitMQ
@@ -237,7 +237,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFlutter", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:8080")
+        policy.WithOrigins("http://localhost:5100", "http://localhost:5101")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -267,6 +267,6 @@ app.MapHub<NotificationHub>("/hubs/notifications");
 app.MapHub<ChatHub>("/hubs/chat");
 
 Log.Information("MessageService 启动成功，监听端口: {Port}",
-    builder.Configuration["ASPNETCORE_URLS"] ?? "http://+:8080");
+    builder.Configuration["ASPNETCORE_URLS"] ?? "http://+:5005");
 
 app.Run();

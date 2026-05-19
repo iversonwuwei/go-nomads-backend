@@ -1,0 +1,30 @@
+{
+  "success": true,
+  "message": "City region tabs retrieved successfully",
+  "data": [
+    {
+      "key": "Asia",
+      "label": "Asia",
+      "cityCount": 1,
+      "displayOrder": 1
+    },
+    {
+      "key": "Europe",
+      "label": "Europe",
+      "cityCount": 1,
+      "displayOrder": 2
+    },
+    {
+      "key": "North America",
+      "label": "North America",
+      "cityCount": 1,
+      "displayOrder": 3
+    },
+    {
+      "key": "Other",
+      "label": "Other",
+      "cityCount": 2,
+      "displayOrder": 998
+    }
+  ]
+}

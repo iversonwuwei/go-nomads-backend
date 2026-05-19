@@ -23,8 +23,7 @@ RUN dotnet publish "Gateway.csproj" -c Release -o /app/publish /p:UseAppHost=fal
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
-EXPOSE 8080
-EXPOSE 50003
+EXPOSE 5000
 
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "Gateway.dll"]

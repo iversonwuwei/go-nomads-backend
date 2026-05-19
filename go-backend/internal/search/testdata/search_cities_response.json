@@ -1,0 +1,35 @@
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "document": {
+          "id": "city-1",
+          "name": "Lisbon",
+          "country": "Portugal",
+          "overallScore": 4.7,
+          "isActive": true,
+          "createdAt": "2026-05-07T10:00:00Z",
+          "documentType": "city",
+          "userCount": 120,
+          "moderatorCount": 1,
+          "coworkingCount": 18,
+          "meetupCount": 9,
+          "reviewCount": 42
+        },
+        "score": 9.8,
+        "highlights": {
+          "name": [
+            "<em>Lisbon</em>"
+          ]
+        }
+      }
+    ],
+    "totalCount": 1,
+    "took": 12,
+    "page": 1,
+    "pageSize": 20,
+    "totalPages": 1,
+    "hasMore": false
+  }
+}

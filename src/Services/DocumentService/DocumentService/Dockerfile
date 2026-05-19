@@ -4,7 +4,8 @@
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 USER $APP_UID
 WORKDIR /app
-EXPOSE 8080
+EXPOSE 5003
+ENV ASPNETCORE_URLS=http://+:5003
 
 
 # 此阶段用于生成服务项目

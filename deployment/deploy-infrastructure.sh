@@ -151,7 +151,7 @@ deploy_redis() {
     $CONTAINER_RUNTIME run -d \
         --name go-nomads-redis \
         --network "$NETWORK_NAME" \
-        -p 6379:6379 \
+        -p 5300:6379 \
         "$REDIS_IMAGE" > /dev/null
     
     if container_running "go-nomads-redis"; then
@@ -172,9 +172,9 @@ import_redis_config() {
     local configs=(
         "go-nomads:config:app-version" "1.0.0"
         "go-nomads:config:environment" "development"
-        "go-nomads:config:gateway:endpoint" "http://go-nomads-gateway:8080"
-        "go-nomads:config:product-service:endpoint" "http://go-nomads-product-service:8080"
-        "go-nomads:config:user-service:endpoint" "http://go-nomads-user-service:8080"
+        "go-nomads:config:gateway:endpoint" "http://go-nomads-gateway:5000"
+        "go-nomads:config:product-service:endpoint" "http://go-nomads-product-service:5002"
+        "go-nomads:config:user-service:endpoint" "http://go-nomads-user-service:5001"
         "go-nomads:config:redis:endpoint" "go-nomads-redis:6379"
         "go-nomads:config:logging:level" "info"
         "go-nomads:config:logging:format" "json"
@@ -210,15 +210,15 @@ deploy_rabbitmq() {
     $CONTAINER_RUNTIME run -d \
         --name go-nomads-rabbitmq \
         --network "$NETWORK_NAME" \
-        -p 5672:5672 \
-        -p 15672:15672 \
+        -p 5301:5672 \
+        -p 5302:15672 \
         -e RABBITMQ_DEFAULT_USER=walden \
         -e RABBITMQ_DEFAULT_PASS=walden \
         "$RABBITMQ_IMAGE" > /dev/null
     
     if container_running "go-nomads-rabbitmq"; then
         echo -e "${GREEN}  RabbitMQ deployed successfully!${NC}"
-        wait_for_service "RabbitMQ" "http://localhost:15672" 30 || true
+        wait_for_service "RabbitMQ" "http://localhost:5302" 30 || true
     else
         echo -e "${RED}  [ERROR] Failed to start RabbitMQ${NC}"
         exit 1
@@ -235,7 +235,7 @@ deploy_postgres() {
     $CONTAINER_RUNTIME run -d \
         --name go-nomads-postgres \
         --network "$NETWORK_NAME" \
-        -p 5432:5432 \
+        -p 5307:5432 \
         -e POSTGRES_USER=postgres \
         -e POSTGRES_PASSWORD=postgres \
         -e POSTGRES_DB=gonomads \
@@ -243,7 +243,7 @@ deploy_postgres() {
     
     if container_running "go-nomads-postgres"; then
         echo -e "${GREEN}  PostgreSQL deployed successfully!${NC}"
-        wait_for_service "PostgreSQL" "http://localhost:5432" 10 || true
+        wait_for_service "PostgreSQL" "http://localhost:5307" 10 || true
     else
         echo -e "${RED}  [ERROR] Failed to start PostgreSQL${NC}"
         exit 1
@@ -260,8 +260,8 @@ deploy_elasticsearch() {
     $CONTAINER_RUNTIME run -d \
         --name go-nomads-elasticsearch \
         --network "$NETWORK_NAME" \
-        -p 9200:9200 \
-        -p 9300:9300 \
+        -p 5303:9200 \
+        -p 5304:9300 \
         -e "discovery.type=single-node" \
         -e "xpack.security.enabled=false" \
         -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" \
@@ -269,7 +269,7 @@ deploy_elasticsearch() {
     
     if container_running "go-nomads-elasticsearch"; then
         echo -e "${GREEN}  Elasticsearch deployed successfully!${NC}"
-        wait_for_service "Elasticsearch" "http://localhost:9200" 30 || true
+        wait_for_service "Elasticsearch" "http://localhost:5303" 30 || true
     else
         echo -e "${RED}  [ERROR] Failed to start Elasticsearch${NC}"
         exit 1
@@ -292,8 +292,8 @@ deploy_nginx() {
     $CONTAINER_RUNTIME run -d \
         --name go-nomads-nginx \
         --network "$NETWORK_NAME" \
-        -p 80:80 \
-        -p 443:443 \
+        -p 5305:80 \
+        -p 5343:443 \
         -v "$nginx_conf:/etc/nginx/conf.d/default.conf:ro" \
         "$NGINX_IMAGE" > /dev/null
     
@@ -321,10 +321,10 @@ show_status() {
     fi
     
     echo -e "${YELLOW}Access URLs:${NC}"
-    echo -e "${CYAN}  - Nginx:          http://localhost${NC}"
-    echo -e "${CYAN}  - RabbitMQ UI:    http://localhost:15672 (walden/walden)${NC}"
-    echo -e "${CYAN}  - PostgreSQL:     localhost:5432 (postgres/postgres)${NC}"
-    echo -e "${CYAN}  - Elasticsearch:  http://localhost:9200${NC}"
+    echo -e "${CYAN}  - Nginx:          http://localhost:5305${NC}"
+    echo -e "${CYAN}  - RabbitMQ UI:    http://localhost:5302 (walden/walden)${NC}"
+    echo -e "${CYAN}  - PostgreSQL:     localhost:5307 (postgres/postgres)${NC}"
+    echo -e "${CYAN}  - Elasticsearch:  http://localhost:5303${NC}"
     echo ""
 }
 

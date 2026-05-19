@@ -127,7 +127,7 @@ public class OpenClawApplicationService : IOpenClawService
         string? sessionId = null,
         int maxTokens = 2000)
     {
-        var baseUrl = _configuration["OpenClaw:BaseUrl"] ?? "http://localhost:8080";
+        var baseUrl = _configuration["OpenClaw:BaseUrl"] ?? "http://localhost:5223";
 
         var request = new OpenClawChatRequest
         {

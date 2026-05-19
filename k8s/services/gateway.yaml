@@ -23,7 +23,7 @@ spec:
           image: ${DOCKER_REGISTRY}/go-nomads-gateway:${IMAGE_TAG:-latest}
           imagePullPolicy: Always
           ports:
-            - containerPort: 8080
+            - containerPort: 5000
               name: http
           env:
             - name: ASPNETCORE_ENVIRONMENT
@@ -32,7 +32,7 @@ spec:
                   name: go-nomads-config
                   key: ASPNETCORE_ENVIRONMENT
             - name: ASPNETCORE_URLS
-              value: "http://+:8080"
+              value: "http://+:5000"
             # Redis 配置
             - name: ConnectionStrings__Redis
               valueFrom:
@@ -80,13 +80,13 @@ spec:
           readinessProbe:
             httpGet:
               path: /health
-              port: 8080
+              port: 5000
             initialDelaySeconds: 10
             periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /health
-              port: 8080
+              port: 5000
             initialDelaySeconds: 30
             periodSeconds: 15
       imagePullSecrets:
@@ -102,8 +102,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 80
-      targetPort: 8080
+    - port: 5000
+      targetPort: 5000
       name: http
   selector:
     app: gateway
@@ -135,7 +135,7 @@ spec:
               service:
                 name: gateway-service
                 port:
-                  number: 80
+                  number: 5000
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler

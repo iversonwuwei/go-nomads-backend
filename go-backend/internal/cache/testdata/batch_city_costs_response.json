@@ -1,0 +1,19 @@
+{
+  "costs": [
+    {
+      "entityId": "city-1",
+      "averageCost": 123.45,
+      "fromCache": false,
+      "statistics": "\"{\\\"totalAverageCost\\\":123.45,\\\"categoryCosts\\\":{\\\"accommodation\\\":70,\\\"food\\\":30},\\\"contributorCount\\\":4,\\\"totalExpenseCount\\\":12,\\\"currency\\\":\\\"USD\\\",\\\"updatedAt\\\":\\\"2026-05-07T09:00:00Z\\\"}\""
+    },
+    {
+      "entityId": "city-2",
+      "averageCost": 88.5,
+      "fromCache": false,
+      "statistics": "\"{\\\"totalAverageCost\\\":88.5,\\\"categoryCosts\\\":{\\\"accommodation\\\":50,\\\"food\\\":20},\\\"contributorCount\\\":2,\\\"totalExpenseCount\\\":6,\\\"currency\\\":\\\"USD\\\",\\\"updatedAt\\\":\\\"2026-05-07T09:05:00Z\\\"}\""
+    }
+  ],
+  "totalCount": 2,
+  "cachedCount": 0,
+  "calculatedCount": 2
+}

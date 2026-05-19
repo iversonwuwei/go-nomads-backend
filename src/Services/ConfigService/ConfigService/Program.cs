@@ -36,7 +36,7 @@ builder.Services.AddOpenApi(options =>
     {
         document.Servers = new List<OpenApiServer>
         {
-            new() { Url = "http://localhost:8013", Description = "Local Development" }
+            new() { Url = "http://localhost:5213", Description = "Local Development" }
         };
         return Task.CompletedTask;
     });
@@ -140,6 +140,6 @@ app.MapControllers();
 app.MapGet("/health",
     () => Results.Ok(new { status = "healthy", service = "ConfigService", timestamp = DateTime.UtcNow }));
 
-Log.Information("Config Service starting on port 8013...");
+Log.Information("Config Service starting on port 5213...");
 
 app.Run();

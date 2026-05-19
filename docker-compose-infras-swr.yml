@@ -27,7 +27,7 @@ services:
     image: ${REDIS_IMAGE:-redis:7.4}
     container_name: go-nomads-redis
     ports:
-      - "6379:6379"
+      - "5300:6379"
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -38,8 +38,8 @@ services:
     image: ${RABBITMQ_IMAGE:-rabbitmq:3-management-alpine}
     container_name: go-nomads-rabbitmq
     ports:
-      - "5672:5672"    # AMQP protocol port
-      - "15672:15672"  # Management UI
+      - "5301:5672"    # AMQP protocol port
+      - "5302:15672"   # Management UI
     environment:
       - RABBITMQ_DEFAULT_USER=walden
       - RABBITMQ_DEFAULT_PASS=walden
@@ -61,8 +61,8 @@ services:
       - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
-      - "9200:9200"
-      - "9300:9300"
+      - "5303:9200"
+      - "5304:9300"
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
@@ -72,8 +72,8 @@ services:
     image: ${NGINX_IMAGE:-nginx:1.29.6}
     container_name: go-nomads-nginx
     ports:
-      - "80:80"
-      - "443:443"
+      - "5305:80"
+      - "5343:443"
     volumes:
       - ./deployment/nginx/nginx.https.conf:/etc/nginx/conf.d/default.conf:ro
       - ${LETSENCRYPT_DIR:-/etc/letsencrypt}:/etc/letsencrypt:ro

@@ -23,7 +23,7 @@ spec:
           image: ${DOCKER_REGISTRY}/go-nomads-city-service:${IMAGE_TAG:-latest}
           imagePullPolicy: Always
           ports:
-            - containerPort: 8002
+            - containerPort: 5202
               name: http
           env:
             - name: ASPNETCORE_ENVIRONMENT
@@ -32,7 +32,7 @@ spec:
                   name: go-nomads-config
                   key: ASPNETCORE_ENVIRONMENT
             - name: ASPNETCORE_URLS
-              value: "http://+:8002"
+              value: "http://+:5202"
             - name: ConnectionStrings__DefaultConnection
               valueFrom:
                 secretKeyRef:
@@ -80,13 +80,13 @@ spec:
           readinessProbe:
             httpGet:
               path: /health
-              port: 8002
+              port: 5202
             initialDelaySeconds: 10
             periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /health
-              port: 8002
+              port: 5202
             initialDelaySeconds: 30
             periodSeconds: 15
       imagePullSecrets:
@@ -102,8 +102,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 8002
-      targetPort: 8002
+    - port: 5202
+      targetPort: 5202
       name: http
   selector:
     app: city-service

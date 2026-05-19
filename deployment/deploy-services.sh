@@ -127,9 +127,9 @@ deploy_service() {
     $CONTAINER_RUNTIME run -d \
         --name "go-nomads-$service_name" \
         --network "$NETWORK_NAME" \
-        -p "$app_port:8080" \
+        -p "$app_port:$app_port" \
         "${env_config[@]}" \
-        -e ASPNETCORE_URLS=http://+:8080 \
+        -e ASPNETCORE_URLS=http://+:$app_port \
         "go-nomads-$service_name:latest" > /dev/null
     
     if container_running "go-nomads-$service_name"; then
@@ -242,7 +242,7 @@ main() {
     echo -e "  ${GREEN}Message Swagger:  http://localhost:5005/swagger${NC}"
     echo ""
     echo -e "${BLUE}基础设施:${NC}"
-    echo -e "  ${GREEN}RabbitMQ UI:      http://localhost:15672 (walden/walden)${NC}"
+    echo -e "  ${GREEN}RabbitMQ UI:      http://localhost:5302 (walden/walden)${NC}"
     echo ""
     echo -e "${BLUE}常用命令:${NC}"
     echo -e "  查看运行中的容器:  ${YELLOW}$CONTAINER_RUNTIME ps${NC}"

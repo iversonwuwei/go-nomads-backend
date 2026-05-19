@@ -8,7 +8,7 @@ public class ElasticsearchSettings
     /// <summary>
     /// Elasticsearch URL
     /// </summary>
-    public string Url { get; set; } = "http://localhost:9200";
+    public string Url { get; set; } = "http://localhost:5303";
 
     /// <summary>
     /// 默认索引名称

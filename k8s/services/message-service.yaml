@@ -23,7 +23,7 @@ spec:
           image: ${DOCKER_REGISTRY}/go-nomads-message-service:${IMAGE_TAG:-latest}
           imagePullPolicy: Always
           ports:
-            - containerPort: 8010
+            - containerPort: 5005
               name: http
           env:
             - name: ASPNETCORE_ENVIRONMENT
@@ -32,7 +32,7 @@ spec:
                   name: go-nomads-config
                   key: ASPNETCORE_ENVIRONMENT
             - name: ASPNETCORE_URLS
-              value: "http://+:8010"
+              value: "http://+:5005"
             - name: ConnectionStrings__DefaultConnection
               valueFrom:
                 secretKeyRef:
@@ -78,13 +78,13 @@ spec:
           readinessProbe:
             httpGet:
               path: /health
-              port: 8010
+              port: 5005
             initialDelaySeconds: 10
             periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /health
-              port: 8010
+              port: 5005
             initialDelaySeconds: 30
             periodSeconds: 15
       imagePullSecrets:
@@ -100,8 +100,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 8010
-      targetPort: 8010
+    - port: 5005
+      targetPort: 5005
       name: http
   selector:
     app: message-service

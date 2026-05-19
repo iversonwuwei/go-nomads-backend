@@ -22,15 +22,16 @@ public sealed class ServiceInvocationClient
         ["product-service"] = 5002,
         ["user-service"] = 5001,
         ["document-service"] = 5003,
-        ["city-service"] = 8002,
-        ["event-service"] = 8005,
-        ["coworking-service"] = 8006,
-        ["ai-service"] = 8009,
-        ["cache-service"] = 8010,
+        ["city-service"] = 5202,
+        ["event-service"] = 5205,
+        ["coworking-service"] = 5203,
+        ["ai-service"] = 5209,
+        ["cache-service"] = 5210,
         ["message-service"] = 5005,
-        ["innovation-service"] = 8011,
-        ["accommodation-service"] = 8012,
-        ["search-service"] = 8015
+        ["innovation-service"] = 5206,
+        ["accommodation-service"] = 5204,
+        ["search-service"] = 5215,
+        ["config-service"] = 5213
     };
 
     private readonly IConfiguration _configuration;
@@ -172,23 +173,23 @@ public sealed class ServiceInvocationClient
             return configuredUrl;
         }
 
-        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("KUBERNETES_SERVICE_HOST")))
-        {
-            return $"http://{serviceName}:8080";
-        }
-
-        if (string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase))
-        {
-            return $"http://go-nomads-{serviceName}:8080";
-        }
-
         if (DefaultPorts.TryGetValue(serviceName, out var port))
         {
+            if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("KUBERNETES_SERVICE_HOST")))
+            {
+                return $"http://{serviceName}:{port}";
+            }
+
+            if (string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"http://go-nomads-{serviceName}:{port}";
+            }
+
             return $"http://localhost:{port}";
         }
 
-        _logger.LogWarning("No default URL mapping found for service {ServiceName}, falling back to localhost:8080", serviceName);
-        return "http://localhost:8080";
+        _logger.LogWarning("No default URL mapping found for service {ServiceName}, falling back to localhost:5080", serviceName);
+        return "http://localhost:5080";
     }
 
     private Uri BuildServiceUri(string serviceName, string path)

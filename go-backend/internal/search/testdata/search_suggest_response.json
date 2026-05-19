@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "data": {
+    "suggestions": [
+      {
+        "text": "Lisbon",
+        "id": "city-1",
+        "type": "city",
+        "score": 9.8,
+        "metadata": {
+          "country": "Portugal"
+        }
+      },
+      {
+        "text": "Nomad Hub Lisbon",
+        "id": "cow-1",
+        "type": "coworking",
+        "score": 8.9,
+        "metadata": {
+          "cityName": "Lisbon"
+        }
+      }
+    ]
+  }
+}

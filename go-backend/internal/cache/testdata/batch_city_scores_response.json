@@ -1,0 +1,19 @@
+{
+  "scores": [
+    {
+      "entityId": "city-1",
+      "overallScore": 4.25,
+      "fromCache": false,
+      "statistics": "[{\"category\":\"safety\",\"averageRating\":4.5,\"ratingCount\":10},{\"category\":\"internet\",\"averageRating\":4,\"ratingCount\":8}]"
+    },
+    {
+      "entityId": "city-2",
+      "overallScore": 0,
+      "fromCache": false,
+      "statistics": null
+    }
+  ],
+  "totalCount": 2,
+  "cachedCount": 0,
+  "calculatedCount": 2
+}

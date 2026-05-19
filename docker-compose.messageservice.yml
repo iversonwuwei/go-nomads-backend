@@ -6,7 +6,7 @@ services:
     image: redis:7-alpine
     container_name: go-nomads-redis
     ports:
-      - "6379:6379"
+      - "5300:6379"
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -23,8 +23,8 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: go-nomads-rabbitmq
     ports:
-      - "5672:5672"    # AMQP 协议端口
-      - "15672:15672"  # 管理界面
+      - "5301:5672"    # AMQP 协议端口
+      - "5302:15672"   # 管理界面
     environment:
       - RABBITMQ_DEFAULT_USER=walden
       - RABBITMQ_DEFAULT_PASS=walden

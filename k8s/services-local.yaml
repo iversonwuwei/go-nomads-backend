@@ -23,7 +23,7 @@ spec:
           image: go-nomads-gateway:local
           imagePullPolicy: Never
           ports:
-            - containerPort: 8080
+            - containerPort: 5000
           env:
             - name: POD_IP
               valueFrom:
@@ -36,7 +36,7 @@ spec:
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
-              value: "http://+:8080"
+              value: "http://+:5000"
             - name: ConnectionStrings__Redis
               value: "redis-service:6379,abortConnect=false"
           resources:
@@ -53,11 +53,10 @@ metadata:
   name: gateway-service
   namespace: go-nomads
 spec:
-  type: NodePort
+  type: ClusterIP
   ports:
-    - port: 80
-      targetPort: 8080
-      nodePort: 30080
+    - port: 5000
+      targetPort: 5000
   selector:
     app: gateway
 ---
@@ -83,7 +82,7 @@ spec:
           image: go-nomads-user-service:local
           imagePullPolicy: Never
           ports:
-            - containerPort: 8080
+            - containerPort: 5001
           env:
             - name: POD_IP
               valueFrom:
@@ -96,11 +95,11 @@ spec:
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
-              value: "http://+:8080"
+              value: "http://+:5001"
             - name: ConnectionStrings__Redis
               value: "redis-service:6379,abortConnect=false"
             - name: Kestrel__Endpoints__Grpc__Url
-              value: "http://0.0.0.0:50003"
+              value: "http://0.0.0.0:5004"
           resources:
             requests:
               memory: "128Mi"
@@ -117,8 +116,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 80
-      targetPort: 8080
+    - port: 5001
+      targetPort: 5001
   selector:
     app: user-service
 ---
@@ -144,7 +143,7 @@ spec:
           image: go-nomads-city-service:local
           imagePullPolicy: Never
           ports:
-            - containerPort: 8002
+            - containerPort: 5202
           env:
             - name: POD_IP
               valueFrom:
@@ -157,7 +156,7 @@ spec:
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
-              value: "http://+:8002"
+              value: "http://+:5202"
             - name: ConnectionStrings__Redis
               value: "redis-service:6379,abortConnect=false"
             - name: ConnectionStrings__Elasticsearch
@@ -184,8 +183,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 8002
-      targetPort: 8002
+    - port: 5202
+      targetPort: 5202
   selector:
     app: city-service
 ---
@@ -211,7 +210,7 @@ spec:
           image: go-nomads-coworking-service:local
           imagePullPolicy: Never
           ports:
-            - containerPort: 8003
+            - containerPort: 5203
           env:
             - name: POD_IP
               valueFrom:
@@ -224,7 +223,7 @@ spec:
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
-              value: "http://+:8003"
+              value: "http://+:5203"
             - name: ConnectionStrings__Redis
               value: "redis-service:6379,abortConnect=false"
           resources:
@@ -243,8 +242,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 8003
-      targetPort: 8003
+    - port: 5203
+      targetPort: 5203
   selector:
     app: coworking-service
 ---
@@ -270,7 +269,7 @@ spec:
           image: go-nomads-event-service:local
           imagePullPolicy: Never
           ports:
-            - containerPort: 8005
+            - containerPort: 5205
           env:
             - name: POD_IP
               valueFrom:
@@ -283,7 +282,7 @@ spec:
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
-              value: "http://+:8005"
+              value: "http://+:5205"
             - name: ConnectionStrings__Redis
               value: "redis-service:6379,abortConnect=false"
             - name: MessageBroker__Host
@@ -304,8 +303,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 8005
-      targetPort: 8005
+    - port: 5205
+      targetPort: 5205
   selector:
     app: event-service
 ---
@@ -331,7 +330,7 @@ spec:
           image: go-nomads-ai-service:local
           imagePullPolicy: Never
           ports:
-            - containerPort: 8080
+            - containerPort: 5209
           env:
             - name: POD_IP
               valueFrom:
@@ -344,7 +343,7 @@ spec:
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
-              value: "http://+:8080"
+              value: "http://+:5209"
             - name: ConnectionStrings__Redis
               value: "redis-service:6379,abortConnect=false"
             - name: Redis__ConnectionString
@@ -367,8 +366,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 8080
-      targetPort: 8080
+    - port: 5209
+      targetPort: 5209
   selector:
     app: ai-service
 ---
@@ -394,7 +393,7 @@ spec:
           image: go-nomads-cache-service:local
           imagePullPolicy: Never
           ports:
-            - containerPort: 8011
+            - containerPort: 5210
           env:
             - name: POD_IP
               valueFrom:
@@ -407,7 +406,7 @@ spec:
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
-              value: "http://+:8011"
+              value: "http://+:5210"
             - name: ConnectionStrings__Redis
               value: "redis-service:6379,abortConnect=false"
           resources:
@@ -426,8 +425,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 8011
-      targetPort: 8011
+    - port: 5210
+      targetPort: 5210
   selector:
     app: cache-service
 ---
@@ -454,7 +453,7 @@ spec:
           image: go-nomads-message-service:local
           imagePullPolicy: Never
           ports:
-            - containerPort: 8010
+            - containerPort: 5005
           env:
             - name: POD_IP
               valueFrom:
@@ -467,7 +466,7 @@ spec:
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: ASPNETCORE_URLS
-              value: "http://+:8010"
+              value: "http://+:5005"
             - name: ConnectionStrings__Redis
               value: "redis-service:6379,abortConnect=false"
             - name: RabbitMQ__Host
@@ -492,7 +491,7 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 8010
-      targetPort: 8010
+    - port: 5005
+      targetPort: 5005
   selector:
     app: message-service

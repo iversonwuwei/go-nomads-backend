@@ -1,7 +1,7 @@
 # 使用 .NET 9.0 运行时作为基础镜像
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
-EXPOSE 8009
+EXPOSE 5209
 
 # 使用 .NET 9.0 SDK 镜像进行构建
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
@@ -39,11 +39,11 @@ COPY --from=publish /app/publish .
 
 # 设置环境变量
 ENV ASPNETCORE_ENVIRONMENT=Production
-ENV ASPNETCORE_URLS=http://+:8009
+ENV ASPNETCORE_URLS=http://+:5209
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8009/health || exit 1
+    CMD curl -f http://localhost:5209/health || exit 1
 
 # 启动应用程序
 ENTRYPOINT ["dotnet", "AIService.dll"]

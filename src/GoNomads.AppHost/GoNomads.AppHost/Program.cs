@@ -28,28 +28,35 @@ void AddRabbitMqEnv<T>(IResourceBuilder<T> svc) where T : IResourceWithEnvironme
 
 // ── Services ─────────────────────────────────────────────────────────────────
 var userService = builder.AddProject<Projects.UserService>("user-service")
+	.WithHttpEndpoint(port: 5001, targetPort: 5001)
 	.WithReference(rabbitmq);
 AddRabbitMqEnv(userService);
 
-var productService = builder.AddProject<Projects.ProductService>("product-service");
+var productService = builder.AddProject<Projects.ProductService>("product-service")
+	.WithHttpEndpoint(port: 5002, targetPort: 5002);
 
 var documentService = builder.AddProject<Projects.DocumentService>("document-service")
+	.WithHttpEndpoint(port: 5003, targetPort: 5003)
 	.WithReference(redis);
 
 var cityService = builder.AddProject<Projects.CityService>("city-service")
+	.WithHttpEndpoint(port: 5202, targetPort: 5202)
 	.WithReference(redis)
 	.WithReference(rabbitmq);
 AddRabbitMqEnv(cityService);
 
 var eventService = builder.AddProject<Projects.EventService>("event-service")
+	.WithHttpEndpoint(port: 5205, targetPort: 5205)
 	.WithReference(rabbitmq);
 AddRabbitMqEnv(eventService);
 
 var coworkingService = builder.AddProject<Projects.CoworkingService>("coworking-service")
+	.WithHttpEndpoint(port: 5203, targetPort: 5203)
 	.WithReference(rabbitmq);
 AddRabbitMqEnv(coworkingService);
 
 var aiService = builder.AddProject<Projects.AIService>("ai-service")
+	.WithHttpEndpoint(port: 5209, targetPort: 5209)
 	.WithReference(redis)
 	.WithReference(rabbitmq)
 	.WithEnvironment(ctx =>
@@ -64,22 +71,28 @@ var aiService = builder.AddProject<Projects.AIService>("ai-service")
 	});
 
 var messageService = builder.AddProject<Projects.MessageService>("message-service")
+	.WithHttpEndpoint(port: 5005, targetPort: 5005)
 	.WithReference(redis)
 	.WithReference(rabbitmq);
 AddRabbitMqEnv(messageService);
 
 var cacheService = builder.AddProject<Projects.CacheService>("cache-service")
+	.WithHttpEndpoint(port: 5210, targetPort: 5210)
 	.WithReference(redis);
 
 var innovationService = builder.AddProject<Projects.InnovationService>("innovation-service")
+	.WithHttpEndpoint(port: 5206, targetPort: 5206)
 	.WithReference(rabbitmq);
 AddRabbitMqEnv(innovationService);
 
-var accommodationService = builder.AddProject<Projects.AccommodationService>("accommodation-service");
+var accommodationService = builder.AddProject<Projects.AccommodationService>("accommodation-service")
+	.WithHttpEndpoint(port: 5204, targetPort: 5204);
 
-var configService = builder.AddProject<Projects.ConfigService>("config-service");
+var configService = builder.AddProject<Projects.ConfigService>("config-service")
+	.WithHttpEndpoint(port: 5213, targetPort: 5213);
 
 var searchService = builder.AddProject<Projects.SearchService>("search-service")
+	.WithHttpEndpoint(port: 5215, targetPort: 5215)
 	.WithReference(rabbitmq)
 	.WithReference(elasticsearch)
 	.WithEnvironment(ctx =>
@@ -96,6 +109,7 @@ var searchService = builder.AddProject<Projects.SearchService>("search-service")
 
 // Gateway — routes to all services
 var gateway = builder.AddProject<Projects.Gateway>("gateway")
+	.WithHttpEndpoint(port: 5080, targetPort: 5000)
 	.WithReference(redis)
 	.WithEnvironment(ctx =>
 	{

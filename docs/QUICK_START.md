@@ -31,36 +31,36 @@ docker-compose logs -f user-service
 ### 3. 访问服务
 
 #### 核心微服务 Swagger 文档
-- **API Gateway**: http://localhost:5000/swagger
-- **User Service**: http://localhost:8001/swagger
-- **City Service**: http://localhost:8002/swagger
-- **Coworking Service**: http://localhost:8003/swagger
-- **Accommodation Service**: http://localhost:8004/swagger
-- **Event Service**: http://localhost:8005/swagger
-- **Innovation Service**: http://localhost:8006/swagger
-- **Travel Planning Service**: http://localhost:8007/swagger
-- **Ecommerce Service**: http://localhost:8008/swagger
+- **API Gateway**: http://localhost:5080/swagger
+- **User Service**: http://localhost:5001/swagger
+- **City Service**: http://localhost:5202/swagger
+- **Coworking Service**: http://localhost:5203/swagger
+- **Accommodation Service**: http://localhost:5204/swagger
+- **Event Service**: http://localhost:5205/swagger
+- **Innovation Service**: http://localhost:5206/swagger
+- **Travel Planning Service**: http://localhost:5207/swagger
+- **Ecommerce Service**: http://localhost:5208/swagger
 
 #### 基础设施服务
-- **RabbitMQ 管理界面**: http://localhost:15672 (admin/admin)
-- **Grafana 监控**: http://localhost:3000 (admin/admin)
-- **Prometheus**: http://localhost:9090
-- **Zipkin 链路追踪**: http://localhost:9411
+- **RabbitMQ 管理界面**: http://localhost:5302 (admin/admin)
+- **Grafana 监控**: http://localhost:5306 (admin/admin)
+- **Prometheus**: http://localhost:5307
+- **Zipkin 链路追踪**: http://localhost:5308
 
 ### 4. 测试 City Service API
 
 ```powershell
 # 健康检查
-curl http://localhost:8002/health
+curl http://localhost:5202/health
 
 # 获取城市列表
-curl http://localhost:8002/api/v1/cities
+curl http://localhost:5202/api/v1/cities
 
 # 搜索城市
-curl "http://localhost:8002/api/v1/cities/search?name=Chiang&pageNumber=1&pageSize=10"
+curl "http://localhost:5202/api/v1/cities/search?name=Chiang&pageNumber=1&pageSize=10"
 
 # 获取推荐城市
-curl http://localhost:8002/api/v1/cities/recommend?count=5
+curl http://localhost:5202/api/v1/cities/recommend?count=5
 ```
 
 ### 5. 停止服务
@@ -89,7 +89,7 @@ dotnet restore
 dotnet run
 ```
 
-服务将在 http://localhost:8002 启动
+服务将在 http://localhost:5202 启动
 
 ### 添加数据库迁移
 
@@ -138,7 +138,7 @@ Password: postgres
 
 ### 1. 注册用户 (User Service)
 ```powershell
-curl -X POST http://localhost:8001/api/v1/auth/register `
+curl -X POST http://localhost:5001/api/v1/auth/register `
   -H "Content-Type: application/json" `
   -d '{
     "email": "test@example.com",
@@ -149,7 +149,7 @@ curl -X POST http://localhost:8001/api/v1/auth/register `
 
 ### 2. 登录获取 Token
 ```powershell
-curl -X POST http://localhost:8001/api/v1/auth/login `
+curl -X POST http://localhost:5001/api/v1/auth/login `
   -H "Content-Type: application/json" `
   -d '{
     "email": "test@example.com",
@@ -161,7 +161,7 @@ curl -X POST http://localhost:8001/api/v1/auth/login `
 ```powershell
 $token = "your_jwt_token_here"
 
-curl -X POST http://localhost:8002/api/v1/cities `
+curl -X POST http://localhost:5202/api/v1/cities `
   -H "Authorization: Bearer $token" `
   -H "Content-Type: application/json" `
   -d '{
@@ -209,7 +209,7 @@ docker-compose restart postgres
 
 ```yaml
 ports:
-  - "8002:8002"  # 改为 - "8012:8002"
+  - "5202:5202"  # 如冲突，改为其它已登记的 5xxx 宿主机端口
 ```
 
 ---
@@ -220,10 +220,10 @@ ports:
 
 ```powershell
 # 测试城市列表 API
-ab -n 1000 -c 10 http://localhost:8002/api/v1/cities
+ab -n 1000 -c 10 http://localhost:5202/api/v1/cities
 
 # 测试健康检查
-ab -n 10000 -c 100 http://localhost:8002/health
+ab -n 10000 -c 100 http://localhost:5202/health
 ```
 
 ### 使用 k6
@@ -239,7 +239,7 @@ export let options = {
 };
 
 export default function() {
-  let res = http.get('http://localhost:8002/api/v1/cities');
+  let res = http.get('http://localhost:5202/api/v1/cities');
   check(res, {
     'status is 200': (r) => r.status === 200,
   });

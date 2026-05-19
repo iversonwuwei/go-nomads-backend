@@ -152,7 +152,7 @@ ON CONFLICT (code) DO NOTHING;
 
 - 表结构设计：`src/Services/CityService/GEOGRAPHY_GUIDE.md`
 - 实施总结：`GEOGRAPHY_IMPLEMENTATION_SUMMARY.md`
-- API 端点文档：`http://localhost:8002/scalar/v1`
+- API 端点文档：`http://localhost:5202/scalar/v1`
 
 ## 🎉 完成！
 

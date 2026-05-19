@@ -23,7 +23,7 @@ spec:
           image: ${DOCKER_REGISTRY}/go-nomads-cache-service:${IMAGE_TAG:-latest}
           imagePullPolicy: Always
           ports:
-            - containerPort: 8011
+            - containerPort: 5210
               name: http
           env:
             - name: ASPNETCORE_ENVIRONMENT
@@ -32,7 +32,7 @@ spec:
                   name: go-nomads-config
                   key: ASPNETCORE_ENVIRONMENT
             - name: ASPNETCORE_URLS
-              value: "http://+:8011"
+              value: "http://+:5210"
             - name: ConnectionStrings__Redis
               valueFrom:
                 secretKeyRef:
@@ -48,13 +48,13 @@ spec:
           readinessProbe:
             httpGet:
               path: /health
-              port: 8011
+              port: 5210
             initialDelaySeconds: 10
             periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /health
-              port: 8011
+              port: 5210
             initialDelaySeconds: 30
             periodSeconds: 15
       imagePullSecrets:
@@ -70,8 +70,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 8011
-      targetPort: 8011
+    - port: 5210
+      targetPort: 5210
       name: http
   selector:
     app: cache-service

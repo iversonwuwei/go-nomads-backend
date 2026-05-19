@@ -1,4 +1,4 @@
-@DocumentService_HostAddress = http://localhost:5278
+@DocumentService_HostAddress = http://localhost:5003
 
 GET {{DocumentService_HostAddress}}/weatherforecast/
 Accept: application/json

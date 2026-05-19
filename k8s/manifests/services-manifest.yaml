@@ -1,24 +1,24 @@
 apiVersion: v1
 data:
-  ACCOMMODATION_SERVICE_URL: http://accommodation-service:8004
-  AI_SERVICE_URL: http://ai-service:8080
+  ACCOMMODATION_SERVICE_URL: http://accommodation-service:5204
+  AI_SERVICE_URL: http://ai-service:5209
   ASPNETCORE_ENVIRONMENT: Production
-  CACHE_SERVICE_URL: http://cache-service:8011
-  CITY_SERVICE_URL: http://city-service:8002
-  COWORKING_SERVICE_URL: http://coworking-service:8003
-  ECOMMERCE_SERVICE_URL: http://ecommerce-service:8008
+  CACHE_SERVICE_URL: http://cache-service:5210
+  CITY_SERVICE_URL: http://city-service:5202
+  COWORKING_SERVICE_URL: http://coworking-service:5203
+  ECOMMERCE_SERVICE_URL: http://ecommerce-service:5208
   ELASTICSEARCH_HOST: elasticsearch-service
   ELASTICSEARCH_PORT: "9200"
-  EVENT_SERVICE_URL: http://event-service:8005
+  EVENT_SERVICE_URL: http://event-service:5205
   GATEWAY_URL: http://gateway-service:80
-  INNOVATION_SERVICE_URL: http://innovation-service:8006
-  MESSAGE_SERVICE_URL: http://message-service:8010
+  INNOVATION_SERVICE_URL: http://innovation-service:5206
+  MESSAGE_SERVICE_URL: http://message-service:5005
   RABBITMQ_HOST: rabbitmq-service
   RABBITMQ_MANAGEMENT_PORT: "15672"
   RABBITMQ_PORT: "5672"
   REDIS_HOST: redis-service
   REDIS_PORT: "6379"
-  TRAVEL_PLANNING_SERVICE_URL: http://travel-planning-service:8007
+  TRAVEL_PLANNING_SERVICE_URL: http://travel-planning-service:5207
   USER_SERVICE_URL: http://user-service:80
   ZIPKIN_HOST: zipkin-service
   ZIPKIN_PORT: "9411"
@@ -47,8 +47,8 @@ metadata:
 spec:
   ports:
   - name: http
-    port: 8012
-    targetPort: 8012
+    port: 5204
+    targetPort: 5204
   selector:
     app: accommodation-service
     app.kubernetes.io/managed-by: kustomize
@@ -69,8 +69,8 @@ metadata:
 spec:
   ports:
   - name: http
-    port: 8080
-    targetPort: 8080
+    port: 5209
+    targetPort: 5209
   selector:
     app: ai-service
     app.kubernetes.io/managed-by: kustomize
@@ -91,8 +91,8 @@ metadata:
 spec:
   ports:
   - name: http
-    port: 8011
-    targetPort: 8011
+    port: 5210
+    targetPort: 5210
   selector:
     app: cache-service
     app.kubernetes.io/managed-by: kustomize
@@ -113,8 +113,8 @@ metadata:
 spec:
   ports:
   - name: http
-    port: 8002
-    targetPort: 8002
+    port: 5202
+    targetPort: 5202
   selector:
     app: city-service
     app.kubernetes.io/managed-by: kustomize
@@ -135,8 +135,8 @@ metadata:
 spec:
   ports:
   - name: http
-    port: 8003
-    targetPort: 8003
+    port: 5203
+    targetPort: 5203
   selector:
     app: coworking-service
     app.kubernetes.io/managed-by: kustomize
@@ -157,8 +157,8 @@ metadata:
 spec:
   ports:
   - name: http
-    port: 8005
-    targetPort: 8005
+    port: 5205
+    targetPort: 5205
   selector:
     app: event-service
     app.kubernetes.io/managed-by: kustomize
@@ -179,8 +179,8 @@ metadata:
 spec:
   ports:
   - name: http
-    port: 80
-    targetPort: 8080
+    port: 5000
+    targetPort: 5000
   selector:
     app: gateway
     app.kubernetes.io/managed-by: kustomize
@@ -201,8 +201,8 @@ metadata:
 spec:
   ports:
   - name: http
-    port: 8010
-    targetPort: 8010
+    port: 5005
+    targetPort: 5005
   selector:
     app: message-service
     app.kubernetes.io/managed-by: kustomize
@@ -256,7 +256,7 @@ spec:
       annotations:
         app.kubernetes.io/version: 1.0.0
         prometheus.io/path: /metrics
-        prometheus.io/port: "8012"
+        prometheus.io/port: "5204"
         prometheus.io/scrape: "true"
       labels:
         app: accommodation-service
@@ -271,7 +271,7 @@ spec:
               key: ASPNETCORE_ENVIRONMENT
               name: go-nomads-config
         - name: ASPNETCORE_URLS
-          value: http://+:8012
+          value: http://+:5204
         - name: ConnectionStrings__DefaultConnection
           valueFrom:
             secretKeyRef:
@@ -297,17 +297,17 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8012
+            port: 5204
           initialDelaySeconds: 30
           periodSeconds: 15
         name: accommodation-service
         ports:
-        - containerPort: 8012
+        - containerPort: 5204
           name: http
         readinessProbe:
           httpGet:
             path: /health
-            port: 8012
+            port: 5204
           initialDelaySeconds: 10
           periodSeconds: 5
         resources:
@@ -345,7 +345,7 @@ spec:
       annotations:
         app.kubernetes.io/version: 1.0.0
         prometheus.io/path: /metrics
-        prometheus.io/port: "8080"
+        prometheus.io/port: "5209"
         prometheus.io/scrape: "true"
       labels:
         app: ai-service
@@ -360,7 +360,7 @@ spec:
               key: ASPNETCORE_ENVIRONMENT
               name: go-nomads-config
         - name: ASPNETCORE_URLS
-          value: http://+:8080
+          value: http://+:5209
         - name: ConnectionStrings__SupabaseDb
           valueFrom:
             secretKeyRef:
@@ -411,17 +411,17 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: 5209
           initialDelaySeconds: 40
           periodSeconds: 15
         name: ai-service
         ports:
-        - containerPort: 8080
+        - containerPort: 5209
           name: http
         readinessProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: 5209
           initialDelaySeconds: 15
           periodSeconds: 5
         resources:
@@ -459,7 +459,7 @@ spec:
       annotations:
         app.kubernetes.io/version: 1.0.0
         prometheus.io/path: /metrics
-        prometheus.io/port: "8011"
+        prometheus.io/port: "5210"
         prometheus.io/scrape: "true"
       labels:
         app: cache-service
@@ -474,7 +474,7 @@ spec:
               key: ASPNETCORE_ENVIRONMENT
               name: go-nomads-config
         - name: ASPNETCORE_URLS
-          value: http://+:8011
+          value: http://+:5210
         - name: ConnectionStrings__Redis
           valueFrom:
             secretKeyRef:
@@ -485,17 +485,17 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8011
+            port: 5210
           initialDelaySeconds: 30
           periodSeconds: 15
         name: cache-service
         ports:
-        - containerPort: 8011
+        - containerPort: 5210
           name: http
         readinessProbe:
           httpGet:
             path: /health
-            port: 8011
+            port: 5210
           initialDelaySeconds: 10
           periodSeconds: 5
         resources:
@@ -533,7 +533,7 @@ spec:
       annotations:
         app.kubernetes.io/version: 1.0.0
         prometheus.io/path: /metrics
-        prometheus.io/port: "8002"
+        prometheus.io/port: "5202"
         prometheus.io/scrape: "true"
       labels:
         app: city-service
@@ -548,7 +548,7 @@ spec:
               key: ASPNETCORE_ENVIRONMENT
               name: go-nomads-config
         - name: ASPNETCORE_URLS
-          value: http://+:8002
+          value: http://+:5202
         - name: ConnectionStrings__DefaultConnection
           valueFrom:
             secretKeyRef:
@@ -591,17 +591,17 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8002
+            port: 5202
           initialDelaySeconds: 30
           periodSeconds: 15
         name: city-service
         ports:
-        - containerPort: 8002
+        - containerPort: 5202
           name: http
         readinessProbe:
           httpGet:
             path: /health
-            port: 8002
+            port: 5202
           initialDelaySeconds: 10
           periodSeconds: 5
         resources:
@@ -639,7 +639,7 @@ spec:
       annotations:
         app.kubernetes.io/version: 1.0.0
         prometheus.io/path: /metrics
-        prometheus.io/port: "8003"
+        prometheus.io/port: "5203"
         prometheus.io/scrape: "true"
       labels:
         app: coworking-service
@@ -654,7 +654,7 @@ spec:
               key: ASPNETCORE_ENVIRONMENT
               name: go-nomads-config
         - name: ASPNETCORE_URLS
-          value: http://+:8003
+          value: http://+:5203
         - name: ConnectionStrings__DefaultConnection
           valueFrom:
             secretKeyRef:
@@ -680,17 +680,17 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8003
+            port: 5203
           initialDelaySeconds: 30
           periodSeconds: 15
         name: coworking-service
         ports:
-        - containerPort: 8003
+        - containerPort: 5203
           name: http
         readinessProbe:
           httpGet:
             path: /health
-            port: 8003
+            port: 5203
           initialDelaySeconds: 10
           periodSeconds: 5
         resources:
@@ -728,7 +728,7 @@ spec:
       annotations:
         app.kubernetes.io/version: 1.0.0
         prometheus.io/path: /metrics
-        prometheus.io/port: "8005"
+        prometheus.io/port: "5205"
         prometheus.io/scrape: "true"
       labels:
         app: event-service
@@ -743,7 +743,7 @@ spec:
               key: ASPNETCORE_ENVIRONMENT
               name: go-nomads-config
         - name: ASPNETCORE_URLS
-          value: http://+:8005
+          value: http://+:5205
         - name: ConnectionStrings__DefaultConnection
           valueFrom:
             secretKeyRef:
@@ -774,17 +774,17 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8005
+            port: 5205
           initialDelaySeconds: 30
           periodSeconds: 15
         name: event-service
         ports:
-        - containerPort: 8005
+        - containerPort: 5205
           name: http
         readinessProbe:
           httpGet:
             path: /health
-            port: 8005
+            port: 5205
           initialDelaySeconds: 10
           periodSeconds: 5
         resources:
@@ -822,7 +822,7 @@ spec:
       annotations:
         app.kubernetes.io/version: 1.0.0
         prometheus.io/path: /metrics
-        prometheus.io/port: "8080"
+        prometheus.io/port: "5000"
         prometheus.io/scrape: "true"
       labels:
         app: gateway
@@ -837,7 +837,7 @@ spec:
               key: ASPNETCORE_ENVIRONMENT
               name: go-nomads-config
         - name: ASPNETCORE_URLS
-          value: http://+:8080
+          value: http://+:5000
         - name: ConnectionStrings__Redis
           valueFrom:
             secretKeyRef:
@@ -878,17 +878,17 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: 5000
           initialDelaySeconds: 30
           periodSeconds: 15
         name: gateway
         ports:
-        - containerPort: 8080
+        - containerPort: 5000
           name: http
         readinessProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: 5000
           initialDelaySeconds: 10
           periodSeconds: 5
         resources:
@@ -926,7 +926,7 @@ spec:
       annotations:
         app.kubernetes.io/version: 1.0.0
         prometheus.io/path: /metrics
-        prometheus.io/port: "8010"
+        prometheus.io/port: "5005"
         prometheus.io/scrape: "true"
       labels:
         app: message-service
@@ -941,7 +941,7 @@ spec:
               key: ASPNETCORE_ENVIRONMENT
               name: go-nomads-config
         - name: ASPNETCORE_URLS
-          value: http://+:8010
+          value: http://+:5005
         - name: ConnectionStrings__DefaultConnection
           valueFrom:
             secretKeyRef:
@@ -982,17 +982,17 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8010
+            port: 5005
           initialDelaySeconds: 30
           periodSeconds: 15
         name: message-service
         ports:
-        - containerPort: 8010
+        - containerPort: 5005
           name: http
         readinessProbe:
           httpGet:
             path: /health
-            port: 8010
+            port: 5005
           initialDelaySeconds: 10
           periodSeconds: 5
         resources:
@@ -1119,7 +1119,7 @@ spec:
           service:
             name: gateway-service
             port:
-              number: 80
+              number: 5000
         path: /
         pathType: Prefix
   tls:

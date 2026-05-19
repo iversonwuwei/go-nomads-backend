@@ -1,0 +1,36 @@
+{
+  "version": 3,
+  "publishedAt": "2026-05-07T12:00:00Z",
+  "staticTexts": {
+    "zh-CN": {
+      "hello": "你好",
+      "tagline": "随处工作"
+    },
+    "en-US": {
+      "hello": "Hello",
+      "tagline": "Work anywhere"
+    }
+  },
+  "optionGroups": {
+    "locale": [
+      {
+        "code": "en",
+        "label": "English",
+        "labelEn": "English",
+        "icon": "globe",
+        "color": "#4458FF"
+      }
+    ]
+  },
+  "systemSettings": {
+    "app": {
+      "theme": {
+        "label": "Theme",
+        "valueType": "string",
+        "value": "light",
+        "defaultValue": "light",
+        "description": "Default visual theme"
+      }
+    }
+  }
+}

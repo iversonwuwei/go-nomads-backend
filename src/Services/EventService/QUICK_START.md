@@ -30,8 +30,8 @@ dotnet run
 等待看到：
 ```
 ✅ EventService 启动成功
-🌐 运行在: http://localhost:8005
-📖 API 文档: http://localhost:8005/scalar/v1
+🌐 运行在: http://localhost:5205
+📖 API 文档: http://localhost:5205/scalar/v1
 ```
 
 ### 步骤 3: 测试 API
@@ -98,7 +98,7 @@ Future<void> _loadMeetupTypes() async {
 
 ```powershell
 # 测试获取类型列表
-curl http://localhost:8005/api/v1/event-types
+curl http://localhost:5205/api/v1/event-types
 
 # 预期响应
 {
@@ -146,7 +146,7 @@ SELECT COUNT(*) FROM event_types WHERE is_active = TRUE;
 A: 检查 `appsettings.json` 中的 Supabase 配置
 
 **Q: API 返回 404？**
-A: 确认 EventService 已启动且运行在 8005 端口
+A: 确认 EventService 已启动且运行在 5205 端口
 
 **Q: 移动端获取不到数据？**
 A: 检查 Gateway 路由配置，确保 `/api/events/types` 路由到 EventService
@@ -164,5 +164,5 @@ cat src/Services/EventService/EventService/logs/eventservice-*.txt
 ## 📚 相关文档
 
 - 完整文档: `src/Services/EventService/EVENT_TYPES_IMPLEMENTATION.md`
-- API 文档: `http://localhost:8005/scalar/v1`
+- API 文档: `http://localhost:5205/scalar/v1`
 - 数据库脚本: `src/Services/EventService/EventService/Database/`

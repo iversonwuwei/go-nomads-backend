@@ -23,7 +23,7 @@ spec:
           image: ${DOCKER_REGISTRY}/go-nomads-ai-service:${IMAGE_TAG:-latest}
           imagePullPolicy: Always
           ports:
-            - containerPort: 8080
+            - containerPort: 5209
               name: http
           env:
             - name: ASPNETCORE_ENVIRONMENT
@@ -32,7 +32,7 @@ spec:
                   name: go-nomads-config
                   key: ASPNETCORE_ENVIRONMENT
             - name: ASPNETCORE_URLS
-              value: "http://+:8080"
+              value: "http://+:5209"
             - name: ConnectionStrings__SupabaseDb
               valueFrom:
                 secretKeyRef:
@@ -88,13 +88,13 @@ spec:
           readinessProbe:
             httpGet:
               path: /health
-              port: 8080
+              port: 5209
             initialDelaySeconds: 15
             periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /health
-              port: 8080
+              port: 5209
             initialDelaySeconds: 40
             periodSeconds: 15
       imagePullSecrets:
@@ -110,8 +110,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 8080
-      targetPort: 8080
+    - port: 5209
+      targetPort: 5209
       name: http
   selector:
     app: ai-service

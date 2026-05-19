@@ -126,7 +126,7 @@ function Deploy-Redis {
     & $CONTAINER_RUNTIME run -d `
         --name go-nomads-redis `
         --network $NETWORK_NAME `
-        -p 6379:6379 `
+        -p 5300:6379 `
         $REDIS_IMAGE | Out-Null
     
     if (Test-ContainerRunning "go-nomads-redis") {
@@ -146,9 +146,9 @@ function Import-RedisConfig {
     $configs = @{
         "go-nomads:config:app-version" = "1.0.0"
         "go-nomads:config:environment" = "development"
-        "go-nomads:config:gateway:endpoint" = "http://go-nomads-gateway:8080"
-        "go-nomads:config:product-service:endpoint" = "http://go-nomads-product-service:8080"
-        "go-nomads:config:user-service:endpoint" = "http://go-nomads-user-service:8080"
+        "go-nomads:config:gateway:endpoint" = "http://go-nomads-gateway:5000"
+        "go-nomads:config:product-service:endpoint" = "http://go-nomads-product-service:5002"
+        "go-nomads:config:user-service:endpoint" = "http://go-nomads-user-service:5001"
         "go-nomads:config:redis:endpoint" = "go-nomads-redis:6379"
         "go-nomads:config:logging:level" = "info"
         "go-nomads:config:logging:format" = "json"
@@ -182,15 +182,15 @@ function Deploy-RabbitMQ {
     & $CONTAINER_RUNTIME run -d `
         --name go-nomads-rabbitmq `
         --network $NETWORK_NAME `
-        -p 5672:5672 `
-        -p 15672:15672 `
+        -p 5301:5672 `
+        -p 5302:15672 `
         -e RABBITMQ_DEFAULT_USER=walden `
         -e RABBITMQ_DEFAULT_PASS=walden `
         $RABBITMQ_IMAGE | Out-Null
     
     if (Test-ContainerRunning "go-nomads-rabbitmq") {
         Write-Host "  RabbitMQ deployed successfully!" -ForegroundColor Green
-        Wait-ForService "RabbitMQ" "http://localhost:15672" 30 | Out-Null
+        Wait-ForService "RabbitMQ" "http://localhost:5302" 30 | Out-Null
     } else {
         Write-Host "  [ERROR] Failed to start RabbitMQ" -ForegroundColor Red
         exit 1
@@ -207,7 +207,7 @@ function Deploy-PostgreSQL {
     & $CONTAINER_RUNTIME run -d `
         --name go-nomads-postgres `
         --network $NETWORK_NAME `
-        -p 5432:5432 `
+        -p 5307:5432 `
         -e POSTGRES_USER=postgres `
         -e POSTGRES_PASSWORD=postgres `
         -e POSTGRES_DB=gonomads `
@@ -232,8 +232,8 @@ function Deploy-Elasticsearch {
     & $CONTAINER_RUNTIME run -d `
         --name go-nomads-elasticsearch `
         --network $NETWORK_NAME `
-        -p 9200:9200 `
-        -p 9300:9300 `
+        -p 5303:9200 `
+        -p 5304:9300 `
         -e "discovery.type=single-node" `
         -e "xpack.security.enabled=false" `
         -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" `
@@ -241,7 +241,7 @@ function Deploy-Elasticsearch {
     
     if (Test-ContainerRunning "go-nomads-elasticsearch") {
         Write-Host "  Elasticsearch deployed successfully!" -ForegroundColor Green
-        Wait-ForService "Elasticsearch" "http://localhost:9200" 30 | Out-Null
+        Wait-ForService "Elasticsearch" "http://localhost:5303" 30 | Out-Null
     } else {
         Write-Host "  [ERROR] Failed to start Elasticsearch" -ForegroundColor Red
         exit 1
@@ -266,8 +266,8 @@ function Deploy-Nginx {
     & $CONTAINER_RUNTIME run -d `
         --name go-nomads-nginx `
         --network $NETWORK_NAME `
-        -p 80:80 `
-        -p 443:443 `
+        -p 5305:80 `
+        -p 5343:443 `
         -v "${nginxConfPath}:/etc/nginx/conf.d/default.conf:ro" `
         $NGINX_IMAGE | Out-Null
     
@@ -295,10 +295,10 @@ function Show-Status {
     }
     
     Write-Host "Access URLs:" -ForegroundColor Yellow
-    Write-Host "  - Nginx:        http://localhost" -ForegroundColor Cyan
-    Write-Host "  - RabbitMQ UI:  http://localhost:15672 (walden/walden)" -ForegroundColor Cyan
-    Write-Host "  - PostgreSQL:   localhost:5432 (postgres/postgres)" -ForegroundColor Cyan
-    Write-Host "  - Elasticsearch: http://localhost:9200" -ForegroundColor Cyan
+    Write-Host "  - Nginx:        http://localhost:5305" -ForegroundColor Cyan
+    Write-Host "  - RabbitMQ UI:  http://localhost:5302 (walden/walden)" -ForegroundColor Cyan
+    Write-Host "  - PostgreSQL:   localhost:5307 (postgres/postgres)" -ForegroundColor Cyan
+    Write-Host "  - Elasticsearch: http://localhost:5303" -ForegroundColor Cyan
     Write-Host ""
 }
 

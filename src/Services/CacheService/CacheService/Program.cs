@@ -33,7 +33,7 @@ builder.Services.AddOpenApi(options =>
     {
         document.Servers = new List<OpenApiServer>
         {
-            new() { Url = "http://localhost:8010", Description = "Local Development" }
+            new() { Url = "http://localhost:5210", Description = "Local Development" }
         };
         return Task.CompletedTask;
     });
@@ -102,6 +102,6 @@ app.MapControllers();
 app.MapGet("/health",
     () => Results.Ok(new { status = "healthy", service = "CacheService", timestamp = DateTime.UtcNow }));
 
-Log.Information("Cache Service starting on port 8010...");
+Log.Information("Cache Service starting on port 5210...");
 
 app.Run();

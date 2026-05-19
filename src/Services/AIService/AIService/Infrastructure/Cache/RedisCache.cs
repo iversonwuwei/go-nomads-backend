@@ -16,7 +16,7 @@ public class RedisCache : IRedisCache
     {
         _logger = logger;
 
-        var connectionString = configuration["Redis:ConnectionString"] ?? "localhost:6379";
+        var connectionString = configuration["Redis:ConnectionString"] ?? "localhost:5300";
 
         try
         {

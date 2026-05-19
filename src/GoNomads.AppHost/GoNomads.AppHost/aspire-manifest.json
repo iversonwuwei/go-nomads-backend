@@ -187,7 +187,7 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8002
+          "port": 5202
         }
       }
     },
@@ -214,7 +214,7 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8005
+          "port": 5205
         }
       }
     },
@@ -241,7 +241,7 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8006
+          "port": 5203
         }
       }
     },
@@ -269,7 +269,7 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8009
+          "port": 5209
         }
       }
     },
@@ -323,7 +323,7 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8010
+          "port": 5210
         }
       }
     },
@@ -350,7 +350,7 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8011
+          "port": 5206
         }
       }
     },
@@ -367,7 +367,7 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8012
+          "port": 5204
         }
       }
     },
@@ -398,7 +398,7 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8015
+          "port": 5215
         }
       }
     },

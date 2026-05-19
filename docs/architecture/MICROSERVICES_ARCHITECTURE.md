@@ -8,14 +8,14 @@ go-nomads-backend/
 │   ├── Gateway/                    # API 网关 (端口: 5000)
 │   │   └── Gateway/
 │   ├── Services/                   # 微服务集合
-│   │   ├── UserService/            # 用户服务 (端口: 8001)
-│   │   ├── CityService/            # 城市服务 (端口: 8002) ✅ NEW
-│   │   ├── CoworkingService/       # 共享办公服务 (端口: 8003) ✅ NEW
-│   │   ├── AccommodationService/   # 住宿服务 (端口: 8004) ✅ NEW
-│   │   ├── EventService/           # 活动服务 (端口: 8005) ✅ NEW
-│   │   ├── InnovationService/      # 创新项目服务 (端口: 8006) ✅ NEW
-│   │   ├── TravelPlanningService/  # 旅行规划服务 (端口: 8007) ✅ NEW
-│   │   ├── EcommerceService/       # 电商服务 (端口: 8008) ✅ NEW
+│   │   ├── UserService/            # 用户服务 (端口: 5001)
+│   │   ├── CityService/            # 城市服务 (端口: 5202) ✅ NEW
+│   │   ├── CoworkingService/       # 共享办公服务 (端口: 5203) ✅ NEW
+│   │   ├── AccommodationService/   # 住宿服务 (端口: 5204) ✅ NEW
+│   │   ├── EventService/           # 活动服务 (端口: 5205) ✅ NEW
+│   │   ├── InnovationService/      # 创新项目服务 (端口: 5206) ✅ NEW
+│   │   ├── TravelPlanningService/  # 旅行规划服务 (端口: 5207) ✅ NEW
+│   │   ├── EcommerceService/       # 电商服务 (端口: 5208) ✅ NEW
 │   │   ├── ProductService/         # 产品服务 (端口: 5002)
 │   │   └── DocumentService/        # 文档服务
 │   └── Shared/                     # 共享库
@@ -28,7 +28,7 @@ go-nomads-backend/
 ## 🎯 核心微服务 (8个)
 
 ### 1️⃣ UserService - 用户服务
-**端口**: 8001  
+**端口**: 5001  
 **数据库**: PostgreSQL  
 **缓存**: Redis
 
@@ -52,7 +52,7 @@ DELETE /api/v1/users/{id}
 ---
 
 ### 2️⃣ CityService - 城市服务 ✅
-**端口**: 8002  
+**端口**: 5202  
 **数据库**: PostgreSQL + PostGIS  
 **缓存**: Redis  
 **搜索**: Elasticsearch
@@ -124,7 +124,7 @@ public class City
 ---
 
 ### 3️⃣ CoworkingService - 共享办公服务 ✅
-**端口**: 8003  
+**端口**: 5203  
 **数据库**: PostgreSQL + PostGIS  
 **缓存**: Redis
 
@@ -153,7 +153,7 @@ POST   /api/v1/coworking/{id}/bookings
 ---
 
 ### 4️⃣ AccommodationService - 住宿服务 ✅
-**端口**: 8004  
+**端口**: 5204  
 **数据库**: PostgreSQL  
 **缓存**: Redis
 
@@ -181,7 +181,7 @@ GET    /api/v1/hotels/{id}/reviews
 ---
 
 ### 5️⃣ EventService - 活动服务 ✅
-**端口**: 8005  
+**端口**: 5205  
 **数据库**: PostgreSQL  
 **缓存**: Redis  
 **消息队列**: RabbitMQ
@@ -210,7 +210,7 @@ GET    /api/v1/events/{id}/attendees
 ---
 
 ### 6️⃣ InnovationService - 创新项目服务 ✅
-**端口**: 8006  
+**端口**: 5206  
 **数据库**: PostgreSQL  
 **缓存**: Redis
 
@@ -237,7 +237,7 @@ POST   /api/v1/innovations/upload
 ---
 
 ### 7️⃣ TravelPlanningService - 旅行规划服务 ✅
-**端口**: 8007  
+**端口**: 5207  
 **数据库**: PostgreSQL  
 **缓存**: Redis  
 **AI 引擎**: OpenAI API
@@ -264,7 +264,7 @@ GET    /api/v1/travel-plans/{id}/share
 ---
 
 ### 8️⃣ EcommerceService - 电商服务 ✅
-**端口**: 8008  
+**端口**: 5208  
 **数据库**: PostgreSQL  
 **缓存**: Redis
 
@@ -328,7 +328,7 @@ POST   /api/v1/orders/{id}/pay
 - **用途**: 监控指标收集
 
 ### Grafana
-- **端口**: 3000
+- **端口**: 5306
 - **用途**: 监控可视化
 - **默认账号**: admin / admin
 
@@ -371,21 +371,27 @@ docker-compose down -v
 
 | 服务 | 容器端口 | 主机端口 | 协议 |
 |------|---------|---------|------|
-| API Gateway | 80 | 5000 | HTTP |
-| UserService | 80 | 8001 | HTTP |
-| CityService | 8002 | 8002 | HTTP |
-| CoworkingService | 8003 | 8003 | HTTP |
-| AccommodationService | 8004 | 8004 | HTTP |
-| EventService | 8005 | 8005 | HTTP |
-| InnovationService | 8006 | 8006 | HTTP |
-| TravelPlanningService | 8007 | 8007 | HTTP |
-| EcommerceService | 8008 | 8008 | HTTP |
-| ProductService | 80 | 5002 | HTTP |
-| PostgreSQL | 5432 | 5432 | TCP |
-| Redis | 6379 | 6379 | TCP |
-| Elasticsearch | 9200/9300 | 9200/9300 | HTTP/TCP |
-| RabbitMQ | 5672 | 5672 | AMQP |
-| RabbitMQ管理 | 15672 | 15672 | HTTP |
+| API Gateway | 5000 | 5080 | HTTP |
+| UserService | 5001 | 5001 | HTTP |
+| ProductService | 5002 | 5002 | HTTP |
+| DocumentService | 5003 | 5003 | HTTP |
+| MessageService | 5005 | 5005 | HTTP |
+| CityService | 5202 | 5202 | HTTP |
+| CoworkingService | 5203 | 5203 | HTTP |
+| AccommodationService | 5204 | 5204 | HTTP |
+| EventService | 5205 | 5205 | HTTP |
+| InnovationService | 5206 | 5206 | HTTP |
+| TravelPlanningService | 5207 | 5207 | HTTP |
+| EcommerceService | 5208 | 5208 | HTTP |
+| AIService | 5209 | 5209 | HTTP |
+| CacheService | 5210 | 5210 | HTTP |
+| ConfigService | 5213 | 5213 | HTTP |
+| SearchService | 5215 | 5215 | HTTP |
+| PostgreSQL | 5432 | 5307 | TCP |
+| Redis | 6379 | 5300 | TCP |
+| Elasticsearch | 9200/9300 | 5303/5304 | HTTP/TCP |
+| RabbitMQ | 5672 | 5301 | AMQP |
+| RabbitMQ管理 | 15672 | 5302 | HTTP |
 | Zipkin | 9411 | 9411 | HTTP |
 | Prometheus | 9090 | 9090 | HTTP |
 | Grafana | 3000 | 3000 | HTTP |
@@ -452,39 +458,39 @@ docker-compose down -v
 
 ## 📈 下一步计划
 
-### 待实现的基础服务 (6个)
+### 待规划的扩展能力
 
-1. **LocationService** - 定位服务 (端口: 9001)
+1. **LocationService** - 定位服务 (端口待定，需保持在 5000-5999)
    - GPS 定位
    - 地理编码/反编码
    - 距离计算
    - 附近搜索
 
-2. **NotificationService** - 通知服务 (端口: 9002)
+2. **NotificationService** - 通知服务 (端口待定，需保持在 5000-5999)
    - Push 通知
    - 邮件通知
    - 短信通知
    - 站内消息
 
-3. **FileService** - 文件服务 (端口: 9003)
+3. **FileService** - 文件服务 (端口待定，需保持在 5000-5999)
    - 文件上传/下载
    - 图片压缩
    - 视频处理
    - CDN 加速
 
-4. **SearchService** - 搜索服务 (端口: 9004)
+4. **SearchService** - 搜索服务 (当前端口: 5215)
    - 全文搜索
    - 自动补全
    - 搜索建议
    - 热门搜索
 
-5. **PaymentService** - 支付服务 (端口: 9005)
+5. **PaymentService** - 支付服务 (端口待定，需保持在 5000-5999)
    - 支付网关集成
    - 订单支付
    - 退款管理
    - 账单管理
 
-6. **I18nService** - 国际化服务 (端口: 9006)
+6. **I18nService** - 国际化服务 (端口待定，需保持在 5000-5999)
    - 多语言管理
    - 翻译缓存
    - 语言包更新

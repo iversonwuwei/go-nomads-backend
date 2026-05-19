@@ -1,0 +1,19 @@
+{
+  "scores": [
+    {
+      "entityId": "cow-1",
+      "overallScore": 4.8,
+      "fromCache": false,
+      "statistics": "{\"ReviewCount\":7}"
+    },
+    {
+      "entityId": "cow-2",
+      "overallScore": 4.1,
+      "fromCache": false,
+      "statistics": "{\"ReviewCount\":3}"
+    }
+  ],
+  "totalCount": 2,
+  "cachedCount": 0,
+  "calculatedCount": 2
+}

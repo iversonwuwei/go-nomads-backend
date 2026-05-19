@@ -6,7 +6,7 @@ param(
     [string]$CoworkingId = "00000000-0000-0000-0000-000000000000"
 )
 
-$baseUrl = "http://localhost:8004"
+$baseUrl = "http://localhost:5204"
 
 Write-Host "🧪 快速测试 Coworking Review API" -ForegroundColor Cyan
 Write-Host "Coworking ID: $CoworkingId" -ForegroundColor Gray

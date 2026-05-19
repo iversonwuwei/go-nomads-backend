@@ -106,7 +106,7 @@ final response = await http.post(
 ```json
 {
   "ConnectionStrings": {
-    "Redis": "localhost:6379"
+    "Redis": "localhost:5300"
   },
   "Cache": {
     "ScoreTtlHours": 24
@@ -123,7 +123,7 @@ docker build -t cache-service:latest .
 
 # 运行容器
 docker run -d \
-  -p 8010:8010 \
+  -p 5210:5210 \
   -e ConnectionStrings__Redis=go-nomads-redis:6379 \
   --name cache-service \
   cache-service:latest
@@ -139,7 +139,7 @@ dotnet run --project CacheService.csproj
 
 ### Health Check
 ```bash
-curl http://localhost:8010/health
+curl http://localhost:5210/health
 ```
 
 ### 日志位置
@@ -215,9 +215,9 @@ var results = await Task.WhenAll(tasks);
 ## 开发指南
 
 ### 本地开发
-1. 启动 Redis: `docker run -d -p 6379:6379 redis:latest`
+1. 启动 Redis: `docker run -d -p 5300:6379 redis:latest`
 2. 启动服务: `dotnet run`
-3. 访问 API 文档: `http://localhost:8010/scalar/v1`
+3. 访问 API 文档: `http://localhost:5210/scalar/v1`
 
 ### 添加新的缓存类型
 1. 在 `Domain/Entities/ScoreCache.cs` 添加新的 `ScoreEntityType`

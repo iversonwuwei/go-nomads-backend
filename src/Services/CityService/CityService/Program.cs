@@ -25,8 +25,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 Microsoft.Extensions.Hosting.Extensions.AddServiceDefaults(builder);
 
-// 配置端口 - 容器内监听 8080，外部通过 docker-compose 映射到 8002
-// builder.WebHost.UseUrls("http://localhost:8002"); // 注释掉，使用环境变量 ASPNETCORE_URLS
+// 配置端口 - 容器内监听 5202，外部通过 docker-compose 映射到 5202
+// builder.WebHost.UseUrls("http://localhost:5202"); // 注释掉，使用环境变量 ASPNETCORE_URLS
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -52,7 +52,7 @@ builder.Services.AddOpenApi(options =>
         // 配置正确的服务器 URL
         document.Servers = new List<OpenApiServer>
         {
-            new() { Url = "http://localhost:8002", Description = "Local Development" }
+            new() { Url = "http://localhost:5202", Description = "Local Development" }
         };
         return Task.CompletedTask;
     });
@@ -215,6 +215,6 @@ app.MapGet("/health",
 // 天气缓存刷新服务已通过 BackgroundService 自动运行
 Log.Information("Weather cache refresh service enabled (refresh every 30 minutes)");
 
-Log.Information("City Service starting on port 8002...");
+Log.Information("City Service starting on port 5202...");
 
 app.Run();

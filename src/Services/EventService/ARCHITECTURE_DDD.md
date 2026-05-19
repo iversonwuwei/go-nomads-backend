@@ -526,8 +526,8 @@ cd deployment
 ./deploy-services-local.sh
 
 # 访问
-Scalar API: http://localhost:8005/scalar/v1
-健康检查: http://localhost:8005/health
+Scalar API: http://localhost:5205/scalar/v1
+健康检查: http://localhost:5205/health
 ```
 
 ---

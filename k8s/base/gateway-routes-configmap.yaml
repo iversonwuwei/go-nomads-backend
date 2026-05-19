@@ -74,35 +74,35 @@ data:
           "city-service": {
             "Destinations": {
               "city-service-1": {
-                "Address": "http://city-service:8002"
+                "Address": "http://city-service:5202"
               }
             }
           },
           "coworking-service": {
             "Destinations": {
               "coworking-service-1": {
-                "Address": "http://coworking-service:8003"
+                "Address": "http://coworking-service:5203"
               }
             }
           },
           "event-service": {
             "Destinations": {
               "event-service-1": {
-                "Address": "http://event-service:8005"
+                "Address": "http://event-service:5205"
               }
             }
           },
           "ai-service": {
             "Destinations": {
               "ai-service-1": {
-                "Address": "http://ai-service:8080"
+                "Address": "http://ai-service:5209"
               }
             }
           },
           "accommodation-service": {
             "Destinations": {
               "accommodation-service-1": {
-                "Address": "http://accommodation-service:8012"
+                "Address": "http://accommodation-service:5204"
               }
             }
           }

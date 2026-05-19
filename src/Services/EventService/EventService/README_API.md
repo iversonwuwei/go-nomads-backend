@@ -4,8 +4,8 @@
 
 EventService 提供 Meetup/Event 管理功能，支持创建、浏览、参加和关注 Meetup。
 
-**基础 URL**: `http://localhost:8005`  
-**Scalar API 文档**: `http://localhost:8005/scalar/v1`
+**基础 URL**: `http://localhost:5205`  
+**Scalar API 文档**: `http://localhost:5205/scalar/v1`
 
 ---
 
@@ -351,7 +351,7 @@ APP 端用户提交创建 Meetup 请求
 
 ```bash
 # 1. 创建 Meetup
-curl -X POST http://localhost:8005/api/v1/Events \
+curl -X POST http://localhost:5205/api/v1/Events \
   -H "Content-Type: application/json" \
   -d '{
     "title": "测试聚会",
@@ -361,15 +361,15 @@ curl -X POST http://localhost:8005/api/v1/Events \
   }'
 
 # 2. 获取 Meetup 列表
-curl http://localhost:8005/api/v1/Events
+curl http://localhost:5205/api/v1/Events
 
 # 3. 参加 Meetup
-curl -X POST http://localhost:8005/api/v1/Events/{eventId}/join \
+curl -X POST http://localhost:5205/api/v1/Events/{eventId}/join \
   -H "Content-Type: application/json" \
   -d '{"userId": "550e8400-e29b-41d4-a716-446655440000"}'
 
 # 4. 关注 Meetup
-curl -X POST http://localhost:8005/api/v1/Events/{eventId}/follow \
+curl -X POST http://localhost:5205/api/v1/Events/{eventId}/follow \
   -H "Content-Type: application/json" \
   -d '{"userId": "550e8400-e29b-41d4-a716-446655440000"}'
 ```
@@ -417,7 +417,7 @@ CREATE INDEX idx_event_followers_user_id ON event_followers(user_id);
 
 ## 🚀 部署状态
 
-- **服务地址**: http://localhost:8005
-- **Scalar 文档**: http://localhost:8005/scalar/v1
-- **健康检查**: http://localhost:8005/health
+- **服务地址**: http://localhost:5205
+- **Scalar 文档**: http://localhost:5205/scalar/v1
+- **健康检查**: http://localhost:5205/health
 - **内部服务通信**: 通过 HTTP API 与共享服务客户端完成

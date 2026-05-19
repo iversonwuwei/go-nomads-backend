@@ -125,8 +125,8 @@ cd k8s
 服务间通过内部 HTTP API 和共享的 `ServiceInvocationClient` 进行通信，示例：
 
 ```text
-http://user-service:8080/api/users/{id}
-http://product-service:8080/api/products/user/{userId}
+http://user-service:5001/api/users/{id}
+http://product-service:5002/api/products/user/{userId}
 ```
 
 ### 验证服务状态
@@ -180,7 +180,7 @@ kubectl apply -k overlays/prod/
         ▼                    ▼                    ▼
 ┌───────────────┐   ┌───────────────┐   ┌───────────────┐
 │ User Service  │   │ City Service  │   │  AI Service   │
-│   (port 80)   │   │  (port 8002)  │   │  (port 8080)  │
+│  (port 5001)  │   │  (port 5202)  │   │  (port 5209)  │
 └───────┬───────┘   └───────┬───────┘   └───────┬───────┘
         │                   │                   │
         └───────────────────┼───────────────────┘
@@ -198,14 +198,14 @@ kubectl apply -k overlays/prod/
 
 | 服务 | 容器端口 | K8s Service 端口 |
 |------|----------|------------------|
-| Gateway | 8080 | 80 |
-| User Service | 80 | 80 |
-| City Service | 8002 | 8002 |
-| Coworking Service | 8003 | 8003 |
-| Event Service | 8005 | 8005 |
-| AI Service | 8080 | 8080 |
-| Message Service | 8010 | 8010 |
-| Cache Service | 8011 | 8011 |
+| Gateway | 5000 | 5000 |
+| User Service | 5001 | 5001 |
+| City Service | 5202 | 5202 |
+| Coworking Service | 5203 | 5203 |
+| Event Service | 5205 | 5205 |
+| AI Service | 5209 | 5209 |
+| Message Service | 5005 | 5005 |
+| Cache Service | 5210 | 5210 |
 | Redis | 6379 | 6379 |
 | RabbitMQ | 5672, 15672 | 5672, 15672 |
 | Elasticsearch | 9200, 9300 | 9200, 9300 |

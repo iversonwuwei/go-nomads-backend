@@ -167,7 +167,7 @@ function Start-Redis {
             "--network", $NETWORK_NAME,
             "--label", "com.docker.compose.project=go-nomads-infras",
             "--label", "com.docker.compose.service=redis",
-            "-p", "6379:6379",
+            "-p", "5300:6379",
             $REDIS_IMAGE,
             "redis-server", "--appendonly", "yes"
         ) `
@@ -177,12 +177,12 @@ function Start-Redis {
             "--network", $NETWORK_NAME,
             "--label", "com.docker.compose.project=go-nomads-infras",
             "--label", "com.docker.compose.service=redis",
-            "-p", "6379:6379",
+            "-p", "5300:6379",
             $OFFICIAL_REDIS_IMAGE,
             "redis-server", "--appendonly", "yes"
         )
     
-    Write-Host "Redis running at: redis://localhost:6379" -ForegroundColor Green
+    Write-Host "Redis running at: redis://localhost:5300" -ForegroundColor Green
 }
 
 function Start-Elasticsearch {
@@ -197,8 +197,8 @@ function Start-Elasticsearch {
             "--network", $NETWORK_NAME,
             "--label", "com.docker.compose.project=go-nomads-infras",
             "--label", "com.docker.compose.service=elasticsearch",
-            "-p", "9200:9200",
-            "-p", "9300:9300",
+            "-p", "5303:9200",
+            "-p", "5304:9300",
             "-e", "discovery.type=single-node",
             "-e", "xpack.security.enabled=false",
             "-e", "ES_JAVA_OPTS=-Xms512m -Xmx512m",
@@ -210,15 +210,15 @@ function Start-Elasticsearch {
             "--network", $NETWORK_NAME,
             "--label", "com.docker.compose.project=go-nomads-infras",
             "--label", "com.docker.compose.service=elasticsearch",
-            "-p", "9200:9200",
-            "-p", "9300:9300",
+            "-p", "5303:9200",
+            "-p", "5304:9300",
             "-e", "discovery.type=single-node",
             "-e", "xpack.security.enabled=false",
             "-e", "ES_JAVA_OPTS=-Xms512m -Xmx512m",
             $OFFICIAL_ELASTICSEARCH_IMAGE
         )
     
-    Write-Host "Elasticsearch available at: http://localhost:9200" -ForegroundColor Green
+    Write-Host "Elasticsearch available at: http://localhost:5303" -ForegroundColor Green
 }
 
 function Start-RabbitMQ {
@@ -233,8 +233,8 @@ function Start-RabbitMQ {
             "--network", $NETWORK_NAME,
             "--label", "com.docker.compose.project=go-nomads-infras",
             "--label", "com.docker.compose.service=rabbitmq",
-            "-p", "5672:5672",
-            "-p", "15672:15672",
+            "-p", "5301:5672",
+            "-p", "5302:15672",
             "-e", "RABBITMQ_DEFAULT_USER=$RABBITMQ_DEFAULT_USER",
             "-e", "RABBITMQ_DEFAULT_PASS=$RABBITMQ_DEFAULT_PASS",
             $RABBITMQ_IMAGE
@@ -245,15 +245,15 @@ function Start-RabbitMQ {
             "--network", $NETWORK_NAME,
             "--label", "com.docker.compose.project=go-nomads-infras",
             "--label", "com.docker.compose.service=rabbitmq",
-            "-p", "5672:5672",
-            "-p", "15672:15672",
+            "-p", "5301:5672",
+            "-p", "5302:15672",
             "-e", "RABBITMQ_DEFAULT_USER=$RABBITMQ_DEFAULT_USER",
             "-e", "RABBITMQ_DEFAULT_PASS=$RABBITMQ_DEFAULT_PASS",
             $OFFICIAL_RABBITMQ_IMAGE
         )
     
-    Write-Host "RabbitMQ running at: amqp://localhost:5672" -ForegroundColor Green
-    Write-Host "RabbitMQ Management UI: http://localhost:15672 ($RABBITMQ_DEFAULT_USER/$RABBITMQ_DEFAULT_PASS)" -ForegroundColor Green
+    Write-Host "RabbitMQ running at: amqp://localhost:5301" -ForegroundColor Green
+    Write-Host "RabbitMQ Management UI: http://localhost:5302 ($RABBITMQ_DEFAULT_USER/$RABBITMQ_DEFAULT_PASS)" -ForegroundColor Green
 }
 
 function Start-Nginx {
@@ -277,8 +277,8 @@ function Start-Nginx {
             "--network", $NETWORK_NAME,
             "--label", "com.docker.compose.project=go-nomads-infras",
             "--label", "com.docker.compose.service=nginx",
-            "-p", "80:80",
-            "-p", "443:443",
+            "-p", "5305:80",
+            "-p", "5343:443",
             "-v", "${nginxConfPath}:/etc/nginx/conf.d/default.conf:ro",
             "--restart", "unless-stopped",
             $NGINX_IMAGE
@@ -289,8 +289,8 @@ function Start-Nginx {
             "--network", $NETWORK_NAME,
             "--label", "com.docker.compose.project=go-nomads-infras",
             "--label", "com.docker.compose.service=nginx",
-            "-p", "80:80",
-            "-p", "443:443",
+            "-p", "5305:80",
+            "-p", "5343:443",
             "-v", "${nginxConfPath}:/etc/nginx/conf.d/default.conf:ro",
             "--restart", "unless-stopped",
             $OFFICIAL_NGINX_IMAGE
@@ -372,8 +372,8 @@ function Show-Status {
     Write-Host ""
     Write-Host "Access URLs:" -ForegroundColor Cyan
     Write-Host "  Nginx:          http://localhost"
-    Write-Host "  Redis:          redis://localhost:6379"
-    Write-Host "  Elasticsearch:  http://localhost:9200"
+    Write-Host "  Redis:          redis://localhost:5300"
+    Write-Host "  Elasticsearch:  http://localhost:5303"
 }
 
 function Show-Help {

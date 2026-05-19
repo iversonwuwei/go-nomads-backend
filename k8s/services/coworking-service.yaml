@@ -23,7 +23,7 @@ spec:
           image: ${DOCKER_REGISTRY}/go-nomads-coworking-service:${IMAGE_TAG:-latest}
           imagePullPolicy: Always
           ports:
-            - containerPort: 8003
+            - containerPort: 5203
               name: http
           env:
             - name: ASPNETCORE_ENVIRONMENT
@@ -32,7 +32,7 @@ spec:
                   name: go-nomads-config
                   key: ASPNETCORE_ENVIRONMENT
             - name: ASPNETCORE_URLS
-              value: "http://+:8003"
+              value: "http://+:5203"
             - name: ConnectionStrings__DefaultConnection
               valueFrom:
                 secretKeyRef:
@@ -63,13 +63,13 @@ spec:
           readinessProbe:
             httpGet:
               path: /health
-              port: 8003
+              port: 5203
             initialDelaySeconds: 10
             periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /health
-              port: 8003
+              port: 5203
             initialDelaySeconds: 30
             periodSeconds: 15
       imagePullSecrets:
@@ -85,8 +85,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 8003
-      targetPort: 8003
+    - port: 5203
+      targetPort: 5203
       name: http
   selector:
     app: coworking-service

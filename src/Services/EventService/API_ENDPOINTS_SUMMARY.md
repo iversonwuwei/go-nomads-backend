@@ -364,7 +364,7 @@ Authorization: Bearer {token}  // ✅ userId 从 UserContext 获取
 
 - [UserContext 实现说明](./USER_CONTEXT_IMPLEMENTATION.md)
 - [三层架构 + DDD 文档](./ARCHITECTURE_DDD.md)
-- [Scalar API 文档](http://localhost:8005/scalar/v1)
+- [Scalar API 文档](http://localhost:5205/scalar/v1)
 
 ---
 

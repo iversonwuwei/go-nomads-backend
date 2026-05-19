@@ -1,0 +1,22 @@
+{
+  "success": true,
+  "message": "Products retrieved successfully",
+  "data": {
+    "items": [
+      {
+        "id": "1",
+        "name": "Laptop",
+        "description": "High-performance laptop",
+        "price": 999.99,
+        "userId": "1",
+        "category": "Electronics",
+        "createdAt": "2026-05-07T08:00:00Z",
+        "updatedAt": "2026-05-07T08:00:00Z"
+      }
+    ],
+    "totalCount": 1,
+    "page": 1,
+    "pageSize": 10,
+    "totalPages": 1
+  }
+}

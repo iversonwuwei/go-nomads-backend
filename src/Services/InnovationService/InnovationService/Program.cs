@@ -36,7 +36,7 @@ builder.Services.AddOpenApi(options =>
     {
         document.Servers = new List<OpenApiServer>
         {
-            new() { Url = "http://localhost:8011", Description = "Local Development" }
+            new() { Url = "http://localhost:5206", Description = "Local Development" }
         };
         return Task.CompletedTask;
     });

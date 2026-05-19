@@ -80,7 +80,7 @@ main() {
     
     echo -e "${YELLOW}等待 RabbitMQ 就绪...${NC}"
     for i in {1..30}; do
-        if curl -s http://localhost:15672 > /dev/null 2>&1; then
+        if curl -s http://localhost:5302 > /dev/null 2>&1; then
             echo -e "${GREEN}RabbitMQ 已就绪!${NC}"
             break
         fi
@@ -110,10 +110,10 @@ main() {
     echo -e "  ${GREEN}Notification Hub:    ws://localhost:5005/hubs/notifications${NC}"
     echo ""
     echo -e "${BLUE}基础设施:${NC}"
-    echo -e "  ${GREEN}RabbitMQ 管理界面:   http://localhost:15672${NC}"
+    echo -e "  ${GREEN}RabbitMQ 管理界面:   http://localhost:5302${NC}"
     echo -e "  ${GREEN}  用户名: walden${NC}"
     echo -e "  ${GREEN}  密码:   walden${NC}"
-    echo -e "  ${GREEN}Redis:               redis://localhost:6379${NC}"
+    echo -e "  ${GREEN}Redis:               redis://localhost:5300${NC}"
     echo ""
     echo -e "${BLUE}常用命令:${NC}"
     echo -e "  查看日志:       ${YELLOW}$COMPOSE_CMD -f docker-compose.messageservice.yml logs -f${NC}"
@@ -129,7 +129,7 @@ main() {
     
     echo -e "${GREEN}部署完成! 🚀${NC}"
     echo ""
-    echo -e "${YELLOW}提示: 访问 http://localhost:15672 查看 RabbitMQ 队列是否创建成功${NC}"
+    echo -e "${YELLOW}提示: 访问 http://localhost:5302 查看 RabbitMQ 队列是否创建成功${NC}"
 }
 
 # 运行主流程

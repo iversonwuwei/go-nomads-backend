@@ -190,7 +190,7 @@ cd src/Services/EventService/EventService
 dotnet run
 ```
 
-服务将运行在：`http://localhost:8005`
+服务将运行在：`http://localhost:5205`
 
 ### 3. 测试 API
 ```powershell
@@ -299,7 +299,7 @@ Future<void> _loadMeetupTypes() async {
   "DownstreamHostAndPorts": [
     {
       "Host": "eventservice",
-      "Port": 8005
+      "Port": 5205
     }
   ],
   "UpstreamPathTemplate": "/api/events/types",
@@ -333,5 +333,5 @@ Future<void> _loadMeetupTypes() async {
 
 如有问题，请查看：
 - EventService 日志：`src/Services/EventService/EventService/logs/`
-- API 文档：`http://localhost:8005/scalar/v1`
+- API 文档：`http://localhost:5205/scalar/v1`
 - 测试结果：`event-types-list.json`

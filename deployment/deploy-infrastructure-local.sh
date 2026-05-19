@@ -90,9 +90,9 @@ start_redis() {
         --network "${NETWORK_NAME}" \
         --label "com.docker.compose.project=go-nomads-infras" \
         --label "com.docker.compose.service=redis" \
-        -p 6379:6379 \
+        -p 5300:6379 \
         "${REDIS_IMAGE}" redis-server --appendonly yes >/dev/null
-    echo "Redis running at redis://localhost:6379"
+    echo "Redis running at redis://localhost:5300"
 }
 
 start_elasticsearch() {
@@ -103,13 +103,13 @@ start_elasticsearch() {
         --network "${NETWORK_NAME}" \
         --label "com.docker.compose.project=go-nomads-infras" \
         --label "com.docker.compose.service=elasticsearch" \
-        -p 9200:9200 \
-        -p 9300:9300 \
+        -p 5303:9200 \
+        -p 5304:9300 \
         -e "discovery.type=single-node" \
         -e "xpack.security.enabled=false" \
         -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" \
         "${ELASTICSEARCH_IMAGE}" >/dev/null
-    echo "Elasticsearch available at http://localhost:9200"
+    echo "Elasticsearch available at http://localhost:5303"
 }
 
 start_rabbitmq() {
@@ -120,13 +120,13 @@ start_rabbitmq() {
         --network "${NETWORK_NAME}" \
         --label "com.docker.compose.project=go-nomads-infras" \
         --label "com.docker.compose.service=rabbitmq" \
-        -p 5672:5672 \
-        -p 15672:15672 \
+        -p 5301:5672 \
+        -p 5302:15672 \
         -e RABBITMQ_DEFAULT_USER="${RABBITMQ_DEFAULT_USER}" \
         -e RABBITMQ_DEFAULT_PASS="${RABBITMQ_DEFAULT_PASS}" \
         "${RABBITMQ_IMAGE}" >/dev/null
-    echo "RabbitMQ running at amqp://localhost:5672"
-    echo "RabbitMQ Management UI: http://localhost:15672 (${RABBITMQ_DEFAULT_USER}/${RABBITMQ_DEFAULT_PASS})"
+    echo "RabbitMQ running at amqp://localhost:5301"
+    echo "RabbitMQ Management UI: http://localhost:5302 (${RABBITMQ_DEFAULT_USER}/${RABBITMQ_DEFAULT_PASS})"
 }
 
 start_nginx() {
@@ -143,8 +143,8 @@ start_nginx() {
         --network "${NETWORK_NAME}" \
         --label "com.docker.compose.project=go-nomads-infras" \
         --label "com.docker.compose.service=nginx" \
-        -p 80:80 \
-        -p 443:443 \
+        -p 5305:80 \
+        -p 5343:443 \
         -v "${nginx_conf}:/etc/nginx/conf.d/default.conf:ro" \
         --restart unless-stopped \
         "${NGINX_IMAGE}" >/dev/null
@@ -207,8 +207,8 @@ status_all() {
     echo
     echo "Access URLs:"
     echo "  Nginx:          http://localhost"
-    echo "  Redis:          redis://localhost:6379"
-    echo "  Elasticsearch:  http://localhost:9200"
+    echo "  Redis:          redis://localhost:5300"
+    echo "  Elasticsearch:  http://localhost:5303"
 }
 
 show_help() {

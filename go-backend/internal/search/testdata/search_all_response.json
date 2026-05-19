@@ -1,0 +1,71 @@
+{
+  "success": true,
+  "data": {
+    "cities": {
+      "items": [
+        {
+          "document": {
+            "id": "city-1",
+            "name": "Lisbon",
+            "country": "Portugal",
+            "overallScore": 4.7,
+            "isActive": true,
+            "createdAt": "2026-05-07T10:00:00Z",
+            "documentType": "city",
+            "userCount": 120,
+            "moderatorCount": 1,
+            "coworkingCount": 18,
+            "meetupCount": 9,
+            "reviewCount": 42
+          },
+          "score": 9.8,
+          "highlights": {
+            "name": [
+              "<em>Lisbon</em>"
+            ]
+          }
+        }
+      ],
+      "totalCount": 1,
+      "took": 12,
+      "page": 1,
+      "pageSize": 20,
+      "totalPages": 1,
+      "hasMore": false
+    },
+    "coworkings": {
+      "items": [
+        {
+          "document": {
+            "id": "cow-1",
+            "name": "Nomad Hub Lisbon",
+            "cityName": "Lisbon",
+            "address": "Rua Augusta 10",
+            "currency": "EUR",
+            "rating": 4.8,
+            "reviewCount": 27,
+            "isActive": true,
+            "verificationStatus": "verified",
+            "createdAt": "2026-05-07T10:00:00Z",
+            "updatedAt": "2026-05-07T10:00:00Z",
+            "documentType": "coworking"
+          },
+          "score": 8.9,
+          "highlights": {
+            "name": [
+              "Nomad <em>Hub</em> Lisbon"
+            ]
+          }
+        }
+      ],
+      "totalCount": 1,
+      "took": 15,
+      "page": 1,
+      "pageSize": 20,
+      "totalPages": 1,
+      "hasMore": false
+    },
+    "totalTook": 0,
+    "totalCount": 2
+  }
+}

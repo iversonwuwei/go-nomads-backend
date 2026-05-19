@@ -1,0 +1,9 @@
+*
+!bin/
+!bin/go-gateway
+!bin/go-ai-service
+!bin/go-config-service
+!bin/go-product-service
+!bin/go-cache-service
+!bin/go-search-service
+!bin/go-city-service

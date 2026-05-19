@@ -106,7 +106,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("SignalRPolicy", policy =>
     {
         policy.WithOrigins(
-                "http://localhost:3000",
+                "http://localhost:5100",
                 "http://localhost:5080",
                 "http://10.0.2.2:5080",      // Android 模拟器
                 "http://59.46.235.173:5080"  // 真机测试
@@ -132,7 +132,7 @@ builder.Services.AddOpenApi(options =>
         // 配置正确的服务器 URL
         document.Servers = new List<OpenApiServer>
         {
-            new() { Url = "http://localhost:8005", Description = "Local Development" }
+            new() { Url = "http://localhost:5205", Description = "Local Development" }
         };
         return Task.CompletedTask;
     });
@@ -172,6 +172,6 @@ app.MapHub<MeetupHub>("/hubs/meetup");
 app.MapGet("/health",
     () => Results.Ok(new { status = "healthy", service = "EventService", timestamp = DateTime.UtcNow }));
 
-Log.Information("Event Service starting on port 8005...");
+Log.Information("Event Service starting on port 5205...");
 
 app.Run();

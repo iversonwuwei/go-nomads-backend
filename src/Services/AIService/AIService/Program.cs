@@ -170,7 +170,7 @@ builder.Services.AddCors(options =>
     // SignalR 需要更宽松的 CORS 策略
     options.AddPolicy("SignalRPolicy", builder =>
     {
-        builder.WithOrigins("http://localhost:5000", "http://localhost:8009")
+        builder.WithOrigins("http://localhost:5080", "http://localhost:5209")
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials(); // SignalR 需要允许凭据
@@ -185,7 +185,7 @@ builder.Services.AddOpenApi(options =>
         // 配置正确的服务器 URL
         document.Servers = new List<OpenApiServer>
         {
-            new() { Url = "http://localhost:8009", Description = "Local Development" }
+            new() { Url = "http://localhost:5209", Description = "Local Development" }
         };
 
         // 添加 API 信息
@@ -263,10 +263,10 @@ app.MapGet("/health/ai", () =>
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     Log.Information("🤖 AI Service 启动成功!");
-    Log.Information("📊 Scalar API 文档: http://localhost:8009/scalar/v1");
-    Log.Information("🔍 健康检查: http://localhost:8009/health");
-    Log.Information("🧠 AI 健康检查: http://localhost:8009/health/ai");
-    Log.Information("📈 监控指标: http://localhost:8009/metrics");
+    Log.Information("📊 Scalar API 文档: http://localhost:5209/scalar/v1");
+    Log.Information("🔍 健康检查: http://localhost:5209/health");
+    Log.Information("🧠 AI 健康检查: http://localhost:5209/health/ai");
+    Log.Information("📈 监控指标: http://localhost:5209/metrics");
 });
 
 app.Run();

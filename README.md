@@ -35,19 +35,19 @@ Go Nomads 是一个基于 **ASP.NET Core 8.0** 的微服务架构系统,采用 *
 ┌────▼────┐    ┌────▼────┐    ┌────▼────┐
 │  User   │    │  City   │    │Coworking│
 │Service  │    │Service  │    │Service  │
-│ :8001   │    │ :8002   │    │ :8003   │
+│ :5001   │    │ :5202   │    │ :5203   │
 └─────────┘    └─────────┘    └─────────┘
 
 ┌─────────┐    ┌─────────┐    ┌─────────┐
 │ Accom.  │    │  Event  │    │Innovation│
 │Service  │    │Service  │    │Service  │
-│ :8004   │    │ :8005   │    │ :8006   │
+│ :5204   │    │ :5205   │    │ :5206   │
 └─────────┘    └─────────┘    └─────────┘
 
 ┌─────────┐    ┌─────────┐
 │ Travel  │    │Ecommerce│
 │Planning │    │Service  │
-│ :8007   │    │ :8008   │
+│ :5207   │    │ :5208   │
 └─────────┘    └─────────┘
 ```
 
@@ -135,34 +135,34 @@ docker-compose logs -f
 ### 3. 访问服务
 
 **核心服务 Swagger 文档**:
-- API Gateway: <http://localhost:5000/swagger>
-- User Service: <http://localhost:8001/swagger>
-- City Service: <http://localhost:8002/swagger>
-- Coworking Service: <http://localhost:8003/swagger>
-- Accommodation Service: <http://localhost:8004/swagger>
-- Event Service: <http://localhost:8005/swagger>
-- Innovation Service: <http://localhost:8006/swagger>
-- Travel Planning Service: <http://localhost:8007/swagger>
-- Ecommerce Service: <http://localhost:8008/swagger>
+- API Gateway: <http://localhost:5080/swagger>
+- User Service: <http://localhost:5001/swagger>
+- City Service: <http://localhost:5202/swagger>
+- Coworking Service: <http://localhost:5203/swagger>
+- Accommodation Service: <http://localhost:5204/swagger>
+- Event Service: <http://localhost:5205/swagger>
+- Innovation Service: <http://localhost:5206/swagger>
+- Travel Planning Service: <http://localhost:5207/swagger>
+- Ecommerce Service: <http://localhost:5208/swagger>
 
 **基础设施**:
-- RabbitMQ 管理: <http://localhost:15672> (admin/admin)
-- Grafana 监控: <http://localhost:3000> (admin/admin)
-- Prometheus: <http://localhost:9090>
-- Zipkin 追踪: <http://localhost:9811>
-- Elasticsearch: <http://localhost:10200>
+- RabbitMQ 管理: <http://localhost:5302> (admin/admin)
+- Grafana 监控: <http://localhost:5306> (admin/admin)
+- Prometheus: <http://localhost:5307>
+- Zipkin 追踪: <http://localhost:5308>
+- Elasticsearch: <http://localhost:5303>
 
 ### 4. 测试 API
 
 ```powershell
 # 健康检查
-curl http://localhost:8002/health
+curl http://localhost:5202/health
 
 # 获取城市列表
-curl http://localhost:8002/api/v1/cities
+curl http://localhost:5202/api/v1/cities
 
 # 搜索城市
-curl "http://localhost:8002/api/v1/cities/search?name=Bangkok"
+curl "http://localhost:5202/api/v1/cities/search?name=Bangkok"
 ```
 
 ### 5. 停止服务
@@ -220,14 +220,14 @@ go-nomads/
 | 服务 | 端口 | 状态 | 功能 |
 |------|------|------|------|
 | API Gateway | 5000 | 🔄 进行中 | 路由、认证、限流 |
-| User Service | 8001 | ✅ 已完成 | 用户管理、认证 |
-| City Service | 8002 | ✅ 已完成 | 城市信息、搜索、推荐 |
-| Coworking Service | 8003 | 🔄 开发中 | 共享办公空间 |
-| Accommodation Service | 8004 | 🔄 开发中 | 住宿管理 |
-| Event Service | 8005 | 🔄 开发中 | 活动管理 |
-| Innovation Service | 8006 | 🔄 开发中 | 创新项目 |
-| Travel Planning Service | 8007 | 🔄 开发中 | 旅行规划 |
-| Ecommerce Service | 8008 | 🔄 开发中 | 电子商务 |
+| User Service | 5001 | ✅ 已完成 | 用户管理、认证 |
+| City Service | 5202 | ✅ 已完成 | 城市信息、搜索、推荐 |
+| Coworking Service | 5203 | 🔄 开发中 | 共享办公空间 |
+| Accommodation Service | 5204 | 🔄 开发中 | 住宿管理 |
+| Event Service | 5205 | 🔄 开发中 | 活动管理 |
+| Innovation Service | 5206 | 🔄 开发中 | 创新项目 |
+| Travel Planning Service | 5207 | 🔄 开发中 | 旅行规划 |
+| Ecommerce Service | 5208 | 🔄 开发中 | 电子商务 |
 
 ---
 

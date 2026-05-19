@@ -1,0 +1,151 @@
+name: go-nomads
+
+services:
+  go-gateway:
+    build:
+      context: ./go-backend
+      dockerfile: Dockerfile.gateway
+    container_name: go-nomads-go-gateway
+    ports:
+      - "5081:5081"
+    environment:
+      - GO_GATEWAY_LISTEN_ADDRESS=:5081
+      - Jwt__Secret=${JWT_SECRET:-}
+      - Jwt__Issuer=${JWT_ISSUER:-}
+      - Jwt__Audience=${JWT_AUDIENCE:-authenticated}
+      - ServiceUrls__UserService=http://go-nomads-user-service:5001
+      - ServiceUrls__CityService=http://go-nomads-city-service:5202
+      - ServiceUrls__CoworkingService=http://go-nomads-coworking-service:5203
+      - ServiceUrls__EventService=http://go-nomads-event-service:5205
+      - ServiceUrls__AIImageService=http://go-nomads-go-ai-service:5221
+      - ServiceUrls__AIService=http://go-nomads-ai-service:5209
+      - ServiceUrls__CacheService=http://go-nomads-cache-service:5210
+      - ServiceUrls__MessageService=http://go-nomads-message-service:5005
+      - ServiceUrls__InnovationService=http://go-nomads-innovation-service:5206
+      - ServiceUrls__SearchService=http://go-nomads-search-service:5215
+      - ServiceUrls__AccommodationService=http://go-nomads-accommodation-service:5204
+      - ServiceUrls__ProductService=http://go-nomads-product-service:5002
+      - ServiceUrls__ConfigService=http://go-nomads-config-service:5213
+      - GO_GATEWAY_UPSTREAMS=${GO_GATEWAY_UPSTREAMS:-go-config-service=http://go-nomads-go-config-service:5213,go-product-service=http://go-nomads-go-product-service:5002,go-cache-service=http://go-nomads-go-cache-service:5210,go-search-service=http://go-nomads-go-search-service:5215,go-city-service=http://go-nomads-go-city-service:5202}
+      - GO_GATEWAY_ROUTE_TARGETS=${GO_GATEWAY_ROUTE_TARGETS:-/api/v1/app/config=go-config-service,/api/v1/products=go-product-service,/api/v1/cache=go-cache-service,/api/v1/search=go-search-service,/api/v1/cities/region-tabs=go-city-service}
+    networks:
+      - go-nomads-network
+
+  go-ai-service:
+    build:
+      context: ./go-backend
+      dockerfile: Dockerfile.gateway
+    container_name: go-nomads-go-ai-service
+    ports:
+      - "5221:5221"
+    environment:
+      - GO_AI_LISTEN_ADDRESS=:5221
+      - IMAGE_SIDECAR_URL=http://go-nomads-image-generation-sidecar:5222
+      - Redis__ConnectionString=go-nomads-redis:6379,abortConnect=false
+      - RabbitMQ__HostName=go-nomads-rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__UserName=walden
+      - RabbitMQ__Password=walden
+    entrypoint:
+      - /app/go-ai-service
+    networks:
+      - go-nomads-network
+
+  go-config-service:
+    build:
+      context: ./go-backend
+      dockerfile: Dockerfile.gateway
+    container_name: go-nomads-go-config-service
+    expose:
+      - "5213"
+    environment:
+      - GO_CONFIG_LISTEN_ADDRESS=:5213
+      - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING:-}
+    entrypoint:
+      - /app/go-config-service
+    networks:
+      - go-nomads-network
+
+  go-product-service:
+    build:
+      context: ./go-backend
+      dockerfile: Dockerfile.gateway
+    container_name: go-nomads-go-product-service
+    expose:
+      - "5002"
+    environment:
+      - GO_PRODUCT_LISTEN_ADDRESS=:5002
+    entrypoint:
+      - /app/go-product-service
+    networks:
+      - go-nomads-network
+
+  go-cache-service:
+    build:
+      context: ./go-backend
+      dockerfile: Dockerfile.gateway
+    container_name: go-nomads-go-cache-service
+    expose:
+      - "5210"
+    environment:
+      - GO_CACHE_LISTEN_ADDRESS=:5210
+      - GO_CACHE_DOTNET_UPSTREAM=http://go-nomads-cache-service:5210
+      - REDIS_CONNECTION_STRING=go-nomads-redis:6379,abortConnect=false
+      - ServiceUrls__CityService=http://go-nomads-city-service:5202
+      - ServiceUrls__CoworkingService=http://go-nomads-coworking-service:5203
+    entrypoint:
+      - /app/go-cache-service
+    networks:
+      - go-nomads-network
+
+  go-search-service:
+    build:
+      context: ./go-backend
+      dockerfile: Dockerfile.gateway
+    container_name: go-nomads-go-search-service
+    expose:
+      - "5215"
+    environment:
+      - GO_SEARCH_LISTEN_ADDRESS=:5215
+      - Elasticsearch__Url=http://go-nomads-elasticsearch:9200
+      - IndexSettings__CityIndex=cities
+      - IndexSettings__CoworkingIndex=coworking_spaces
+    entrypoint:
+      - /app/go-search-service
+    networks:
+      - go-nomads-network
+
+  go-city-service:
+    build:
+      context: ./go-backend
+      dockerfile: Dockerfile.gateway
+    container_name: go-nomads-go-city-service
+    expose:
+      - "5202"
+    environment:
+      - GO_CITY_LISTEN_ADDRESS=:5202
+      - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING:-}
+      - GO_CITY_DOTNET_UPSTREAM=http://go-nomads-city-service:5202
+    entrypoint:
+      - /app/go-city-service
+    networks:
+      - go-nomads-network
+
+  image-generation-sidecar:
+    build:
+      context: ./python-sidecars/image-generation
+      dockerfile: Dockerfile
+    container_name: go-nomads-image-generation-sidecar
+    ports:
+      - "5222:5222"
+    environment:
+      - IMAGE_SIDECAR_HOST=0.0.0.0
+      - IMAGE_SIDECAR_PORT=5222
+      - IMAGE_SIDECAR_PUBLIC_BASE_URL=${IMAGE_SIDECAR_PUBLIC_BASE_URL:-https://storage.local}
+      - IMAGE_SIDECAR_MAX_CITY_CONCURRENCY=${IMAGE_SIDECAR_MAX_CITY_CONCURRENCY:-3}
+    networks:
+      - go-nomads-network
+
+networks:
+  go-nomads-network:
+    external: true

@@ -15,18 +15,18 @@ public class ServiceUrlProxyConfigProvider : IProxyConfigProvider
 
     private static readonly Dictionary<string, string> DefaultServiceUrls = new()
     {
-        ["user-service"] = "http://user-service:8080",
-        ["city-service"] = "http://city-service:8080",
-        ["coworking-service"] = "http://coworking-service:8080",
-        ["event-service"] = "http://event-service:8080",
-        ["ai-service"] = "http://ai-service:8080",
-        ["cache-service"] = "http://cache-service:8080",
-        ["message-service"] = "http://message-service:8080",
-        ["innovation-service"] = "http://innovation-service:8080",
-        ["search-service"] = "http://search-service:8080",
-        ["accommodation-service"] = "http://accommodation-service:8080",
-        ["product-service"] = "http://product-service:8080",
-        ["config-service"] = "http://config-service:8080"
+        ["user-service"] = "http://user-service:5001",
+        ["city-service"] = "http://city-service:5202",
+        ["coworking-service"] = "http://coworking-service:5203",
+        ["event-service"] = "http://event-service:5205",
+        ["ai-service"] = "http://ai-service:5209",
+        ["cache-service"] = "http://cache-service:5210",
+        ["message-service"] = "http://message-service:5005",
+        ["innovation-service"] = "http://innovation-service:5206",
+        ["search-service"] = "http://search-service:5215",
+        ["accommodation-service"] = "http://accommodation-service:5204",
+        ["product-service"] = "http://product-service:5002",
+        ["config-service"] = "http://config-service:5213"
     };
 
     public ServiceUrlProxyConfigProvider(

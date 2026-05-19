@@ -117,7 +117,7 @@
           "protocol": "tcp",
           "transport": "http",
           "port": 5001,
-          "targetPort": 8080
+          "targetPort": 5001
         }
       }
     },
@@ -138,7 +138,7 @@
           "protocol": "tcp",
           "transport": "http",
           "port": 5002,
-          "targetPort": 8080
+          "targetPort": 5002
         }
       }
     },
@@ -170,7 +170,7 @@
           "protocol": "tcp",
           "transport": "http",
           "port": 5003,
-          "targetPort": 8080
+          "targetPort": 5003
         }
       }
     },
@@ -205,8 +205,8 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8002,
-          "targetPort": 8080
+          "port": 5202,
+          "targetPort": 5202
         }
       }
     },
@@ -236,8 +236,8 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8005,
-          "targetPort": 8080
+          "port": 5205,
+          "targetPort": 5205
         }
       }
     },
@@ -267,8 +267,8 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8006,
-          "targetPort": 8080
+          "port": 5203,
+          "targetPort": 5203
         }
       }
     },
@@ -299,8 +299,8 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8009,
-          "targetPort": 8080
+          "port": 5209,
+          "targetPort": 5209
         }
       }
     },
@@ -336,7 +336,7 @@
           "protocol": "tcp",
           "transport": "http",
           "port": 5005,
-          "targetPort": 8080
+          "targetPort": 5005
         }
       }
     },
@@ -361,8 +361,8 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8010,
-          "targetPort": 8080
+          "port": 5210,
+          "targetPort": 5210
         }
       }
     },
@@ -392,8 +392,8 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8011,
-          "targetPort": 8080
+          "port": 5206,
+          "targetPort": 5206
         }
       }
     },
@@ -413,8 +413,8 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8012,
-          "targetPort": 8080
+          "port": 5204,
+          "targetPort": 5204
         }
       }
     },
@@ -448,8 +448,8 @@
           "scheme": "http",
           "protocol": "tcp",
           "transport": "http",
-          "port": 8015,
-          "targetPort": 8080
+          "port": 5215,
+          "targetPort": 5215
         }
       }
     },
@@ -508,7 +508,7 @@
           "protocol": "tcp",
           "transport": "http",
           "port": 5080,
-          "targetPort": 8080
+          "targetPort": 5000
         }
       }
     },

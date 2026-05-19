@@ -1,0 +1,15 @@
+FROM scratch
+
+WORKDIR /app
+
+COPY bin/go-gateway /app/go-gateway
+COPY bin/go-ai-service /app/go-ai-service
+COPY bin/go-config-service /app/go-config-service
+COPY bin/go-product-service /app/go-product-service
+COPY bin/go-cache-service /app/go-cache-service
+COPY bin/go-search-service /app/go-search-service
+COPY bin/go-city-service /app/go-city-service
+
+EXPOSE 5081 5221 5213 5002 5210 5215 5202
+
+ENTRYPOINT ["/app/go-gateway"]

@@ -240,7 +240,7 @@ usersGroup.MapGet("/", async (
         try
         {
             var client = httpClientFactory.CreateClient("ServiceClient");
-            var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:8080";
+            var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:5001";
             var url = $"{userServiceUrl}/api/users?page={page}&pageSize={pageSize}";
 
             logger.LogInformation("Calling UserService at: {Url}", url);
@@ -273,7 +273,7 @@ usersGroup.MapGet("/{id}", async (
         try
         {
             var client = httpClientFactory.CreateClient("ServiceClient");
-            var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:8080";
+            var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:5001";
             var url = $"{userServiceUrl}/api/users/{id}";
 
             logger.LogInformation("Calling UserService at: {Url}", url);
@@ -310,7 +310,7 @@ usersGroup.MapPost("/", async (
         try
         {
             var client = httpClientFactory.CreateClient("ServiceClient");
-            var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:8080";
+            var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:5001";
             var url = $"{userServiceUrl}/api/users";
 
             using var reader = new StreamReader(request.Body);
@@ -353,7 +353,7 @@ usersGroup.MapPut("/{id}", async (
         try
         {
             var client = httpClientFactory.CreateClient("ServiceClient");
-            var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:8080";
+            var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:5001";
             var url = $"{userServiceUrl}/api/users/{id}";
 
             using var reader = new StreamReader(request.Body);
@@ -399,7 +399,7 @@ usersGroup.MapDelete("/{id}", async (
         try
         {
             var client = httpClientFactory.CreateClient("ServiceClient");
-            var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:8080";
+            var userServiceUrl = serviceConfig.UserService?.Url ?? "http://localhost:5001";
             var url = $"{userServiceUrl}/api/users/{id}";
 
             logger.LogInformation("Deleting user at: {Url}", url);
@@ -513,9 +513,9 @@ systemGroup.MapGet("/specs", async (IHttpClientFactory httpClientFactory) =>
         var client = httpClientFactory.CreateClient();
         var services = new Dictionary<string, string>
         {
-            { "gateway", "http://go-nomads-gateway:8080/openapi/v1.json" },
-            { "product-service", "http://go-nomads-product-service:8080/openapi/v1.json" },
-            { "user-service", "http://go-nomads-user-service:8080/openapi/v1.json" }
+            { "gateway", "http://go-nomads-gateway:5000/openapi/v1.json" },
+            { "product-service", "http://go-nomads-product-service:5002/openapi/v1.json" },
+            { "user-service", "http://go-nomads-user-service:5001/openapi/v1.json" }
         };
 
         var specs = new Dictionary<string, object>();

@@ -1,6 +1,7 @@
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
-EXPOSE 8080
+EXPOSE 5215
+ENV ASPNETCORE_URLS=http://+:5215
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ENV DOTNET_NUGET_SIGNATURE_VERIFICATION=false

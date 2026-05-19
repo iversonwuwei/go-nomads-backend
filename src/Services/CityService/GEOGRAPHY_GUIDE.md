@@ -62,7 +62,7 @@ cd deployment
 ### 步骤 3: 导入全球国家数据
 
 ```bash
-curl -X POST http://localhost:8002/api/v1/admin/geography/seed/countries \
+curl -X POST http://localhost:5202/api/v1/admin/geography/seed/countries \
   -H "Content-Type: application/json" \
   -d @src/Services/CityService/CityService/Data/world-countries.json
 ```
@@ -71,13 +71,13 @@ curl -X POST http://localhost:8002/api/v1/admin/geography/seed/countries \
 
 使用内置的中国省市数据：
 ```bash
-curl -X POST http://localhost:8002/api/v1/admin/geography/seed/china-default \
+curl -X POST http://localhost:5202/api/v1/admin/geography/seed/china-default \
   -H "Content-Type: application/json"
 ```
 
 或使用自定义数据：
 ```bash
-curl -X POST http://localhost:8002/api/v1/admin/geography/seed/china-provinces \
+curl -X POST http://localhost:5202/api/v1/admin/geography/seed/china-provinces \
   -H "Content-Type: application/json" \
   -d '[
     {

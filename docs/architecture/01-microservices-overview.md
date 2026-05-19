@@ -60,8 +60,8 @@
     ┌─────────▼─────────┐          ┌─────────▼─────────┐          ┌──────────▼──────────┐
     │  Core Services    │          │  Infrastructure   │          │  Support Services   │
     │  (8 services)     │          │  Services         │          │  (Config/Registry)  │
-    │  :8001-:8008      │          │  (6 services)     │          │                     │
-    │                   │          │  :9001-:9006      │          │                     │
+    │  :5001-:5208      │          │  (4 services)     │          │                     │
+    │                   │          │  :5209-:5215      │          │                     │
     └─────────┬─────────┘          └─────────┬─────────┘          └──────────┬──────────┘
               │                              │                                │
               └──────────────────────────────┼────────────────────────────────┘
@@ -82,32 +82,33 @@
 
 | 服务名称 | 端口 | 技术栈 | 状态 | 数据库 | 说明 |
 |---------|------|--------|------|--------|------|
-| User Service | 8001 | C# + ASP.NET | ✅ 已实现 | PostgreSQL | 用户认证、资料管理 |
-| City Service | 8002 | C# + ASP.NET | 🟡 规划中 | PostgreSQL + PostGIS | 城市信息、地理位置 |
-| Coworking Service | 8003 | C# + ASP.NET | 🟡 规划中 | PostgreSQL | 共享办公空间 |
-| Accommodation Service | 8004 | C# + ASP.NET | 🟡 规划中 | PostgreSQL | 酒店民宿 |
-| Event Service | 8005 | C# + ASP.NET | 🟡 规划中 | PostgreSQL | 活动管理 |
-| Innovation Service | 8006 | C# + ASP.NET | 🟡 规划中 | PostgreSQL | 创新项目 |
-| Travel Service | 8007 | C# + ASP.NET | 🟡 规划中 | PostgreSQL | 旅行规划 |
-| Commerce Service | 8008 | C# + ASP.NET | 🟡 规划中 | PostgreSQL | 电商 |
+| User Service | 5001 | C# + ASP.NET | ✅ 已实现 | PostgreSQL | 用户认证、资料管理 |
+| Product Service | 5002 | C# + ASP.NET | ✅ 已实现 | PostgreSQL | 商品与产品目录 |
+| Document Service | 5003 | C# + ASP.NET | ✅ 已实现 | PostgreSQL | 文档管理 |
+| Message Service | 5005 | C# + ASP.NET | ✅ 已实现 | PostgreSQL / RabbitMQ | 消息与会话 |
+| City Service | 5202 | C# + ASP.NET | ✅ 已实现 | PostgreSQL + PostGIS | 城市信息、地理位置 |
+| Coworking Service | 5203 | C# + ASP.NET | ✅ 已实现 | PostgreSQL | 共享办公空间 |
+| Accommodation Service | 5204 | C# + ASP.NET | ✅ 已实现 | PostgreSQL | 酒店民宿 |
+| Event Service | 5205 | C# + ASP.NET | ✅ 已实现 | PostgreSQL | 活动管理 |
+| Innovation Service | 5206 | C# + ASP.NET | ✅ 已实现 | PostgreSQL | 创新项目 |
+| Travel Planning Service | 5207 | C# + ASP.NET | 🟡 规划中 | PostgreSQL | 旅行规划 |
+| Ecommerce Service | 5208 | C# + ASP.NET | 🟡 规划中 | PostgreSQL | 电商 |
 
 ### 基础服务 (Infrastructure Services)
 
 | 服务名称 | 端口 | 技术栈 | 状态 | 数据库 | 说明 |
 |---------|------|--------|------|--------|------|
-| Location Service | 9001 | Node.js + PostGIS | 🟡 规划中 | PostgreSQL | 定位、地理服务 |
-| Notification Service | 9002 | C# + SignalR | 🟡 规划中 | Redis | 推送通知 |
-| File Service | 9003 | C# + MinIO | 🟡 规划中 | PostgreSQL | 文件存储 |
-| Search Service | 9004 | C# + Elasticsearch | 🟡 规划中 | Elasticsearch | 全文搜索 |
-| Payment Service | 9005 | C# + ASP.NET | 🟡 规划中 | PostgreSQL | 支付集成 |
-| i18n Service | 9006 | C# + ASP.NET | 🟡 规划中 | Redis | 国际化 |
+| AI Service | 5209 | C# + ASP.NET | ✅ 已实现 | PostgreSQL / Redis | AI 文本与图片任务 |
+| Cache Service | 5210 | C# + ASP.NET | ✅ 已实现 | Redis | 应用缓存 |
+| Config Service | 5213 | C# + ASP.NET | ✅ 已实现 | PostgreSQL | 配置中心 |
+| Search Service | 5215 | C# + Elasticsearch | ✅ 已实现 | Elasticsearch | 全文搜索 |
 
 ### 支撑服务 (Support Services)
 
 | 服务名称 | 端口 | 技术栈 | 状态 | 说明 |
 |---------|------|--------|------|------|
 | API Gateway | 5000 | C# + Ocelot/YARP | ✅ 已实现 | 路由、认证、限流 |
-| Config Service | 8888 | Azure App Configuration / Nacos | 🔵 待部署 | 配置中心 |
+| Config Service | 5213 | C# + ASP.NET | ✅ 已实现 | 配置中心 |
 | Registry / Discovery | - | Aspire Service Discovery | ✅ 已采用 | 服务发现 |
 
 ---
@@ -277,12 +278,12 @@ Seq/ELK:
 docker-compose up
 
 服务列表:
-- gateway: http://localhost:5000
-- user-service: http://localhost:8001
-- city-service: http://localhost:8002
+- gateway: http://localhost:5080
+- user-service: http://localhost:5001
+- city-service: http://localhost:5202
 - ...
-- postgres: localhost:5432
-- redis: localhost:6379
+- postgres: localhost:5307
+- redis: localhost:5300
 - service discovery: Aspire AppHost managed
 ```
 

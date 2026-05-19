@@ -160,15 +160,15 @@ function Main {
     Write-Host "  User Service:          http://localhost:5001" -ForegroundColor Green
     Write-Host "  Product Service:       http://localhost:5002" -ForegroundColor Green
     Write-Host "  Document Service:      http://localhost:5003" -ForegroundColor Green
-    Write-Host "  City Service:          http://localhost:8002" -ForegroundColor Green
-    Write-Host "  Event Service:         http://localhost:8005" -ForegroundColor Green
-    Write-Host "  Coworking Service:     http://localhost:8006" -ForegroundColor Green
-    Write-Host "  AI Service:            http://localhost:8009" -ForegroundColor Green
-    Write-Host "  Cache Service:         http://localhost:8010" -ForegroundColor Green
+    Write-Host "  City Service:          http://localhost:5202" -ForegroundColor Green
+    Write-Host "  Event Service:         http://localhost:5205" -ForegroundColor Green
+    Write-Host "  Coworking Service:     http://localhost:5203" -ForegroundColor Green
+    Write-Host "  AI Service:            http://localhost:5209" -ForegroundColor Green
+    Write-Host "  Cache Service:         http://localhost:5210" -ForegroundColor Green
     Write-Host "  Message Service:       http://localhost:5005" -ForegroundColor Green
-    Write-Host "  Accommodation Service: http://localhost:8012" -ForegroundColor Green
-    Write-Host "  Innovation Service:    http://localhost:8011" -ForegroundColor Green
-    Write-Host "  Search Service:        http://localhost:8015" -ForegroundColor Green
+    Write-Host "  Accommodation Service: http://localhost:5204" -ForegroundColor Green
+    Write-Host "  Innovation Service:    http://localhost:5206" -ForegroundColor Green
+    Write-Host "  Search Service:        http://localhost:5215" -ForegroundColor Green
     Write-Host ""
     Write-Host "常用命令:" -ForegroundColor Blue
     Write-Host "  查看运行中的容器:  docker compose -f docker-compose.yml ps" -ForegroundColor Yellow
